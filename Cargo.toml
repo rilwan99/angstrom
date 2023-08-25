@@ -1,0 +1,119 @@
+[workspace]
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.70"
+license = "MIT OR Apache-2.0"
+homepage = "https://github.com/SorellaLabs/stale-guard"
+repository = "https://github.com/SorellaLabs/stale-guard"
+exclude = [".github/"]
+
+resolver = "2"
+
+[package]
+name = "stale-guard"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+
+[profile.release]
+lto = "fat"
+opt-level = 3
+codegen-units = 15
+
+[profile.maxperf]
+inherits = "release"
+lto = "fat"
+codegen-units = 1
+incremental = false
+
+[dependencies]
+workspace.tokio = true
+workspace.futures = true
+workspace.thiserror = true
+
+[patch.crates-io]
+revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
+revm-primitives = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
+
+[workspace.dependencies]
+## reth
+
+# revm = { version = "3" }
+# revm-primitives = "1.1"
+# reth = { path = "./bin/reth" }
+# reth-primitives = { path = "./crates/primitives" }
+# reth-interfaces = { path = "./crates/interfaces" }
+# reth-provider = { path = "./crates/storage/provider" }
+# reth-db = { path = "./crates/storage/db" }
+# reth-rlp = { path = "./crates/rlp" }
+# reth-rpc-types = { path = "./crates/rpc/rpc-types" }
+# reth-rpc-builder = { path = "./crates/rpc/rpc-builder" }
+# reth-blockchain-tree = { path = "./crates/blockchain-tree" }
+# reth-beacon-consensus = { path = "./crates/consensus/beacon" }
+# reth-metrics = { path = "./crates/metrics" }
+# reth-revm = { path = "./crates/revm" }
+# reth-payload-builder = { path = "./crates/payload/builder" }
+# reth-transaction-pool = { path = "./crates/transaction-pool" }
+# reth-tasks = { path = "./crates/tasks" }
+# reth-network = { path = "./crates/net/network" }
+# reth-network-api = { path = "./crates/net/network-api" }
+# reth-rpc-types-compat = { path = "./crates/rpc/rpc-types-compat"}
+#
+ethers-core = { version = "2.0", default-features = false }
+ethers-providers = { version = "2.0", default-features = false }
+ethers-signers = { version = "2.0", default-features = false }
+ethers-middleware = { version = "2.0", default-features = false }
+
+## misc
+bytes = "1.4"
+bitflags = "2.3"
+tracing = "0.1.0"
+tracing-appender = "0.2"
+thiserror = "1.0"
+serde_json = "1.0.94"
+serde = { version = "1.0", default-features = false }
+rand = "0.8.5"
+strum = "0.25"
+rayon = "1.7"
+itertools = "0.11"
+parking_lot = "0.12"
+metrics = "0.21.1"                                    # Needed for `metrics-macro` to resolve the crate using `::metrics` notation
+
+### proc-macros
+proc-macro2 = "1.0"
+quote = "1.0"
+
+## tokio
+tokio-stream = "0.1.11"
+tokio = { version = "1.21", default-features = false }
+tokio-util = { version = "0.7.4", features = ["codec"] }
+
+## async
+async-trait = "0.1.68"
+futures = "0.3.26"
+pin-project = "1.0.12"
+futures-util = "0.3.25"
+
+## json
+jsonrpsee = { version = "0.20" }
+jsonrpsee-core = { version = "0.20" }
+jsonrpsee-types = { version = "0.20" }
+
+## crypto
+secp256k1 = { version = "0.27.0", default-features = false, features = [
+  "global-context",
+  "rand-std",
+  "recovery",
+] }
+enr = { version = "0.9", default-features = false, features = ["k256"] }
+# for eip-4844
+c-kzg = { git = "https://github.com/ethereum/c-kzg-4844" }
+
+### misc-testing
+proptest = "1.0"
+arbitrary = "1.1"
