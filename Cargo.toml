@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/*"]
+members = ["crates/net", "crates/reth_net/network", "crates/reth_net/discv4"]
 
 [workspace.package]
 version = "0.1.0"
@@ -10,15 +10,12 @@ homepage = "https://github.com/SorellaLabs/stale-guard"
 repository = "https://github.com/SorellaLabs/stale-guard"
 exclude = [".github/"]
 
-resolver = "2"
 
 [package]
 name = "stale-guard"
 version.workspace = true
 edition.workspace = true
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 
 [profile.release]
 lto = "fat"
@@ -43,10 +40,24 @@ revm-primitives = { git = "https://github.com/bluealloy/revm/", branch = "releas
 [workspace.dependencies]
 revm = { version = "3" }
 revm-primitives = "1.1"
+
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-interfaces = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-rlp = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-rpc-builder = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-blockchain-tree = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-beacon-consensus = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-metrics = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-revm = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-payload-builder = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-tasks = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-network = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-network-api = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 
 ethers-core = { version = "2.0", default-features = false }
 ethers-providers = { version = "2.0", default-features = false }

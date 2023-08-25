@@ -47,7 +47,7 @@ serde = { workspace = true, optional = true }
 [dev-dependencies]
 rand.workspace = true
 tokio = { workspace = true, features = ["macros"] }
-reth-tracing = { path = "../../tracing" }
+reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 
 [features]
 default = ["serde"]
