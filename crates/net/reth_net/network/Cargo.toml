@@ -12,22 +12,23 @@ Ethereum network support
 
 [package.metadata.cargo-udeps.ignore]
 normal = [
-    # Used for diagrams in docs
-    "aquamarine",
+  # Used for diagrams in docs
+  "aquamarine",
 ]
 
 [dependencies]
 # reth
 reth-interfaces.workspace = true
 reth-primitives.workspace = true
-reth-net-common = { path = "../common" }
+reth-net-common = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-network-api.workspace = true
+
 reth-discv4 = { path = "../discv4" }
-reth-dns-discovery = { path = "../dns" }
-reth-eth-wire = { path = "../eth-wire" }
-reth-ecies = { path = "../ecies" }
+reth-dns-discovery = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-eth-wire = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-ecies = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-rlp.workspace = true
-reth-rlp-derive = { path = "../../rlp/rlp-derive" }
+reth-rlp-derive = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-tasks.workspace = true
 reth-transaction-pool.workspace = true
 reth-provider.workspace = true
@@ -36,7 +37,13 @@ reth-rpc-types.workspace = true
 # async/futures
 futures.workspace = true
 pin-project.workspace = true
-tokio = { workspace = true, features = ["io-util", "net", "macros", "rt-multi-thread", "time"] }
+tokio = { workspace = true, features = [
+  "io-util",
+  "net",
+  "macros",
+  "rt-multi-thread",
+  "time",
+] }
 tokio-stream.workspace = true
 tokio-util = { workspace = true, features = ["codec"] }
 
@@ -60,7 +67,11 @@ async-trait.workspace = true
 linked_hash_set = "0.1"
 linked-hash-map = "0.5.6"
 rand.workspace = true
-secp256k1 = { workspace = true, features = ["global-context", "rand-std", "recovery"] }
+secp256k1 = { workspace = true, features = [
+  "global-context",
+  "rand-std",
+  "recovery",
+] }
 
 enr = { workspace = true, features = ["rust-secp256k1"], optional = true }
 ethers-core = { workspace = true, default-features = false, optional = true }
@@ -80,7 +91,9 @@ reth-tracing = { path = "../../tracing" }
 reth-transaction-pool = { workspace = true, features = ["test-utils"] }
 
 ethers-core = { workspace = true, default-features = false }
-ethers-providers = { workspace = true, default-features = false, features = ["ws"] }
+ethers-providers = { workspace = true, default-features = false, features = [
+  "ws",
+] }
 ethers-signers = { workspace = true, default-features = false }
 ethers-middleware = { workspace = true, default-features = false }
 
@@ -93,6 +106,17 @@ serial_test = "2.0"
 
 [features]
 default = ["serde"]
-serde = ["dep:serde", "dep:humantime-serde", "secp256k1/serde", "enr?/serde", "dep:serde_json"]
-test-utils = ["reth-provider/test-utils", "dep:enr", "dep:ethers-core", "dep:tempfile"]
+serde = [
+  "dep:serde",
+  "dep:humantime-serde",
+  "secp256k1/serde",
+  "enr?/serde",
+  "dep:serde_json",
+]
+test-utils = [
+  "reth-provider/test-utils",
+  "dep:enr",
+  "dep:ethers-core",
+  "dep:tempfile",
+]
 geth-tests = []

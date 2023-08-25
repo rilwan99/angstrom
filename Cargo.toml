@@ -43,11 +43,10 @@ revm-primitives = { git = "https://github.com/bluealloy/revm/", branch = "releas
 [workspace.dependencies]
 revm = { version = "3" }
 revm-primitives = "1.1"
-reth-primitives = { path = "./crates/net/primitives" }
-reth-rlp = { path = "./crates/net/rlp" }
-reth-tasks = { path = "./crates/tasks" }
-reth-network = { path = "./crates/net/reth_net/network" }
-reth-network-api = { path = "./crates/net/reth_net/network-api" }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-rlp = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-tasks = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-network-api = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 
 ethers-core = { version = "2.0", default-features = false }
 ethers-providers = { version = "2.0", default-features = false }
