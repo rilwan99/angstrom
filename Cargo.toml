@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/net", "crates/reth_net/network", "crates/reth_net/discv4"]
+members = ["crates/net/network", "crates/net/discv4"]
 
 [workspace.package]
 version = "0.1.0"
