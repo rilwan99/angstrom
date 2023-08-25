@@ -14,8 +14,8 @@ resolver = "2"
 
 [package]
 name = "stale-guard"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -41,29 +41,6 @@ revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
 revm-primitives = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
 
 [workspace.dependencies]
-## reth
-
-# revm = { version = "3" }
-# revm-primitives = "1.1"
-# reth = { path = "./bin/reth" }
-# reth-primitives = { path = "./crates/primitives" }
-# reth-interfaces = { path = "./crates/interfaces" }
-# reth-provider = { path = "./crates/storage/provider" }
-# reth-db = { path = "./crates/storage/db" }
-# reth-rlp = { path = "./crates/rlp" }
-# reth-rpc-types = { path = "./crates/rpc/rpc-types" }
-# reth-rpc-builder = { path = "./crates/rpc/rpc-builder" }
-# reth-blockchain-tree = { path = "./crates/blockchain-tree" }
-# reth-beacon-consensus = { path = "./crates/consensus/beacon" }
-# reth-metrics = { path = "./crates/metrics" }
-# reth-revm = { path = "./crates/revm" }
-# reth-payload-builder = { path = "./crates/payload/builder" }
-# reth-transaction-pool = { path = "./crates/transaction-pool" }
-# reth-tasks = { path = "./crates/tasks" }
-# reth-network = { path = "./crates/net/network" }
-# reth-network-api = { path = "./crates/net/network-api" }
-# reth-rpc-types-compat = { path = "./crates/rpc/rpc-types-compat"}
-#
 ethers-core = { version = "2.0", default-features = false }
 ethers-providers = { version = "2.0", default-features = false }
 ethers-signers = { version = "2.0", default-features = false }
