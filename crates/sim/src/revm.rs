@@ -1,19 +1,22 @@
-use std::sync::mpsc::Sender;
 use ethers_core::types::transaction::eip712::EIP712Domain;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::{mpsc::UnboundedSender, oneshot::Sender};
 use crate::{Simulator, sim::SimResult};
+use eyre::Result;
 
 /// clone-able handle to the simulator
 #[derive(Clone)]
 pub struct RevmClient {
-    // some sort of handle to threadpool executor wrapped
-    // in async
-    sender: UnboundedSender<TransactionType>
+    transaction_tx: UnboundedSender<TransactionType>
 }
 
-impl Simulator for RevmClient {}
-
 pub struct Revm {
+}
+
+#[async_trait::async_trait]
+impl Simulator for RevmClient {
+    async fn run_sim(&self, transaction: EIP712Domain, tx: Sender<SimResult>) -> () {
+        todo!()
+    }
 }
 
 
