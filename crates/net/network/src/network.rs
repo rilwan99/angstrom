@@ -1,21 +1,19 @@
 use crate::{
-    config::NetworkMode, discovery::DiscoveryEvent, manager::NetworkEvent, message::PeerRequest,
-    peers::PeersHandle, session::PeerInfo, FetchClient,
+    discovery::DiscoveryEvent,
+    peers::PeersHandle, swarm::NetworkEvent,
 };
 use async_trait::async_trait;
 use parking_lot::Mutex;
-use reth_eth_wire::{DisconnectReason, NewBlock, NewPooledTransactionHashes, SharedTransactions};
-use reth_interfaces::sync::{NetworkSyncUpdater, SyncState, SyncStateProvider};
+use reth_eth_wire::DisconnectReason;
 use reth_net_common::bandwidth_meter::BandwidthMeter;
 use reth_network_api::{
-    NetworkError, NetworkInfo, PeerKind, Peers, PeersInfo, Reputation, ReputationChangeKind,
+    NetworkError, PeerKind, Peers, PeersInfo, Reputation, ReputationChangeKind,
 };
-use reth_primitives::{Head, NodeRecord, PeerId, TransactionSigned, H256};
-use reth_rpc_types::NetworkStatus;
+use reth_primitives::{NodeRecord, PeerId};
 use std::{
     net::SocketAddr,
     sync::{
-        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
 };
@@ -42,9 +40,7 @@ impl NetworkHandle {
         to_manager_tx: UnboundedSender<NetworkHandleMessage>,
         local_peer_id: PeerId,
         peers: PeersHandle,
-        network_mode: NetworkMode,
         bandwidth_meter: BandwidthMeter,
-        chain_id: Arc<AtomicU64>,
     ) -> Self {
         let inner = NetworkInner {
             num_active_peers,
@@ -52,11 +48,9 @@ impl NetworkHandle {
             listener_address,
             local_peer_id,
             peers,
-            network_mode,
             bandwidth_meter,
             is_syncing: Arc::new(AtomicBool::new(false)),
             initial_sync_done: Arc::new(AtomicBool::new(false)),
-            chain_id,
         };
         Self { inner: Arc::new(inner) }
     }
@@ -93,73 +87,12 @@ impl NetworkHandle {
         UnboundedReceiverStream::new(rx)
     }
 
-    /// Returns a new [`FetchClient`] that can be cloned and shared.
-    ///
-    /// The [`FetchClient`] is the entrypoint for sending requests to the network.
-    pub async fn fetch_client(&self) -> Result<FetchClient, oneshot::error::RecvError> {
-        let (tx, rx) = oneshot::channel();
-        let _ = self.manager().send(NetworkHandleMessage::FetchClient(tx));
-        rx.await
-    }
-
-    /// Returns [`PeerInfo`] for all connected peers
-    pub async fn get_peers(&self) -> Result<Vec<PeerInfo>, oneshot::error::RecvError> {
-        let (tx, rx) = oneshot::channel();
-        let _ = self.manager().send(NetworkHandleMessage::GetPeerInfo(tx));
-        rx.await
-    }
-
-    /// Returns [`PeerInfo`] for a given peer.
-    ///
-    /// Returns `None` if there's no active session to the peer.
-    pub async fn get_peer_by_id(
-        &self,
-        peer_id: PeerId,
-    ) -> Result<Option<PeerInfo>, oneshot::error::RecvError> {
-        let (tx, rx) = oneshot::channel();
-        let _ = self.manager().send(NetworkHandleMessage::GetPeerInfoById(peer_id, tx));
-        rx.await
-    }
-
-    /// Returns the mode of the network, either pow, or pos
-    pub fn mode(&self) -> &NetworkMode {
-        &self.inner.network_mode
-    }
 
     /// Sends a [`NetworkHandleMessage`] to the manager
     pub(crate) fn send_message(&self, msg: NetworkHandleMessage) {
         let _ = self.inner.to_manager_tx.send(msg);
     }
 
-    /// Update the status of the node.
-    pub fn update_status(&self, head: Head) {
-        self.send_message(NetworkHandleMessage::StatusUpdate { head });
-    }
-
-    /// Announce a block over devp2p
-    ///
-    /// Caution: in PoS this is a noop, since new block propagation will happen over devp2p
-    pub fn announce_block(&self, block: NewBlock, hash: H256) {
-        self.send_message(NetworkHandleMessage::AnnounceBlock(block, hash))
-    }
-
-    /// Sends a [`PeerRequest`] to the given peer's session.
-    pub fn send_request(&self, peer_id: PeerId, request: PeerRequest) {
-        self.send_message(NetworkHandleMessage::EthRequest { peer_id, request })
-    }
-
-    /// Send transactions hashes to the peer.
-    pub fn send_transactions_hashes(&self, peer_id: PeerId, msg: NewPooledTransactionHashes) {
-        self.send_message(NetworkHandleMessage::SendPooledTransactionHashes { peer_id, msg })
-    }
-
-    /// Send full transactions to the peer
-    pub fn send_transactions(&self, peer_id: PeerId, msg: Vec<Arc<TransactionSigned>>) {
-        self.send_message(NetworkHandleMessage::SendTransaction {
-            peer_id,
-            msg: SharedTransactions(msg),
-        })
-    }
 
     /// Provides a shareable reference to the [`BandwidthMeter`] stored on the [`NetworkInner`]
     pub fn bandwidth_meter(&self) -> &BandwidthMeter {
@@ -239,59 +172,6 @@ impl Peers for NetworkHandle {
     }
 }
 
-#[async_trait]
-impl NetworkInfo for NetworkHandle {
-    fn local_addr(&self) -> SocketAddr {
-        *self.inner.listener_address.lock()
-    }
-
-    async fn network_status(&self) -> Result<NetworkStatus, NetworkError> {
-        let (tx, rx) = oneshot::channel();
-        let _ = self.manager().send(NetworkHandleMessage::GetStatus(tx));
-        rx.await.map_err(Into::into)
-    }
-
-    fn chain_id(&self) -> u64 {
-        self.inner.chain_id.load(Ordering::Relaxed)
-    }
-
-    fn is_syncing(&self) -> bool {
-        SyncStateProvider::is_syncing(self)
-    }
-
-    fn is_initially_syncing(&self) -> bool {
-        SyncStateProvider::is_initially_syncing(self)
-    }
-}
-
-impl SyncStateProvider for NetworkHandle {
-    fn is_syncing(&self) -> bool {
-        self.inner.is_syncing.load(Ordering::Relaxed)
-    }
-    // used to guard the txpool
-    fn is_initially_syncing(&self) -> bool {
-        if self.inner.initial_sync_done.load(Ordering::Relaxed) {
-            return false
-        }
-        self.inner.is_syncing.load(Ordering::Relaxed)
-    }
-}
-
-impl NetworkSyncUpdater for NetworkHandle {
-    fn update_sync_state(&self, state: SyncState) {
-        let future_state = state.is_syncing();
-        let prev_state = self.inner.is_syncing.swap(future_state, Ordering::Relaxed);
-        let syncing_to_idle_state_transition = prev_state && !future_state;
-        if syncing_to_idle_state_transition {
-            self.inner.initial_sync_done.store(true, Ordering::Relaxed);
-        }
-    }
-
-    /// Update the status of the node.
-    fn update_status(&self, head: Head) {
-        self.send_message(NetworkHandleMessage::StatusUpdate { head });
-    }
-}
 
 #[derive(Debug)]
 struct NetworkInner {
@@ -305,16 +185,12 @@ struct NetworkInner {
     local_peer_id: PeerId,
     /// Access to the all the nodes.
     peers: PeersHandle,
-    /// The mode of the network
-    network_mode: NetworkMode,
     /// Used to measure inbound & outbound bandwidth across network streams (currently unused)
     bandwidth_meter: BandwidthMeter,
     /// Represents if the network is currently syncing.
     is_syncing: Arc<AtomicBool>,
     /// Used to differentiate between an initial pipeline sync or a live sync
     initial_sync_done: Arc<AtomicBool>,
-    /// The chain id
-    chain_id: Arc<AtomicU64>,
 }
 
 /// Internal messages that can be passed to the  [`NetworkManager`](crate::NetworkManager).
@@ -328,31 +204,8 @@ pub(crate) enum NetworkHandleMessage {
     DisconnectPeer(PeerId, Option<DisconnectReason>),
     /// Add a new listener for [`NetworkEvent`].
     EventListener(UnboundedSender<NetworkEvent>),
-    /// Broadcast event to announce a new block to all nodes.
-    AnnounceBlock(NewBlock, H256),
-    /// Sends the list of transactions to the given peer.
-    SendTransaction { peer_id: PeerId, msg: SharedTransactions },
-    /// Sends the list of transactions hashes to the given peer.
-    SendPooledTransactionHashes { peer_id: PeerId, msg: NewPooledTransactionHashes },
-    /// Send an `eth` protocol request to the peer.
-    EthRequest {
-        /// The peer to send the request to.
-        peer_id: PeerId,
-        /// The request to send to the peer's sessions.
-        request: PeerRequest,
-    },
     /// Apply a reputation change to the given peer.
     ReputationChange(PeerId, ReputationChangeKind),
-    /// Returns the client that can be used to interact with the network.
-    FetchClient(oneshot::Sender<FetchClient>),
-    /// Apply a status update.
-    StatusUpdate { head: Head },
-    /// Get the current status
-    GetStatus(oneshot::Sender<NetworkStatus>),
-    /// Get PeerInfo from all the peers
-    GetPeerInfo(oneshot::Sender<Vec<PeerInfo>>),
-    /// Get PeerInfo for a specific peer
-    GetPeerInfoById(PeerId, oneshot::Sender<Option<PeerInfo>>),
     /// Get the reputation for a specific peer
     GetReputationById(PeerId, oneshot::Sender<Option<Reputation>>),
     /// Gracefully shutdown network

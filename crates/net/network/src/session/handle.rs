@@ -1,6 +1,5 @@
 //! Session handles
 use crate::{
-    message::PeerMessage,
     session::{Direction, SessionId},
 };
 use reth_ecies::{stream::ECIESStream, ECIESError};
@@ -220,8 +219,6 @@ pub enum SessionCommand {
         /// Why the disconnect was initiated
         reason: Option<DisconnectReason>,
     },
-    /// Sends a message to the peer
-    Message(PeerMessage),
 }
 
 /// Message variants an active session can produce and send back to the
@@ -243,13 +240,6 @@ pub enum ActiveSessionMessage {
         remote_addr: SocketAddr,
         /// The error that caused the session to close
         error: EthStreamError,
-    },
-    /// A session received a valid message via RLPx.
-    ValidMessage {
-        /// Identifier of the remote peer.
-        peer_id: PeerId,
-        /// Message received from the peer.
-        message: PeerMessage,
     },
     /// Received a message that does not match the announced capabilities of the peer.
     #[allow(unused)]

@@ -1,9 +1,6 @@
 //! Discovery support for the network.
 
-use crate::{
-    error::{NetworkError, ServiceKind},
-    manager::DiscoveredEvent,
-};
+use crate::{error::{NetworkError, ServiceKind}, swarm::DiscoveredEvent};
 use futures::StreamExt;
 use reth_discv4::{DiscoveryUpdate, Discv4, Discv4Config, EnrForkIdEntry};
 use reth_dns_discovery::{
