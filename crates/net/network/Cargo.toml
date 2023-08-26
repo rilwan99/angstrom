@@ -1,5 +1,5 @@
 [package]
-name = "reth-network"
+name = "guard-network"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -87,7 +87,7 @@ reth-interfaces = { workspace = true, features = ["test-utils"] }
 
 # we need to enable the test-utils feature in our own crate to use utils in
 # integration tests
-reth-network = { path = ".", features = ["test-utils"] }
+guard-network = { path = ".", features = ["test-utils"] }
 
 reth-provider = { workspace = true, features = ["test-utils"] }
 reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }

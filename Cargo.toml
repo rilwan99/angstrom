@@ -1,5 +1,10 @@
 [workspace]
-members = ["crates/net/network", "crates/net/discv4"]
+members = [
+  "crates/net/network",
+  "crates/net/discv4",
+  "crates/leader",
+  "crates/sim",
+]
 
 [workspace.package]
 version = "0.1.0"
@@ -10,12 +15,10 @@ homepage = "https://github.com/SorellaLabs/stale-guard"
 repository = "https://github.com/SorellaLabs/stale-guard"
 exclude = [".github/"]
 
-
 [package]
 name = "stale-guard"
 version.workspace = true
 edition.workspace = true
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [profile.release]
 lto = "fat"
@@ -32,6 +35,14 @@ incremental = false
 workspace.tokio = true
 workspace.futures = true
 workspace.thiserror = true
+workspace.reth-network = true
+reth-primitives.workspace = true
+ethers-providers.workspace = true
+ethers-signers.workspace = true
+ethers-middleware.workspace = true
+
+guard-network = { path = "./crates/net/network/" }
+leader = { path = "./crates/leader/" }
 
 [patch.crates-io]
 revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
