@@ -1,10 +1,8 @@
 //! Support for handling peer sessions.
 use crate::{
-    message::PeerMessage,
     metrics::SessionManagerMetrics,
     session::{active::ActiveSession, config::SessionCounter},
 };
-pub use crate::{message::PeerRequestSender, session::handle::PeerInfo};
 use fnv::FnvHashMap;
 use futures::{future::Either, io, FutureExt, StreamExt};
 use reth_ecies::{stream::ECIESStream, ECIESError};
@@ -45,6 +43,8 @@ pub use handle::{
     ActiveSessionHandle, ActiveSessionMessage, PendingSessionEvent, PendingSessionHandle,
     SessionCommand,
 };
+
+use self::handle::PeerInfo;
 
 /// Internal identifier for active sessions.
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq, Eq, Hash)]
@@ -307,13 +307,6 @@ impl SessionManager {
         }
     }
 
-    /// Sends a message to the peer's session
-    pub fn send_message(&mut self, peer_id: &PeerId, msg: PeerMessage) {
-        if let Some(session) = self.active_sessions.get_mut(peer_id) {
-            let _ = session.commands_to_session.try_send(SessionCommand::Message(msg));
-        }
-    }
-
     /// Removes the [`PendingSessionHandle`] if it exists.
     fn remove_pending_session(&mut self, id: &SessionId) -> Option<PendingSessionHandle> {
         let session = self.pending_sessions.remove(id)?;
@@ -361,9 +354,6 @@ impl SessionManager {
                             peer_id,
                             error,
                         })
-                    }
-                    ActiveSessionMessage::ValidMessage { peer_id, message } => {
-                        Poll::Ready(SessionEvent::ValidMessage { peer_id, message })
                     }
                     ActiveSessionMessage::InvalidMessage { peer_id, capabilities, message } => {
                         Poll::Ready(SessionEvent::InvalidMessage { peer_id, message, capabilities })
@@ -424,9 +414,6 @@ impl SessionManager {
 
                 let (commands_to_session, commands_rx) = mpsc::channel(self.session_command_buffer);
 
-                let (to_session_tx, messages_rx) = mpsc::channel(self.session_command_buffer);
-
-                let messages = PeerRequestSender::new(peer_id, to_session_tx);
 
                 let timeout = Arc::new(AtomicU64::new(
                     self.initial_internal_request_timeout.as_millis() as u64,
@@ -444,7 +431,6 @@ impl SessionManager {
                     commands_rx: ReceiverStream::new(commands_rx),
                     to_session_manager: self.active_session_tx.clone(),
                     pending_message_to_session: None,
-                    internal_request_tx: ReceiverStream::new(messages_rx).fuse(),
                     inflight_requests: Default::default(),
                     conn,
                     queued_outgoing: Default::default(),
@@ -485,7 +471,6 @@ impl SessionManager {
                     version,
                     capabilities,
                     status,
-                    messages,
                     direction,
                     timeout,
                 })
@@ -608,8 +593,6 @@ pub enum SessionEvent {
         version: EthVersion,
         /// The Status message the peer sent during the `eth` handshake
         status: Status,
-        /// The channel for sending messages to the peer with the session
-        messages: PeerRequestSender,
         /// The direction of the session, either `Inbound` or `Outgoing`
         direction: Direction,
         /// The maximum time that the session waits for a response from the peer before timing out
@@ -624,13 +607,6 @@ pub enum SessionEvent {
         remote_addr: SocketAddr,
         /// The direction of the session, either `Inbound` or `Outgoing`
         direction: Direction,
-    },
-    /// A session received a valid message via RLPx.
-    ValidMessage {
-        /// The remote node's public key
-        peer_id: PeerId,
-        /// Message received from the peer.
-        message: PeerMessage,
     },
     /// Received a message that does not match the announced capabilities of the peer.
     InvalidMessage {

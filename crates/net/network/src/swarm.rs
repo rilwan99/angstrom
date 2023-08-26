@@ -1,12 +1,10 @@
 use crate::{
     listener::{ConnectionListener, ListenerEvent},
-    message::{PeerMessage, PeerRequestSender},
     peers::{InboundConnectionError, PeersManager, PeersHandle},
     session::{Direction, PendingSessionHandshakeError, SessionEvent, SessionId, SessionManager},
     state::{NetworkState, StateAction}, NetworkConfig, error::{NetworkError, ServiceKind}, Discovery, NetworkHandle, network::NetworkHandleMessage,
 };
 use futures::Stream;
-use metrics::atomics::AtomicU64;
 use parking_lot::Mutex;
 use reth_eth_wire::{
     capability::{Capabilities, CapabilityMessage},
@@ -97,7 +95,7 @@ where
     C: BlockNumReader,
 {
     /// Configures a new swarm instance.
-    pub(crate)async fn new(
+    pub(crate) async fn new(
         config: NetworkConfig<C>
     ) -> Result<Self, NetworkError> {
         let NetworkConfig {
@@ -177,13 +175,6 @@ where
     /// inside of the [`NetworkHandle`]
     pub fn bandwidth_meter(&self) -> &BandwidthMeter {
         self.handle.bandwidth_meter()
-    }
-
-    /// Returns a new [`FetchClient`] that can be cloned and shared.
-    ///
-    /// The [`FetchClient`] is the entrypoint for sending requests to the network.
-    pub fn fetch_client(&self) -> crate::swarm::NetworkHandleMessage {
-        self.state().fetch_client()
     }
 
     /// Returns the [`NetworkHandle`] that can be cloned and shared.
@@ -280,15 +271,12 @@ where
                 capabilities,
                 version,
                 status,
-                messages,
                 direction,
                 timeout,
             } => {
                 self.state.on_session_activated(
                     peer_id,
                     capabilities.clone(),
-                    status,
-                    messages.clone(),
                     timeout,
                 );
                 Some(SwarmEvent::SessionEstablished {
@@ -297,7 +285,6 @@ where
                     client_version,
                     capabilities,
                     version,
-                    messages,
                     status,
                     direction,
                 })
@@ -306,9 +293,6 @@ where
                 trace!( target: "net", ?peer_id, ?remote_addr, ?direction, "already connected");
                 self.state.peers_mut().on_already_connected(direction);
                 None
-            }
-            SessionEvent::ValidMessage { peer_id, message } => {
-                Some(SwarmEvent::ValidMessage { peer_id, message })
             }
             SessionEvent::InvalidMessage { peer_id, capabilities, message } => {
                 Some(SwarmEvent::InvalidCapabilityMessage { peer_id, capabilities, message })
@@ -397,14 +381,6 @@ where
             StateAction::Disconnect { peer_id, reason } => {
                 self.sessions.disconnect(peer_id, reason);
             }
-            StateAction::NewBlock { peer_id, block: msg } => {
-                let msg = PeerMessage::NewBlock(msg);
-                self.sessions.send_message(&peer_id, msg);
-            }
-            StateAction::NewBlockHashes { peer_id, hashes } => {
-                let msg = PeerMessage::NewBlockHashes(hashes);
-                self.sessions.send_message(&peer_id, msg);
-            }
             StateAction::PeerAdded(peer_id) => return Some(SwarmEvent::PeerAdded(peer_id)),
             StateAction::PeerRemoved(peer_id) => return Some(SwarmEvent::PeerRemoved(peer_id)),
             StateAction::DiscoveredNode { peer_id, socket_addr, fork_id } => {
@@ -477,15 +453,6 @@ where
             NetworkHandleMessage::GetReputationById(peer_id, tx) => {
                 let _ = tx.send(self.state_mut().peers().get_reputation(&peer_id));
             }
-            NetworkHandleMessage::FetchClient(tx) => {
-                let _ = tx.send(self.fetch_client());
-            }
-            NetworkHandleMessage::GetPeerInfo(tx) => {
-                let _ = tx.send(self.sessions_mut().get_peer_info());
-            }
-            NetworkHandleMessage::GetPeerInfoById(peer_id, tx) => {
-                let _ = tx.send(self.sessions_mut().get_peer_info_by_id(peer_id));
-            }
         }
     }
 }
@@ -547,8 +514,6 @@ pub(crate) enum SwarmEvent {
     ValidMessage {
         /// The peer that sent the message
         peer_id: PeerId,
-        /// Message received from the peer
-        message: PeerMessage,
     },
     /// Received a message that does not match the announced capabilities of the peer.
     InvalidCapabilityMessage {
@@ -598,7 +563,6 @@ pub(crate) enum SwarmEvent {
         capabilities: Arc<Capabilities>,
         /// negotiated eth version
         version: EthVersion,
-        messages: PeerRequestSender,
         status: Status,
         direction: Direction,
     },
@@ -660,8 +624,6 @@ pub enum NetworkEvent {
         client_version: Arc<String>,
         /// Capabilities the peer announced
         capabilities: Arc<Capabilities>,
-        /// A request channel to the session task.
-        messages: PeerRequestSender,
         /// The status of the peer to which a session was established.
         status: Status,
         /// negotiated eth version of the session

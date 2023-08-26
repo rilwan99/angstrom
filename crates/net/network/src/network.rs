@@ -1,17 +1,15 @@
 use crate::{
-    discovery::DiscoveryEvent, message::PeerRequest,
-    peers::PeersHandle, session::PeerInfo, swarm::NetworkEvent,
+    discovery::DiscoveryEvent,
+    peers::PeersHandle, swarm::NetworkEvent,
 };
 use async_trait::async_trait;
 use parking_lot::Mutex;
-use reth_eth_wire::{DisconnectReason, NewBlock, NewPooledTransactionHashes, SharedTransactions};
-use reth_interfaces::sync::{NetworkSyncUpdater, SyncState, SyncStateProvider};
+use reth_eth_wire::DisconnectReason;
 use reth_net_common::bandwidth_meter::BandwidthMeter;
 use reth_network_api::{
-    NetworkError, NetworkInfo, PeerKind, Peers, PeersInfo, Reputation, ReputationChangeKind,
+    NetworkError, PeerKind, Peers, PeersInfo, Reputation, ReputationChangeKind,
 };
-use reth_primitives::{Head, NodeRecord, PeerId, TransactionSigned, H256};
-use reth_rpc_types::NetworkStatus;
+use reth_primitives::{NodeRecord, PeerId};
 use std::{
     net::SocketAddr,
     sync::{
@@ -90,59 +88,11 @@ impl NetworkHandle {
     }
 
 
-    /// Returns [`PeerInfo`] for all connected peers
-    pub async fn get_peers(&self) -> Result<Vec<PeerInfo>, oneshot::error::RecvError> {
-        let (tx, rx) = oneshot::channel();
-        let _ = self.manager().send(NetworkHandleMessage::GetPeerInfo(tx));
-        rx.await
-    }
-
-    /// Returns [`PeerInfo`] for a given peer.
-    ///
-    /// Returns `None` if there's no active session to the peer.
-    pub async fn get_peer_by_id(
-        &self,
-        peer_id: PeerId,
-    ) -> Result<Option<PeerInfo>, oneshot::error::RecvError> {
-        let (tx, rx) = oneshot::channel();
-        let _ = self.manager().send(NetworkHandleMessage::GetPeerInfoById(peer_id, tx));
-        rx.await
-    }
-
     /// Sends a [`NetworkHandleMessage`] to the manager
     pub(crate) fn send_message(&self, msg: NetworkHandleMessage) {
         let _ = self.inner.to_manager_tx.send(msg);
     }
 
-    /// Update the status of the node.
-    pub fn update_status(&self, head: Head) {
-        self.send_message(NetworkHandleMessage::StatusUpdate { head });
-    }
-
-    /// Announce a block over devp2p
-    ///
-    /// Caution: in PoS this is a noop, since new block propagation will happen over devp2p
-    pub fn announce_block(&self, block: NewBlock, hash: H256) {
-        self.send_message(NetworkHandleMessage::AnnounceBlock(block, hash))
-    }
-
-    /// Sends a [`PeerRequest`] to the given peer's session.
-    pub fn send_request(&self, peer_id: PeerId, request: PeerRequest) {
-        self.send_message(NetworkHandleMessage::EthRequest { peer_id, request })
-    }
-
-    /// Send transactions hashes to the peer.
-    pub fn send_transactions_hashes(&self, peer_id: PeerId, msg: NewPooledTransactionHashes) {
-        self.send_message(NetworkHandleMessage::SendPooledTransactionHashes { peer_id, msg })
-    }
-
-    /// Send full transactions to the peer
-    pub fn send_transactions(&self, peer_id: PeerId, msg: Vec<Arc<TransactionSigned>>) {
-        self.send_message(NetworkHandleMessage::SendTransaction {
-            peer_id,
-            msg: SharedTransactions(msg),
-        })
-    }
 
     /// Provides a shareable reference to the [`BandwidthMeter`] stored on the [`NetworkInner`]
     pub fn bandwidth_meter(&self) -> &BandwidthMeter {
@@ -222,59 +172,6 @@ impl Peers for NetworkHandle {
     }
 }
 
-#[async_trait]
-impl NetworkInfo for NetworkHandle {
-    fn local_addr(&self) -> SocketAddr {
-        *self.inner.listener_address.lock()
-    }
-
-    async fn network_status(&self) -> Result<NetworkStatus, NetworkError> {
-        let (tx, rx) = oneshot::channel();
-        let _ = self.manager().send(NetworkHandleMessage::GetStatus(tx));
-        rx.await.map_err(Into::into)
-    }
-
-    fn chain_id(&self) -> u64 {
-        self.inner.chain_id.load(Ordering::Relaxed)
-    }
-
-    fn is_syncing(&self) -> bool {
-        SyncStateProvider::is_syncing(self)
-    }
-
-    fn is_initially_syncing(&self) -> bool {
-        SyncStateProvider::is_initially_syncing(self)
-    }
-}
-
-impl SyncStateProvider for NetworkHandle {
-    fn is_syncing(&self) -> bool {
-        self.inner.is_syncing.load(Ordering::Relaxed)
-    }
-    // used to guard the txpool
-    fn is_initially_syncing(&self) -> bool {
-        if self.inner.initial_sync_done.load(Ordering::Relaxed) {
-            return false
-        }
-        self.inner.is_syncing.load(Ordering::Relaxed)
-    }
-}
-
-impl NetworkSyncUpdater for NetworkHandle {
-    fn update_sync_state(&self, state: SyncState) {
-        let future_state = state.is_syncing();
-        let prev_state = self.inner.is_syncing.swap(future_state, Ordering::Relaxed);
-        let syncing_to_idle_state_transition = prev_state && !future_state;
-        if syncing_to_idle_state_transition {
-            self.inner.initial_sync_done.store(true, Ordering::Relaxed);
-        }
-    }
-
-    /// Update the status of the node.
-    fn update_status(&self, head: Head) {
-        self.send_message(NetworkHandleMessage::StatusUpdate { head });
-    }
-}
 
 #[derive(Debug)]
 struct NetworkInner {
@@ -309,10 +206,6 @@ pub(crate) enum NetworkHandleMessage {
     EventListener(UnboundedSender<NetworkEvent>),
     /// Apply a reputation change to the given peer.
     ReputationChange(PeerId, ReputationChangeKind),
-    /// Get PeerInfo from all the peers
-    GetPeerInfo(oneshot::Sender<Vec<PeerInfo>>),
-    /// Get PeerInfo for a specific peer
-    GetPeerInfoById(PeerId, oneshot::Sender<Option<PeerInfo>>),
     /// Get the reputation for a specific peer
     GetReputationById(PeerId, oneshot::Sender<Option<Reputation>>),
     /// Gracefully shutdown network

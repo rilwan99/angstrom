@@ -1,4 +1,5 @@
-use futures::Steam;
+use std::{task::{Context, Poll}, pin::Pin};
+
 
 /// Basic http server that we use to accept new eip712 transactions and will just stream them to
 /// the guard

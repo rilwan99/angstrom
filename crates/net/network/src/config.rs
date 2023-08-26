@@ -1,10 +1,8 @@
 //! Network config support
 
 use crate::{
-    error::NetworkError,
     peers::PeersConfig,
     session::SessionsConfig,
-    NetworkHandle, NetworkManager,
 };
 use reth_discv4::{Discv4Config, Discv4ConfigBuilder, DEFAULT_DISCOVERY_PORT};
 use reth_dns_discovery::DnsDiscoveryConfig;
@@ -13,7 +11,6 @@ use reth_eth_wire::{HelloMessage, Status};
 use reth_primitives::{
     mainnet_nodes, sepolia_nodes, ChainSpec, Head, NodeRecord, PeerId, MAINNET, ForkFilter,
 };
-use reth_provider::{BlockReader, HeaderProvider};
 use reth_tasks::{TaskSpawner, TokioTaskExecutor};
 use secp256k1::SECP256K1;
 use std::{
@@ -61,7 +58,7 @@ pub struct NetworkConfig<C> {
     /// Sets the hello message for the p2p handshake in RLPx
     pub hello_message: HelloMessage,
     /// The [`ForkFilter`] used to validate the peer's `Status` message.
-    fork_filter: ForkFilter,
+    pub fork_filter: ForkFilter,
 }
 
 // === impl NetworkConfig ===
@@ -92,22 +89,6 @@ impl<C> NetworkConfig<C> {
     }
 }
 
-impl<C> NetworkConfig<C>
-where
-    C: BlockReader + HeaderProvider + Clone + Unpin + 'static,
-{
-    /// Starts the networking stack given a [NetworkConfig] and returns a handle to the network.
-    pub async fn start_network(self) -> Result<NetworkHandle, NetworkError> {
-        let client = self.client.clone();
-        let (handle, network, _txpool, eth) =
-            NetworkManager::builder(self).await?.request_handler(client).split_with_handle();
-
-        tokio::task::spawn(network);
-        // TODO: tokio::task::spawn(txpool);
-        tokio::task::spawn(eth);
-        Ok(handle)
-    }
-}
 
 /// Builder for [`NetworkConfig`](struct.NetworkConfig.html).
 #[derive(Debug)]

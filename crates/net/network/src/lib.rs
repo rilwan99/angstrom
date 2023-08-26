@@ -129,25 +129,20 @@ mod discovery;
 pub mod error;
 mod flattened_response;
 mod listener;
-mod manager;
-mod message;
 mod metrics;
 mod network;
 pub mod peers;
 mod session;
 pub mod state;
 mod swarm;
-pub mod transactions;
 
 pub use config::{NetworkConfig, NetworkConfigBuilder};
 pub use discovery::Discovery;
-pub use manager::NetworkManager;
-pub use message::PeerRequest;
 pub use network::NetworkHandle;
 pub use peers::PeersConfig;
 pub use reth_eth_wire::{DisconnectReason, HelloBuilder, HelloMessage};
 pub use session::{
-    ActiveSessionHandle, ActiveSessionMessage, Direction, PeerInfo, PendingSessionEvent,
+    ActiveSessionHandle, ActiveSessionMessage, Direction, PendingSessionEvent,
     PendingSessionHandle, PendingSessionHandshakeError, SessionCommand, SessionEvent, SessionId,
     SessionLimits, SessionManager, SessionsConfig
 };
