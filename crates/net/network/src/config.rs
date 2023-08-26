@@ -2,7 +2,6 @@
 
 use crate::{
     error::NetworkError,
-    import::ProofOfStakeBlockImport,
     peers::PeersConfig,
     session::SessionsConfig,
     NetworkHandle, NetworkManager,

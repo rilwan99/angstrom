@@ -12,23 +12,20 @@ use std::{
 };
 
 use reth_eth_wire::{
-    capability::Capabilities, BlockHashNumber, DisconnectReason, NewBlockHashes, Status
+    capability::Capabilities, DisconnectReason, Status
 };
 use reth_network_api::PeerKind;
 use reth_primitives::{ForkId, PeerId, H256};
 use reth_provider::BlockNumReader;
-use tokio::sync::oneshot;
 use tracing::debug;
 
 use crate::{
     cache::LruCache,
     discovery::{Discovery, DiscoveryEvent},
-    manager::DiscoveredEvent,
     message::{
-        BlockRequest, NewBlockMessage, PeerRequest, PeerRequestSender, PeerResponse,
-        PeerResponseResult
+        PeerRequestSender, PeerResponse,
     },
-    peers::{PeerAction, PeersManager}
+    peers::{PeerAction, PeersManager}, swarm::DiscoveredEvent
 };
 
 /// Cache limit of blocks to keep track of for a single peer.
@@ -100,11 +97,6 @@ where
         &self.peers_manager
     }
 
-    /// Returns a new [`FetchClient`]
-    pub fn fetch_client(&self) -> FetchClient {
-        self.state_fetcher.client()
-    }
-
     /// Configured genesis hash.
     pub fn genesis_hash(&self) -> H256 {
         self.genesis_hash
@@ -160,109 +152,10 @@ where
         self.state_fetcher.on_session_closed(&peer);
     }
 
-    /// Starts propagating the new block to peers that haven't reported the
-    /// block yet.
-    ///
-    /// This is supposed to be invoked after the block was validated.
-    ///
-    /// > It then sends the block to a small fraction of connected peers
-    /// > (usually the square root of
-    /// > the total number of peers) using the `NewBlock` message.
-    ///
-    /// See also <https://github.com/ethereum/devp2p/blob/master/caps/eth.md>
-    pub(crate) fn announce_new_block(&mut self, msg: NewBlockMessage) {
-        // send a `NewBlock` message to a fraction fo the connected peers (square root
-        // of the total number of peers)
-        let num_propagate = (self.active_peers.len() as f64).sqrt() as u64 + 1;
-
-        let number = msg.block.block.header.number;
-        let mut count = 0;
-        for (peer_id, peer) in self.active_peers.iter_mut() {
-            if peer.blocks.contains(&msg.hash) {
-                // skip peers which already reported the block
-                continue
-            }
-
-            // Queue a `NewBlock` message for the peer
-            if count < num_propagate {
-                self.queued_messages
-                    .push_back(StateAction::NewBlock { peer_id: *peer_id, block: msg.clone() });
-
-                // update peer block info
-                if self
-                    .state_fetcher
-                    .update_peer_block(peer_id, msg.hash, number)
-                {
-                    peer.best_hash = msg.hash;
-                }
-
-                // mark the block as seen by the peer
-                peer.blocks.insert(msg.hash);
-
-                count += 1;
-            }
-
-            if count >= num_propagate {
-                break
-            }
-        }
-    }
-
-    /// Completes the block propagation process started in
-    /// [`NetworkState::announce_new_block()`] but sending `NewBlockHash`
-    /// broadcast to all peers that haven't seen it yet.
-    pub(crate) fn announce_new_block_hash(&mut self, msg: NewBlockMessage) {
-        let number = msg.block.block.header.number;
-        let hashes = NewBlockHashes(vec![BlockHashNumber { hash: msg.hash, number }]);
-        for (peer_id, peer) in self.active_peers.iter_mut() {
-            if peer.blocks.contains(&msg.hash) {
-                // skip peers which already reported the block
-                continue
-            }
-
-            if self
-                .state_fetcher
-                .update_peer_block(peer_id, msg.hash, number)
-            {
-                peer.best_hash = msg.hash;
-            }
-
-            self.queued_messages.push_back(StateAction::NewBlockHashes {
-                peer_id: *peer_id,
-                hashes:  hashes.clone()
-            });
-        }
-    }
-
-    /// Updates the block information for the peer.
-    pub(crate) fn update_peer_block(&mut self, peer_id: &PeerId, hash: H256, number: u64) {
-        if let Some(peer) = self.active_peers.get_mut(peer_id) {
-            peer.best_hash = hash;
-        }
-        self.state_fetcher.update_peer_block(peer_id, hash, number);
-    }
 
     /// Invoked when a new [`ForkId`] is activated.
     pub(crate) fn update_fork_id(&mut self, fork_id: ForkId) {
         self.discovery.update_fork_id(fork_id)
-    }
-
-    /// Invoked after a `NewBlock` message was received by the peer.
-    ///
-    /// This will keep track of blocks we know a peer has
-    pub(crate) fn on_new_block(&mut self, peer_id: PeerId, hash: H256) {
-        // Mark the blocks as seen
-        if let Some(peer) = self.active_peers.get_mut(&peer_id) {
-            peer.blocks.insert(hash);
-        }
-    }
-
-    /// Invoked for a `NewBlockHashes` broadcast message.
-    pub(crate) fn on_new_block_hashes(&mut self, peer_id: PeerId, hashes: Vec<BlockHashNumber>) {
-        // Mark the blocks as seen
-        if let Some(peer) = self.active_peers.get_mut(&peer_id) {
-            peer.blocks.extend(hashes.into_iter().map(|b| b.hash));
-        }
     }
 
     /// Bans the [`IpAddr`] in the discovery service.
@@ -342,65 +235,6 @@ where
         }
     }
 
-    /// Sends The message to the peer's session and queues in a response.
-    ///
-    /// Caution: this will replace an already pending response. It's the
-    /// responsibility of the caller to select the peer.
-    fn handle_block_request(&mut self, peer: PeerId, request: BlockRequest) {
-        if let Some(ref mut peer) = self.active_peers.get_mut(&peer) {
-            let (request, response) = match request {
-                BlockRequest::GetBlockHeaders(request) => {
-                    let (response, rx) = oneshot::channel();
-                    let request = PeerRequest::GetBlockHeaders { request, response };
-                    let response = PeerResponse::BlockHeaders { response: rx };
-                    (request, response)
-                }
-                BlockRequest::GetBlockBodies(request) => {
-                    let (response, rx) = oneshot::channel();
-                    let request = PeerRequest::GetBlockBodies { request, response };
-                    let response = PeerResponse::BlockBodies { response: rx };
-                    (request, response)
-                }
-            };
-            let _ = peer.request_tx.to_session_tx.try_send(request);
-            peer.pending_response = Some(response);
-        }
-    }
-
-    // /// Handle the outcome of processed response, for example directly queue
-    // /// another request.
-    // fn on_block_response_outcome(&mut self, outcome: BlockResponseOutcome) ->
-    // Option<StateAction> {     match outcome {
-    //         BlockResponseOutcome::Request(peer, request) => {
-    //             self.handle_block_request(peer, request);
-    //         }
-    //         BlockResponseOutcome::BadResponse(peer, reputation_change) => {
-    //             self.peers_manager
-    //                 .apply_reputation_change(&peer, reputation_change);
-    //         }
-    //     }
-    //     None
-    // }
-
-    /// Invoked when received a response from a connected peer.
-    ///
-    /// Delegates the response result to the fetcher which may return an outcome
-    /// specific instruction that needs to be handled in
-    /// [Self::on_block_response_outcome]. This could be a follow-up request
-    /// or an instruction to slash the peer's reputation.
-    fn on_eth_response(&mut self, peer: PeerId, resp: PeerResponseResult) -> Option<StateAction> {
-        match resp {
-            PeerResponseResult::BlockHeaders(res) => {
-                let outcome = self.state_fetcher.on_block_headers_response(peer, res)?;
-                self.on_block_response_outcome(outcome)
-            }
-            PeerResponseResult::BlockBodies(res) => {
-                let outcome = self.state_fetcher.on_block_bodies_response(peer, res)?;
-                self.on_block_response_outcome(outcome)
-            }
-            _ => None
-        }
-    }
 
     /// Advances the state
     pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<StateAction> {
@@ -500,19 +334,6 @@ pub(crate) struct ActivePeer {
 
 /// Message variants triggered by the [`NetworkState`]
 pub(crate) enum StateAction {
-    /// Dispatch a `NewBlock` message to the peer
-    NewBlock {
-        /// Target of the message
-        peer_id: PeerId,
-        /// The `NewBlock` message
-        block:   NewBlockMessage
-    },
-    NewBlockHashes {
-        /// Target of the message
-        peer_id: PeerId,
-        /// `NewBlockHashes` message to send to the peer.
-        hashes:  NewBlockHashes
-    },
     /// Create a new connection to the given node.
     Connect { remote_addr: SocketAddr, peer_id: PeerId },
     /// Disconnect an existing connection

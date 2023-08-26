@@ -83,21 +83,7 @@ use tracing::{debug, error, info, trace, warn};
 ///   discovery --> |Discovered peers| NetworkManager
 /// ```
 #[must_use = "The NetworkManager does nothing unless polled"]
-pub struct NetworkManager<C> {
-    /// The type that manages the actual network part, which includes connections.
-    swarm: Swarm<C>,
-    /// Underlying network handle that can be shared.
-    handle: NetworkHandle,
-    /// Receiver half of the command channel set up between this type and the [`NetworkHandle`]
-    from_handle_rx: UnboundedReceiverStream<NetworkHandleMessage>,
-    /// All listeners for high level network events.
-    event_listeners: EventListeners<NetworkEvent>,
-    /// Tracks the number of active session (connected peers).
-    ///
-    /// This is updated via internal events and shared via `Arc` with the [`NetworkHandle`]
-    /// Updated by the `NetworkWorker` and loaded by the `NetworkService`.
-    num_active_peers: Arc<AtomicUsize>,
-}
+pub struct NetworkManager<C> {}
 
 
 
@@ -110,7 +96,6 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
-
 
         // process incoming messages from a handle
         loop {

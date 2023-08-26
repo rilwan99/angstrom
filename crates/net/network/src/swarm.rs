@@ -3,7 +3,7 @@ use crate::{
     message::{PeerMessage, PeerRequestSender},
     peers::{InboundConnectionError, PeersManager, PeersHandle},
     session::{Direction, PendingSessionHandshakeError, SessionEvent, SessionId, SessionManager},
-    state::{NetworkState, StateAction}, NetworkConfig, error::{NetworkError, ServiceKind}, Discovery, NetworkHandle, network::NetworkHandleMessage, NetworkEvent,
+    state::{NetworkState, StateAction}, NetworkConfig, error::{NetworkError, ServiceKind}, Discovery, NetworkHandle, network::NetworkHandleMessage,
 };
 use futures::Stream;
 use metrics::atomics::AtomicU64;
@@ -169,7 +169,6 @@ where
             local_peer_id,
             peers_handle,
             bandwidth_meter,
-            Arc::new(AtomicU64::new(chain_spec.chain.id())),
         );
         Ok(Self { incoming, sessions, state, net_connection_state: NetworkConnectionState::default(), handle, from_handle_rx: UnboundedReceiverStream::new(from_handle_rx), event_listeners: Default::default(), num_active_peers })
     }

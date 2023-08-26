@@ -141,7 +141,7 @@ pub mod transactions;
 
 pub use config::{NetworkConfig, NetworkConfigBuilder};
 pub use discovery::Discovery;
-pub use manager::{NetworkEvent, NetworkManager};
+pub use manager::NetworkManager;
 pub use message::PeerRequest;
 pub use network::NetworkHandle;
 pub use peers::PeersConfig;

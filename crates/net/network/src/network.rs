@@ -1,6 +1,6 @@
 use crate::{
-    config::NetworkMode, discovery::DiscoveryEvent, manager::NetworkEvent, message::PeerRequest,
-    peers::PeersHandle, session::PeerInfo, FetchClient,
+    discovery::DiscoveryEvent, message::PeerRequest,
+    peers::PeersHandle, session::PeerInfo, swarm::NetworkEvent,
 };
 use async_trait::async_trait;
 use parking_lot::Mutex;
@@ -15,7 +15,7 @@ use reth_rpc_types::NetworkStatus;
 use std::{
     net::SocketAddr,
     sync::{
-        atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
 };
@@ -43,7 +43,6 @@ impl NetworkHandle {
         local_peer_id: PeerId,
         peers: PeersHandle,
         bandwidth_meter: BandwidthMeter,
-        chain_id: Arc<AtomicU64>,
     ) -> Self {
         let inner = NetworkInner {
             num_active_peers,
@@ -54,7 +53,6 @@ impl NetworkHandle {
             bandwidth_meter,
             is_syncing: Arc::new(AtomicBool::new(false)),
             initial_sync_done: Arc::new(AtomicBool::new(false)),
-            chain_id,
         };
         Self { inner: Arc::new(inner) }
     }
@@ -91,14 +89,6 @@ impl NetworkHandle {
         UnboundedReceiverStream::new(rx)
     }
 
-    /// Returns a new [`FetchClient`] that can be cloned and shared.
-    ///
-    /// The [`FetchClient`] is the entrypoint for sending requests to the network.
-    pub async fn fetch_client(&self) -> Result<FetchClient, oneshot::error::RecvError> {
-        let (tx, rx) = oneshot::channel();
-        let _ = self.manager().send(NetworkHandleMessage::FetchClient(tx));
-        rx.await
-    }
 
     /// Returns [`PeerInfo`] for all connected peers
     pub async fn get_peers(&self) -> Result<Vec<PeerInfo>, oneshot::error::RecvError> {
@@ -117,11 +107,6 @@ impl NetworkHandle {
         let (tx, rx) = oneshot::channel();
         let _ = self.manager().send(NetworkHandleMessage::GetPeerInfoById(peer_id, tx));
         rx.await
-    }
-
-    /// Returns the mode of the network, either pow, or pos
-    pub fn mode(&self) -> &NetworkMode {
-        &self.inner.network_mode
     }
 
     /// Sends a [`NetworkHandleMessage`] to the manager
@@ -309,8 +294,6 @@ struct NetworkInner {
     is_syncing: Arc<AtomicBool>,
     /// Used to differentiate between an initial pipeline sync or a live sync
     initial_sync_done: Arc<AtomicBool>,
-    /// The chain id
-    chain_id: Arc<AtomicU64>,
 }
 
 /// Internal messages that can be passed to the  [`NetworkManager`](crate::NetworkManager).
@@ -326,8 +309,6 @@ pub(crate) enum NetworkHandleMessage {
     EventListener(UnboundedSender<NetworkEvent>),
     /// Apply a reputation change to the given peer.
     ReputationChange(PeerId, ReputationChangeKind),
-    /// Returns the client that can be used to interact with the network.
-    FetchClient(oneshot::Sender<FetchClient>),
     /// Get PeerInfo from all the peers
     GetPeerInfo(oneshot::Sender<Vec<PeerInfo>>),
     /// Get PeerInfo for a specific peer

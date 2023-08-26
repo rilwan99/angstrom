@@ -1,8 +1,7 @@
 //! Transactions management for the p2p network.
-
+/* 
 use crate::{
     cache::LruCache,
-    manager::NetworkEvent,
     message::{PeerRequest, PeerRequestSender},
     metrics::{TransactionsManagerMetrics, NETWORK_POOL_TRANSACTIONS_SCOPE},
     NetworkHandle,
@@ -77,6 +76,7 @@ impl TransactionsHandle {
         self.send(TransactionsCommand::PropagateHash(hash))
     }
 }
+
 
 /// Manages transactions on top of the p2p network.
 ///
@@ -1240,3 +1240,4 @@ mod tests {
         }
     }
 }
+*/
