@@ -1,6 +1,7 @@
 use std::sync::mpsc::Sender;
-
-use crate::Simulator;
+use ethers_core::types::transaction::eip712::EIP712Domain;
+use tokio::sync::mpsc::UnboundedSender;
+use crate::{Simulator, sim::SimResult};
 
 /// clone-able handle to the simulator
 #[derive(Clone)]
@@ -13,11 +14,10 @@ pub struct RevmClient {
 impl Simulator for RevmClient {}
 
 pub struct Revm {
-    // threadpool: Execu
 }
 
 
 pub enum TransactionType {
-    Single(Eip712Domain, Sender<SimResult>),
-    Bundle(Eip712Domain, Sender<SimResult>),
+    Single(EIP712Domain, Sender<SimResult>),
+    Bundle(EIP712Domain, Sender<SimResult>),
 }

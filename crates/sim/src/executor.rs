@@ -1,5 +1,4 @@
 use std::{future::Future, task::Poll};
-
 use futures_util::pin_mut;
 use tokio::{runtime::Handle, task::JoinHandle, sync::mpsc::UnboundedReceiver};
 
@@ -51,11 +50,16 @@ impl SimThreadPool {
     }
 }
 
-pub(crate) enum TaskKind {
-    Default,
-    Blocking
+impl Future for SimThreadPool {
+    
 }
 
 
 
 
+
+
+pub(crate) enum TaskKind {
+    Default,
+    Blocking
+}
