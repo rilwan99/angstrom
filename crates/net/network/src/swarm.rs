@@ -1,23 +1,29 @@
 use crate::{
     listener::{ConnectionListener, ListenerEvent},
     message::{PeerMessage, PeerRequestSender},
-    peers::InboundConnectionError,
+    peers::{InboundConnectionError, PeersManager, PeersHandle},
     session::{Direction, PendingSessionHandshakeError, SessionEvent, SessionId, SessionManager},
-    state::{NetworkState, StateAction},
+    state::{NetworkState, StateAction}, NetworkConfig, error::{NetworkError, ServiceKind}, Discovery, NetworkHandle, network::NetworkHandleMessage, NetworkEvent,
 };
 use futures::Stream;
+use metrics::atomics::AtomicU64;
+use parking_lot::Mutex;
 use reth_eth_wire::{
     capability::{Capabilities, CapabilityMessage},
     errors::EthStreamError,
     DisconnectReason, EthVersion, Status,
 };
-use reth_primitives::PeerId;
+use reth_net_common::bandwidth_meter::BandwidthMeter;
+use reth_network_api::ReputationChangeKind;
+use reth_primitives::{PeerId, listener::EventListeners, NodeRecord, H256, ForkId};
 use reth_provider::{BlockNumReader, BlockReader};
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 use std::{
     io,
     net::SocketAddr,
     pin::Pin,
-    sync::Arc,
+    sync::{Arc, atomic::AtomicUsize},
     task::{Context, Poll},
 };
 use tracing::{debug, trace};
@@ -71,6 +77,17 @@ pub(crate) struct Swarm<C> {
     state: NetworkState<C>,
     /// Tracks the connection state of the node
     net_connection_state: NetworkConnectionState,
+    /// Underlying network handle that can be shared.
+    handle: NetworkHandle,
+    /// Receiver half of the command channel set up between this type and the [`NetworkHandle`]
+    from_handle_rx: UnboundedReceiverStream<NetworkHandleMessage>,
+    /// All listeners for high level network events.
+    event_listeners: EventListeners<NetworkEvent>,
+    /// Tracks the number of active session (connected peers).
+    ///
+    /// This is updated via internal events and shared via `Arc` with the [`NetworkHandle`]
+    /// Updated by the `NetworkWorker` and loaded by the `NetworkService`.
+    num_active_peers: Arc<AtomicUsize>,
 }
 
 // === impl Swarm ===
@@ -80,13 +97,101 @@ where
     C: BlockNumReader,
 {
     /// Configures a new swarm instance.
-    pub(crate) fn new(
-        incoming: ConnectionListener,
-        sessions: SessionManager,
-        state: NetworkState<C>,
-        net_connection_state: NetworkConnectionState,
-    ) -> Self {
-        Self { incoming, sessions, state, net_connection_state }
+    pub(crate)async fn new(
+        config: NetworkConfig<C>
+    ) -> Result<Self, NetworkError> {
+        let NetworkConfig {
+            client,
+            secret_key,
+            mut discovery_v4_config,
+            discovery_addr,
+            listener_addr,
+            peers_config,
+            sessions_config,
+            chain_spec,
+            boot_nodes,
+            executor,
+            hello_message,
+            status,
+            fork_filter,
+            dns_discovery_config,
+            ..
+        } = config;
+
+        let peers_manager = PeersManager::new(peers_config);
+        let peers_handle = peers_manager.handle();
+
+        let incoming = ConnectionListener::bind(listener_addr).await.map_err(|err| {
+            NetworkError::from_io_error(err, ServiceKind::Listener(listener_addr))
+        })?;
+        let listener_address = Arc::new(Mutex::new(incoming.local_address()));
+
+        discovery_v4_config = discovery_v4_config.map(|mut disc_config| {
+            // merge configured boot nodes
+            disc_config.bootstrap_nodes.extend(boot_nodes.clone());
+            disc_config.add_eip868_pair("eth", status.forkid);
+            disc_config
+        });
+
+        let discovery =
+            Discovery::new(discovery_addr, secret_key, discovery_v4_config, dns_discovery_config)
+                .await?;
+        // need to retrieve the addr here since provided port could be `0`
+        let local_peer_id = discovery.local_id();
+
+        let num_active_peers = Arc::new(AtomicUsize::new(0));
+        let bandwidth_meter: BandwidthMeter = BandwidthMeter::default();
+
+        let sessions = SessionManager::new(
+            secret_key,
+            sessions_config,
+            executor,
+            status,
+            hello_message,
+            fork_filter,
+            bandwidth_meter.clone(),
+        );
+
+        let state = NetworkState::new(
+            client,
+            discovery,
+            peers_manager,
+            chain_spec.genesis_hash(),
+            Arc::clone(&num_active_peers),
+        );
+
+        let (to_manager_tx, from_handle_rx) = mpsc::unbounded_channel();
+
+        let handle = NetworkHandle::new(
+            Arc::clone(&num_active_peers),
+            listener_address,
+            to_manager_tx,
+            local_peer_id,
+            peers_handle,
+            bandwidth_meter,
+            Arc::new(AtomicU64::new(chain_spec.chain.id())),
+        );
+        Ok(Self { incoming, sessions, state, net_connection_state: NetworkConnectionState::default(), handle, from_handle_rx: UnboundedReceiverStream::new(from_handle_rx), event_listeners: Default::default(), num_active_peers })
+    }
+
+    /// Returns a shareable reference to the [`BandwidthMeter`] stored
+    /// inside of the [`NetworkHandle`]
+    pub fn bandwidth_meter(&self) -> &BandwidthMeter {
+        self.handle.bandwidth_meter()
+    }
+
+    /// Returns a new [`FetchClient`] that can be cloned and shared.
+    ///
+    /// The [`FetchClient`] is the entrypoint for sending requests to the network.
+    pub fn fetch_client(&self) -> crate::swarm::NetworkHandleMessage {
+        self.state().fetch_client()
+    }
+
+    /// Returns the [`NetworkHandle`] that can be cloned and shared.
+    ///
+    /// The [`NetworkHandle`] can be used to interact with this [`NetworkManager`]
+    pub fn handle(&self) -> &NetworkHandle {
+        &self.handle
     }
 
     /// Access to the state.
@@ -118,6 +223,53 @@ where
     pub(crate) fn dial_outbound(&mut self, remote_addr: SocketAddr, remote_id: PeerId) {
         self.sessions.dial_outbound(remote_addr, remote_id)
     }
+
+    /// Returns the [`SocketAddr`] that listens for incoming connections.
+    pub fn local_addr(&self) -> SocketAddr {
+        self.listener().local_address()
+    }
+
+    /// Returns the configured genesis hash
+    pub fn genesis_hash(&self) -> H256 {
+        self.state().genesis_hash()
+    }
+
+    /// How many peers we're currently connected to.
+    pub fn num_connected_peers(&self) -> usize {
+        self.state().num_active_peers()
+    }
+
+    /// Returns the [`PeerId`] used in the network.
+    pub fn peer_id(&self) -> &PeerId {
+        self.handle.peer_id()
+    }
+
+    /// Returns an iterator over all peers in the peer set.
+    pub fn all_peers(&self) -> impl Iterator<Item = NodeRecord> + '_ {
+        self.state().peers().iter_peers()
+    }
+
+    /// Returns a new [`PeersHandle`] that can be cloned and shared.
+    ///
+    /// The [`PeersHandle`] can be used to interact with the network's peer set.
+    pub fn peers_handle(&self) -> PeersHandle {
+        self.state().peers().handle()
+    }
+
+    /// Event hook for an unexpected message from the peer.
+    fn on_invalid_message(
+        &mut self,
+        peer_id: PeerId,
+        _capabilities: Arc<Capabilities>,
+        _message: CapabilityMessage,
+    ) {
+        trace!(target : "net", ?peer_id,  "received unexpected message");
+        self
+            .state_mut()
+            .peers_mut()
+            .apply_reputation_change(&peer_id, ReputationChangeKind::BadProtocol);
+    }
+
 
     /// Handles a polled [`SessionEvent`]
     fn on_session_event(&mut self, event: SessionEvent) -> Option<SwarmEvent> {
@@ -287,6 +439,56 @@ where
     pub(crate) fn is_shutting_down(&self) -> bool {
         matches!(self.net_connection_state, NetworkConnectionState::ShuttingDown)
     }
+
+    /// Handler for received messages from a handle
+    fn on_handle_message(&mut self, msg: NetworkHandleMessage) {
+        match msg {
+            NetworkHandleMessage::EventListener(tx) => {
+                self.event_listeners.push_listener(tx);
+            }
+            NetworkHandleMessage::DiscoveryListener(tx) => {
+                self.state_mut().discovery_mut().add_listener(tx);
+            }
+            NetworkHandleMessage::AddPeerAddress(peer, kind, addr) => {
+                // only add peer if we are not shutting down
+                if !self.is_shutting_down() {
+                    self.state_mut().add_peer_kind(peer, kind, addr);
+                }
+            }
+            NetworkHandleMessage::RemovePeer(peer_id, kind) => {
+                self.state_mut().remove_peer(peer_id, kind);
+            }
+            NetworkHandleMessage::DisconnectPeer(peer_id, reason) => {
+                self.sessions_mut().disconnect(peer_id, reason);
+            }
+            NetworkHandleMessage::Shutdown(tx) => {
+                // Set connection status to `Shutdown`. Stops node to accept
+                // new incoming connections as well as sending connection requests to newly
+                // discovered nodes.
+                self.on_shutdown_requested();
+                // Disconnect all active connections
+                self.sessions_mut().disconnect_all(Some(DisconnectReason::ClientQuitting));
+                // drop pending connections
+                self.sessions_mut().disconnect_all_pending();
+                let _ = tx.send(());
+            }
+            NetworkHandleMessage::ReputationChange(peer_id, kind) => {
+                self.state_mut().peers_mut().apply_reputation_change(&peer_id, kind);
+            }
+            NetworkHandleMessage::GetReputationById(peer_id, tx) => {
+                let _ = tx.send(self.state_mut().peers().get_reputation(&peer_id));
+            }
+            NetworkHandleMessage::FetchClient(tx) => {
+                let _ = tx.send(self.fetch_client());
+            }
+            NetworkHandleMessage::GetPeerInfo(tx) => {
+                let _ = tx.send(self.sessions_mut().get_peer_info());
+            }
+            NetworkHandleMessage::GetPeerInfoById(peer_id, tx) => {
+                let _ = tx.send(self.sessions_mut().get_peer_info_by_id(peer_id));
+            }
+        }
+    }
 }
 
 impl<C> Stream for Swarm<C>
@@ -433,4 +635,46 @@ pub(crate) enum NetworkConnectionState {
     #[default]
     Active,
     ShuttingDown,
+}
+
+
+/// (Non-exhaustive) Events emitted by the network that are of interest for subscribers.
+///
+/// This includes any event types that may be relevant to tasks, for metrics, keep track of peers
+/// etc.
+#[derive(Debug, Clone)]
+pub enum NetworkEvent {
+    /// Closed the peer session.
+    SessionClosed {
+        /// The identifier of the peer to which a session was closed.
+        peer_id: PeerId,
+        /// Why the disconnect was triggered
+        reason: Option<DisconnectReason>,
+    },
+    /// Established a new session with the given peer.
+    SessionEstablished {
+        /// The identifier of the peer to which a session was established.
+        peer_id: PeerId,
+        /// The remote addr of the peer to which a session was established.
+        remote_addr: SocketAddr,
+        /// The client version of the peer to which a session was established.
+        client_version: Arc<String>,
+        /// Capabilities the peer announced
+        capabilities: Arc<Capabilities>,
+        /// A request channel to the session task.
+        messages: PeerRequestSender,
+        /// The status of the peer to which a session was established.
+        status: Status,
+        /// negotiated eth version of the session
+        version: EthVersion,
+    },
+    /// Event emitted when a new peer is added
+    PeerAdded(PeerId),
+    /// Event emitted when a new peer is removed
+    PeerRemoved(PeerId),
+}
+
+#[derive(Debug, Clone)]
+pub enum DiscoveredEvent {
+    EventQueued { peer_id: PeerId, socket_addr: SocketAddr, fork_id: Option<ForkId> },
 }

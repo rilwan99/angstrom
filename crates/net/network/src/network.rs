@@ -42,7 +42,6 @@ impl NetworkHandle {
         to_manager_tx: UnboundedSender<NetworkHandleMessage>,
         local_peer_id: PeerId,
         peers: PeersHandle,
-        network_mode: NetworkMode,
         bandwidth_meter: BandwidthMeter,
         chain_id: Arc<AtomicU64>,
     ) -> Self {
@@ -52,7 +51,6 @@ impl NetworkHandle {
             listener_address,
             local_peer_id,
             peers,
-            network_mode,
             bandwidth_meter,
             is_syncing: Arc::new(AtomicBool::new(false)),
             initial_sync_done: Arc::new(AtomicBool::new(false)),
@@ -305,8 +303,6 @@ struct NetworkInner {
     local_peer_id: PeerId,
     /// Access to the all the nodes.
     peers: PeersHandle,
-    /// The mode of the network
-    network_mode: NetworkMode,
     /// Used to measure inbound & outbound bandwidth across network streams (currently unused)
     bandwidth_meter: BandwidthMeter,
     /// Represents if the network is currently syncing.
@@ -328,27 +324,10 @@ pub(crate) enum NetworkHandleMessage {
     DisconnectPeer(PeerId, Option<DisconnectReason>),
     /// Add a new listener for [`NetworkEvent`].
     EventListener(UnboundedSender<NetworkEvent>),
-    /// Broadcast event to announce a new block to all nodes.
-    AnnounceBlock(NewBlock, H256),
-    /// Sends the list of transactions to the given peer.
-    SendTransaction { peer_id: PeerId, msg: SharedTransactions },
-    /// Sends the list of transactions hashes to the given peer.
-    SendPooledTransactionHashes { peer_id: PeerId, msg: NewPooledTransactionHashes },
-    /// Send an `eth` protocol request to the peer.
-    EthRequest {
-        /// The peer to send the request to.
-        peer_id: PeerId,
-        /// The request to send to the peer's sessions.
-        request: PeerRequest,
-    },
     /// Apply a reputation change to the given peer.
     ReputationChange(PeerId, ReputationChangeKind),
     /// Returns the client that can be used to interact with the network.
     FetchClient(oneshot::Sender<FetchClient>),
-    /// Apply a status update.
-    StatusUpdate { head: Head },
-    /// Get the current status
-    GetStatus(oneshot::Sender<NetworkStatus>),
     /// Get PeerInfo from all the peers
     GetPeerInfo(oneshot::Sender<Vec<PeerInfo>>),
     /// Get PeerInfo for a specific peer

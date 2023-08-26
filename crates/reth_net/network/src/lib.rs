@@ -119,11 +119,19 @@
 //! - `test-utils`: Various utilities helpful for writing tests
 //! - `geth-tests`: Runs tests that require Geth to be installed locally.
 
+#[cfg(any(test, feature = "test-utils"))]
+/// Common helpers for network testing.
+pub mod test_utils;
+
+mod builder;
 mod cache;
 pub mod config;
 mod discovery;
 pub mod error;
+pub mod eth_requests;
+mod fetch;
 mod flattened_response;
+mod import;
 mod listener;
 mod manager;
 mod message;
@@ -135,8 +143,10 @@ mod state;
 mod swarm;
 pub mod transactions;
 
+pub use builder::NetworkBuilder;
 pub use config::{NetworkConfig, NetworkConfigBuilder};
 pub use discovery::Discovery;
+pub use fetch::FetchClient;
 pub use manager::{NetworkEvent, NetworkManager};
 pub use message::PeerRequest;
 pub use network::NetworkHandle;

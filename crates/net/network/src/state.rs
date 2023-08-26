@@ -107,7 +107,7 @@ where
     }
 
     /// Returns a new [`FetchClient`]
-    pub(crate) fn fetch_client(&self) -> FetchClient {
+    pub fn fetch_client(&self) -> FetchClient {
         self.state_fetcher.client()
     }
 

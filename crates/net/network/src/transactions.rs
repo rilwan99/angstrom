@@ -840,13 +840,43 @@ pub enum NetworkTransactionEvent {
     IncomingTransactions { peer_id: PeerId, msg: Transactions },
     /// Received list of transactions hashes to the given peer.
     IncomingPooledTransactionHashes { peer_id: PeerId, msg: NewPooledTransactionHashes },
+    /// This represents searcher transaction meta-data that was broadcasted to use from the peer.
+    IncomingSearcherTransactions { peer_id: PeerId, msg: SearcherTransactions },
+    /// Received list of searcher transactions meta-data to the given peer.
+    IncomingSeacherTransactionMetaData { peer_id: PeerId, msg: Vec<SearcherTransactionMetaData> },
     /// Incoming `GetPooledTransactions` request from a peer.
     GetPooledTransactions {
         peer_id: PeerId,
         request: GetPooledTransactions,
         response: oneshot::Sender<RequestResult<PooledTransactions>>,
     },
+    /// Incoming `GetSearcherTransactions` request from a peer.
+    GetSearcherTransactions {
+        peer_id: PeerId,
+        request: GetPooledTransactions,
+        response: oneshot::Sender<RequestResult<SearcherTransactions>>,
+    },
 }
+
+
+
+#[derive(Debug)]
+pub struct SearcherTransactionMetaData {
+    pub hash: H256,
+    pub lp_playoff: u64,
+}
+
+#[derive(Debug)]
+pub struct SearcherTransactions {
+    pub transactions: PooledTransactions,
+}
+
+
+
+
+
+
+
 
 #[cfg(test)]
 mod tests {

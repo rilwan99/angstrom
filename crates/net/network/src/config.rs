@@ -2,7 +2,7 @@
 
 use crate::{
     error::NetworkError,
-    import::{BlockImport, ProofOfStakeBlockImport},
+    import::ProofOfStakeBlockImport,
     peers::PeersConfig,
     session::SessionsConfig,
     NetworkHandle, NetworkManager,
@@ -12,7 +12,7 @@ use reth_dns_discovery::DnsDiscoveryConfig;
 use reth_ecies::util::pk2id;
 use reth_eth_wire::{HelloMessage, Status};
 use reth_primitives::{
-    mainnet_nodes, sepolia_nodes, ChainSpec, ForkFilter, Head, NodeRecord, PeerId, MAINNET,
+    mainnet_nodes, sepolia_nodes, ChainSpec, Head, NodeRecord, PeerId, MAINNET, ForkFilter,
 };
 use reth_provider::{BlockReader, HeaderProvider};
 use reth_tasks::{TaskSpawner, TokioTaskExecutor};
@@ -55,23 +55,14 @@ pub struct NetworkConfig<C> {
     pub sessions_config: SessionsConfig,
     /// The chain spec
     pub chain_spec: Arc<ChainSpec>,
-    /// The [`ForkFilter`] to use at launch for authenticating sessions.
-    ///
-    /// See also <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-2124.md#stale-software-examples>
-    ///
-    /// For sync from block `0`, this should be the default chain [`ForkFilter`] beginning at the
-    /// first hardfork, `Frontier` for mainnet.
-    pub fork_filter: ForkFilter,
-    /// The block importer type.
-    pub block_import: Box<dyn BlockImport>,
-    /// The default mode of the network.
-    pub network_mode: NetworkMode,
     /// The executor to use for spawning tasks.
     pub executor: Box<dyn TaskSpawner>,
     /// The `Status` message to send to peers at the beginning.
     pub status: Status,
     /// Sets the hello message for the p2p handshake in RLPx
     pub hello_message: HelloMessage,
+    /// The [`ForkFilter`] used to validate the peer's `Status` message.
+    fork_filter: ForkFilter,
 }
 
 // === impl NetworkConfig ===
@@ -142,8 +133,6 @@ pub struct NetworkConfigBuilder {
     sessions_config: Option<SessionsConfig>,
     /// The network's chain spec
     chain_spec: Arc<ChainSpec>,
-    /// The default mode of the network.
-    network_mode: NetworkMode,
     /// The executor to use for spawning tasks.
     #[serde(skip)]
     executor: Option<Box<dyn TaskSpawner>>,
@@ -168,7 +157,6 @@ impl NetworkConfigBuilder {
             peers_config: None,
             sessions_config: None,
             chain_spec: MAINNET.clone(),
-            network_mode: Default::default(),
             executor: None,
             hello_message: None,
             head: None,
@@ -186,11 +174,6 @@ impl NetworkConfigBuilder {
         self
     }
 
-    /// Sets the [`NetworkMode`].
-    pub fn network_mode(mut self, network_mode: NetworkMode) -> Self {
-        self.network_mode = network_mode;
-        self
-    }
 
     /// Sets the highest synced block.
     ///
@@ -363,7 +346,6 @@ impl NetworkConfigBuilder {
             peers_config,
             sessions_config,
             chain_spec,
-            network_mode,
             executor,
             hello_message,
             head,
@@ -415,8 +397,6 @@ impl NetworkConfigBuilder {
             peers_config: peers_config.unwrap_or_default(),
             sessions_config: sessions_config.unwrap_or_default(),
             chain_spec,
-            block_import: Box::<ProofOfStakeBlockImport>::default(),
-            network_mode,
             executor: executor.unwrap_or_else(|| Box::<TokioTaskExecutor>::default()),
             status,
             hello_message,
@@ -425,29 +405,7 @@ impl NetworkConfigBuilder {
     }
 }
 
-/// Describes the mode of the network wrt. POS or POW.
-///
-/// This affects block propagation in the `eth` sub-protocol [EIP-3675](https://eips.ethereum.org/EIPS/eip-3675#devp2p)
-///
-/// In POS `NewBlockHashes` and `NewBlock` messages become invalid.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum NetworkMode {
-    /// Network is in proof-of-work mode.
-    Work,
-    /// Network is in proof-of-stake mode
-    #[default]
-    Stake,
-}
 
-// === impl NetworkMode ===
-
-impl NetworkMode {
-    /// Returns true if network has entered proof-of-stake
-    pub fn is_stake(&self) -> bool {
-        matches!(self, NetworkMode::Stake)
-    }
-}
 
 #[cfg(test)]
 mod tests {
