@@ -1,0 +1,25 @@
+[package]
+name = "leader"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+
+[dependencies]
+# reth related
+reth-primitives.workspace = true
+ethers-providers.workspace = true
+ethers-signers.workspace = true
+ethers-middleware.workspace = true
+
+# async related
+futures.workspace = true
+tokio.workspace = true
+
+# flashbots related
+ethers-flashbots = "0.14.0"
+sim = { path = "../sim/" }
