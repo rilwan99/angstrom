@@ -1,37 +1,109 @@
-enum StaleGaurdRequests {
-    /// returns the best bundle of the current guard
-    BestBundle,
-    TxBodies,
-    // ? might not need this
-    TopOfBundle,
+/// struct Batch {
+///     ArbitrageOrderSigned[] arbs;
+///     PoolSettlement[] pools;
+///     UserSettlement[] users;
+/// }
+pub struct Bundle {
+    arbs: Vec<ArbitrageOrderSigned>,
+    pools: Vec<PoolSettlement>,
+    users: Vec<UserSettlement>
+
 }
 
-enum StaleGaurdRes {
-    TxBodies(TransactionBodies),
-    BestBundle(Bundle),
-    TopOfBundle(TopOfBundle),
+}
+/// struct ArbitrageOrderSigned {
+///     ArbitrageOrder order;
+///    bytes signature;
+/// }
+pub struct ArbitrageOrderSigned {
+ signature: Bytes,
+ order: ArbitrageOrder
 }
 
-struct GuardMempool(Vec<Transaction>);
+/// struct ArbitrageOrder {
+///     PoolId pool;
+///     Currency tokenIn;
+///     Currency tokenOut;
+///     uint128 amountIn;
+///     uint128 amountOutMin;
+///     uint256 deadline;
+///     uint256 gasBid;
+///     uint256 bribe;
+///     bytes preHook;
+///     bytes postHook;
+/// }
+pub struct ArbitrageOrder {
+    pool: [u8; 32],
+    token_in: Address,
+    token_out: Address,
+    amount_in: u128,
+    amount_out: u128,
+    amount_out_min: u128,
+    deadline: U256,
+    gas_bid: U256,
+    bride: U256,
+    pre_hook: Bytes,
+    post_hock: Bytes
+}
 
-struct TopOfBundle {
-    pool_id: u64,
-    lp_bribe: usize,
-    tx_hash: H256,
-    sources: Vec<PubKey>, //relays that have the full searcher tx
+/// struct PoolSettlement {
+///     PoolKey pool;
+///     uint256 token0In;
+///     uint256 token1In;
+/// }
+pub struct PoolSettlement {
+    pool: PoolKey,
+    token_0_in: U256,
+    token_1_in: U256,
+}
+
+/// struct UserSettlement {
+///     // User provided.
+///     UserOrder order;
+///     bytes signature;
+///
+///     // Guard provided.
+///     uint256 amountOut;
+/// }
+pub struct UserSettlement {
+    order: UserOrder,
+    signature: Bytes,
+    amount_out: U245,
 }
 
 
-struct BundleBody {
-    pool_id: u64,
-    lp_moves: Vec<Transaction>,
-    cow_set: Vec<Poolid, CowSet>
-    directional: Vec<Transaction>, 
+/// struct UserOrder {
+///     Currency tokenIn;
+///     Currency tokenOut;
+///     uint128 amountIn;
+///     uint128 amountOutMin;
+///     uint256 deadline;
+///     uint256 gasBid;
+///     bytes preHook;
+///     bytes postHook;
+/// }
+pub struct UserOrder { 
+    token_in: Address,
+    token_out: Address,
+    amount_in: u128,
+    amount_out_min: u128,
+    deadline: U256,
+    gas_bid: U256,
+    pre_hook: Bytes,
+    post_hook: Bytes,
 }
 
-struct CowSet {
-    cow_tx: Vec<(Transaction, Transaction)>,
+/// struct PoolKey {
+///     Currency currency0;
+///     Currency currency1;
+///     uint24 fee;
+///     int24 tickSpacing;
+///     address hooks;
+/// }
+pub struct PoolKey {
+    currency_0: Address,
+    currency_1: Address,
+    fee: u32,
+    tick_spacing: u32,
+    hooks: Address,
 }
-
-/// Contains the canonical block bundle of a pool
-struct Bundle(Vec<(TopOfBundle, BundleBody)>)

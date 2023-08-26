@@ -3,6 +3,7 @@ use std::{
     task::{Context, Poll}
 };
 
+use tokio_stream::wrapper::ReceiverStream;
 use ethers_providers::Middleware;
 use futures::{Future, FutureExt};
 use guard_network::Swarm;
@@ -20,12 +21,12 @@ pub struct Guard<M: Middleware + 'static, S: Simulator + 'static> {
     /// deals with leader related requests and actions
     leader:            Leader<M, S>,
     /// deals with new submissions through a rpc to the network
-    // submissions: SubmissionServer,
+    submissions: ReceiverStream<Submissions>,
 
-    //TODO: Most likely no point of simming because thats gaurd duty?
     // we also can't enforce
     /// handle
-    _simulator_thread: JoinHandle<()>
+    _simulator_thread: JoinHandle<()>,
+    _rpc_thread:       JoinHandle<()>
 }
 
 impl<M: Middleware, S: Simulator> Guard<M, S> {

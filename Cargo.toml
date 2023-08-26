@@ -43,6 +43,9 @@ ethers-middleware.workspace = true
 ethers-core.workspace = true
 tracing.workspace = true
 reth-rpc-builder.workspace = true
+async-trait.workspace = true
+parking-lot.workspace = true
+tokio-stream.workspace = true
 
 jsonrpsee = { workspace = true, features = ["server"] }
 tower-http = { version = "0.4", features = ["full"] }
