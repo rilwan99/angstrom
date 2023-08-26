@@ -146,3 +146,4 @@ pub use session::{
     PendingSessionHandle, PendingSessionHandshakeError, SessionCommand, SessionEvent, SessionId,
     SessionLimits, SessionManager, SessionsConfig
 };
+pub use swarm::*;

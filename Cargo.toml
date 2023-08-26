@@ -32,18 +32,31 @@ codegen-units = 1
 incremental = false
 
 [dependencies]
-workspace.tokio = true
-workspace.futures = true
-workspace.thiserror = true
-workspace.reth-network = true
+tokio.workspace = true
+futures.workspace = true
+thiserror.workspace = true
+reth-network.workspace = true
 reth-primitives.workspace = true
 ethers-providers.workspace = true
 ethers-signers.workspace = true
 ethers-middleware.workspace = true
 ethers-core.workspace = true
+tracing.workspace = true
+reth-rpc-builder.workspace = true
+
+jsonrpsee = { workspace = true, features = ["server"] }
+tower-http = { version = "0.4", features = ["full"] }
+tower = { version = "0.4", features = ["full"] }
+hyper = "0.14"
 
 guard-network = { path = "./crates/net/network/" }
 leader = { path = "./crates/leader/" }
+sim = { path = "./crates/sim" }
+futures-util = "0.3.28"
+tokio-util = { version = "0.7.4", features = ["codec"] }
+soketto = "0.7.1"
+jsonrpsee-core = { version = "0.20" }
+jsonrpsee-types = { version = "0.20" }
 
 [patch.crates-io]
 revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }

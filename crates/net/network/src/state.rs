@@ -10,17 +10,15 @@ use std::{
     task::{Context, Poll}
 };
 
-use reth_eth_wire::{
-    capability::Capabilities, DisconnectReason
-};
+use reth_eth_wire::{capability::Capabilities, DisconnectReason};
 use reth_network_api::PeerKind;
 use reth_primitives::{ForkId, PeerId, H256};
-use reth_provider::BlockNumReader;
 use tracing::debug;
 
 use crate::{
     discovery::{Discovery, DiscoveryEvent},
-    peers::{PeerAction, PeersManager}, swarm::DiscoveredEvent
+    peers::{PeerAction, PeersManager},
+    swarm::DiscoveredEvent
 };
 
 /// Cache limit of blocks to keep track of for a single peer.
@@ -37,7 +35,7 @@ const PEER_BLOCK_CACHE_LIMIT: usize = 512;
 ///     channel) which are then send to the session of the peer.
 ///
 /// This type is also responsible for responding for received request.
-pub struct NetworkState<C> {
+pub struct NetworkState {
     /// All active peers and their state.
     active_peers:    HashMap<PeerId, ActivePeer>,
     /// Manages connections to peers.
@@ -48,20 +46,15 @@ pub struct NetworkState<C> {
     ///
     /// This type is used to fetch the block number after we established a
     /// session and received the [Status] block hash.
-    client:          C,
     /// Network discovery.
     discovery:       Discovery,
     /// The genesis hash of the network we're on
     genesis_hash:    H256
 }
 
-impl<C> NetworkState<C>
-where
-    C: BlockNumReader
-{
+impl NetworkState {
     /// Create a new state instance with the given params
     pub(crate) fn new(
-        client: C,
         discovery: Discovery,
         peers_manager: PeersManager,
         genesis_hash: H256,
@@ -71,7 +64,6 @@ where
             active_peers: Default::default(),
             peers_manager,
             queued_messages: Default::default(),
-            client,
             discovery,
             genesis_hash
         }
@@ -114,12 +106,7 @@ where
     ) {
         debug_assert!(!self.active_peers.contains_key(&peer), "Already connected; not possible");
 
-        self.active_peers.insert(
-            peer,
-            ActivePeer {
-                capabilities,
-            }
-        );
+        self.active_peers.insert(peer, ActivePeer { capabilities });
     }
 
     /// Event hook for a disconnected session for the given peer.
@@ -129,7 +116,6 @@ where
     pub(crate) fn on_session_closed(&mut self, peer: PeerId) {
         self.active_peers.remove(&peer);
     }
-
 
     /// Invoked when a new [`ForkId`] is activated.
     pub(crate) fn update_fork_id(&mut self, fork_id: ForkId) {
@@ -211,7 +197,6 @@ where
         }
     }
 
-
     /// Advances the state
     pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<StateAction> {
         loop {
@@ -257,7 +242,7 @@ where
 pub(crate) struct ActivePeer {
     /// The capabilities of the remote peer.
     #[allow(unused)]
-    pub(crate) capabilities: Arc<Capabilities>,
+    pub(crate) capabilities: Arc<Capabilities>
 }
 
 /// Message variants triggered by the [`NetworkState`]
@@ -283,3 +268,4 @@ pub(crate) enum StateAction {
     /// A peer was dropped
     PeerRemoved(PeerId)
 }
+

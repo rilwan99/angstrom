@@ -1,25 +1,24 @@
 //! Network config support
 
-use crate::{
-    peers::PeersConfig,
-    session::SessionsConfig,
+use std::{
+    collections::HashSet,
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    sync::Arc
 };
+
 use reth_discv4::{Discv4Config, Discv4ConfigBuilder, DEFAULT_DISCOVERY_PORT};
 use reth_dns_discovery::DnsDiscoveryConfig;
 use reth_ecies::util::pk2id;
 use reth_eth_wire::{HelloMessage, Status};
 use reth_primitives::{
-    mainnet_nodes, sepolia_nodes, ChainSpec, Head, NodeRecord, PeerId, MAINNET, ForkFilter,
+    mainnet_nodes, sepolia_nodes, ChainSpec, ForkFilter, Head, NodeRecord, PeerId, MAINNET
 };
 use reth_tasks::{TaskSpawner, TokioTaskExecutor};
-use secp256k1::SECP256K1;
-use std::{
-    collections::HashSet,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    sync::Arc,
-};
 // re-export for convenience
 pub use secp256k1::SecretKey;
+use secp256k1::SECP256K1;
+
+use crate::{peers::PeersConfig, session::SessionsConfig};
 
 /// Convenience function to create a new random [`SecretKey`]
 pub fn rng_secret_key() -> SecretKey {
@@ -27,53 +26,49 @@ pub fn rng_secret_key() -> SecretKey {
 }
 
 /// All network related initialization settings.
-pub struct NetworkConfig<C> {
-    /// The client type that can interact with the chain.
-    ///
-    /// This type is used to fetch the block number after we established a session and received the
-    /// [Status] block hash.
-    pub client: C,
+pub struct NetworkConfig {
     /// The node's secret key, from which the node's identity is derived.
-    pub secret_key: SecretKey,
+    pub secret_key:           SecretKey,
     /// All boot nodes to start network discovery with.
-    pub boot_nodes: HashSet<NodeRecord>,
+    pub boot_nodes:           HashSet<NodeRecord>,
     /// How to set up discovery over DNS.
     pub dns_discovery_config: Option<DnsDiscoveryConfig>,
     /// How to set up discovery.
-    pub discovery_v4_config: Option<Discv4Config>,
+    pub discovery_v4_config:  Option<Discv4Config>,
     /// Address to use for discovery
-    pub discovery_addr: SocketAddr,
+    pub discovery_addr:       SocketAddr,
     /// Address to listen for incoming connections
-    pub listener_addr: SocketAddr,
+    pub listener_addr:        SocketAddr,
     /// How to instantiate peer manager.
-    pub peers_config: PeersConfig,
+    pub peers_config:         PeersConfig,
     /// How to configure the [SessionManager](crate::session::SessionManager).
-    pub sessions_config: SessionsConfig,
+    pub sessions_config:      SessionsConfig,
     /// The chain spec
-    pub chain_spec: Arc<ChainSpec>,
+    pub chain_spec:           Arc<ChainSpec>,
     /// The executor to use for spawning tasks.
-    pub executor: Box<dyn TaskSpawner>,
+    pub executor:             Box<dyn TaskSpawner>,
     /// The `Status` message to send to peers at the beginning.
-    pub status: Status,
+    pub status:               Status,
     /// Sets the hello message for the p2p handshake in RLPx
-    pub hello_message: HelloMessage,
+    pub hello_message:        HelloMessage,
     /// The [`ForkFilter`] used to validate the peer's `Status` message.
-    pub fork_filter: ForkFilter,
+    pub fork_filter:          ForkFilter
 }
 
 // === impl NetworkConfig ===
 
-impl NetworkConfig<()> {
+impl NetworkConfig {
     /// Convenience method for creating the corresponding builder type
     pub fn builder(secret_key: SecretKey) -> NetworkConfigBuilder {
         NetworkConfigBuilder::new(secret_key)
     }
 }
 
-impl<C> NetworkConfig<C> {
-    /// Create a new instance with all mandatory fields set, rest is field with defaults.
-    pub fn new(client: C, secret_key: SecretKey) -> Self {
-        NetworkConfig::builder(secret_key).build(client)
+impl NetworkConfig {
+    /// Create a new instance with all mandatory fields set, rest is field with
+    /// defaults.
+    pub fn new(secret_key: SecretKey) -> Self {
+        NetworkConfig::builder(secret_key).build()
     }
 
     /// Sets the config to use for the discovery v4 protocol.
@@ -89,37 +84,36 @@ impl<C> NetworkConfig<C> {
     }
 }
 
-
 /// Builder for [`NetworkConfig`](struct.NetworkConfig.html).
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[allow(missing_docs)]
 pub struct NetworkConfigBuilder {
     /// The node's secret key, from which the node's identity is derived.
-    secret_key: SecretKey,
+    secret_key:           SecretKey,
     /// How to configure discovery over DNS.
     dns_discovery_config: Option<DnsDiscoveryConfig>,
     /// How to set up discovery.
     discovery_v4_builder: Option<Discv4ConfigBuilder>,
     /// All boot nodes to start network discovery with.
-    boot_nodes: HashSet<NodeRecord>,
+    boot_nodes:           HashSet<NodeRecord>,
     /// Address to use for discovery
-    discovery_addr: Option<SocketAddr>,
+    discovery_addr:       Option<SocketAddr>,
     /// Listener for incoming connections
-    listener_addr: Option<SocketAddr>,
+    listener_addr:        Option<SocketAddr>,
     /// How to instantiate peer manager.
-    peers_config: Option<PeersConfig>,
+    peers_config:         Option<PeersConfig>,
     /// How to configure the sessions manager
-    sessions_config: Option<SessionsConfig>,
+    sessions_config:      Option<SessionsConfig>,
     /// The network's chain spec
-    chain_spec: Arc<ChainSpec>,
+    chain_spec:           Arc<ChainSpec>,
     /// The executor to use for spawning tasks.
     #[serde(skip)]
-    executor: Option<Box<dyn TaskSpawner>>,
+    executor:             Option<Box<dyn TaskSpawner>>,
     /// Sets the hello message for the p2p handshake in RLPx
-    hello_message: Option<HelloMessage>,
+    hello_message:        Option<HelloMessage>,
     /// Head used to start set for the fork filter and status.
-    head: Option<Head>,
+    head:                 Option<Head>
 }
 
 // === impl NetworkConfigBuilder ===
@@ -139,7 +133,7 @@ impl NetworkConfigBuilder {
             chain_spec: MAINNET.clone(),
             executor: None,
             hello_message: None,
-            head: None,
+            head: None
         }
     }
 
@@ -154,12 +148,13 @@ impl NetworkConfigBuilder {
         self
     }
 
-
     /// Sets the highest synced block.
     ///
-    /// This is used to construct the appropriate [`ForkFilter`] and [`Status`] message.
+    /// This is used to construct the appropriate [`ForkFilter`] and [`Status`]
+    /// message.
     ///
-    /// If not set, this defaults to the genesis specified by the current chain specification.
+    /// If not set, this defaults to the genesis specified by the current chain
+    /// specification.
     pub fn set_head(mut self, head: Head) -> Self {
         self.head = Some(head);
         self
@@ -204,7 +199,8 @@ impl NetworkConfigBuilder {
 
     /// Sets the discovery and listener address
     ///
-    /// This is a convenience function for both [NetworkConfigBuilder::listener_addr] and
+    /// This is a convenience function for both
+    /// [NetworkConfigBuilder::listener_addr] and
     /// [NetworkConfigBuilder::discovery_addr].
     ///
     /// By default, both are on the same port: [DEFAULT_DISCOVERY_PORT]
@@ -248,12 +244,14 @@ impl NetworkConfigBuilder {
         self
     }
 
-    /// Convenience function for setting [Self::boot_nodes] to the mainnet boot nodes.
+    /// Convenience function for setting [Self::boot_nodes] to the mainnet boot
+    /// nodes.
     pub fn mainnet_boot_nodes(self) -> Self {
         self.boot_nodes(mainnet_nodes())
     }
 
-    /// Convenience function for setting [Self::boot_nodes] to the sepolia boot nodes.
+    /// Convenience function for setting [Self::boot_nodes] to the sepolia boot
+    /// nodes.
     pub fn sepolia_boot_nodes(self) -> Self {
         self.boot_nodes(sepolia_nodes())
     }
@@ -311,10 +309,11 @@ impl NetworkConfigBuilder {
     /// Consumes the type and creates the actual [`NetworkConfig`]
     /// for the given client type that can interact with the chain.
     ///
-    /// The given client is to be used for interacting with the chain, for example fetching the
-    /// corresponding block for a given block hash we receive from a peer in the status message when
-    /// establishing a connection.
-    pub fn build<C>(self, client: C) -> NetworkConfig<C> {
+    /// The given client is to be used for interacting with the chain, for
+    /// example fetching the corresponding block for a given block hash we
+    /// receive from a peer in the status message when establishing a
+    /// connection.
+    pub fn build(self) -> NetworkConfig {
         let peer_id = self.get_peer_id();
         let Self {
             secret_key,
@@ -328,7 +327,7 @@ impl NetworkConfigBuilder {
             chain_spec,
             executor,
             hello_message,
-            head,
+            head
         } = self;
 
         let listener_addr = listener_addr.unwrap_or_else(|| {
@@ -340,11 +339,11 @@ impl NetworkConfigBuilder {
         hello_message.port = listener_addr.port();
 
         let head = head.unwrap_or(Head {
-            hash: chain_spec.genesis_hash(),
-            number: 0,
-            timestamp: chain_spec.genesis.timestamp,
-            difficulty: chain_spec.genesis.difficulty,
-            total_difficulty: chain_spec.genesis.difficulty,
+            hash:             chain_spec.genesis_hash(),
+            number:           0,
+            timestamp:        chain_spec.genesis.timestamp,
+            difficulty:       chain_spec.genesis.difficulty,
+            total_difficulty: chain_spec.genesis.difficulty
         });
 
         // set the status
@@ -353,9 +352,11 @@ impl NetworkConfigBuilder {
         // set a fork filter based on the chain spec and head
         let fork_filter = chain_spec.fork_filter(head);
 
-        // If default DNS config is used then we add the known dns network to bootstrap from
-        if let Some(dns_networks) =
-            dns_discovery_config.as_mut().and_then(|c| c.bootstrap_dns_networks.as_mut())
+        // If default DNS config is used then we add the known dns network to bootstrap
+        // from
+        if let Some(dns_networks) = dns_discovery_config
+            .as_mut()
+            .and_then(|c| c.bootstrap_dns_networks.as_mut())
         {
             if dns_networks.is_empty() {
                 if let Some(link) = chain_spec.chain().public_dns_network_protocol() {
@@ -365,7 +366,6 @@ impl NetworkConfigBuilder {
         }
 
         NetworkConfig {
-            client,
             secret_key,
             boot_nodes,
             dns_discovery_config,
@@ -380,21 +380,21 @@ impl NetworkConfigBuilder {
             executor: executor.unwrap_or_else(|| Box::<TokioTaskExecutor>::default()),
             status,
             hello_message,
-            fork_filter,
+            fork_filter
         }
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use std::collections::BTreeMap;
+
     use rand::thread_rng;
     use reth_dns_discovery::tree::LinkEntry;
     use reth_primitives::{Chain, ForkHash};
     use reth_provider::test_utils::NoopProvider;
-    use std::collections::BTreeMap;
+
+    use super::*;
 
     fn builder() -> NetworkConfigBuilder {
         let secret_key = SecretKey::new(&mut thread_rng());
@@ -403,12 +403,15 @@ mod tests {
 
     #[test]
     fn test_network_dns_defaults() {
-        let config = builder().build(NoopProvider::default());
+        let config = builder().build();
 
         let dns = config.dns_discovery_config.unwrap();
         let bootstrap_nodes = dns.bootstrap_dns_networks.unwrap();
-        let mainnet_dns: LinkEntry =
-            Chain::mainnet().public_dns_network_protocol().unwrap().parse().unwrap();
+        let mainnet_dns: LinkEntry = Chain::mainnet()
+            .public_dns_network_protocol()
+            .unwrap()
+            .parse()
+            .unwrap();
         assert!(bootstrap_nodes.contains(&mainnet_dns));
         assert_eq!(bootstrap_nodes.len(), 1);
     }
@@ -423,8 +426,9 @@ mod tests {
         // check that the forkid is initialized with the genesis and no other forks
         let genesis_fork_hash = ForkHash::from(chain_spec.genesis_hash());
 
-        // enforce that the fork_id set in the status is consistent with the generated fork filter
-        let config = builder().chain_spec(chain_spec).build(NoopProvider::default());
+        // enforce that the fork_id set in the status is consistent with the generated
+        // fork filter
+        let config = builder().chain_spec(chain_spec).build();
 
         let status = config.status;
         let fork_filter = config.fork_filter;

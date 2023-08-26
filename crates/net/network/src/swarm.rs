@@ -1,51 +1,59 @@
-use crate::{
-    listener::{ConnectionListener, ListenerEvent},
-    peers::{InboundConnectionError, PeersManager, PeersHandle},
-    session::{Direction, PendingSessionHandshakeError, SessionEvent, SessionId, SessionManager},
-    state::{NetworkState, StateAction}, NetworkConfig, error::{NetworkError, ServiceKind}, Discovery, NetworkHandle, network::NetworkHandleMessage,
+use std::{
+    io,
+    net::SocketAddr,
+    pin::Pin,
+    sync::{atomic::AtomicUsize, Arc},
+    task::{Context, Poll}
 };
+
 use futures::Stream;
 use parking_lot::Mutex;
 use reth_eth_wire::{
     capability::{Capabilities, CapabilityMessage},
     errors::EthStreamError,
-    DisconnectReason, EthVersion, Status,
+    DisconnectReason, EthVersion, Status
 };
 use reth_net_common::bandwidth_meter::BandwidthMeter;
 use reth_network_api::ReputationChangeKind;
-use reth_primitives::{PeerId, listener::EventListeners, NodeRecord, H256, ForkId};
+use reth_primitives::{listener::EventListeners, ForkId, NodeRecord, PeerId, H256};
 use reth_provider::{BlockNumReader, BlockReader};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use std::{
-    io,
-    net::SocketAddr,
-    pin::Pin,
-    sync::{Arc, atomic::AtomicUsize},
-    task::{Context, Poll},
-};
 use tracing::{debug, trace};
+
+use crate::{
+    error::{NetworkError, ServiceKind},
+    listener::{ConnectionListener, ListenerEvent},
+    network::NetworkHandleMessage,
+    peers::{InboundConnectionError, PeersHandle, PeersManager},
+    session::{Direction, PendingSessionHandshakeError, SessionEvent, SessionId, SessionManager},
+    state::{NetworkState, StateAction},
+    Discovery, NetworkConfig, NetworkHandle
+};
 
 /// Contains the connectivity related state of the network.
 ///
 /// A swarm emits [`SwarmEvent`]s when polled.
 ///
-/// The manages the [`ConnectionListener`] and delegates new incoming connections to the
-/// [`SessionManager`]. Outgoing connections are either initiated on demand or triggered by the
-/// [`NetworkState`] and also delegated to the [`NetworkState`].
+/// The manages the [`ConnectionListener`] and delegates new incoming
+/// connections to the [`SessionManager`]. Outgoing connections are either
+/// initiated on demand or triggered by the [`NetworkState`] and also delegated
+/// to the [`NetworkState`].
 ///
 /// Following diagram gives displays the dataflow contained in the [`Swarm`]
 ///
-/// The [`ConnectionListener`] yields incoming [`TcpStream`]s from peers that are spawned as session
-/// tasks. After a successful RLPx authentication, the task is ready to accept ETH requests or
-/// broadcast messages. A task listens for messages from the [`SessionManager`] which include
-/// broadcast messages like `Transactions` or internal commands, for example to disconnect the
+/// The [`ConnectionListener`] yields incoming [`TcpStream`]s from peers that
+/// are spawned as session tasks. After a successful RLPx authentication, the
+/// task is ready to accept ETH requests or broadcast messages. A task listens
+/// for messages from the [`SessionManager`] which include broadcast messages
+/// like `Transactions` or internal commands, for example to disconnect the
 /// session.
 ///
-/// The [`NetworkState`] keeps track of all connected and discovered peers and can initiate outgoing
-/// connections. For each active session, the [`NetworkState`] keeps a sender half of the ETH
-/// request channel for the created session and sends requests it receives from the
-/// [`StateFetcher`], which receives request objects from the client interfaces responsible for
+/// The [`NetworkState`] keeps track of all connected and discovered peers and
+/// can initiate outgoing connections. For each active session, the
+/// [`NetworkState`] keeps a sender half of the ETH request channel for the
+/// created session and sends requests it receives from the [`StateFetcher`],
+/// which receives request objects from the client interfaces responsible for
 /// downloading headers and bodies.
 #[cfg_attr(doc, aquamarine::aquamarine)]
 /// ```mermaid
@@ -66,40 +74,37 @@ use tracing::{debug, trace};
 ///   State --> |poll pending requests| StateFetch
 /// ```
 #[must_use = "Swarm does nothing unless polled"]
-pub(crate) struct Swarm<C> {
+pub struct Swarm {
     /// Listens for new incoming connections.
-    incoming: ConnectionListener,
+    incoming:             ConnectionListener,
     /// All sessions.
-    sessions: SessionManager,
-    /// Tracks the entire state of the network and handles events received from the sessions.
-    state: NetworkState<C>,
+    sessions:             SessionManager,
+    /// Tracks the entire state of the network and handles events received from
+    /// the sessions.
+    state:                NetworkState,
     /// Tracks the connection state of the node
     net_connection_state: NetworkConnectionState,
     /// Underlying network handle that can be shared.
-    handle: NetworkHandle,
-    /// Receiver half of the command channel set up between this type and the [`NetworkHandle`]
-    from_handle_rx: UnboundedReceiverStream<NetworkHandleMessage>,
+    handle:               NetworkHandle,
+    /// Receiver half of the command channel set up between this type and the
+    /// [`NetworkHandle`]
+    from_handle_rx:       UnboundedReceiverStream<NetworkHandleMessage>,
     /// All listeners for high level network events.
-    event_listeners: EventListeners<NetworkEvent>,
+    event_listeners:      EventListeners<NetworkEvent>,
     /// Tracks the number of active session (connected peers).
     ///
-    /// This is updated via internal events and shared via `Arc` with the [`NetworkHandle`]
-    /// Updated by the `NetworkWorker` and loaded by the `NetworkService`.
-    num_active_peers: Arc<AtomicUsize>,
+    /// This is updated via internal events and shared via `Arc` with the
+    /// [`NetworkHandle`] Updated by the `NetworkWorker` and loaded by the
+    /// `NetworkService`.
+    num_active_peers:     Arc<AtomicUsize>
 }
 
 // === impl Swarm ===
 
-impl<C> Swarm<C>
-where
-    C: BlockNumReader,
-{
+impl Swarm {
     /// Configures a new swarm instance.
-    pub(crate) async fn new(
-        config: NetworkConfig<C>
-    ) -> Result<Self, NetworkError> {
+    pub(crate) async fn new(config: NetworkConfig) -> Result<Self, NetworkError> {
         let NetworkConfig {
-            client,
             secret_key,
             mut discovery_v4_config,
             discovery_addr,
@@ -119,9 +124,11 @@ where
         let peers_manager = PeersManager::new(peers_config);
         let peers_handle = peers_manager.handle();
 
-        let incoming = ConnectionListener::bind(listener_addr).await.map_err(|err| {
-            NetworkError::from_io_error(err, ServiceKind::Listener(listener_addr))
-        })?;
+        let incoming = ConnectionListener::bind(listener_addr)
+            .await
+            .map_err(|err| {
+                NetworkError::from_io_error(err, ServiceKind::Listener(listener_addr))
+            })?;
         let listener_address = Arc::new(Mutex::new(incoming.local_address()));
 
         discovery_v4_config = discovery_v4_config.map(|mut disc_config| {
@@ -147,15 +154,14 @@ where
             status,
             hello_message,
             fork_filter,
-            bandwidth_meter.clone(),
+            bandwidth_meter.clone()
         );
 
         let state = NetworkState::new(
-            client,
             discovery,
             peers_manager,
             chain_spec.genesis_hash(),
-            Arc::clone(&num_active_peers),
+            Arc::clone(&num_active_peers)
         );
 
         let (to_manager_tx, from_handle_rx) = mpsc::unbounded_channel();
@@ -166,9 +172,18 @@ where
             to_manager_tx,
             local_peer_id,
             peers_handle,
-            bandwidth_meter,
+            bandwidth_meter
         );
-        Ok(Self { incoming, sessions, state, net_connection_state: NetworkConnectionState::default(), handle, from_handle_rx: UnboundedReceiverStream::new(from_handle_rx), event_listeners: Default::default(), num_active_peers })
+        Ok(Self {
+            incoming,
+            sessions,
+            state,
+            net_connection_state: NetworkConnectionState::default(),
+            handle,
+            from_handle_rx: UnboundedReceiverStream::new(from_handle_rx),
+            event_listeners: Default::default(),
+            num_active_peers
+        })
     }
 
     /// Returns a shareable reference to the [`BandwidthMeter`] stored
@@ -179,18 +194,19 @@ where
 
     /// Returns the [`NetworkHandle`] that can be cloned and shared.
     ///
-    /// The [`NetworkHandle`] can be used to interact with this [`NetworkManager`]
+    /// The [`NetworkHandle`] can be used to interact with this
+    /// [`NetworkManager`]
     pub fn handle(&self) -> &NetworkHandle {
         &self.handle
     }
 
     /// Access to the state.
-    pub(crate) fn state(&self) -> &NetworkState<C> {
+    pub(crate) fn state(&self) -> &NetworkState {
         &self.state
     }
 
     /// Mutable access to the state.
-    pub(crate) fn state_mut(&mut self) -> &mut NetworkState<C> {
+    pub(crate) fn state_mut(&mut self) -> &mut NetworkState {
         &mut self.state
     }
 
@@ -251,15 +267,13 @@ where
         &mut self,
         peer_id: PeerId,
         _capabilities: Arc<Capabilities>,
-        _message: CapabilityMessage,
+        _message: CapabilityMessage
     ) {
         trace!(target : "net", ?peer_id,  "received unexpected message");
-        self
-            .state_mut()
+        self.state_mut()
             .peers_mut()
             .apply_reputation_change(&peer_id, ReputationChangeKind::BadProtocol);
     }
-
 
     /// Handles a polled [`SessionEvent`]
     fn on_session_event(&mut self, event: SessionEvent) -> Option<SwarmEvent> {
@@ -272,13 +286,10 @@ where
                 version,
                 status,
                 direction,
-                timeout,
+                timeout
             } => {
-                self.state.on_session_activated(
-                    peer_id,
-                    capabilities.clone(),
-                    timeout,
-                );
+                self.state
+                    .on_session_activated(peer_id, capabilities.clone(), timeout);
                 Some(SwarmEvent::SessionEstablished {
                     peer_id,
                     remote_addr,
@@ -286,7 +297,7 @@ where
                     capabilities,
                     version,
                     status,
-                    direction,
+                    direction
                 })
             }
             SessionEvent::AlreadyConnected { peer_id, remote_addr, direction } => {
@@ -315,9 +326,7 @@ where
                 Some(SwarmEvent::OutgoingConnectionError { peer_id, remote_addr, error })
             }
             SessionEvent::BadMessage { peer_id } => Some(SwarmEvent::BadMessage { peer_id }),
-            SessionEvent::ProtocolBreach { peer_id } => {
-                Some(SwarmEvent::ProtocolBreach { peer_id })
-            }
+            SessionEvent::ProtocolBreach { peer_id } => Some(SwarmEvent::ProtocolBreach { peer_id })
         }
     }
 
@@ -336,8 +345,10 @@ where
                     return None
                 }
                 // ensure we can handle an incoming connection from this address
-                if let Err(err) =
-                    self.state_mut().peers_mut().on_incoming_pending_session(remote_addr.ip())
+                if let Err(err) = self
+                    .state_mut()
+                    .peers_mut()
+                    .on_incoming_pending_session(remote_addr.ip())
                 {
                     match err {
                         InboundConnectionError::IpBanned => {
@@ -347,7 +358,7 @@ where
                             trace!(target: "net", %limit, ?remote_addr, "Exceeded incoming connection limit; disconnecting");
                             self.sessions.disconnect_incoming_connection(
                                 stream,
-                                DisconnectReason::TooManyPeers,
+                                DisconnectReason::TooManyPeers
                             );
                         }
                     }
@@ -390,12 +401,16 @@ where
                 }
                 // Insert peer only if no fork id or a valid fork id
                 if fork_id.map_or_else(|| true, |f| self.sessions.is_valid_fork_id(f)) {
-                    self.state_mut().peers_mut().add_peer(peer_id, socket_addr, fork_id);
+                    self.state_mut()
+                        .peers_mut()
+                        .add_peer(peer_id, socket_addr, fork_id);
                 }
             }
             StateAction::DiscoveredEnrForkId { peer_id, fork_id } => {
                 if self.sessions.is_valid_fork_id(fork_id) {
-                    self.state_mut().peers_mut().set_discovered_fork_id(peer_id, fork_id);
+                    self.state_mut()
+                        .peers_mut()
+                        .set_discovered_fork_id(peer_id, fork_id);
                 } else {
                     self.state_mut().peers_mut().remove_peer(peer_id);
                 }
@@ -442,13 +457,16 @@ where
                 // discovered nodes.
                 self.on_shutdown_requested();
                 // Disconnect all active connections
-                self.sessions_mut().disconnect_all(Some(DisconnectReason::ClientQuitting));
+                self.sessions_mut()
+                    .disconnect_all(Some(DisconnectReason::ClientQuitting));
                 // drop pending connections
                 self.sessions_mut().disconnect_all_pending();
                 let _ = tx.send(());
             }
             NetworkHandleMessage::ReputationChange(peer_id, kind) => {
-                self.state_mut().peers_mut().apply_reputation_change(&peer_id, kind);
+                self.state_mut()
+                    .peers_mut()
+                    .apply_reputation_change(&peer_id, kind);
             }
             NetworkHandleMessage::GetReputationById(peer_id, tx) => {
                 let _ = tx.send(self.state_mut().peers().get_reputation(&peer_id));
@@ -457,19 +475,17 @@ where
     }
 }
 
-impl<C> Stream for Swarm<C>
-where
-    C: BlockReader + Unpin,
-{
+impl Stream for Swarm {
     type Item = SwarmEvent;
 
     /// This advances all components.
     ///
     /// Processes, delegates (internal) commands received from the
-    /// [`NetworkManager`](crate::NetworkManager), then polls the [`SessionManager`] which
-    /// yields messages produced by individual peer sessions that are then handled. Least
-    /// priority are incoming connections that are handled and delegated to
-    /// the [`SessionManager`] to turn them into a session.
+    /// [`NetworkManager`](crate::NetworkManager), then polls the
+    /// [`SessionManager`] which yields messages produced by individual peer
+    /// sessions that are then handled. Least priority are incoming
+    /// connections that are handled and delegated to the [`SessionManager`]
+    /// to turn them into a session.
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
 
@@ -507,70 +523,73 @@ where
     }
 }
 
-/// All events created or delegated by the [`Swarm`] that represents changes to the state of the
-/// network.
-pub(crate) enum SwarmEvent {
+/// All events created or delegated by the [`Swarm`] that represents changes to
+/// the state of the network.
+pub enum SwarmEvent {
     /// Events related to the actual network protocol.
     ValidMessage {
         /// The peer that sent the message
-        peer_id: PeerId,
+        peer_id: PeerId
     },
-    /// Received a message that does not match the announced capabilities of the peer.
+    /// Received a message that does not match the announced capabilities of the
+    /// peer.
     InvalidCapabilityMessage {
-        peer_id: PeerId,
+        peer_id:      PeerId,
         /// Announced capabilities of the remote peer.
         capabilities: Arc<Capabilities>,
         /// Message received from the peer.
-        message: CapabilityMessage,
+        message:      CapabilityMessage
     },
     /// Received a bad message from the peer.
     BadMessage {
         /// Identifier of the remote peer.
-        peer_id: PeerId,
+        peer_id: PeerId
     },
     /// Remote peer is considered in protocol violation
     ProtocolBreach {
         /// Identifier of the remote peer.
-        peer_id: PeerId,
+        peer_id: PeerId
     },
     /// The underlying tcp listener closed.
     TcpListenerClosed {
         /// Address of the closed listener.
-        remote_addr: SocketAddr,
+        remote_addr: SocketAddr
     },
     /// The underlying tcp listener encountered an error that we bubble up.
     TcpListenerError(io::Error),
     /// Received an incoming tcp connection.
     ///
-    /// This represents the first step in the session authentication process. The swarm will
-    /// produce subsequent events once the stream has been authenticated, or was rejected.
+    /// This represents the first step in the session authentication process.
+    /// The swarm will produce subsequent events once the stream has been
+    /// authenticated, or was rejected.
     IncomingTcpConnection {
-        /// The internal session identifier under which this connection is currently tracked.
-        session_id: SessionId,
+        /// The internal session identifier under which this connection is
+        /// currently tracked.
+        session_id:  SessionId,
         /// Address of the remote peer.
-        remote_addr: SocketAddr,
+        remote_addr: SocketAddr
     },
     /// An outbound connection is initiated.
     OutgoingTcpConnection {
         /// Address of the remote peer.
-        peer_id: PeerId,
-        remote_addr: SocketAddr,
+        peer_id:     PeerId,
+        remote_addr: SocketAddr
     },
     SessionEstablished {
-        peer_id: PeerId,
-        remote_addr: SocketAddr,
+        peer_id:        PeerId,
+        remote_addr:    SocketAddr,
         client_version: Arc<String>,
-        capabilities: Arc<Capabilities>,
+        capabilities:   Arc<Capabilities>,
         /// negotiated eth version
-        version: EthVersion,
-        status: Status,
-        direction: Direction,
+        version:        EthVersion,
+        status:         Status,
+        direction:      Direction
     },
     SessionClosed {
-        peer_id: PeerId,
+        peer_id:     PeerId,
         remote_addr: SocketAddr,
         /// Whether the session was closed due to an error
-        error: Option<EthStreamError>,
+        error:       Option<EthStreamError>
     },
     /// Admin rpc: new peer added
     PeerAdded(PeerId),
@@ -579,16 +598,16 @@ pub(crate) enum SwarmEvent {
     /// Closed an incoming pending session during authentication.
     IncomingPendingSessionClosed {
         remote_addr: SocketAddr,
-        error: Option<PendingSessionHandshakeError>,
+        error:       Option<PendingSessionHandshakeError>
     },
     /// Closed an outgoing pending session during authentication.
     OutgoingPendingSessionClosed {
         remote_addr: SocketAddr,
-        peer_id: PeerId,
-        error: Option<PendingSessionHandshakeError>,
+        peer_id:     PeerId,
+        error:       Option<PendingSessionHandshakeError>
     },
     /// Failed to establish a tcp stream to the given address/node
-    OutgoingConnectionError { remote_addr: SocketAddr, peer_id: PeerId, error: io::Error },
+    OutgoingConnectionError { remote_addr: SocketAddr, peer_id: PeerId, error: io::Error }
 }
 
 /// Represents the state of the connection of the node. If shutting down,
@@ -597,14 +616,14 @@ pub(crate) enum SwarmEvent {
 pub(crate) enum NetworkConnectionState {
     #[default]
     Active,
-    ShuttingDown,
+    ShuttingDown
 }
 
-
-/// (Non-exhaustive) Events emitted by the network that are of interest for subscribers.
+/// (Non-exhaustive) Events emitted by the network that are of interest for
+/// subscribers.
 ///
-/// This includes any event types that may be relevant to tasks, for metrics, keep track of peers
-/// etc.
+/// This includes any event types that may be relevant to tasks, for metrics,
+/// keep track of peers etc.
 #[derive(Debug, Clone)]
 pub enum NetworkEvent {
     /// Closed the peer session.
@@ -612,30 +631,31 @@ pub enum NetworkEvent {
         /// The identifier of the peer to which a session was closed.
         peer_id: PeerId,
         /// Why the disconnect was triggered
-        reason: Option<DisconnectReason>,
+        reason:  Option<DisconnectReason>
     },
     /// Established a new session with the given peer.
     SessionEstablished {
         /// The identifier of the peer to which a session was established.
-        peer_id: PeerId,
+        peer_id:        PeerId,
         /// The remote addr of the peer to which a session was established.
-        remote_addr: SocketAddr,
+        remote_addr:    SocketAddr,
         /// The client version of the peer to which a session was established.
         client_version: Arc<String>,
         /// Capabilities the peer announced
-        capabilities: Arc<Capabilities>,
+        capabilities:   Arc<Capabilities>,
         /// The status of the peer to which a session was established.
-        status: Status,
+        status:         Status,
         /// negotiated eth version of the session
-        version: EthVersion,
+        version:        EthVersion
     },
     /// Event emitted when a new peer is added
     PeerAdded(PeerId),
     /// Event emitted when a new peer is removed
-    PeerRemoved(PeerId),
+    PeerRemoved(PeerId)
 }
 
 #[derive(Debug, Clone)]
 pub enum DiscoveredEvent {
-    EventQueued { peer_id: PeerId, socket_addr: SocketAddr, fork_id: Option<ForkId> },
+    EventQueued { peer_id: PeerId, socket_addr: SocketAddr, fork_id: Option<ForkId> }
 }
+
