@@ -15,10 +15,15 @@ reth-primitives.workspace = true
 ethers-providers.workspace = true
 ethers-signers.workspace = true
 ethers-middleware.workspace = true
+ethers-core.workspace = true
 
 # async related
 futures.workspace = true
 tokio.workspace = true
+
+shared.workspace = true
+
+
 
 # flashbots related
 ethers-flashbots = "0.14.0"

@@ -44,7 +44,7 @@ ethers-core.workspace = true
 tracing.workspace = true
 reth-rpc-builder.workspace = true
 async-trait.workspace = true
-parking-lot.workspace = true
+parking_lot.workspace = true
 tokio-stream.workspace = true
 
 jsonrpsee = { workspace = true, features = ["server"] }
@@ -68,7 +68,6 @@ revm-primitives = { git = "https://github.com/bluealloy/revm/", branch = "releas
 [workspace.dependencies]
 revm = { version = "3" }
 revm-primitives = "1.1"
-
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-interfaces = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
@@ -91,6 +90,9 @@ ethers-core = { version = "2.0", default-features = false }
 ethers-providers = { version = "2.0", default-features = false }
 ethers-signers = { version = "2.0", default-features = false }
 ethers-middleware = { version = "2.0", default-features = false }
+
+shared = { path = "./crates/shared/" }
+
 
 ## misc
 bytes = "1.4"

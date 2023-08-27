@@ -3,10 +3,12 @@ use std::{
     task::{Context, Poll}
 };
 
+use ethers_core::types::transaction::eip712::EIP712Domain;
 use ethers_flashbots::BroadcasterMiddleware;
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::Middleware;
 use ethers_signers::LocalWallet;
+use shared::Bundle;
 use sim::Simulator;
 
 use crate::cow_solver::CowSolver;
@@ -34,9 +36,9 @@ impl<M: Middleware> DerefMut for LeaderCoreConfig<M> {
 
 /// requests that the leader can request
 pub enum LeaderCoreActions {
-    SignBundle(),
-    GetEip712Tx(),
-    GetCexDex()
+    SignBundle(Bundle),
+    GetEip712Tx(Vec<EIP712Domain>),
+    GetCexDex(Vec<EIP712Domain>)
 }
 
 /// leader core purely deals with building the best bundle and submitting it to
@@ -45,9 +47,9 @@ pub struct LeaderCore<M: Middleware, S: Simulator> {
     config: LeaderCoreConfig<M>,
     solver: CowSolver,
 
-    // bundle state
-    top_of_bundles: Vec<()>,
-    body_txes:      Vec<()>,
+    // bundle state :TODO better rep in
+    top_of_bundles: Vec<EIP712Domain>,
+    body_txes:      Vec<EIP712Domain>,
 
     sim: S
 }
