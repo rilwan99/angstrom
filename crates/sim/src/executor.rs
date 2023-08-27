@@ -1,33 +1,28 @@
-use std::{future::Future, task::Poll};
-use futures_util::pin_mut;
-use tokio::{runtime::Handle, task::JoinHandle, sync::{oneshot::Sender, mpsc::UnboundedReceiver}};
-
-use crate::{revm::TransactionType, Simulator};
+use std::{future::Future, task::{Poll, Context}, pin::Pin};
+use futures_util::{pin_mut, future::{Shared, FusedFuture}, FutureExt};
+use tokio::{runtime::Handle, task::JoinHandle, sync::oneshot, };
 
 /// executes tasks on the runtime
 /// used for a thread pool for the simulator
-pub(crate) struct SimThreadPool<S: Simulator + 'static> {
+pub(crate) struct ThreadPool {
     handle: Handle,
-    transaction_rx: UnboundedReceiver<TransactionType>,
-    //id: u64,
-    sim: S
+    shutdown: Shutdown,
+    signal: Signal
 }
 
-impl<S> SimThreadPool<S> 
-where 
-    S: Simulator,
-{
-    pub fn new(transaction_rx: UnboundedReceiver<TransactionType>, sim: S) -> Self {
+impl ThreadPool where {
+    pub fn new() -> Self {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap();
+        let (signal, shutdown ) = signal();
 
-        Self { handle: runtime.handle().clone(), transaction_rx, sim }
+        Self { handle: runtime.handle().clone(), shutdown, signal }
     }
 
     /// Spawns a regular task depending on the given [TaskKind]
-    fn spawn_task_as<F>(&self, fut: F, task_kind: TaskKind) -> JoinHandle<()>
+    pub fn spawn_task_as<F>(&self, fut: F, task_kind: TaskKind) -> JoinHandle<()>
     where
         F: Future<Output = ()> + Send + 'static,
     {
@@ -54,39 +49,43 @@ where
     }
 }
 
-impl<S> Future for SimThreadPool<S> 
-where
-    S: Simulator + Unpin + 'static
-{
-    type Output = ();
-
-    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
-        
-        loop {
-            match this.transaction_rx.poll_recv(cx) {
-                Poll::Ready(Some(transaction_type)) => { 
-                    match transaction_type {
-                        TransactionType::Single(transaction, tx) => {
-                            //this.spawn_task_as(this.sim.run_sim(transaction, tx), TaskKind::Default);
-                        },
-                        TransactionType::Bundle(bundle, tx) =>  {
-                            //this.spawn_task_as(this.sim.run_sim(bundle, tx), TaskKind::Default); // GIVE PRIORITY
-                        },
-                    }
-                    ()
-                },
-                Poll::Ready(None) => return Poll::Ready(()),
-                Poll::Pending => break
-            };
-        }
-
-        Poll::Pending
-    }
-}
-
-
+/// specifies a blocking or non blocking task
 pub(crate) enum TaskKind {
     Default,
     Blocking
+}
+
+
+/// A Future that resolves when the shutdown event has been fired.
+#[derive(Debug, Clone)]
+pub struct Shutdown(Shared<oneshot::Receiver<()>>);
+
+impl Future for Shutdown {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let pin = self.get_mut();
+        if pin.0.is_terminated() || pin.0.poll_unpin(cx).is_ready() {
+            Poll::Ready(())
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
+/// Shutdown signal that fires either manually or on drop by closing the channel
+#[derive(Debug)]
+pub struct Signal(oneshot::Sender<()>);
+
+impl Signal {
+    /// Fire the signal manually.
+    pub fn fire(self) {
+        let _ = self.0.send(());
+    }
+}
+
+/// Create a channel pair that's used to propagate shutdown event
+pub fn signal() -> (Signal, Shutdown) {
+    let (sender, receiver) = oneshot::channel();
+    (Signal(sender), Shutdown(receiver.shared()))
 }
