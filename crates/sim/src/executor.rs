@@ -9,8 +9,6 @@ use tokio::{runtime::Handle, task::JoinHandle, sync::mpsc::UnboundedReceiver};
 pub(crate) struct SimThreadPool {
     handle: Handle,
     reciever: UnboundedReceiver<TransactionType>
-    /// id for callback
-    /// cache db
 }
 
 impl SimThreadPool {
