@@ -45,7 +45,6 @@ ethers-core.workspace = true
 tracing.workspace = true
 reth-rpc-builder.workspace = true
 async-trait.workspace = true
-parking_lot.workspace = true
 tokio-stream.workspace = true
 shared.workspace = true
 
@@ -54,6 +53,7 @@ tower-http = { version = "0.4", features = ["full"] }
 tower = { version = "0.4", features = ["full"] }
 hyper = "0.14"
 
+parking_lot = "0.12"
 guard-network = { path = "./crates/net/network/" }
 leader = { path = "./crates/leader/" }
 sim = { path = "./crates/sim" }

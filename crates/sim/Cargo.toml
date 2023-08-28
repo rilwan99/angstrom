@@ -11,3 +11,28 @@ exclude.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# ethers
+ethers-middleware.workspace = true
+ethers-core = "2.0"
+ethers-reth = { git = "https://github.com/SorellaLabs/ethers-reth/" }
+
+# revm
+revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
+revm-primitives = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
+
+# async/futures
+tokio = { version = "1.21", default-features = false }
+futures = "0.3.26"
+pin-project = "1.0.12"
+futures-util = "0.3.25"
+async-trait = "0.1.68"
+parking_lot = "0.12.1"
+
+# misc
+eyre = "0.6.8"
+
+# error
+thiserror = "1.0.44"
+
+# cache
+schnellru = "0.2"

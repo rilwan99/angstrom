@@ -10,11 +10,7 @@ use futures_util::StreamExt;
 use guard_network::Swarm;
 use leader::leader_manager::Leader;
 use sim::Simulator;
-use tokio::{sync::mpsc::Sender, task::JoinHandle};
-
-use crate::submission_server::{
-    Submission, SubmissionServer, SubscriptionKind, SubscriptionResult
-};
+use tokio::task::JoinHandle;
 
 
 /// This is the control unit of the guard that delegates
