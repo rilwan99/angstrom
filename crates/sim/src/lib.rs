@@ -1,7 +1,4 @@
-use std::error::Error;
-
-use ethers_core::types::transaction::{eip712::EIP712Domain, eip2718::TypedTransaction};
-use revm_primitives::{B160, EVMError, db::DatabaseRef};
+use ethers_core::types::transaction::eip2718::TypedTransaction;
 use sim::SimResult;
 use tokio::sync::oneshot::Sender;
 

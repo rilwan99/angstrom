@@ -1,8 +1,6 @@
-use ethers_core::types::transaction::{eip712::EIP712Domain, eip2718::TypedTransaction};
-use revm::db::DatabaseRef;
+use ethers_core::types::transaction::eip2718::TypedTransaction;
 use tokio::sync::mpsc::UnboundedSender;
-use crate::{executor::ThreadPool, Simulator, TransactionType};
-use ethers_middleware::Middleware;
+use crate::{Simulator, TransactionType};
 
 /// clone-able handle to the simulator
 #[derive(Clone)]

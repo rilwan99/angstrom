@@ -1,10 +1,9 @@
-use std::fmt::Display;
-
-use ethers_core::types::transaction::{eip2718::TypedTransaction, eip712::Eip712DomainType};
+use ethers_core::types::transaction::eip2718::TypedTransaction;
 use thiserror::Error;
-use revm_primitives::{EVMError, ExecutionResult, ruint::aliases::B256};
+use revm_primitives::ExecutionResult;
 
 
+/// CLEAN THIS UP
 pub enum SimResult {
     /// error running a sim on the evm
     SimulationError(SimError),

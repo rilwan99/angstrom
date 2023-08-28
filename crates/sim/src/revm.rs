@@ -1,11 +1,8 @@
 use std::{task::Poll, sync::Arc};
-use ethers_core::types::transaction::eip712::EIP712Domain;
 use futures_util::Future;
-use revm::{db::{CacheDB, DatabaseRef, EmptyDB}, EVM, Database};
-use revm_primitives::EVMResult;
-use tokio::sync::{mpsc::{UnboundedReceiver, UnboundedSender}, oneshot::Sender};
+use tokio::sync::mpsc::UnboundedReceiver;
 use parking_lot::RwLock;
-use crate::{sim::SimResult, executor::{ThreadPool, TaskKind}, Simulator, TransactionType};
+use crate::{executor::{ThreadPool, TaskKind}, TransactionType};
 use ethers_middleware::Middleware;
 use crate::state::RevmState;
 
@@ -22,7 +19,9 @@ where
     M: Middleware
 {
     pub fn new(transaction_rx: UnboundedReceiver<TransactionType>, evm_db: M, max_bytes: usize) -> Self {
-        Self { transaction_rx, threadpool: ThreadPool::new(), state: Arc::new(RwLock::new(RevmState::new(evm_db, max_bytes))) }
+        let threadpool = ThreadPool::new();
+        let handle = threadpool.handle.clone();
+        Self { transaction_rx, threadpool, state: Arc::new(RwLock::new(RevmState::new(evm_db, max_bytes, handle))) }
     }
 
 
@@ -36,7 +35,8 @@ where
                 let _ = ThreadPool::spawn_task_as(handle, fut, TaskKind::Default);
             },
             TransactionType::Bundle(tx, sender) => {
-                //self.threadpool.spawn_task_as(, TaskKind::Blocking);
+                let fut = async move { RevmState::simulate_bundle(state.clone(), vec![tx], sender) };
+                let _ = ThreadPool::spawn_task_as(handle, fut, TaskKind::Default);
             },
         };
     }

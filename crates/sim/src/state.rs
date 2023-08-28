@@ -2,10 +2,10 @@ use std::{task::Poll, sync::Arc};
 use parking_lot::RwLock;
 use ethers_core::types::{transaction::{eip712::EIP712Domain, eip2718::TypedTransaction}, Res};
 use futures_util::Future;
-use revm::{db::{CacheDB, DatabaseRef, EmptyDB}, EVM, Database};
-use revm_primitives::{*, ruint::aliases::B160};
+use revm::{db::{CacheDB, DatabaseRef, EmptyDB}, EVM, Database, DatabaseCommit};
+use revm_primitives::*;
 use schnellru::{LruMap, ByMemoryUsage};
-use tokio::sync::{mpsc::{UnboundedReceiver, UnboundedSender}, oneshot::Sender};
+use tokio::{sync::{mpsc::{UnboundedReceiver, UnboundedSender}, oneshot::Sender}, runtime::Handle};
 use crate::{sim::{SimResult, SimError}, executor::{ThreadPool, TaskKind}, Simulator, TransactionType, lru_db::RevmLRU};
 use ethers_middleware::Middleware;
 use eyre::Result;
@@ -16,7 +16,7 @@ pub struct RevmState<M: Middleware + 'static> {
     /// touched slots in tx sim
     slot_changes: HashMap<B160, HashMap<U256, StorageSlot>>,
     /// cached database for bundle state changes
-    cache_db: CacheDB<M>,
+    cache_db: CacheDB<EmptyDB>,
     /// evm to sim that holds state to sim on
     evm: EVM<RevmLRU<M>>
 }
@@ -25,10 +25,10 @@ impl<M> RevmState<M>
 where
     M: Middleware
 {
-    pub fn new(db: M, max_bytes: usize) -> Self {
+    pub fn new(db: M, max_bytes: usize, handle: Handle) -> Self {
         let mut evm = EVM::new();
-        evm.database(RevmLRU::new(max_bytes, db));
-        Self { evm, cache_db: CacheDB::new(db), slot_changes: HashMap::new() }
+        evm.database(RevmLRU::new(max_bytes, db, handle));
+        Self { evm, cache_db: CacheDB::new(EmptyDB{}), slot_changes: HashMap::new() }
     }
 
 
@@ -66,24 +66,24 @@ where
 
         let mut state = state.write();
 
+        state.cache_db = CacheDB::default(); // reset the cache db before new bundle sim
+
         let mut sim_res: SimResult = SimResult::SuccessfulBundle;
         for tx in txs {
             state.evm.env.tx = convert_type_tx(&tx);
             let state_change = state.evm.transact();
-            if let Some(r) = state_change  {
-                state.evm.
+            if let Ok(r) = state_change  {
+                state.cache_db.commit(r.state)
             } else {
                 sim_res =  SimResult::SimulationError(SimError::EVMTransactError(tx));
                 break;
             };
         }
-
-        state.cache_db = cache_evm.take_db();
         let _ = client_tx.send(sim_res);
     }
 
     /// updates the slots touched by a transaction if they haven't already been touched
-    fn set_touched_slots(&mut self) -> Result<Option<ExecutionResult>, EVMError<<D as DatabaseRef>::Error>> {
+    fn set_touched_slots(&mut self) -> Result<Option<ExecutionResult>, EVMError<<RevmLRU<M> as DatabaseRef>::Error>> {
         let contract_address = match self.evm.env.tx.transact_to {
             TransactTo::Call(a) => a,
             TransactTo::Create(_) => return Ok(None),

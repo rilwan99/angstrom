@@ -6,8 +6,8 @@ use tokio::{runtime::Handle, task::JoinHandle, sync::oneshot, };
 /// used for a thread pool for the simulator
 pub(crate) struct ThreadPool {
     pub handle: Handle,
-    shutdown: Shutdown,
-    signal: Signal
+    //shutdown: Shutdown,
+    //signal: Signal
 }
 
 impl ThreadPool where {
@@ -16,9 +16,11 @@ impl ThreadPool where {
             .enable_all()
             .build()
             .unwrap();
-        let (signal, shutdown ) = signal();
+        //let (signal, shutdown ) = signal();
 
-        Self { handle: runtime.handle().clone(), shutdown, signal }
+        Self { handle: runtime.handle().clone()}
+
+        //Self { handle: runtime.handle().clone(), shutdown, signal }
     }
 
     /// Spawns a regular task depending on the given [TaskKind]
@@ -58,6 +60,9 @@ pub(crate) enum TaskKind {
 }
 
 
+// finish shutdown mechanism
+/* 
+
 /// A Future that resolves when the shutdown event has been fired.
 #[derive(Debug, Clone)]
 pub struct Shutdown(Shared<oneshot::Receiver<()>>);
@@ -91,3 +96,4 @@ pub fn signal() -> (Signal, Shutdown) {
     let (sender, receiver) = oneshot::channel();
     (Signal(sender), Shutdown(receiver.shared()))
 }
+*/
