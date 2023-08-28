@@ -13,3 +13,4 @@ exclude.workspace = true
 sim.workspace = true
 ethers-core.workspace = true
 shared.workspace = true
+futures.workspace = true

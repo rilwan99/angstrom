@@ -9,6 +9,7 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
+#[cfg(feature = "subscription")]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum SubscriptionKind {
@@ -33,6 +34,7 @@ pub trait GuardApi {
     async fn submit_eip712(&self, meta_tx: TypedData) -> bool;
 
     /// Create an ethereum subscription for the given params
+    #[cfg(feature = "subscription")]
     #[subscription(
         name = "subscribe" => "subscription",
         unsubscribe = "unsubscribe",
@@ -47,6 +49,7 @@ pub trait GuardApi {
 
 pub enum Submission {
     Submission(TypedData),
+    #[cfg(feature = "subscription")]
     Subscription(SubscriptionKind, Sender<SubscriptionResult>)
 }
 
@@ -76,6 +79,7 @@ impl GuardApiServer for SubmissionServer {
         true
     }
 
+    #[cfg(feature = "subscription")]
     async fn subscribe(
         &self,
         pending: PendingSubscriptionSink,
@@ -97,6 +101,7 @@ impl GuardApiServer for SubmissionServer {
 }
 
 /// Pipes all stream items to the subscription sink.
+#[cfg(feature = "subscription")]
 async fn pipe_from_stream<T, St>(
     sink: SubscriptionSink,
     mut stream: St

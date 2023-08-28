@@ -97,7 +97,6 @@ shared = { path = "./crates/shared/" }
 bundler = { path = "./crates/bundler/" }
 sim = { path = "./crates/sim/" }
 
-
 ## misc
 bytes = "1.4"
 bitflags = "2.3"
@@ -146,3 +145,7 @@ c-kzg = { git = "https://github.com/ethereum/c-kzg-4844" }
 ### misc-testing
 proptest = "1.0"
 arbitrary = "1.1"
+
+[features]
+default = ["subscription"]
+subscription = []

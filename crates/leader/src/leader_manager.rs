@@ -1,12 +1,29 @@
 use std::task::{Context, Poll};
 
-use bundler::{BundleSigner, CowSolver};
+use bundler::{BundleSigner, CowMsg, CowSolver, SimulatedTransaction};
 use ethers_core::types::transaction::eip712::TypedData;
 use ethers_providers::Middleware;
 use reth_primitives::{Address, U64};
+use shared::{Bundle, SealedBundle};
 use sim::Simulator;
 
 use crate::leader_core::{leader_sender::LeaderSender, LeaderCore};
+
+#[derive(Debug, Clone)]
+pub enum LeaderMessage {
+    NewBestBundle(SealedBundle),
+    NewValidTransactions(Vec<SimulatedTransaction>),
+    SignedBundle(Bundle)
+}
+
+impl From<CowMsg> for LeaderMessage {
+    fn from(value: CowMsg) -> Self {
+        match value {
+            CowMsg::NewBestBundle(b) => LeaderMessage::NewBestBundle(b),
+            CowMsg::NewValidTransactions(t) => LeaderMessage::NewValidTransactions(t)
+        }
+    }
+}
 
 /// This is going to be changing.. just a placeholder
 #[derive(Debug)]
@@ -21,12 +38,13 @@ pub struct LeaderConfig {
 pub struct Leader<M: Middleware + Unpin + 'static, S: Simulator> {
     /// actively tells us who the selected leader is
     active_leader_config: Option<LeaderConfig>,
-    /// used when selected to be leader.
+    /// used when selected to be leader. mostly for just submitting
     leader_sender:        LeaderSender<M>,
     /// used to sim and then sign bundles that are requested
     /// by leader
-    cow_solver:           CowSolver,
     bundle_signer:        BundleSigner<S>,
+    /// deals with our bundle state
+    cow_solver:           CowSolver<S>,
     /// used to make basic requests
     full_node_req:        &'static M
 }
@@ -42,12 +60,11 @@ impl<M: Middleware + Unpin, S: Simulator> Leader<M, S> {
 
     pub fn process_msg(&mut self) {}
 
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Vec<LeaderAction>> {
-        let mut res = Vec::with_capacity(50);
-
+    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Vec<LeaderMessage>> {
+        let mut res = Vec::with_capacity(10);
         // pull all leader state
         while let Poll::Ready(msg) = self.leader_core.poll(cx) {
-            res.push(LeaderAction::Core(msg));
+            // res.push(LeaderAction::Core(msg));
         }
 
         if !res.is_empty() {

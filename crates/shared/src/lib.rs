@@ -14,9 +14,17 @@ pub struct SealedOrder(pub [u8; 32]);
 
 pub struct SealedBundle {
     pub arbs:  Vec<SealedOrder>,
+
     pub pools: Vec<PoolSettlement>,
     pub users: Vec<UserSettlement>
 }
+
+impl SealedBundle {
+    pub fn gas_bid_sum(&self) -> U256 {
+        self.users.iter().map(|user| user.order.gas_bid).sum()
+    }
+}
+
 
 /// struct ArbitrageOrderSigned {
 ///     ArbitrageOrder order;
@@ -90,8 +98,8 @@ pub struct UserSettlement {
 ///     bytes postHook;
 /// }
 pub struct UserOrder {
-    pub token_in:       Address,
     pub token_out:      Address,
+    pub token_in:       Address,
     pub amount_in:      u128,
     pub amount_out_min: u128,
     pub deadline:       U256,
