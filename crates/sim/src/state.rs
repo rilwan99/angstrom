@@ -17,7 +17,7 @@ pub struct RevmState<M: Middleware + 'static> {
     slot_changes: HashMap<B160, HashMap<U256, StorageSlot>>,
     /// cached database for bundle state changes
     cache_db: CacheDB<EmptyDB>,
-    /// evm to sim that holds state to sim on
+    /// evm -> holds state to sim on
     evm: EVM<RevmLRU<M>>
 }
 
@@ -40,8 +40,7 @@ where
 
     /// updates the evm state on a new block
     pub fn update_evm_state(state: Arc<RwLock<Self>>) {
-        let mut state = state.write();
-        let a: LruMap<B160, HashMap<U256, StorageSlot>, ByMemoryUsage> = LruMap::new(ByMemoryUsage::new(1000000000)); // 1gb, change
+        todo!()
     }
 
     /// simulates a single transaction and caches touched slots

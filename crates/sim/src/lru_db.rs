@@ -31,7 +31,7 @@ impl<M: Middleware> RevmLRU<M> {
     }
 
 
-    /// gets the basic account info from the middleware
+    /// gets the basic account info from the middlewares
     fn middleware_basic(&mut self, address: B160) -> Result<Option<AccountInfo>, M::Error> {
         let add = eH160::from(address.0);
         let f = async {
@@ -47,10 +47,11 @@ impl<M: Middleware> RevmLRU<M> {
             code.unwrap_or_else(|e| panic!("ethers get code error: {e:?}"))
                 .0,
         );
+        /* 
         let code_hash: B256 = KECCAK_EMPTY;
         if !bytecode.is_empty() {
             keccak256(&bytecode.original_bytes());
-        }
+        }*/
         let db_acct = Some(AccountInfo::new(
             U256::from_limbs(
                 balance
