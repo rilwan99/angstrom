@@ -20,6 +20,7 @@ pub trait Simulator {
 
 
 /// enum of transaction type
+/// CHANGE TO EIP712DOMAIN
 pub enum TransactionType {
     Single(TypedTransaction, Sender<SimResult>),
     Bundle(TypedTransaction, Sender<SimResult>),

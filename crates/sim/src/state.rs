@@ -29,7 +29,6 @@ where
         Self { evm, cache_db: CacheDB::new(EmptyDB{}), slot_changes: HashMap::new() }
     }
 
-
     /// resets the cache of slot changes
     pub fn reset_cache_slot_changes(state: Arc<RwLock<Self>>) {
         let mut state = state.write();
@@ -39,6 +38,7 @@ where
     /// updates the evm state on a new block
     pub fn update_evm_state(state: Arc<RwLock<Self>>) {
         todo!()
+        // overhead from pulling state from disk on new block??
     }
 
     /// simulates a single transaction and caches touched slots
