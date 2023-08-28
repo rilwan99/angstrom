@@ -12,5 +12,7 @@ exclude.workspace = true
 [dependencies]
 sim.workspace = true
 ethers-core.workspace = true
+ethers-signers.workspace = true
 shared.workspace = true
 futures.workspace = true
+thiserror.workspace = true
