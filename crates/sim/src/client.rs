@@ -1,4 +1,4 @@
-use ethers_core::types::transaction::eip712::EIP712Domain;
+use ethers_core::types::transaction::{eip712::EIP712Domain, eip2718::TypedTransaction};
 use revm::db::DatabaseRef;
 use tokio::sync::mpsc::UnboundedSender;
 use crate::{executor::ThreadPool, Simulator, TransactionType};
@@ -18,7 +18,7 @@ impl RevmClient {
 
 #[async_trait::async_trait]
 impl Simulator for RevmClient {
-    async fn run_sim(&self, transaction: EIP712Domain) {
+    async fn run_sim(&self, transaction: TypedTransaction) {
         todo!()
     }
 }

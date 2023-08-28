@@ -5,7 +5,7 @@ use tokio::{runtime::Handle, task::JoinHandle, sync::oneshot, };
 /// executes tasks on the runtime
 /// used for a thread pool for the simulator
 pub(crate) struct ThreadPool {
-    handle: Handle,
+    pub handle: Handle,
     shutdown: Shutdown,
     signal: Signal
 }
@@ -22,32 +22,34 @@ impl ThreadPool where {
     }
 
     /// Spawns a regular task depending on the given [TaskKind]
-    pub fn spawn_task_as<F>(&self, fut: F, task_kind: TaskKind) -> JoinHandle<()>
+    pub fn spawn_task_as<F>(handle: self::Handle, fut: F, task_kind: TaskKind) -> JoinHandle<()>
     where
-        F: Future<Output = ()> + Send + 'static,
+        F: Future<Output = ()> + Send + Sync + 'static,
     {
         let task = async move {
             pin_mut!(fut);
             let _ = fut.await;
         };
 
-        self.spawn_on_rt(task, task_kind)
+        Self::spawn_on_rt(handle, task, task_kind)
     }
 
     /// Spawns a future on the tokio runtime depending on the [TaskKind]
-    fn spawn_on_rt<F>(&self, fut: F, task_kind: TaskKind) -> JoinHandle<()>
+    fn spawn_on_rt<F>(handle: self::Handle, fut: F, task_kind: TaskKind) -> JoinHandle<()>
     where
         F: Future<Output = ()> + Send + 'static,
     {
         match task_kind {
-            TaskKind::Default => self.handle.spawn(fut),
+            TaskKind::Default => handle.spawn(fut),
             TaskKind::Blocking => {
-                let handle = self.handle.clone();
-                self.handle.spawn_blocking(move || handle.block_on(fut))
+                handle.clone().spawn_blocking(move || handle.block_on(fut))
             }
         }
     }
 }
+
+
+
 
 /// specifies a blocking or non blocking task
 pub(crate) enum TaskKind {
