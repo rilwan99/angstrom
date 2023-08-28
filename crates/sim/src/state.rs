@@ -1,12 +1,10 @@
-use std::{task::Poll, sync::Arc};
+use std::sync::Arc;
 use parking_lot::RwLock;
-use ethers_core::types::{transaction::{eip712::EIP712Domain, eip2718::TypedTransaction}, Res};
-use futures_util::Future;
-use revm::{db::{CacheDB, DatabaseRef, EmptyDB}, EVM, Database, DatabaseCommit};
+use ethers_core::types::transaction::eip2718::TypedTransaction;
+use revm::{db::{CacheDB, DatabaseRef, EmptyDB}, EVM, DatabaseCommit};
 use revm_primitives::*;
-use schnellru::{LruMap, ByMemoryUsage};
-use tokio::{sync::{mpsc::{UnboundedReceiver, UnboundedSender}, oneshot::Sender}, runtime::Handle};
-use crate::{sim::{SimResult, SimError}, executor::{ThreadPool, TaskKind}, Simulator, TransactionType, lru_db::RevmLRU};
+use tokio::{sync::oneshot::Sender, runtime::Handle};
+use crate::{sim::{SimResult, SimError}, lru_db::RevmLRU};
 use ethers_middleware::Middleware;
 use eyre::Result;
 
@@ -15,7 +13,7 @@ use eyre::Result;
 pub struct RevmState<M: Middleware + 'static> {
     /// touched slots in tx sim
     slot_changes: HashMap<B160, HashMap<U256, StorageSlot>>,
-    /// cached database for bundle state changes
+    /// cached database for bundle state differences
     cache_db: CacheDB<EmptyDB>,
     /// evm -> holds state to sim on
     evm: EVM<RevmLRU<M>>
@@ -102,11 +100,6 @@ where
     }
     
 }
-
-
-
-
-
 
 
 

@@ -8,6 +8,7 @@ pub mod sim;
 pub mod executor;
 pub mod state;
 pub mod lru_db;
+pub mod middleware;
 
 /// the simulator is a handle that we use to simulate transactions.
 #[async_trait::async_trait]

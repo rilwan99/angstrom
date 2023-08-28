@@ -1,13 +1,12 @@
 use std::{future::Future, task::{Poll, Context}, pin::Pin};
 use futures_util::{pin_mut, future::{Shared, FusedFuture}, FutureExt};
-use tokio::{runtime::Handle, task::JoinHandle, sync::oneshot, };
+use tokio::{runtime::Handle, task::JoinHandle, sync::{oneshot, mpsc::UnboundedReceiver}, };
 
 /// executes tasks on the runtime
 /// used for a thread pool for the simulator
 #[derive(Clone)]
-pub(crate) struct SimThreadPool {
-    handle: Handle,
-    reciever: UnboundedReceiver<TransactionType>
+pub(crate) struct ThreadPool {
+    pub handle: Handle,
 }
 
 impl ThreadPool where {

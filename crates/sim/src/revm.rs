@@ -36,7 +36,7 @@ where
             },
             TransactionType::Bundle(tx, sender) => {
                 let fut = async move { RevmState::simulate_bundle(state.clone(), vec![tx], sender) };
-                let _ = ThreadPool::spawn_task_as(handle, fut, TaskKind::Default);
+                let _ = ThreadPool::spawn_task_as(handle, fut, TaskKind::Blocking);
             },
         };
     }
