@@ -1,18 +1,12 @@
 use std::task::{Context, Poll};
 
+use bundler::{BundleSigner, CowSolver};
+use ethers_core::types::transaction::eip712::TypedData;
 use ethers_providers::Middleware;
 use reth_primitives::{Address, U64};
 use sim::Simulator;
 
-use crate::{
-    bundle_signer::BundleSigner,
-    leader_core::{LeaderCore, LeaderCoreActions}
-};
-
-pub enum LeaderAction {
-    /// todo, flatten
-    Core(LeaderCoreActions)
-}
+use crate::leader_core::{leader_sender::LeaderSender, LeaderCore};
 
 /// This is going to be changing.. just a placeholder
 #[derive(Debug)]
@@ -28,15 +22,20 @@ pub struct Leader<M: Middleware + Unpin + 'static, S: Simulator> {
     /// actively tells us who the selected leader is
     active_leader_config: Option<LeaderConfig>,
     /// used when selected to be leader.
-    leader_core:          LeaderCore<M, S>,
+    leader_sender:        LeaderSender<M>,
     /// used to sim and then sign bundles that are requested
     /// by leader
+    cow_solver:           CowSolver,
     bundle_signer:        BundleSigner<S>,
     /// used to make basic requests
     full_node_req:        &'static M
 }
 
 impl<M: Middleware + Unpin, S: Simulator> Leader<M, S> {
+    pub fn new_transaction(&mut self, txes: Vec<TypedData>) {
+        todo!()
+    }
+
     pub fn current_leader(&self) -> Option<&LeaderConfig> {
         self.active_leader_config.as_ref()
     }

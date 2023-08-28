@@ -1,45 +1,74 @@
 use std::task::{Poll, Waker};
 
 // use park
-use ethers_core::types::transaction::eip712::EIP712Domain;
+use ethers_core::types::transaction::eip712::{EIP712Domain, TypedData};
 use futures::Stream;
 use jsonrpsee::{proc_macros::rpc, server::ServerHandle};
 use parking_lot::Mutex;
-use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio_stream::wrappers::ReceiverStream;
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
+pub enum SubscriptionKind {
+    /// New best sealed bundle seen by this guard
+    SealedBundle,
+    /// New cow transactions that this guard has seen
+    CowTransactions
+}
+
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
+#[serde(deny_unknown_fields)]
+#[serde(rename_all = "camelCase")]
+pub enum SubscriptionResult {
+    SealedBundle(Vec<shared::SealedBundle>),
+    CowTransaction(Vec<TypedData>)
+}
 
 #[rpc(server, namespace = "guard")]
 #[async_trait::async_trait]
 pub trait GuardApi {
     #[method(name = "SubmitTransaction")]
-    async fn submit_eip712(&self, meta_tx: EIP712Domain) -> bool;
-    #[method(name = "SubmitSearcherTx")]
-    async fn submit_searcher_tx(&self, meta_tx: EIP712Domain) -> bool;
+    async fn submit_eip712(&self, meta_tx: TypedData) -> bool;
+
+    /// Create an ethereum subscription for the given params
+    #[subscription(
+        name = "subscribe" => "subscription",
+        unsubscribe = "unsubscribe",
+        item = reth_rpc_types::pubsub::SubscriptionResult
+    )]
+    async fn subscribe(
+        &self,
+        kind: SubscriptionKind,
+        params: Option<Params>
+    ) -> jsonrpsee::core::SubscriptionResult;
 }
 
-pub enum Submissions {
-    CexDex(EIP712Domain),
-    Regular(EIP712Domain)
+pub enum Submission {
+    Submission(TypedData),
+    Subscription(SubscriptionKind, Sender<SubscriptionResult>)
 }
 
 pub struct SubmissionServer {
     /// The handle is server: Server<Stack<CorsLayer, Identity>>,
     handle:      ServerHandle,
     // so gay
-    submissions: Mutex<Vec<Submissions>>,
+    submissions: Mutex<Vec<Submission>>,
     waker:       Option<&'static Waker>
 }
 
 impl SubmissionServer {
-    pub fn new(handle: ServerHandle, sender: Sender<Submissions>) -> Self {
+    pub fn new(handle: ServerHandle, sender: Sender<Submission>) -> Self {
         Self { handle, submissions: Mutex::new(vec![]), waker: None }
     }
 }
 
 #[async_trait::async_trait]
 impl GuardApiServer for SubmissionServer {
-    async fn submit_eip712(&self, meta_tx: EIP712Domain) -> bool {
+    async fn submit_eip712(&self, meta_tx: TypedData) -> bool {
         let mut lock = self.submissions.lock();
-        lock.push(Submissions::Regular(meta_tx));
+        lock.push(Submission(meta_tx));
 
         if let Some(waker) = self.waker.as_ref() {
             waker.wake_by_ref();
@@ -47,27 +76,70 @@ impl GuardApiServer for SubmissionServer {
         true
     }
 
-    async fn submit_searcher_tx(&self, meta_tx: EIP712Domain) -> bool {
+    async fn subscribe(
+        &self,
+        pending: PendingSubscriptionSink,
+        kind: SubscriptionKind,
+        params: Option<Params>
+    ) -> jsonrpsee::core::SubscriptionResult {
+        let sink = pending.accept().await?;
+        let (tx, rx) = channel(5);
         let mut lock = self.submissions.lock();
-        lock.push(Submissions::CexDex(meta_tx));
+        lock.push(Submission::Subscription(kind, tx));
+        tokio::spawn(async move { pipe_from_stream(pending, ReceiverStream::new(rx)).await });
 
         if let Some(waker) = self.waker.as_ref() {
             waker.wake_by_ref();
         }
 
-        true
+        Ok(())
+    }
+}
+
+/// Pipes all stream items to the subscription sink.
+async fn pipe_from_stream<T, St>(
+    sink: SubscriptionSink,
+    mut stream: St
+) -> Result<(), jsonrpsee::core::Error>
+where
+    St: Stream<Item = T> + Unpin,
+    T: Serialize
+{
+    loop {
+        tokio::select! {
+            _ = sink.closed() => {
+                // connection dropped
+                break Ok(())
+            },
+            maybe_item = stream.next() => {
+                let item = match maybe_item {
+                    Some(item) => item,
+                    None => {
+                        // stream ended
+                        break  Ok(())
+                    },
+                };
+                let msg = SubscriptionMessage::from_json(&item)?;
+                if sink.send(msg).await.is_err() {
+                    break Ok(());
+                }
+            }
+        }
     }
 }
 
 impl Stream for SubmissionServer {
-    type Item = Vec<Submissions>;
+    type Item = Vec<Submission>;
 
     fn poll_next(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>
     ) -> std::task::Poll<Option<Self::Item>> {
-        self.waker = Some(cx.waker());
+        if self.handle.is_stopped() {
+            return Poll::Ready(None)
+        }
 
+        self.waker = Some(cx.waker());
         let mut lock = self.submissions.lock();
         Poll::Ready(Some(lock.drain(..).collect()))
     }

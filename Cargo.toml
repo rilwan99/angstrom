@@ -4,6 +4,7 @@ members = [
   "crates/net/discv4",
   "crates/leader",
   "crates/sim",
+  "crates/bundler",
 ]
 
 [workspace.package]
@@ -46,6 +47,7 @@ reth-rpc-builder.workspace = true
 async-trait.workspace = true
 parking_lot.workspace = true
 tokio-stream.workspace = true
+shared.workspace = true
 
 jsonrpsee = { workspace = true, features = ["server"] }
 tower-http = { version = "0.4", features = ["full"] }
@@ -92,6 +94,8 @@ ethers-signers = { version = "2.0", default-features = false }
 ethers-middleware = { version = "2.0", default-features = false }
 
 shared = { path = "./crates/shared/" }
+bundler = { path = "./crates/bundler/" }
+sim = { path = "./crates/sim/" }
 
 
 ## misc

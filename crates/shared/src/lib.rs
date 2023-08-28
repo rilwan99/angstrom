@@ -9,6 +9,15 @@ pub struct Bundle {
     pub pools: Vec<PoolSettlement>,
     pub users: Vec<UserSettlement>
 }
+
+pub struct SealedOrder(pub [u8; 32]);
+
+pub struct SealedBundle {
+    pub arbs:  Vec<SealedOrder>,
+    pub pools: Vec<PoolSettlement>,
+    pub users: Vec<UserSettlement>
+}
+
 /// struct ArbitrageOrderSigned {
 ///     ArbitrageOrder order;
 ///    bytes signature;

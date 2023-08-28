@@ -22,9 +22,11 @@ futures.workspace = true
 tokio.workspace = true
 
 shared.workspace = true
+bundler.workspace = true
+
+sim.workspace = true
 
 
 
 # flashbots related
 ethers-flashbots = "0.14.0"
-sim = { path = "../sim/" }
