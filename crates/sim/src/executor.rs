@@ -4,10 +4,10 @@ use tokio::{runtime::Handle, task::JoinHandle, sync::oneshot, };
 
 /// executes tasks on the runtime
 /// used for a thread pool for the simulator
-pub(crate) struct ThreadPool {
-    pub handle: Handle,
-    //shutdown: Shutdown,
-    //signal: Signal
+#[derive(Clone)]
+pub(crate) struct SimThreadPool {
+    handle: Handle,
+    reciever: UnboundedReceiver<TransactionType>
 }
 
 impl ThreadPool where {

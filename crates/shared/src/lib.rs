@@ -1,23 +1,30 @@
+use ethers_core::types::{Address, Bytes, U256};
 /// struct Batch {
 ///     ArbitrageOrderSigned[] arbs;
 ///     PoolSettlement[] pools;
 ///     UserSettlement[] users;
 /// }
 pub struct Bundle {
-    arbs: Vec<ArbitrageOrderSigned>,
-    pools: Vec<PoolSettlement>,
-    users: Vec<UserSettlement>
-
+    pub arbs:  Vec<ArbitrageOrderSigned>,
+    pub pools: Vec<PoolSettlement>,
+    pub users: Vec<UserSettlement>
 }
 
+pub struct SealedOrder(pub [u8; 32]);
+
+pub struct SealedBundle {
+    pub arbs:  Vec<SealedOrder>,
+    pub pools: Vec<PoolSettlement>,
+    pub users: Vec<UserSettlement>
 }
+
 /// struct ArbitrageOrderSigned {
 ///     ArbitrageOrder order;
 ///    bytes signature;
 /// }
 pub struct ArbitrageOrderSigned {
- signature: Bytes,
- order: ArbitrageOrder
+    pub signature: Bytes,
+    pub order:     ArbitrageOrder
 }
 
 /// struct ArbitrageOrder {
@@ -33,17 +40,18 @@ pub struct ArbitrageOrderSigned {
 ///     bytes postHook;
 /// }
 pub struct ArbitrageOrder {
-    pool: [u8; 32],
-    token_in: Address,
-    token_out: Address,
-    amount_in: u128,
-    amount_out: u128,
-    amount_out_min: u128,
-    deadline: U256,
-    gas_bid: U256,
-    bride: U256,
-    pre_hook: Bytes,
-    post_hock: Bytes
+    /// TODO: move to wrapped fix size for quicker encoding
+    pub pool:           [u8; 32],
+    pub token_in:       Address,
+    pub token_out:      Address,
+    pub amount_in:      u128,
+    pub amount_out:     u128,
+    pub amount_out_min: u128,
+    pub deadline:       U256,
+    pub gas_bid:        U256,
+    pub bride:          U256,
+    pub pre_hook:       Bytes,
+    pub post_hock:      Bytes
 }
 
 /// struct PoolSettlement {
@@ -52,9 +60,9 @@ pub struct ArbitrageOrder {
 ///     uint256 token1In;
 /// }
 pub struct PoolSettlement {
-    pool: PoolKey,
-    token_0_in: U256,
-    token_1_in: U256,
+    pub pool:       PoolKey,
+    pub token_0_in: U256,
+    pub token_1_in: U256
 }
 
 /// struct UserSettlement {
@@ -66,11 +74,10 @@ pub struct PoolSettlement {
 ///     uint256 amountOut;
 /// }
 pub struct UserSettlement {
-    order: UserOrder,
-    signature: Bytes,
-    amount_out: U245,
+    pub order:      UserOrder,
+    pub signature:  Bytes,
+    pub amount_out: U256
 }
-
 
 /// struct UserOrder {
 ///     Currency tokenIn;
@@ -82,15 +89,15 @@ pub struct UserSettlement {
 ///     bytes preHook;
 ///     bytes postHook;
 /// }
-pub struct UserOrder { 
-    token_in: Address,
-    token_out: Address,
-    amount_in: u128,
-    amount_out_min: u128,
-    deadline: U256,
-    gas_bid: U256,
-    pre_hook: Bytes,
-    post_hook: Bytes,
+pub struct UserOrder {
+    pub token_in:       Address,
+    pub token_out:      Address,
+    pub amount_in:      u128,
+    pub amount_out_min: u128,
+    pub deadline:       U256,
+    pub gas_bid:        U256,
+    pub pre_hook:       Bytes,
+    pub post_hook:      Bytes
 }
 
 /// struct PoolKey {
@@ -101,9 +108,9 @@ pub struct UserOrder {
 ///     address hooks;
 /// }
 pub struct PoolKey {
-    currency_0: Address,
-    currency_1: Address,
-    fee: u32,
-    tick_spacing: u32,
-    hooks: Address,
+    pub currency_0:   Address,
+    pub currency_1:   Address,
+    pub fee:          u32,
+    pub tick_spacing: u32,
+    pub hooks:        Address
 }
