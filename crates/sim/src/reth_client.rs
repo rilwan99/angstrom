@@ -1,26 +1,29 @@
+use std::sync::Arc;
+
 use ethers_core::types::{Block, BlockId, H160 as eH160, H256, U64 as eU64};
 use ethers_middleware::Middleware;
 use revm::Database;
 use revm_primitives::{db::DatabaseRef, AccountInfo, Bytecode, B160, B256, KECCAK_EMPTY, U256};
-use std::sync::Arc;
 use tokio::runtime::Handle;
 
 pub struct RethClient<M>
 where
-    M: Middleware,
+    M: Middleware
 {
-    pub client: Arc<M>,
-    runtime_handle: Handle,
-    pub block_number: Option<BlockId>,
+    pub client:       Arc<M>,
+    runtime_handle:   Handle,
+    pub block_number: Option<BlockId>
 }
 
 impl<M> RethClient<M>
 where
-    M: Middleware, 
+    M: Middleware
 {
-    /// create ethers db connector inputs are url and block on what we are basing our database (None for latest)
+    /// create ethers db connector inputs are url and block on what we are
+    /// basing our database (None for latest)
     pub fn new(client: M, block_number: Option<BlockId>, handle: Handle) -> Self {
-        let mut out = Self { client: Arc::new(client), runtime_handle: handle, block_number: None };
+        let mut out =
+            Self { client: Arc::new(client), runtime_handle: handle, block_number: None };
 
         out.block_number = if block_number.is_some() {
             block_number
@@ -47,7 +50,7 @@ where
 
 impl<M> Database for RethClient<M>
 where
-    M: Middleware,
+    M: Middleware
 {
     type Error = M::Error;
 
@@ -65,18 +68,18 @@ where
         // panic on not getting data?
         let bytecode = Bytecode::new_raw(
             code.unwrap_or_else(|e| panic!("ethers get code error: {e:?}"))
-                .0,
+                .0
         );
         Ok(Some(AccountInfo::new(
             U256::from_limbs(
                 balance
                     .unwrap_or_else(|e| panic!("ethers get balance error: {e:?}"))
-                    .0,
+                    .0
             ),
             nonce
                 .unwrap_or_else(|e| panic!("ethers get nonce error: {e:?}"))
                 .as_u64(),
-            bytecode,
+            bytecode
         )))
     }
 
@@ -102,7 +105,7 @@ where
     fn block_hash(&mut self, number: U256) -> Result<B256, Self::Error> {
         // saturate usize
         if number > U256::from(u64::MAX) {
-            return Ok(KECCAK_EMPTY);
+            return Ok(KECCAK_EMPTY)
         }
         // TODO: are all of these unwraps safe
         let number = eU64::from(u64::try_from(number).unwrap());
@@ -119,7 +122,7 @@ where
 
 impl<M> DatabaseRef for RethClient<M>
 where
-    M: Middleware,
+    M: Middleware
 {
     type Error = M::Error;
 
@@ -136,18 +139,18 @@ where
         // panic on not getting data?
         let bytecode = Bytecode::new_raw(
             code.unwrap_or_else(|e| panic!("ethers get code error: {e:?}"))
-                .0,
+                .0
         );
         Ok(Some(AccountInfo::new(
             U256::from_limbs(
                 balance
                     .unwrap_or_else(|e| panic!("ethers get balance error: {e:?}"))
-                    .0,
+                    .0
             ),
             nonce
                 .unwrap_or_else(|e| panic!("ethers get nonce error: {e:?}"))
                 .as_u64(),
-            bytecode,
+            bytecode
         )))
     }
 
@@ -173,7 +176,7 @@ where
     fn block_hash(&self, number: U256) -> Result<B256, Self::Error> {
         // saturate usize
         if number > U256::from(u64::MAX) {
-            return Ok(KECCAK_EMPTY);
+            return Ok(KECCAK_EMPTY)
         }
         let number = eU64::from(u64::try_from(number).unwrap());
         let f = async {
