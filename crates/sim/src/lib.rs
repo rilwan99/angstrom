@@ -1,4 +1,6 @@
+use client::RevmClient;
 use ethers_core::types::transaction::{eip2718::TypedTransaction, eip712::TypedData};
+use ethers_middleware::Middleware;
 use sim::SimResult;
 use tokio::sync::oneshot::Sender;
 

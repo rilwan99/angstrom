@@ -24,7 +24,7 @@ where
     M: Middleware,
 {
     pub fn new(
-        transaction_rx: UnboundedReceiver<TransactionSim>,
+        transaction_rx: UnboundedReceiver<TransactionType>,
         evm_db: M,
         max_bytes: usize,
     ) -> Self {

@@ -16,7 +16,7 @@ where
 
 impl<M> RethClient<M>
 where
-    M: Middleware,
+    M: Middleware, 
 {
     /// create ethers db connector inputs are url and block on what we are basing our database (None for latest)
     pub fn new(client: M, block_number: Option<BlockId>, handle: Handle) -> Self {
