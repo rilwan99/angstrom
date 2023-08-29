@@ -7,13 +7,14 @@ use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::{
     executor::{TaskKind, ThreadPool},
+    sim::SimResult,
     state::RevmState,
-    TransactionType
+    TransactionSim
 };
 
 /// revm state handler
 pub struct Revm<M: Middleware + 'static> {
-    transaction_rx: UnboundedReceiver<TransactionType>,
+    transaction_rx: UnboundedReceiver<TransactionSim>,
     threadpool:     ThreadPool,
     state:          Arc<RwLock<RevmState<M>>>
 }
@@ -23,7 +24,7 @@ where
     M: Middleware
 {
     pub fn new(
-        transaction_rx: UnboundedReceiver<TransactionType>,
+        transaction_rx: UnboundedReceiver<TransactionSim>,
         evm_db: M,
         max_bytes: usize
     ) -> Self {
@@ -37,18 +38,18 @@ where
     }
 
     /// handles incoming transactions from clients
-    fn handle_incoming_tx(&mut self, tx_type: TransactionType) {
+    fn handle_incoming_tx(&mut self, tx_type: TransactionSim) {
         let handle = self.threadpool.handle.clone();
         let state = self.state.clone();
         // why are we assigning if no value is returned
         let _ = match tx_type {
-            TransactionType::Single(tx, sender) => {
+            TransactionSim::Transaction(tx, sender) => {
                 let fut = async move { RevmState::simulate_single_tx(state.clone(), tx, sender) };
                 let _ = ThreadPool::spawn_task_as(handle, fut, TaskKind::Default);
             }
-            TransactionType::Bundle(tx, sender) => {
+            TransactionSim::Bundle(tx, sender) => {
                 let fut =
-                    async move { RevmState::simulate_bundle(state.clone(), vec![tx], sender) };
+                    async move { RevmState::simulate_bundle(state.clone(), tx, sender) };
                 let _ = ThreadPool::spawn_task_as(handle, fut, TaskKind::Blocking);
             }
         };

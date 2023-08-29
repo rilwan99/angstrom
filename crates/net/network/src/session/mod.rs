@@ -7,6 +7,8 @@ use std::{
     task::{Context, Poll},
     time::{Duration, Instant}
 };
+use ethers_core::types::transaction::eip712::TypedData;
+
 
 use fnv::FnvHashMap;
 use futures::{future::Either, io, FutureExt, StreamExt};
@@ -24,6 +26,7 @@ use reth_net_common::{
 use reth_primitives::{ForkFilter, ForkId, ForkTransition, Head, PeerId};
 use reth_tasks::TaskSpawner;
 use secp256k1::SecretKey;
+use shared::*;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpStream,
@@ -108,6 +111,16 @@ pub struct SessionManager {
     bandwidth_meter: BandwidthMeter,
     /// Metrics for the session manager.
     metrics: SessionManagerMetrics
+}
+
+impl SessionManager {
+    pub fn propagate_transaction(&mut self, tx: TypedData) {}
+
+    pub fn propagate_sealed_bundle(&mut self, bundle: SealedBundle) {}
+
+    pub fn propagate_signature_request(&mut self, bundle: Bundle) {}
+
+    pub fn propagate_signed_bundle(&mut self, bundle: Bundle) {}
 }
 
 // === impl SessionManager ===

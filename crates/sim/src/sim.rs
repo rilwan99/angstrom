@@ -1,6 +1,7 @@
 use ethers_core::types::transaction::eip2718::TypedTransaction;
 use revm_primitives::ExecutionResult;
 use thiserror::Error;
+use tokio::sync::oneshot::error::RecvError;
 
 /// CLEAN THIS UP
 pub enum SimResult {
@@ -21,5 +22,7 @@ pub enum SimError {
     #[error("Create Transaction Error: {0:#?}")]
     CreateTransaction(TypedTransaction),
     #[error("EVM Simulation Error: {0:#?}")]
-    EVMTransactError(TypedTransaction)
+    EVMTransactError(TypedTransaction),
+    #[error("Failed to recive data back from sim: {0:#?}")]
+    RecvError(RecvError)
 }

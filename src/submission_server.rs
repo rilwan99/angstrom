@@ -109,9 +109,9 @@ pub enum Submission {
 }
 
 pub struct SubmissionServerConfig {
-    addr:                SocketAddr,
-    cors_domains:        String,
-    allow_subscriptions: bool
+    pub addr:                SocketAddr,
+    pub cors_domains:        String,
+    pub allow_subscriptions: bool
 }
 
 pub struct SubmissionServer {

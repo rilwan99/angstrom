@@ -26,9 +26,9 @@ shared.workspace = true
 bundler.workspace = true
 
 sim.workspace = true
+url.workspace = true
 
 
 
 # flashbots related
 ethers-flashbots = "0.14.0"
-url = "2.4.1"

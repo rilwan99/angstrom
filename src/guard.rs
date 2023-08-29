@@ -37,7 +37,7 @@ pub struct Guard<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
 impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
     pub async fn new(
         network_config: NetworkConfig,
-        leader_config: LeaderConfig<'_, M, S>,
+        leader_config: LeaderConfig<M, S>,
         server_config: SubmissionServerConfig,
         sim_thread: JoinHandle<()>
     ) -> anyhow::Result<Self> {
