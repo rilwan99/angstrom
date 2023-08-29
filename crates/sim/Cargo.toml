@@ -13,12 +13,17 @@ exclude.workspace = true
 [dependencies]
 # ethers
 ethers-middleware.workspace = true
-ethers-core = "2.0"
+ethers-core = "2.0.9"
+ethers-signers = "2.0.9"
 ethers-reth = { git = "https://github.com/SorellaLabs/ethers-reth/" }
+rlp = { version = "0.5", features = ["derive"] }
 
 # revm
 revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
 revm-primitives = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
+
+# reth
+reth-primitives.workspace = true
 
 # async/futures
 tokio = { version = "1.21", default-features = false }
@@ -30,9 +35,16 @@ parking_lot = "0.12.1"
 
 # misc
 eyre = "0.6.8"
+hex-literal = "0.4.1"
+secp256k1 = { version = "0.27.0", default-features = false, features = ["global-context", "rand-std", "recovery"] }
+shared = { path = "../shared/"}
 
 # error
 thiserror = "1.0.44"
 
 # cache
 schnellru = "0.2"
+
+# serde
+serde.workspace = true
+serde_json = { workspace = true, features = ["arbitrary_precision"] }

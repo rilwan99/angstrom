@@ -9,48 +9,46 @@ use crate::{
     executor::{TaskKind, ThreadPool},
     sim::SimResult,
     state::RevmState,
-    TransactionSim
+    TransactionType,
 };
 
 /// revm state handler
 pub struct Revm<M: Middleware + 'static> {
-    transaction_rx: UnboundedReceiver<TransactionSim>,
-    threadpool:     ThreadPool,
-    state:          Arc<RwLock<RevmState<M>>>
+    transaction_rx: UnboundedReceiver<TransactionType>,
+    threadpool: ThreadPool,
+    state: Arc<RwLock<RevmState<M>>>,
 }
 
 impl<M> Revm<M>
 where
-    M: Middleware
+    M: Middleware,
 {
     pub fn new(
         transaction_rx: UnboundedReceiver<TransactionSim>,
         evm_db: M,
-        max_bytes: usize
+        max_bytes: usize,
     ) -> Self {
         let threadpool = ThreadPool::new();
-        let handle = threadpool.handle.clone();
+        let handle = threadpool.runtime.handle().clone();
         Self {
             transaction_rx,
             threadpool,
-            state: Arc::new(RwLock::new(RevmState::new(evm_db, max_bytes, handle)))
+            state: Arc::new(RwLock::new(RevmState::new(evm_db, max_bytes, handle))),
         }
     }
 
     /// handles incoming transactions from clients
-    fn handle_incoming_tx(&mut self, tx_type: TransactionSim) {
-        let handle = self.threadpool.handle.clone();
+    fn handle_incoming_tx(&mut self, tx_type: TransactionType) {
         let state = self.state.clone();
         // why are we assigning if no value is returned
-        let _ = match tx_type {
-            TransactionSim::Transaction(tx, sender) => {
+        match tx_type {
+            TransactionType::Single(tx, sender) => {
                 let fut = async move { RevmState::simulate_single_tx(state.clone(), tx, sender) };
-                let _ = ThreadPool::spawn_task_as(handle, fut, TaskKind::Default);
+                let _ = self.threadpool.spawn_task_as(fut, TaskKind::Default);
             }
-            TransactionSim::Bundle(tx, sender) => {
-                let fut =
-                    async move { RevmState::simulate_bundle(state.clone(), tx, sender) };
-                let _ = ThreadPool::spawn_task_as(handle, fut, TaskKind::Blocking);
+            TransactionType::Bundle(tx, sender) => {
+                let fut = async move { RevmState::simulate_bundle(state.clone(), tx, sender) };
+                let _ = self.threadpool.spawn_task_as(fut, TaskKind::Blocking);
             }
         };
     }
@@ -58,22 +56,22 @@ where
 
 impl<M> Future for Revm<M>
 where
-    M: Middleware + Unpin
+    M: Middleware + Unpin,
 {
     type Output = ();
 
     fn poll(
         self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>
+        cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
         let this = self.get_mut();
 
         while let Poll::Ready(poll_tx) = this.transaction_rx.poll_recv(cx) {
             match poll_tx {
                 Some(tx) => this.handle_incoming_tx(tx),
-                None => return Poll::Ready(())
+                None => return Poll::Ready(()),
             }
         }
-        return Poll::Pending
+        return Poll::Pending;
     }
 }
