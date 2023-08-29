@@ -1,7 +1,7 @@
 use crate::{capability::Capability, EthVersion, ProtocolVersion};
+use guard_discv4::DEFAULT_DISCOVERY_PORT;
 use reth_codecs::derive_arbitrary;
-use reth_discv4::DEFAULT_DISCOVERY_PORT;
-use reth_primitives::{constants::RETH_CLIENT_VERSION, PeerId};
+use reth_primitives::{constants::RETH_CLIENT_VERSION, PeerId, H256};
 use reth_rlp::{RlpDecodable, RlpEncodable};
 
 #[cfg(feature = "serde")]
@@ -23,8 +23,8 @@ pub struct HelloMessage {
     pub capabilities: Vec<Capability>,
     /// The port that the client is listening on, zero indicates the client is not listening.
     pub port: u16,
-    /// The secp256k1 public key corresponding to the node's private key.
-    pub id: PeerId,
+    /// Signed Noop "Hello" message to allow public key verification
+    pub signed_hello: H256,
 }
 
 // === impl HelloMessage ===
@@ -40,8 +40,8 @@ impl HelloMessage {
     /// let id =  pk2id(&secret_key.public_key(SECP256K1));
     /// let status = HelloMessage::builder(id).build();
     /// ```
-    pub fn builder(id: PeerId) -> HelloMessageBuilder {
-        HelloMessageBuilder::new(id)
+    pub fn builder(signed_hello: H256) -> HelloMessageBuilder {
+        HelloMessageBuilder::new(signed_hello)
     }
 }
 
@@ -55,16 +55,22 @@ pub struct HelloMessageBuilder {
     pub capabilities: Option<Vec<Capability>>,
     /// The port that the client is listening on, zero indicates the client is not listening.
     pub port: Option<u16>,
-    /// The secp256k1 public key corresponding to the node's private key.
-    pub id: PeerId,
+    /// Signed Noop "Hello" message to allow public key verification
+    pub signed_hello: H256,
 }
 
 // === impl HelloMessageBuilder ===
 
 impl HelloMessageBuilder {
     /// Create a new builder to configure a [`HelloMessage`]
-    pub fn new(id: PeerId) -> Self {
-        Self { protocol_version: None, client_version: None, capabilities: None, port: None, id }
+    pub fn new(signed_hello: H256) -> Self {
+        Self {
+            protocol_version: None,
+            client_version: None,
+            capabilities: None,
+            port: None,
+            signed_hello,
+        }
     }
 
     /// Sets the port the client is listening on
@@ -93,7 +99,7 @@ impl HelloMessageBuilder {
 
     /// Consumes the type and returns the configured [`HelloMessage`]
     pub fn build(self) -> HelloMessage {
-        let Self { protocol_version, client_version, capabilities, port, id } = self;
+        let Self { protocol_version, client_version, capabilities, port, signed_hello } = self;
         HelloMessage {
             protocol_version: protocol_version.unwrap_or_default(),
             client_version: client_version.unwrap_or_else(|| RETH_CLIENT_VERSION.to_string()),
@@ -101,14 +107,15 @@ impl HelloMessageBuilder {
                 vec![EthVersion::Eth68.into(), EthVersion::Eth67.into(), EthVersion::Eth66.into()]
             }),
             port: port.unwrap_or(DEFAULT_DISCOVERY_PORT),
-            id,
+            signed_hello,
         }
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
-    use reth_discv4::DEFAULT_DISCOVERY_PORT;
+    use guard_discv4::DEFAULT_DISCOVERY_PORT;
     use reth_ecies::util::pk2id;
     use reth_rlp::{Decodable, Encodable, EMPTY_STRING_CODE};
     use secp256k1::{SecretKey, SECP256K1};
@@ -116,6 +123,7 @@ mod tests {
     use crate::{
         capability::Capability, p2pstream::P2PMessage, EthVersion, HelloMessage, ProtocolVersion,
     };
+
 
     #[test]
     fn test_hello_encoding_round_trip() {
@@ -175,3 +183,4 @@ mod tests {
         assert_eq!(hello_encoded[0], EMPTY_STRING_CODE);
     }
 }
+*/

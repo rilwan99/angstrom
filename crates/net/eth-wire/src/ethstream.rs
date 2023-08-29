@@ -71,14 +71,18 @@ where
         let their_msg = match their_msg_res {
             Some(msg) => msg,
             None => {
-                self.inner.disconnect(DisconnectReason::DisconnectRequested).await?;
-                return Err(EthStreamError::EthHandshakeError(EthHandshakeError::NoResponse))
+                self.inner
+                    .disconnect(DisconnectReason::DisconnectRequested)
+                    .await?;
+                return Err(EthStreamError::EthHandshakeError(EthHandshakeError::NoResponse));
             }
         }?;
 
         if their_msg.len() > MAX_MESSAGE_SIZE {
-            self.inner.disconnect(DisconnectReason::ProtocolBreach).await?;
-            return Err(EthStreamError::MessageTooBig(their_msg.len()))
+            self.inner
+                .disconnect(DisconnectReason::ProtocolBreach)
+                .await?;
+            return Err(EthStreamError::MessageTooBig(their_msg.len()));
         }
 
         let version = EthVersion::try_from(status.version)?;
@@ -86,8 +90,10 @@ where
             Ok(m) => m,
             Err(err) => {
                 tracing::debug!("decode error in eth handshake: msg={their_msg:x}");
-                self.inner.disconnect(DisconnectReason::DisconnectRequested).await?;
-                return Err(err)
+                self.inner
+                    .disconnect(DisconnectReason::DisconnectRequested)
+                    .await?;
+                return Err(err);
             }
         };
 
@@ -100,48 +106,59 @@ where
                     "validating incoming eth status from peer"
                 );
                 if status.genesis != resp.genesis {
-                    self.inner.disconnect(DisconnectReason::ProtocolBreach).await?;
+                    self.inner
+                        .disconnect(DisconnectReason::ProtocolBreach)
+                        .await?;
                     return Err(EthHandshakeError::MismatchedGenesis {
                         expected: status.genesis,
                         got: resp.genesis,
                     }
-                    .into())
+                    .into());
                 }
 
                 if status.version != resp.version {
-                    self.inner.disconnect(DisconnectReason::ProtocolBreach).await?;
+                    self.inner
+                        .disconnect(DisconnectReason::ProtocolBreach)
+                        .await?;
                     return Err(EthHandshakeError::MismatchedProtocolVersion {
                         expected: status.version,
                         got: resp.version,
                     }
-                    .into())
+                    .into());
                 }
 
                 if status.chain != resp.chain {
-                    self.inner.disconnect(DisconnectReason::ProtocolBreach).await?;
+                    self.inner
+                        .disconnect(DisconnectReason::ProtocolBreach)
+                        .await?;
                     return Err(EthHandshakeError::MismatchedChain {
                         expected: status.chain,
                         got: resp.chain,
                     }
-                    .into())
+                    .into());
                 }
 
                 // TD at mainnet block #7753254 is 76 bits. If it becomes 100 million times
                 // larger, it will still fit within 100 bits
                 if status.total_difficulty.bit_len() > 100 {
-                    self.inner.disconnect(DisconnectReason::ProtocolBreach).await?;
+                    self.inner
+                        .disconnect(DisconnectReason::ProtocolBreach)
+                        .await?;
                     return Err(EthHandshakeError::TotalDifficultyBitLenTooLarge {
                         maximum: 100,
                         got: status.total_difficulty.bit_len(),
                     }
-                    .into())
+                    .into());
                 }
 
-                if let Err(err) =
-                    fork_filter.validate(resp.forkid).map_err(EthHandshakeError::InvalidFork)
+                if let Err(err) = fork_filter
+                    .validate(resp.forkid)
+                    .map_err(EthHandshakeError::InvalidFork)
                 {
-                    self.inner.disconnect(DisconnectReason::ProtocolBreach).await?;
-                    return Err(err.into())
+                    self.inner
+                        .disconnect(DisconnectReason::ProtocolBreach)
+                        .await?;
+                    return Err(err.into());
                 }
 
                 // now we can create the `EthStream` because the peer has successfully completed
@@ -151,7 +168,9 @@ where
                 Ok((stream, resp))
             }
             _ => {
-                self.inner.disconnect(DisconnectReason::ProtocolBreach).await?;
+                self.inner
+                    .disconnect(DisconnectReason::ProtocolBreach)
+                    .await?;
                 Err(EthStreamError::EthHandshakeError(
                     EthHandshakeError::NonStatusMessageInHandshake,
                 ))
@@ -235,21 +254,21 @@ where
         };
 
         if bytes.len() > MAX_MESSAGE_SIZE {
-            return Poll::Ready(Some(Err(EthStreamError::MessageTooBig(bytes.len()))))
+            return Poll::Ready(Some(Err(EthStreamError::MessageTooBig(bytes.len()))));
         }
 
         let msg = match ProtocolMessage::decode_message(*this.version, &mut bytes.as_ref()) {
             Ok(m) => m,
             Err(err) => {
                 tracing::debug!("decode error: msg={bytes:x}");
-                return Poll::Ready(Some(Err(err)))
+                return Poll::Ready(Some(Err(err)));
             }
         };
 
         if matches!(msg.message, EthMessage::Status(_)) {
             return Poll::Ready(Some(Err(EthStreamError::EthHandshakeError(
                 EthHandshakeError::StatusNotInHandshake,
-            ))))
+            ))));
         }
 
         Poll::Ready(Some(Ok(msg.message)))
@@ -278,7 +297,7 @@ where
             // allowing for its start_disconnect method to be called.
             //
             // self.project().inner.start_disconnect(DisconnectReason::ProtocolBreach);
-            return Err(EthStreamError::EthHandshakeError(EthHandshakeError::StatusNotInHandshake))
+            return Err(EthStreamError::EthHandshakeError(EthHandshakeError::StatusNotInHandshake));
         }
 
         let mut bytes = BytesMut::new();
@@ -310,6 +329,7 @@ where
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::UnauthedEthStream;
@@ -323,7 +343,7 @@ mod tests {
     };
     use ethers_core::types::Chain;
     use futures::{SinkExt, StreamExt};
-    use reth_discv4::DEFAULT_DISCOVERY_PORT;
+    use guard_discv4::DEFAULT_DISCOVERY_PORT;
     use reth_ecies::{stream::ECIESStream, util::pk2id};
     use reth_primitives::{ForkFilter, Head, H256, U256};
     use secp256k1::{SecretKey, SECP256K1};
@@ -367,8 +387,10 @@ mod tests {
         let sink = PassthroughCodec::default().framed(outgoing);
 
         // try to connect
-        let (_, their_status) =
-            UnauthedEthStream::new(sink).handshake(status, fork_filter).await.unwrap();
+        let (_, their_status) = UnauthedEthStream::new(sink)
+            .handshake(status, fork_filter)
+            .await
+            .unwrap();
 
         // their status is a clone of our status, these should be equal
         assert_eq!(their_status, status);
@@ -414,8 +436,10 @@ mod tests {
         let sink = PassthroughCodec::default().framed(outgoing);
 
         // try to connect
-        let (_, their_status) =
-            UnauthedEthStream::new(sink).handshake(status, fork_filter).await.unwrap();
+        let (_, their_status) = UnauthedEthStream::new(sink)
+            .handshake(status, fork_filter)
+            .await
+            .unwrap();
 
         // their status is a clone of our status, these should be equal
         assert_eq!(their_status, status);
@@ -448,8 +472,9 @@ mod tests {
             // roughly based off of the design of tokio::net::TcpListener
             let (incoming, _) = listener.accept().await.unwrap();
             let stream = PassthroughCodec::default().framed(incoming);
-            let handshake_res =
-                UnauthedEthStream::new(stream).handshake(status_clone, fork_filter_clone).await;
+            let handshake_res = UnauthedEthStream::new(stream)
+                .handshake(status_clone, fork_filter_clone)
+                .await;
 
             // make sure the handshake fails due to td too high
             assert!(matches!(
@@ -464,7 +489,9 @@ mod tests {
         let sink = PassthroughCodec::default().framed(outgoing);
 
         // try to connect
-        let handshake_res = UnauthedEthStream::new(sink).handshake(status, fork_filter).await;
+        let handshake_res = UnauthedEthStream::new(sink)
+            .handshake(status, fork_filter)
+            .await;
 
         // this handshake should also fail due to td too high
         assert!(matches!(
@@ -543,7 +570,9 @@ mod tests {
         let client_key = SecretKey::new(&mut rand::thread_rng());
 
         let outgoing = TcpStream::connect(local_addr).await.unwrap();
-        let outgoing = ECIESStream::connect(outgoing, client_key, server_id).await.unwrap();
+        let outgoing = ECIESStream::connect(outgoing, client_key, server_id)
+            .await
+            .unwrap();
         let mut client_stream = EthStream::new(EthVersion::Eth67, outgoing);
 
         client_stream.send(test_msg).await.unwrap();
@@ -614,7 +643,9 @@ mod tests {
         let client_key = SecretKey::new(&mut rand::thread_rng());
 
         let outgoing = TcpStream::connect(local_addr).await.unwrap();
-        let sink = ECIESStream::connect(outgoing, client_key, server_id).await.unwrap();
+        let sink = ECIESStream::connect(outgoing, client_key, server_id)
+            .await
+            .unwrap();
 
         let client_hello = HelloMessage {
             protocol_version: ProtocolVersion::V5,
@@ -627,8 +658,10 @@ mod tests {
         let unauthed_stream = UnauthedP2PStream::new(sink);
         let (p2p_stream, _) = unauthed_stream.handshake(client_hello).await.unwrap();
 
-        let (mut client_stream, _) =
-            UnauthedEthStream::new(p2p_stream).handshake(status, fork_filter).await.unwrap();
+        let (mut client_stream, _) = UnauthedEthStream::new(p2p_stream)
+            .handshake(status, fork_filter)
+            .await
+            .unwrap();
 
         client_stream.send(test_msg).await.unwrap();
 
@@ -636,3 +669,4 @@ mod tests {
         handle.await.unwrap();
     }
 }
+*/

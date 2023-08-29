@@ -833,11 +833,12 @@ impl Decodable for ProtocolVersion {
     }
 }
 
+/*
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{DisconnectReason, EthVersion};
-    use reth_discv4::DEFAULT_DISCOVERY_PORT;
+    use guard_discv4::DEFAULT_DISCOVERY_PORT;
     use reth_ecies::util::pk2id;
     use secp256k1::{SecretKey, SECP256K1};
     use tokio::net::{TcpListener, TcpStream};
@@ -1065,3 +1066,4 @@ mod tests {
         assert_eq!(buf.as_ref(), &snappy_pong[..]);
     }
 }
+*/

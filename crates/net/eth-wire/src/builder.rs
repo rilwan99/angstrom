@@ -4,7 +4,7 @@
 use crate::{
     capability::Capability, hello::HelloMessage, p2pstream::ProtocolVersion, EthVersion, Status,
 };
-use reth_discv4::DEFAULT_DISCOVERY_PORT;
+use guard_discv4::DEFAULT_DISCOVERY_PORT;
 use reth_primitives::{Chain, ForkId, PeerId, H256, U256};
 
 /// Builder for [`Status`](crate::types::Status) messages.
@@ -92,8 +92,8 @@ pub struct HelloBuilder {
 
 impl HelloBuilder {
     /// Creates a new [`HelloBuilder`](crate::builder::HelloBuilder) with default [`HelloMessage`]
-    /// values, and a `PeerId` corresponding to the given pubkey.
-    pub fn new(pubkey: PeerId) -> Self {
+    /// values, and a with a signed 'Hello' message to verify the public key
+    pub fn new(signed_hello: H256) -> Self {
         Self {
             hello: HelloMessage {
                 protocol_version: ProtocolVersion::V5,
@@ -101,7 +101,7 @@ impl HelloBuilder {
                 client_version: "Ethereum/1.0.0".to_string(),
                 capabilities: vec![EthVersion::Eth68.into()],
                 port: DEFAULT_DISCOVERY_PORT,
-                id: pubkey,
+                signed_hello,
             },
         }
     }
@@ -135,9 +135,9 @@ impl HelloBuilder {
         self
     }
 
-    /// Sets the node id.
-    pub fn id(mut self, id: PeerId) -> Self {
-        self.hello.id = id;
+    /// Sets the signed hello message.
+    pub fn signed_hello(mut self, signed_hello: H256) -> Self {
+        self.hello.signed_hello = signed_hello;
         self
     }
 }
