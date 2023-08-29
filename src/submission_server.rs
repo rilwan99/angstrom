@@ -67,7 +67,6 @@ pub(crate) fn create_cors_layer(http_cors_domains: &str) -> Result<CorsLayer, Co
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
-#[cfg(feature = "subscription")]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum SubscriptionKind {
@@ -87,12 +86,15 @@ pub enum SubscriptionResult {
 
 #[rpc(server, namespace = "guard")]
 #[async_trait::async_trait]
-pub trait GuardApi {
+pub trait GuardSubmitApi {
     #[method(name = "SubmitTransaction")]
     async fn submit_eip712(&self, meta_tx: TypedData) -> bool;
+}
 
+#[rpc(server, namespace = "guard_sub")]
+#[async_trait::async_trait]
+pub trait GaurdSubscribeApi {
     /// Create an ethereum subscription for the given params
-    #[cfg(feature = "subscription")]
     #[subscription(
         name = "subscribe" => "subscription",
         unsubscribe = "unsubscribe",
@@ -103,13 +105,13 @@ pub trait GuardApi {
 
 pub enum Submission {
     Submission(TypedData),
-    #[cfg(feature = "subscription")]
     Subscription(SubscriptionKind, Sender<SubscriptionResult>)
 }
 
 pub struct SubmissionServerConfig {
-    addr:         SocketAddr,
-    cors_domains: String
+    addr:                SocketAddr,
+    cors_domains:        String,
+    allow_subscriptions: bool
 }
 
 pub struct SubmissionServer {
@@ -131,13 +133,14 @@ impl DerefMut for SubmissionServer {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct SubmissionServerInner {
     sender: Sender<Submission>
 }
 
 impl SubmissionServerInner {
     pub async fn new(config: SubmissionServerConfig) -> anyhow::Result<SubmissionServer> {
-        let SubmissionServerConfig { addr, cors_domains } = config;
+        let SubmissionServerConfig { addr, cors_domains, allow_subscriptions } = config;
 
         let (tx, rx) = channel(10);
 
@@ -151,22 +154,34 @@ impl SubmissionServerInner {
 
         let sub_server = Self { sender: tx };
 
-        let handle = server.start(sub_server.into_rpc());
+        let mut methods = GuardSubmitApiServer::into_rpc(sub_server.clone());
+        if allow_subscriptions {
+            methods.merge(GaurdSubscribeApiServer::into_rpc(sub_server))?;
+        }
+
+        let handle = server.start(methods);
         Ok(SubmissionServer { receiver: ReceiverStream::new(rx), handle })
     }
 }
 
 #[async_trait::async_trait]
-impl GuardApiServer for SubmissionServerInner {
+impl GuardSubmitApiServer for SubmissionServerInner {
     async fn submit_eip712(&self, meta_tx: TypedData) -> bool {
-        if self.sender.send(Submission::Submission(meta_tx)).await.is_err() {
+        if self
+            .sender
+            .send(Submission::Submission(meta_tx))
+            .await
+            .is_err()
+        {
             // just for testing
             panic!("failed to send a new eip712 tx");
         }
         true
     }
+}
 
-    #[cfg(feature = "subscription")]
+#[async_trait::async_trait]
+impl GaurdSubscribeApiServer for SubmissionServerInner {
     async fn subscribe(
         &self,
         pending: PendingSubscriptionSink,
@@ -174,9 +189,14 @@ impl GuardApiServer for SubmissionServerInner {
     ) -> jsonrpsee::core::SubscriptionResult {
         let sink = pending.accept().await?;
         let (tx, rx) = channel(5);
-        if self.sender.send(Submission::Subscription(kind, tx)).await.is_err() {
+        if self
+            .sender
+            .send(Submission::Subscription(kind, tx))
+            .await
+            .is_err()
+        {
             // just for testing
-            panic!("failed to subscribe to a stream");
+            panic!("");
         }
         tokio::spawn(async move { pipe_from_stream(sink, ReceiverStream::new(rx)).await });
 
@@ -185,7 +205,6 @@ impl GuardApiServer for SubmissionServerInner {
 }
 
 /// Pipes all stream items to the subscription sink.
-#[cfg(feature = "subscription")]
 async fn pipe_from_stream<T, St>(
     sink: SubscriptionSink,
     mut stream: St

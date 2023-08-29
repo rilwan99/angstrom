@@ -28,7 +28,6 @@ pub struct Guard<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
     /// deals with new submissions through a rpc to the network
     server:  SubmissionServer,
 
-    #[cfg(feature = "subscription")]
     /// make sure we keep subscribers upto date
     server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>,
     /// handle
@@ -48,7 +47,6 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
 
         Ok(Self {
             leader,
-            #[cfg(feature = "subscription")]
             server_subscriptions: HashMap::default(),
             server: sub_server,
             network: swarm,
@@ -56,7 +54,6 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
         })
     }
 
-    #[cfg(feature = "subscription")]
     fn handle_submissions(&mut self, msg: Submission) {
         let data = match msg {
             Submission::Subscription(kind, sender) => {
@@ -82,12 +79,6 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
                     .is_ok()
             });
         }
-    }
-
-    #[cfg(not(feature = "subscription"))]
-    fn handle_submissions(&mut self, msgs: Submission) {
-        let Submission::Submission(data) = msg;
-        self.leader.new_transaction(data.clone());
     }
 
     fn handle_network_msg(&mut self, cx: &mut Context<'_>) -> Poll<()> {
