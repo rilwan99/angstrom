@@ -1,5 +1,5 @@
 [package]
-name = "reth-discv4"
+name = "guard-discv4"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

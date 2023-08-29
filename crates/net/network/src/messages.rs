@@ -11,16 +11,11 @@ pub enum PeerMessages {
     PropagateSealedBundle(SealedBundle),
     PropagateSignatureRequest(Bundle),
     PropagateSignedBundle(Bundle),
+    /// This is only for receving and will never be propogated
+    /// so we don't have to worry about this when we batch propogate
+    /// to the network
     PeerRequests(PeerRequests)
 }
-
-impl PeerMessages {
-    pub fn is_request(&self) -> bool {
-        matches!(self, PeerMessages::PeerRequests(_))
-    }
-
-}
-
 
 
 /// Specific requests from a peer
@@ -28,4 +23,3 @@ impl PeerMessages {
 pub enum PeerRequests {
     GetTeeModule(OneSender<SocketAddr>)
 }
-

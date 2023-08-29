@@ -1,5 +1,5 @@
 [package]
-name = "gaurd-eth-wire"
+name = "guard-eth-wire"
 description = "Implements the eth/64 and eth/65 P2P protocols"
 version.workspace = true
 edition.workspace = true
@@ -24,7 +24,7 @@ reth-rlp = { workspace = true, features = [
     "ethereum-types",
     "smol_str",
 ] }
-reth-discv4 = {path = "../discv4" }
+guard-discv4 = {path = "../discv4" }
 
 # metrics
 reth-metrics.workspace = true
