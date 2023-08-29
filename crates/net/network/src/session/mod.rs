@@ -5,22 +5,22 @@ use std::{
     net::SocketAddr,
     sync::{atomic::AtomicU64, Arc},
     task::{Context, Poll},
-    time::{Duration, Instant}
+    time::{Duration, Instant},
 };
 
 use ethers_core::types::transaction::eip712::TypedData;
 use fnv::FnvHashMap;
 use futures::{future::Either, io, FutureExt, StreamExt};
-use reth_ecies::{stream::ECIESStream, ECIESError};
 use guard_eth_wire::{
     capability::{Capabilities, CapabilityMessage},
     errors::EthStreamError,
-    DisconnectReason, EthVersion, HelloMessage, Status, UnauthedEthStream, UnauthedP2PStream
+    DisconnectReason, EthVersion, HelloMessage, Status, UnauthedEthStream, UnauthedP2PStream,
 };
+use reth_ecies::{stream::ECIESStream, ECIESError};
 use reth_metrics::common::mpsc::MeteredSender;
 use reth_net_common::{
     bandwidth_meter::{BandwidthMeter, MeteredStream},
-    stream::HasRemoteAddr
+    stream::HasRemoteAddr,
 };
 use reth_primitives::{ForkFilter, ForkId, ForkTransition, Head, PeerId};
 use reth_tasks::TaskSpawner;
@@ -29,7 +29,7 @@ use shared::*;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpStream,
-    sync::{mpsc, oneshot}
+    sync::{mpsc, oneshot},
 };
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{instrument, trace};
@@ -37,7 +37,7 @@ use tracing::{instrument, trace};
 use crate::{
     messages::{PeerMessages, PeerRequests},
     metrics::SessionManagerMetrics,
-    session::{active::ActiveSession, config::SessionCounter}
+    session::{active::ActiveSession, config::SessionCounter},
 };
 
 mod active;
@@ -46,7 +46,7 @@ mod handle;
 pub use config::{SessionLimits, SessionsConfig};
 pub use handle::{
     ActiveSessionHandle, ActiveSessionMessage, PendingSessionEvent, PendingSessionHandle,
-    SessionCommand
+    SessionCommand,
 };
 
 use self::handle::PeerInfo;
@@ -110,7 +110,7 @@ pub struct SessionManager {
     /// Used to measure inbound & outbound bandwidth across all managed streams
     bandwidth_meter: BandwidthMeter,
     /// Metrics for the session manager.
-    metrics: SessionManagerMetrics
+    metrics: SessionManagerMetrics,
 }
 
 // === impl SessionManager ===
@@ -124,7 +124,7 @@ impl SessionManager {
         status: Status,
         hello_message: HelloMessage,
         fork_filter: ForkFilter,
-        bandwidth_meter: BandwidthMeter
+        bandwidth_meter: BandwidthMeter,
     ) -> Self {
         let (pending_sessions_tx, pending_sessions_rx) = mpsc::channel(config.session_event_buffer);
         let (active_session_tx, active_session_rx) = mpsc::channel(config.session_event_buffer);
@@ -147,13 +147,14 @@ impl SessionManager {
             active_session_tx: MeteredSender::new(active_session_tx, "network_active_session"),
             active_session_rx: ReceiverStream::new(active_session_rx),
             bandwidth_meter,
-            metrics: Default::default()
+            metrics: Default::default(),
         }
     }
 
     pub fn propagate_msg(&mut self, msg: PeerMessages) {
         self.active_sessions.values_mut().for_each(|peer| {
-            let _ = peer.commands_to_session
+            let _ = peer
+                .commands_to_session
                 .try_send(SessionCommand::Message(msg.clone()));
         });
     }
@@ -185,7 +186,7 @@ impl SessionManager {
     /// `spawned_tasks` [`JoinSet`](tokio::task::JoinSet).
     fn spawn<F>(&self, f: F)
     where
-        F: Future<Output = ()> + Send + 'static
+        F: Future<Output = ()> + Send + 'static,
     {
         self.executor.spawn(f.boxed());
     }
@@ -208,7 +209,7 @@ impl SessionManager {
     pub(crate) fn on_incoming(
         &mut self,
         stream: TcpStream,
-        remote_addr: SocketAddr
+        remote_addr: SocketAddr,
     ) -> Result<SessionId, ExceedsSessionLimit> {
         self.counter.ensure_pending_inbound()?;
 
@@ -237,12 +238,12 @@ impl SessionManager {
             secret_key,
             hello_message,
             status,
-            fork_filter
+            fork_filter,
         ));
 
         let handle = PendingSessionHandle {
             disconnect_tx: Some(disconnect_tx),
-            direction:     Direction::Incoming
+            direction: Direction::Incoming,
         };
         self.pending_sessions.insert(session_id, handle);
         self.counter.inc_pending_inbound();
@@ -273,12 +274,12 @@ impl SessionManager {
                 hello_message,
                 status,
                 fork_filter,
-                band_with_meter
+                band_with_meter,
             ));
 
             let handle = PendingSessionHandle {
                 disconnect_tx: Some(disconnect_tx),
-                direction:     Direction::Outgoing(remote_peer_id)
+                direction: Direction::Outgoing(remote_peer_id),
             };
             self.pending_sessions.insert(session_id, handle);
             self.counter.inc_pending_outbound();
@@ -300,7 +301,7 @@ impl SessionManager {
     pub(crate) fn disconnect_incoming_connection(
         &mut self,
         stream: TcpStream,
-        reason: DisconnectReason
+        reason: DisconnectReason,
     ) {
         let secret_key = self.secret_key;
 
@@ -374,14 +375,14 @@ impl SessionManager {
                     ActiveSessionMessage::ClosedOnConnectionError {
                         peer_id,
                         remote_addr,
-                        error
+                        error,
                     } => {
                         trace!(target : "net::session",  ?peer_id, ?error,"closed session.");
                         self.remove_active_session(&peer_id);
                         Poll::Ready(SessionEvent::SessionClosedOnConnectionError {
                             remote_addr,
                             peer_id,
-                            error
+                            error,
                         })
                     }
                     ActiveSessionMessage::InvalidMessage { peer_id, capabilities, message } => {
@@ -401,7 +402,7 @@ impl SessionManager {
         let event = match self.pending_session_rx.poll_next_unpin(cx) {
             Poll::Pending => return Poll::Pending,
             Poll::Ready(None) => unreachable!("Manager holds both channel halves."),
-            Poll::Ready(Some(event)) => event
+            Poll::Ready(Some(event)) => event,
         };
         match event {
             PendingSessionEvent::Established {
@@ -412,7 +413,7 @@ impl SessionManager {
                 conn,
                 status,
                 direction,
-                client_id
+                client_id,
             } => {
                 // move from pending to established.
                 self.remove_pending_session(&session_id);
@@ -439,14 +440,14 @@ impl SessionManager {
                     return Poll::Ready(SessionEvent::AlreadyConnected {
                         peer_id,
                         remote_addr,
-                        direction
-                    })
+                        direction,
+                    });
                 }
 
                 let (commands_to_session, commands_rx) = mpsc::channel(self.session_command_buffer);
 
                 let timeout = Arc::new(AtomicU64::new(
-                    self.initial_internal_request_timeout.as_millis() as u64
+                    self.initial_internal_request_timeout.as_millis() as u64,
                 ));
 
                 // negotiated version
@@ -466,10 +467,10 @@ impl SessionManager {
                     queued_outgoing: Default::default(),
                     received_requests_from_remote: Default::default(),
                     internal_request_timeout_interval: tokio::time::interval(
-                        self.initial_internal_request_timeout
+                        self.initial_internal_request_timeout,
                     ),
                     internal_request_timeout: Arc::clone(&timeout),
-                    protocol_breach_request_timeout: self.protocol_breach_request_timeout
+                    protocol_breach_request_timeout: self.protocol_breach_request_timeout,
                 };
 
                 self.spawn(session);
@@ -484,7 +485,7 @@ impl SessionManager {
                     capabilities: Arc::clone(&capabilities),
                     commands_to_session,
                     client_version: Arc::clone(&client_version),
-                    remote_addr
+                    remote_addr,
                 };
 
                 self.active_sessions.insert(peer_id, handle);
@@ -502,7 +503,7 @@ impl SessionManager {
                     capabilities,
                     status,
                     direction,
-                    timeout
+                    timeout,
                 })
             }
             PendingSessionEvent::Disconnected { remote_addr, session_id, direction, error } => {
@@ -518,14 +519,14 @@ impl SessionManager {
                     Direction::Incoming => {
                         Poll::Ready(SessionEvent::IncomingPendingSessionClosed {
                             remote_addr,
-                            error: error.map(PendingSessionHandshakeError::Eth)
+                            error: error.map(PendingSessionHandshakeError::Eth),
                         })
                     }
                     Direction::Outgoing(peer_id) => {
                         Poll::Ready(SessionEvent::OutgoingPendingSessionClosed {
                             remote_addr,
                             peer_id,
-                            error: error.map(PendingSessionHandshakeError::Eth)
+                            error: error.map(PendingSessionHandshakeError::Eth),
                         })
                     }
                 }
@@ -534,7 +535,7 @@ impl SessionManager {
                 remote_addr,
                 session_id,
                 peer_id,
-                error
+                error,
             } => {
                 trace!(
                     target : "net::session",
@@ -561,14 +562,14 @@ impl SessionManager {
                     Direction::Incoming => {
                         Poll::Ready(SessionEvent::IncomingPendingSessionClosed {
                             remote_addr,
-                            error: Some(PendingSessionHandshakeError::Ecies(error))
+                            error: Some(PendingSessionHandshakeError::Ecies(error)),
                         })
                     }
                     Direction::Outgoing(peer_id) => {
                         Poll::Ready(SessionEvent::OutgoingPendingSessionClosed {
                             remote_addr,
                             peer_id,
-                            error: Some(PendingSessionHandshakeError::Ecies(error))
+                            error: Some(PendingSessionHandshakeError::Ecies(error)),
                         })
                     }
                 }
@@ -581,11 +582,11 @@ impl SessionManager {
         self.active_sessions
             .values()
             .map(|session| PeerInfo {
-                remote_id:      session.remote_id,
-                direction:      session.direction,
-                remote_addr:    session.remote_addr,
-                capabilities:   session.capabilities.clone(),
-                client_version: session.client_version.clone()
+                remote_id: session.remote_id,
+                direction: session.direction,
+                remote_addr: session.remote_addr,
+                capabilities: session.capabilities.clone(),
+                client_version: session.client_version.clone(),
             })
             .collect()
     }
@@ -595,11 +596,11 @@ impl SessionManager {
     /// Returns `None` if there's no active session to the peer.
     pub fn get_peer_info_by_id(&self, peer_id: PeerId) -> Option<PeerInfo> {
         self.active_sessions.get(&peer_id).map(|session| PeerInfo {
-            remote_id:      session.remote_id,
-            direction:      session.direction,
-            remote_addr:    session.remote_addr,
-            capabilities:   session.capabilities.clone(),
-            client_version: session.client_version.clone()
+            remote_id: session.remote_id,
+            direction: session.direction,
+            remote_addr: session.remote_addr,
+            capabilities: session.capabilities.clone(),
+            client_version: session.client_version.clone(),
         })
     }
 }
@@ -614,94 +615,94 @@ pub enum SessionEvent {
     /// This session is now able to exchange data.
     SessionEstablished {
         /// The remote node's public key
-        peer_id:        PeerId,
+        peer_id: PeerId,
         /// The remote node's socket address
-        remote_addr:    SocketAddr,
+        remote_addr: SocketAddr,
         /// The user agent of the remote node, usually containing the client
         /// name and version
         client_version: Arc<String>,
         /// The capabilities the remote node has announced
-        capabilities:   Arc<Capabilities>,
+        capabilities: Arc<Capabilities>,
         /// negotiated eth version
-        version:        EthVersion,
+        version: EthVersion,
         /// The Status message the peer sent during the `eth` handshake
-        status:         Status,
+        status: Status,
         /// The direction of the session, either `Inbound` or `Outgoing`
-        direction:      Direction,
+        direction: Direction,
         /// The maximum time that the session waits for a response from the peer
         /// before timing out the connection
-        timeout:        Arc<AtomicU64>
+        timeout: Arc<AtomicU64>,
     },
     /// The peer was already connected with another session.
     AlreadyConnected {
         /// The remote node's public key
-        peer_id:     PeerId,
+        peer_id: PeerId,
         /// The remote node's socket address
         remote_addr: SocketAddr,
         /// The direction of the session, either `Inbound` or `Outgoing`
-        direction:   Direction
+        direction: Direction,
     },
     /// Received a message that does not match the announced capabilities of the
     /// peer.
     InvalidMessage {
         /// The remote node's public key
-        peer_id:      PeerId,
+        peer_id: PeerId,
         /// Announced capabilities of the remote peer.
         capabilities: Arc<Capabilities>,
         /// Message received from the peer.
-        message:      CapabilityMessage
+        message: CapabilityMessage,
     },
     /// Received a bad message from the peer.
     BadMessage {
         /// Identifier of the remote peer.
-        peer_id: PeerId
+        peer_id: PeerId,
     },
     /// Remote peer is considered in protocol violation
     ProtocolBreach {
         /// Identifier of the remote peer.
-        peer_id: PeerId
+        peer_id: PeerId,
     },
     /// Closed an incoming pending session during handshaking.
     IncomingPendingSessionClosed {
         /// The remote node's socket address
         remote_addr: SocketAddr,
         /// The pending handshake session error that caused the session to close
-        error:       Option<PendingSessionHandshakeError>
+        error: Option<PendingSessionHandshakeError>,
     },
     /// Closed an outgoing pending session during handshaking.
     OutgoingPendingSessionClosed {
         /// The remote node's socket address
         remote_addr: SocketAddr,
         /// The remote node's public key
-        peer_id:     PeerId,
+        peer_id: PeerId,
         /// The pending handshake session error that caused the session to close
-        error:       Option<PendingSessionHandshakeError>
+        error: Option<PendingSessionHandshakeError>,
     },
     /// Failed to establish a tcp stream
     OutgoingConnectionError {
         /// The remote node's socket address
         remote_addr: SocketAddr,
         /// The remote node's public key
-        peer_id:     PeerId,
+        peer_id: PeerId,
         /// The error that caused the outgoing connection to fail
-        error:       io::Error
+        error: io::Error,
     },
     /// Session was closed due to an error
     SessionClosedOnConnectionError {
         /// The id of the remote peer.
-        peer_id:     PeerId,
+        peer_id: PeerId,
         /// The socket we were connected to.
         remote_addr: SocketAddr,
         /// The error that caused the session to close
-        error:       EthStreamError
+        error: EthStreamError,
     },
     /// Active session was gracefully disconnected.
     Disconnected {
         /// The remote node's public key
-        peer_id:     PeerId,
+        peer_id: PeerId,
         /// The remote node's socket address that we were connected to
-        remote_addr: SocketAddr
-    }
+        remote_addr: SocketAddr,
+    },
 }
 
 /// Errors that can occur during handshaking/authenticating the underlying
@@ -713,7 +714,7 @@ pub enum PendingSessionHandshakeError {
     Eth(EthStreamError),
     /// The pending session failed due to an error while establishing the ECIES
     /// stream
-    Ecies(ECIESError)
+    Ecies(ECIESError),
 }
 
 impl PendingSessionHandshakeError {
@@ -721,7 +722,7 @@ impl PendingSessionHandshakeError {
     pub fn as_disconnected(&self) -> Option<DisconnectReason> {
         match self {
             PendingSessionHandshakeError::Eth(eth_err) => eth_err.as_disconnected(),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -732,7 +733,7 @@ pub enum Direction {
     /// Incoming connection.
     Incoming,
     /// Outgoing connection to a specific node.
-    Outgoing(PeerId)
+    Outgoing(PeerId),
 }
 
 impl Direction {
@@ -751,7 +752,7 @@ impl std::fmt::Display for Direction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Direction::Incoming => write!(f, "incoming"),
-            Direction::Outgoing(_) => write!(f, "outgoing")
+            Direction::Outgoing(_) => write!(f, "outgoing"),
         }
     }
 }
@@ -776,7 +777,7 @@ pub(crate) async fn start_pending_incoming_session(
     secret_key: SecretKey,
     hello: HelloMessage,
     status: Status,
-    fork_filter: ForkFilter
+    fork_filter: ForkFilter,
 ) {
     authenticate(
         disconnect_rx,
@@ -788,7 +789,7 @@ pub(crate) async fn start_pending_incoming_session(
         Direction::Incoming,
         hello,
         status,
-        fork_filter
+        fork_filter,
     )
     .await
 }
@@ -807,7 +808,7 @@ async fn start_pending_outbound_session(
     hello: HelloMessage,
     status: Status,
     fork_filter: ForkFilter,
-    bandwidth_meter: BandwidthMeter
+    bandwidth_meter: BandwidthMeter,
 ) {
     let stream = match TcpStream::connect(remote_addr).await {
         Ok(stream) => MeteredStream::new_with_meter(stream, bandwidth_meter),
@@ -817,10 +818,10 @@ async fn start_pending_outbound_session(
                     remote_addr,
                     session_id,
                     peer_id: remote_peer_id,
-                    error
+                    error,
                 })
                 .await;
-            return
+            return;
         }
     };
     authenticate(
@@ -833,7 +834,7 @@ async fn start_pending_outbound_session(
         Direction::Outgoing(remote_peer_id),
         hello,
         status,
-        fork_filter
+        fork_filter,
     )
     .await
 }
@@ -850,7 +851,7 @@ async fn authenticate(
     direction: Direction,
     hello: HelloMessage,
     status: Status,
-    fork_filter: ForkFilter
+    fork_filter: ForkFilter,
 ) {
     let stream = match get_eciess_stream(stream, secret_key, direction).await {
         Ok(stream) => stream,
@@ -860,10 +861,10 @@ async fn authenticate(
                     remote_addr,
                     session_id,
                     error,
-                    direction
+                    direction,
                 })
                 .await;
-            return
+            return;
         }
     };
 
@@ -876,7 +877,7 @@ async fn authenticate(
         direction,
         hello,
         status,
-        fork_filter
+        fork_filter,
     )
     .boxed();
 
@@ -887,7 +888,7 @@ async fn authenticate(
                     remote_addr,
                     session_id,
                     direction,
-                    error: None
+                    error: None,
                 })
                 .await;
         }
@@ -902,7 +903,7 @@ async fn authenticate(
 async fn get_eciess_stream<Io: AsyncRead + AsyncWrite + Unpin + HasRemoteAddr>(
     stream: Io,
     secret_key: SecretKey,
-    direction: Direction
+    direction: Direction,
 ) -> Result<ECIESStream<Io>, ECIESError> {
     match direction {
         Direction::Incoming => ECIESStream::incoming(stream, secret_key).await,
@@ -923,7 +924,7 @@ async fn authenticate_stream(
     direction: Direction,
     hello: HelloMessage,
     status: Status,
-    fork_filter: ForkFilter
+    fork_filter: ForkFilter,
 ) -> PendingSessionEvent {
     // conduct the p2p handshake and return the authenticated stream
     let (p2p_stream, their_hello) = match stream.handshake(hello).await {
@@ -933,7 +934,7 @@ async fn authenticate_stream(
                 remote_addr,
                 session_id,
                 direction,
-                error: Some(err.into())
+                error: Some(err.into()),
             }
         }
     };
@@ -950,7 +951,7 @@ async fn authenticate_stream(
                 remote_addr,
                 session_id,
                 direction,
-                error: Some(err)
+                error: Some(err),
             }
         }
     };
@@ -962,6 +963,6 @@ async fn authenticate_stream(
         status: their_status,
         conn: eth_stream,
         direction,
-        client_id: their_hello.client_version
+        client_id: their_hello.client_version,
     }
 }
