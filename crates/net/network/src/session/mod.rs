@@ -12,7 +12,7 @@ use ethers_core::types::transaction::eip712::TypedData;
 use fnv::FnvHashMap;
 use futures::{future::Either, io, FutureExt, StreamExt};
 use reth_ecies::{stream::ECIESStream, ECIESError};
-use reth_eth_wire::{
+use guard_eth_wire::{
     capability::{Capabilities, CapabilityMessage},
     errors::EthStreamError,
     DisconnectReason, EthVersion, HelloMessage, Status, UnauthedEthStream, UnauthedP2PStream

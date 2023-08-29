@@ -4,7 +4,7 @@
 use crate::{
     capability::Capability, hello::HelloMessage, p2pstream::ProtocolVersion, EthVersion, Status,
 };
-use reth_discv4::DEFAULT_DISCOVERY_PORT;
+use guard_discv4::DEFAULT_DISCOVERY_PORT;
 use reth_primitives::{Chain, ForkId, PeerId, H256, U256};
 
 /// Builder for [`Status`](crate::types::Status) messages.

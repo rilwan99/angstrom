@@ -8,7 +8,7 @@ use std::{
 };
 
 use futures::StreamExt;
-use reth_discv4::{DiscoveryUpdate, Discv4, Discv4Config, EnrForkIdEntry};
+use guard_discv4::{DiscoveryUpdate, Discv4, Discv4Config, EnrForkIdEntry};
 use reth_primitives::{ForkId, NodeRecord, PeerId};
 use secp256k1::SecretKey;
 use tokio::{sync::mpsc, task::JoinHandle};

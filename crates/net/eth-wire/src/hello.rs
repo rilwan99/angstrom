@@ -1,6 +1,6 @@
 use crate::{capability::Capability, EthVersion, ProtocolVersion};
 use reth_codecs::derive_arbitrary;
-use reth_discv4::DEFAULT_DISCOVERY_PORT;
+use guard_discv4::DEFAULT_DISCOVERY_PORT;
 use reth_primitives::{constants::RETH_CLIENT_VERSION, PeerId};
 use reth_rlp::{RlpDecodable, RlpEncodable};
 

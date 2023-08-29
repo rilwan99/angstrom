@@ -9,7 +9,7 @@ use std::{
 };
 
 use futures::StreamExt;
-use reth_eth_wire::{errors::EthStreamError, DisconnectReason};
+use guard_eth_wire::{errors::EthStreamError, DisconnectReason};
 use reth_net_common::ban_list::BanList;
 use reth_network_api::{PeerKind, ReputationChangeKind};
 use reth_primitives::{ForkId, NodeRecord, PeerId};
