@@ -2,16 +2,9 @@ use crate::{
     lru_db::RevmLRU,
     sim::{SimError, SimResult},
 };
-use ethers_core::{
-    abi::encode,
-    types::{
-        transaction::{
-            eip2718::TypedTransaction,
-            eip712::{encode_data, EIP712Domain, Eip712Error, TypedData},
-        },
-        H160,
-    },
-    utils::rlp::{Decodable, Rlp},
+use ethers_core::types::transaction::{
+    eip2718::TypedTransaction,
+    eip712::{Eip712, TypedData},
 };
 use ethers_middleware::Middleware;
 use eyre::Result;
@@ -23,6 +16,7 @@ use revm::{
 };
 use revm_primitives::*;
 use secp256k1::{Message, SecretKey, SECP256K1};
+use shared::UserSettlement;
 use std::{collections::HashMap, sync::Arc};
 use tokio::{runtime::Handle, sync::oneshot::Sender};
 
@@ -56,6 +50,15 @@ where
     /// overhead from pulling state from disk on new block??
     pub fn update_evm_state(state: Arc<RwLock<Self>>) {
         let mut state = state.write();
+
+        let block = state.evm.db().unwrap().db.get_block_gas_limit();
+
+        state.evm.env.block.number =
+            Into::<ethers_core::types::U256>::into(block.number.unwrap().as_u64()).into();
+        state.evm.env.block.timestamp = block.timestamp.into();
+        state.evm.env.block.difficulty = block.difficulty.into();
+        state.evm.env.block.basefee = block.base_fee_per_gas.unwrap().into();
+        state.evm.env.block.gas_limit = block.gas_limit.into();
 
         for (addr, storage) in state.slot_changes.clone().into_iter() {
             let verified_storage = storage
@@ -98,36 +101,38 @@ where
     /// CHANGE TO EIP712DOMAIN
     pub fn simulate_single_tx(
         state: Arc<RwLock<Self>>,
-        tx: TypedTransaction,
+        tx: TypedData,
         client_tx: Sender<SimResult>,
     ) {
+        let tx = &convert_eip712(tx).unwrap()[0];
+
         let res = {
             let mut state = state.write();
-            state.evm.env.tx = convert_type_tx(&tx);
+            state.evm.env.tx = tx.clone();
             state.set_touched_slots()
         };
 
-        let _ = match res {
-            Ok(Some(r)) => client_tx.send(SimResult::ExecutionResult(r)),
-            Ok(None) => client_tx.send(SimResult::SimulationError(SimError::CreateTransaction(tx))),
-            Err(_) => client_tx.send(SimResult::SimulationError(SimError::EVMTransactError(tx))),
-        };
+        let _ =
+            match res {
+                Ok(Some(r)) => client_tx.send(SimResult::ExecutionResult(r)),
+                Ok(None) => client_tx
+                    .send(SimResult::SimulationError(SimError::CreateTransaction(tx.clone()))),
+                Err(_) => client_tx
+                    .send(SimResult::SimulationError(SimError::EVMTransactError(tx.clone()))),
+            };
     }
 
     /// simulates a bundle of transactions
     /// CHANGE TO EIP712DOMAIN
-    pub fn simulate_bundle(
-        state: Arc<RwLock<Self>>,
-        txs: Vec<TypedTransaction>,
-        client_tx: Sender<SimResult>,
-    ) {
+    pub fn simulate_bundle(state: Arc<RwLock<Self>>, txs: TypedData, client_tx: Sender<SimResult>) {
+        let txs = convert_eip712(txs).unwrap();
         let mut state = state.write();
 
         state.cache_db = CacheDB::default(); // reset the cache db before new bundle sim
 
         let mut sim_res: SimResult = SimResult::SuccessfulBundle;
         for tx in txs {
-            state.evm.env.tx = convert_type_tx(&tx);
+            state.evm.env.tx = tx.clone();
             let state_change = state.evm.transact();
             if let Ok(r) = state_change {
                 state.cache_db.commit(r.state)
@@ -167,28 +172,39 @@ where
     }
 }
 
-// helper function to convert EIP712 Typed Data to TxEnv
-pub fn convert_eip712(eip_tx: TypedData) -> Result<TxEnv, SimResult> {
-    let verifier =
-        serde_json::from_value::<H160>(eip_tx.message.get("signature").unwrap().clone()).unwrap();
-    println!("VERIFIER {:#x}\n", verifier);
+/// helper function to convert EIP712 Typed Data to TxEnv
+/// ADD FUNCTION DATA WHEN FINIALIZED
+pub fn convert_eip712(eip_typed_data: TypedData) -> Result<Vec<TxEnv>, SimResult> {
+    let hash = eip_typed_data.encode_eip712().unwrap();
 
-    let tokens = encode_data(
-        &eip_tx.primary_type,
-        &serde_json::Value::Object(serde_json::Map::from_iter(eip_tx.message.clone())),
-        &eip_tx.types,
-    )
-    .map_err(|e| SimResult::SimulationError(SimError::Eip712Error(e)))?;
+    let user_txs: Vec<UserSettlement> =
+        serde_json::from_value(eip_typed_data.message.get("users").unwrap().clone()).unwrap();
 
-    let binding = encode(&tokens).clone();
-    println!("BINDING {:?}\n", binding);
+    let address = eip_typed_data.domain.verifying_contract.unwrap();
 
-    let encoded = Rlp::new(&binding);
-    println!("ENCODING {:?}\n", encoded);
+    let mut transactions = Vec::new();
+    for tx in user_txs {
+        let sig = Signature::decode(&mut &tx.signature[..]).unwrap();
+        let from = sig.recover_signer(hash.into()).unwrap();
+        let gas_limit = tx.order.gas_bid;
+        let data = Bytes::default(); // add data
 
-    let typed_tx = TypedTransaction::decode(&encoded.into()).unwrap();
+        let tx_env = TxEnv {
+            caller: from,
+            gas_limit: gas_limit.as_u64(),
+            gas_price: U256::ZERO,
+            gas_priority_fee: None,
+            transact_to: TransactTo::Call(address.into()),
+            value: U256::ZERO,
+            data,
+            chain_id: eip_typed_data.domain.chain_id.map(|c| c.as_u64().into()),
+            nonce: None,
+            access_list: Vec::new(),
+        };
+        transactions.push(tx_env)
+    }
 
-    Ok(convert_type_tx(&typed_tx))
+    Ok(transactions)
 }
 
 // helper function to convert a TypedTransaction to TxEnv
@@ -232,71 +248,93 @@ pub fn sign_message(secret: B256, message: B256) -> Result<Signature, secp256k1:
     };
     Ok(signature)
 }
-
+/*
 #[cfg(test)]
 mod tests {
-    use ethers_core::types::{transaction::eip712::Eip712, H256};
-    use hex_literal::hex;
-    use reth_primitives::Signature;
-    use rlp::Decodable;
-
     use super::*;
-    use std::str::FromStr;
+    use ethers_core::types::{transaction::eip712::Eip712, Bytes, H256};
+    use hex_literal::hex;
+    use shared::UserSettlement;
 
     #[test]
     fn test_hash_custom_data_type() {
         let json = serde_json::json!({
-          "domain": {
-            "name": "ExampleDApp",
-            "version": "1",
-            "chainId": 1,
-            "verifyingContract": "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"
-          },
-          "types": {
-            "EIP712Domain": [
-              { "name": "name", "type": "string" },
-              { "name": "version", "type": "string" },
-              { "name": "chainId", "type": "uint256" },
-              { "name": "verifyingContract", "type": "address" }
-            ],
-            "UserOrder": [
-              { "name": "token_out", "type": "address" },
-              { "name": "token_in", "type": "address" },
-              { "name": "amount_in", "type": "uint128" },
-              { "name": "amount_out_min", "type": "uint128" },
-              { "name": "deadline", "type": "uint256" },
-              { "name": "gas_bid", "type": "uint256" },
-              { "name": "pre_hook", "type": "bytes" },
-              { "name": "post_hook", "type": "bytes" }
-            ],
-            "UserSettlement": [
-              { "name": "order", "type": "UserOrder" },
-              { "name": "signature", "type": "bytes" },
-              { "name": "amount_out", "type": "uint256" }
-            ]
-          },
-          "primaryType": "UserSettlement",
-          "message": {
-            "order": {
-              "token_out": "0xaaadF7A763BB3706119671043526A52c3869e42F",
-              "token_in": "0xabadF7A763BB3706119671043526A52c3869e42F",
-              "amount_in": 100,
-              "amount_out_min": 50,
-              "deadline": "0x5FB0A325",
-              "gas_bid": "0x5FB0A325",
-              "pre_hook": "0x5FB0A325",
-              "post_hook": "0x5FB0A325"
+            "domain": {
+                "name": "ExampleDApp",
+                "version": "1",
+                "chainId": 1,
+                "verifyingContract": "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"
             },
-            "signature": "0x5FB0A325",
-            "amount_out": "0x5FB0A325"
-          }
-        }
-        );
+            "types": {
+                "EIP712Domain": [
+                    { "name": "name", "type": "string" },
+                    { "name": "version", "type": "string" },
+                    { "name": "chainId", "type": "uint256" },
+                    { "name": "verifyingContract", "type": "address" }
+                ],
+                "UserOrder": [
+                    { "name": "token_out", "type": "address" },
+                    { "name": "token_in", "type": "address" },
+                    { "name": "amount_in", "type": "uint128" },
+                    { "name": "amount_out_min", "type": "uint128" },
+                    { "name": "deadline", "type": "uint256" },
+                    { "name": "gas_bid", "type": "uint256" },
+                    { "name": "pre_hook", "type": "bytes" },
+                    { "name": "post_hook", "type": "bytes" }
+                ],
+                "UserSettlement": [
+                    { "name": "order", "type": "UserOrder" },
+                    { "name": "signature", "type": "bytes" },
+                    { "name": "amount_out", "type": "uint256" }
+                ],
+                "SealedBundle": [
+                    { "name": "arbs", "type": "SealedOrder[]" },
+                    { "name": "pools", "type": "PoolSettlement[]" },
+                    { "name": "users", "type": "UserSettlement[]" }
+                ]
+            },
+            "primaryType": "SealedBundle",
+            "message": {
+                "arbs": [],
+                "pools": [],
+                "users": [
+                    {
+                        "order": {
+                            "token_out": "0xaaadF7A763BB3706119671043526A52c3869e42F",
+                            "token_in": "0xabadF7A763BB3706119671043526A52c3869e42F",
+                            "amount_in": 100,
+                            "amount_out_min": 50,
+                            "deadline": "0x5FB0A325",
+                            "gas_bid": "0x5FB0A325",
+                            "pre_hook": "0x5FB0A325",
+                            "post_hook": "0x5FB0A325"
+                        },
+                        "signature": "0x3004f60be5a7d84e6fa12294c451faedf60d8701ccd85f0ae0c3149097a029827bf6494f51f079a214d4336437239592becb29ab6da61e89d3cb4eb38bd720da1b",
+                        "amount_out": "0x5FB0A325"
+                    },
+                    {
+                        "order": {
+                            "token_out": "0xaaadF7A763BB3706119671043526A52c3869e42F",
+                            "token_in": "0xabadF7A763BB3706119671043526A52c3869e42F",
+                            "amount_in": 100,
+                            "amount_out_min": 50,
+                            "deadline": "0x5FB0A325",
+                            "gas_bid": "0x5FB0A325",
+                            "pre_hook": "0x5FB0A325",
+                            "post_hook": "0x5FB0A325"
+                        },
+                        "signature": "0xaa04f60be5a7d84e6fa12294a451faedf60d8701ccd85f0ae0c3149097a029827bf6494f51f079a214d4336437239592becb29ab6da61e89d3cb4eb38bd720da1b",
+                        "amount_out": "0x5FB0A325"
+                    }
+                ]
+            }
+        });
 
         let typed_data: TypedData = serde_json::from_value(json).unwrap();
         println!("TYPED DATA {:?}\n", typed_data);
 
-        let val = typed_data.message.get("order");
+        let val: Vec<UserSettlement> =
+            serde_json::from_value(typed_data.message.get("users").unwrap().clone()).unwrap();
         println!("{:?}", val);
 
         //let val2 = serde_json::Value::Object(serde_json::Map::from_iter(typed_data.message.clone()));
@@ -305,19 +343,13 @@ mod tests {
         let address = H160(hex!("aeadF7A763BB3706119671043526A52c3869e42F"));
         let secret_key =
             H256(hex!("11aefec542ec498858d838ef322e6fccea3bf9c69ac54cbc8c86e4693b6879bb"));
+
         let hash = typed_data.encode_eip712().unwrap();
 
         let signer = sign_message(secret_key.0.into(), hash.into()).unwrap();
-        println!("{:?}", signer);
+        println!("{:?}", hex::encode(signer.to_bytes()));
 
         assert_eq!(signer.recover_signer(revm_primitives::B256(hash)).unwrap(), address.into());
-
-        //let hash = convert_eip712(typed_data).unwrap();
-        //println!("{:?}", hash);
-
-        assert_eq!(
-            "25c3d40a39e639a4d0b6e4d2ace5e1281e039c88494d97d8d08f99a6ea75d775",
-            "25c3d40a39e639a4d0b6e4d2ace5e1281e039c88494d97d8d08f99a6ea75d775"
-        );
     }
 }
+*/

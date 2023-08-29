@@ -1,4 +1,4 @@
-use ethers_core::types::transaction::{eip2718::TypedTransaction, eip712::EIP712Domain};
+use ethers_core::types::transaction::{eip2718::TypedTransaction, eip712::TypedData};
 use sim::SimResult;
 use tokio::sync::oneshot::Sender;
 
@@ -20,6 +20,6 @@ pub trait Simulator {
 /// enum of transaction type
 /// CHANGE TO EIP712DOMAIN
 pub enum TransactionType {
-    Single(TypedTransaction, Sender<SimResult>),
-    Bundle(TypedTransaction, Sender<SimResult>),
+    Single(TypedData, Sender<SimResult>),
+    Bundle(TypedData, Sender<SimResult>),
 }

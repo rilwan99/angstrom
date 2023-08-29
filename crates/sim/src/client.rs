@@ -1,4 +1,4 @@
-use ethers_core::types::transaction::{eip2718::TypedTransaction, eip712::EIP712Domain};
+use ethers_core::types::transaction::eip2718::TypedTransaction;
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{Simulator, TransactionType};

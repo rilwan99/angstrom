@@ -1,4 +1,4 @@
-use ethers_core::types::{BlockId, H160 as eH160, H256, U64 as eU64};
+use ethers_core::types::{Block, BlockId, H160 as eH160, H256, U64 as eU64};
 use ethers_middleware::Middleware;
 use revm::Database;
 use revm_primitives::{db::DatabaseRef, AccountInfo, Bytecode, B160, B256, KECCAK_EMPTY, U256};
@@ -11,7 +11,7 @@ where
 {
     pub client: Arc<M>,
     runtime_handle: Handle,
-    block_number: Option<BlockId>,
+    pub block_number: Option<BlockId>,
 }
 
 impl<M> RethClient<M>
@@ -29,6 +29,14 @@ where
         };
 
         out
+    }
+
+    /// internal utility function to retrieve a block
+    pub fn get_block_gas_limit(&self) -> Block<H256> {
+        let block_num = self.block_on(self.client.get_block_number()).unwrap();
+        self.block_on(self.client.get_block(block_num))
+            .unwrap()
+            .unwrap()
     }
 
     /// internal utility function to call tokio feature and wait for output

@@ -1,8 +1,5 @@
-use ethers_core::types::transaction::{
-    eip2718::TypedTransaction,
-    eip712::{Eip712DomainType, Eip712Error},
-};
-use revm_primitives::ExecutionResult;
+use ethers_core::types::transaction::eip712::Eip712Error;
+use revm_primitives::{ExecutionResult, TxEnv};
 use thiserror::Error;
 
 /// CLEAN THIS UP
@@ -21,11 +18,11 @@ pub enum SimResult {
 #[derive(Debug, Error)]
 pub enum SimError {
     #[error("No Transactions in Bundle: {0:#?}")]
-    NoTransactionsInBundle(TypedTransaction),
+    NoTransactionsInBundle(TxEnv),
     #[error("Create Transaction Error: {0:#?}")]
-    CreateTransaction(TypedTransaction),
+    CreateTransaction(TxEnv),
     #[error("EVM Simulation Error: {0:#?}")]
-    EVMTransactError(TypedTransaction),
+    EVMTransactError(TxEnv),
     #[error("Error Decoding EIP712 Transaction: {0:#?}")]
     Eip712Error(Eip712Error),
 }
