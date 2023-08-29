@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tokio::runtime::Handle;
 
 
-pub struct RevmMiddleware<M>
+pub struct RethClient<M>
 where
     M: Middleware,
 {
@@ -15,7 +15,7 @@ where
     block_number: Option<BlockId>,
 }
 
-impl<M> RevmMiddleware<M>
+impl<M> RethClient<M>
 where
     M: Middleware,
 {
@@ -44,7 +44,7 @@ where
     }
 }
 
-impl<M> Database for RevmMiddleware<M>
+impl<M> Database for RethClient<M>
 where
     M: Middleware,
 {
@@ -117,7 +117,7 @@ where
 }
 
 
-impl<M> DatabaseRef for RevmMiddleware<M>
+impl<M> DatabaseRef for RethClient<M>
 where
     M: Middleware,
 {

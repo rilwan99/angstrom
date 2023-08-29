@@ -20,24 +20,23 @@ where
 {
     pub fn new(transaction_rx: UnboundedReceiver<TransactionType>, evm_db: M, max_bytes: usize) -> Self {
         let threadpool = ThreadPool::new();
-        let handle = threadpool.handle.clone();
+        let handle = threadpool.runtime.handle().clone();
         Self { transaction_rx, threadpool, state: Arc::new(RwLock::new(RevmState::new(evm_db, max_bytes, handle))) }
     }
 
 
     /// handles incoming transactions from clients
     fn handle_incoming_tx(&mut self, tx_type: TransactionType) {
-        let handle = self.threadpool.handle.clone();
         let state = self.state.clone();
         // why are we assigning if no value is returned
-        let _ = match tx_type {
+        match tx_type {
             TransactionType::Single(tx, sender) => {
                 let fut = async move { RevmState::simulate_single_tx(state.clone(), tx, sender) };
-                let _ = ThreadPool::spawn_task_as(handle, fut, TaskKind::Default);
+                let _ = self.threadpool.spawn_task_as(fut, TaskKind::Default);
             },
             TransactionType::Bundle(tx, sender) => {
                 let fut = async move { RevmState::simulate_bundle(state.clone(), vec![tx], sender) };
-                let _ = ThreadPool::spawn_task_as(handle, fut, TaskKind::Blocking);
+                let _ = self.threadpool.spawn_task_as(fut, TaskKind::Blocking);
             },
         };
     }

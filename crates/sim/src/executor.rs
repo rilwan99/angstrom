@@ -1,14 +1,10 @@
-use std::{future::Future, task::{Poll, Context}, pin::Pin};
-use futures_util::{pin_mut, future::{Shared, FusedFuture}, FutureExt};
-use tokio::{runtime::Handle, task::JoinHandle, sync::{oneshot, mpsc::UnboundedReceiver}, };
+use futures_util::{Future, pin_mut};
+use tokio::{runtime::Runtime, task::JoinHandle};
 
 /// executes tasks on the runtime
 /// used for a thread pool for the simulator
-#[derive(Clone)]
 pub(crate) struct ThreadPool {
-    //TODO: why are we having the handle which is a ref
-    // why don't we just take the runtime to avoid the clone at the start
-    pub handle: Handle,
+    pub runtime: Runtime,
 }
 
 impl ThreadPool where {
@@ -17,16 +13,11 @@ impl ThreadPool where {
             .enable_all()
             .build()
             .unwrap();
-        //let (signal, shutdown ) = signal();
-
-        //
-        Self { handle: runtime.handle().clone()}
-
-        //Self { handle: runtime.handle().clone(), shutdown, signal }
+        Self {runtime}
     }
 
     /// Spawns a regular task depending on the given [TaskKind]
-    pub fn spawn_task_as<F>(handle: self::Handle, fut: F, task_kind: TaskKind) -> JoinHandle<()>
+    pub fn spawn_task_as<F>(&self, fut: F, task_kind: TaskKind) -> JoinHandle<()>
     where
         F: Future<Output = ()> + Send + Sync + 'static,
     {
@@ -35,18 +26,19 @@ impl ThreadPool where {
             let _ = fut.await;
         };
 
-        Self::spawn_on_rt(handle, task, task_kind)
+        self.spawn_on_rt(task, task_kind)
     }
 
     /// Spawns a future on the tokio runtime depending on the [TaskKind]
-    fn spawn_on_rt<F>(handle: self::Handle, fut: F, task_kind: TaskKind) -> JoinHandle<()>
+    fn spawn_on_rt<F>(&self, fut: F, task_kind: TaskKind) -> JoinHandle<()>
     where
         F: Future<Output = ()> + Send + 'static,
     {
+        let handle = self.runtime.handle().clone();
         match task_kind {
             TaskKind::Default => handle.spawn(fut),
             TaskKind::Blocking => {
-                handle.clone().spawn_blocking(move || rhandle.block_on(fut))
+                self.runtime.spawn_blocking(move || handle.block_on(fut))
             }
         }
     }
