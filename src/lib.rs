@@ -1,2 +1,2 @@
-pub mod guard;
+mod guard;
 mod submission_server;
