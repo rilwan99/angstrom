@@ -1,10 +1,17 @@
-use std::{collections::HashMap, future::Future, task::Context};
+use std::{
+    collections::HashMap,
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll}
+};
 
 use ethers_core::types::{transactions::eip712::TypedData, Address, U256};
-use futures::FuturesUnordered;
+use futures::{stream::FuturesUnordered, Stream};
+use revm::db::DbAccount;
 use shared::{SealedBundle, UserOrder};
 use sim::Simulator;
 
+#[derive(Debug, Clone)]
 pub struct SimulatedTransaction {
     typed_data:    TypedData,
     details:       UserOrder,
@@ -36,11 +43,10 @@ impl SimulatedTransaction {
 #[derive(Debug, Clone)]
 pub enum CowMsg {
     NewBestBundle(SealedBundle),
-    NewValidTransactions(Vec<SimulatedTransaction>),
+    NewValidTransactions(Vec<SimulatedTransaction>)
 }
 
-
-pub type SimFut = Pin<Box<dyn Future<Output = ()> + Send + Sync +'static>>;
+pub type SimFut = Pin<Box<dyn Future<Output = ()> + Send + Sync + 'static>>;
 
 pub struct CowSolver<S: Simulator + 'static> {
     all_valid_transactions: HashMap<Address, Vec<SimulatedTransaction>>,
@@ -50,19 +56,19 @@ pub struct CowSolver<S: Simulator + 'static> {
     pending_simulations: FuturesUnordered<SimFut>
 }
 
-impl CowSolver {
-    pub fn best_bundle(&self) -> &SealedBundle {
-        &self.best_simed_bundle
+impl<S: Simulator + 'static> CowSolver<S> {
+    pub fn best_bundle(&self) -> Option<&SealedBundle> {
+        self.best_simed_bundle.as_ref()
     }
-
-    // pub fn prune_included_transactions(&mut self, transactions: Vec<
 
     /// NOTICE: you need to verify that the sealed bundle already
     /// passed the simulation before trying to compare it. this
     /// is to guarantee no memory slot collusion
     pub fn new_bundle(&mut self, bundle: SealedBundle) -> bool {
         // TODO: this tech works because all we care is having the best gas bid
-        if bundle.gas_bid_sum() > self.best_simed_bundle.gas_bid_sum() {
+        if self.best_simed_bundle.is_some()
+            && bundle.gas_bid_sum() > self.best_simed_bundle.unwrap().gas_bid_sum()
+        {
             self.best_simed_bundle = Some(bundle);
 
             return true
@@ -71,12 +77,12 @@ impl CowSolver {
         false
     }
 
+    /// TODO: does this deal with conflicts
+    /// self.all_valid_transactions.extend(transactions);
     pub fn new_simmed_transaction(
         &mut self,
         transactions: HashMap<Address, Vec<SimulatedTransaction>>
     ) {
-        /// TODO: does this deal with conflicts
-        // self.all_valid_transactions.extend(transactions);
         transactions.into_iter().for_each(|(addr, txes)| {
             self.all_valid_transactions
                 .entry(addr)
@@ -106,7 +112,7 @@ impl CowSolver {
     }
 }
 
-impl<S: Simulator+ Unpin> Stream for CowSolver<S> {
+impl<S: Simulator + Unpin> Stream for CowSolver<S> {
     type Item = CowMsg;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

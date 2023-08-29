@@ -16,3 +16,4 @@ ethers-signers.workspace = true
 shared.workspace = true
 futures.workspace = true
 thiserror.workspace = true
+revm.workspace = true

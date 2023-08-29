@@ -4,16 +4,19 @@ use ethers_core::types::{Address, Bytes, U256};
 ///     PoolSettlement[] pools;
 ///     UserSettlement[] users;
 /// }
+#[derive(Debug, Clone)]
 pub struct Bundle {
     pub arbs:  Vec<ArbitrageOrderSigned>,
     pub pools: Vec<PoolSettlement>,
     pub users: Vec<UserSettlement>
 }
 
+#[derive(Debug, Clone)]
 pub struct SealedOrder(pub [u8; 32]);
 
+#[derive(Debug, Clone)]
 pub struct SealedBundle {
-    pub arbs:  Vec<SealedOrder>,
+    pub arbs: Vec<SealedOrder>,
 
     pub pools: Vec<PoolSettlement>,
     pub users: Vec<UserSettlement>
@@ -21,15 +24,18 @@ pub struct SealedBundle {
 
 impl SealedBundle {
     pub fn gas_bid_sum(&self) -> U256 {
-        self.users.iter().map(|user| user.order.gas_bid).sum()
+        self.users
+            .iter()
+            .map(|user| user.order.gas_bid)
+            .fold(U256::zero(), |a, b| a + b)
     }
 }
-
 
 /// struct ArbitrageOrderSigned {
 ///     ArbitrageOrder order;
 ///    bytes signature;
 /// }
+#[derive(Debug, Clone)]
 pub struct ArbitrageOrderSigned {
     pub signature: Bytes,
     pub order:     ArbitrageOrder
@@ -47,6 +53,7 @@ pub struct ArbitrageOrderSigned {
 ///     bytes preHook;
 ///     bytes postHook;
 /// }
+#[derive(Debug, Clone)]
 pub struct ArbitrageOrder {
     /// TODO: move to wrapped fix size for quicker encoding
     pub pool:           [u8; 32],
@@ -67,6 +74,7 @@ pub struct ArbitrageOrder {
 ///     uint256 token0In;
 ///     uint256 token1In;
 /// }
+#[derive(Debug, Clone)]
 pub struct PoolSettlement {
     pub pool:       PoolKey,
     pub token_0_in: U256,
@@ -81,6 +89,7 @@ pub struct PoolSettlement {
 ///     // Guard provided.
 ///     uint256 amountOut;
 /// }
+#[derive(Debug, Clone)]
 pub struct UserSettlement {
     pub order:      UserOrder,
     pub signature:  Bytes,
@@ -97,6 +106,7 @@ pub struct UserSettlement {
 ///     bytes preHook;
 ///     bytes postHook;
 /// }
+#[derive(Debug, Clone)]
 pub struct UserOrder {
     pub token_out:      Address,
     pub token_in:       Address,
@@ -115,6 +125,7 @@ pub struct UserOrder {
 ///     int24 tickSpacing;
 ///     address hooks;
 /// }
+#[derive(Debug, Clone)]
 pub struct PoolKey {
     pub currency_0:   Address,
     pub currency_1:   Address,

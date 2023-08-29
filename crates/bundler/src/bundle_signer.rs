@@ -1,13 +1,14 @@
 use shared::Bundle;
 use sim::Simulator;
-use this_error::Error;
+use thiserror::Error;
+use ethers_signers::{SigningKey, Wallet};
 
-#[derive(Error)]
-pub enum BundleSigningError{
-    #[error("Failed to simulate bundle: {0:#?}")]
-    SimulationError
-    #[error("failed to sign bundle: {0:#?}")]
-    SigningError
+#[derive(Debug, Error)]
+pub enum BundleSigningError {
+    #[error("Failed to simulate bundle}")]
+    SimulationError,
+    #[error("failed to sign bundle")]
+    SigningError,
 }
 
 

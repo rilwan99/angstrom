@@ -29,6 +29,7 @@ where
     fn handle_incoming_tx(&mut self, tx_type: TransactionType) {
         let handle = self.threadpool.handle.clone();
         let state = self.state.clone();
+        // why are we assigning if no value is returned
         let _ = match tx_type {
             TransactionType::Single(tx, sender) => {
                 let fut = async move { RevmState::simulate_single_tx(state.clone(), tx, sender) };
