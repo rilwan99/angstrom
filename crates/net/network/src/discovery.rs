@@ -80,20 +80,6 @@ impl Discovery {
             (None, None, None)
         };
 
-        // setup DNS discovery
-        let (_dns_discovery, dns_discovery_updates, _dns_disc_service) =
-            if let Some(dns_config) = dns_discovery_config {
-                let (mut service, dns_disc) = DnsDiscoveryService::new_pair(
-                    Arc::new(DnsResolver::from_system_conf()?),
-                    dns_config
-                );
-                let dns_discovery_updates = service.node_record_stream();
-                let dns_disc_service = service.spawn();
-                (Some(dns_disc), Some(dns_discovery_updates), Some(dns_disc_service))
-            } else {
-                (None, None, None)
-            };
-
         Ok(Self {
             discovery_listeners: Default::default(),
             local_enr,
