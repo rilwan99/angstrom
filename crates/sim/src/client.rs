@@ -1,4 +1,4 @@
-use ethers_core::types::transaction::eip2718::TypedTransaction;
+use ethers_core::types::transaction::{eip2718::TypedTransaction, eip712::EIP712Domain};
 use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{Simulator, TransactionType};
@@ -6,7 +6,7 @@ use crate::{Simulator, TransactionType};
 /// clone-able handle to the simulator
 #[derive(Clone)]
 pub struct RevmClient {
-    transaction_tx: UnboundedSender<TransactionType>
+    transaction_tx: UnboundedSender<TransactionType>,
 }
 
 impl RevmClient {

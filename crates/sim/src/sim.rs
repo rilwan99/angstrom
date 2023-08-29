@@ -1,15 +1,19 @@
-use ethers_core::types::transaction::eip2718::TypedTransaction;
+use ethers_core::types::transaction::{
+    eip2718::TypedTransaction,
+    eip712::{Eip712DomainType, Eip712Error},
+};
 use revm_primitives::ExecutionResult;
 use thiserror::Error;
 
 /// CLEAN THIS UP
+#[derive(Debug)]
 pub enum SimResult {
     /// error running a sim on the evm
     SimulationError(SimError),
     /// execution result of the sim
     ExecutionResult(ExecutionResult),
     /// successful bundle sim
-    SuccessfulBundle
+    SuccessfulBundle,
 }
 
 /// errors for sim
@@ -21,5 +25,7 @@ pub enum SimError {
     #[error("Create Transaction Error: {0:#?}")]
     CreateTransaction(TypedTransaction),
     #[error("EVM Simulation Error: {0:#?}")]
-    EVMTransactError(TypedTransaction)
+    EVMTransactError(TypedTransaction),
+    #[error("Error Decoding EIP712 Transaction: {0:#?}")]
+    Eip712Error(Eip712Error),
 }
