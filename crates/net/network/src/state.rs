@@ -268,4 +268,3 @@ pub(crate) enum StateAction {
     /// A peer was dropped
     PeerRemoved(PeerId)
 }
-

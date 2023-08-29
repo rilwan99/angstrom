@@ -7,11 +7,14 @@ use std::{
 use ethers_providers::Middleware;
 use futures::{Future, FutureExt};
 use futures_util::StreamExt;
-use guard_network::Swarm;
-use leader::leader_manager::Leader;
+use guard_network::{NetworkConfig, Swarm};
+use leader::leader_manager::{Leader, LeaderConfig};
 use sim::Simulator;
-use tokio::task::JoinHandle;
+use tokio::{sync::mpsc::Sender, task::JoinHandle};
 
+use crate::submission_server::{
+    Submission, SubmissionServer, SubscriptionKind, SubscriptionResult
+};
 
 /// This is the control unit of the guard that delegates
 /// all of our signing and messages.
@@ -25,14 +28,17 @@ pub struct Guard<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
     #[cfg(feature = "subscription")]
     /// make sure we keep subscribers upto date
     server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>,
-    // we also can't enforce
     /// handle
     _simulator_thread:    JoinHandle<()>
 }
 
 impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
+    pub fn new(network_config: NetworkConfig, leader_config: LeaderConfig<M, S>) -> Self {
+        todo!()
+    }
+
     #[cfg(feature = "subscription")]
-    fn handle_submissions(&mut self, cx: &mut Context<'_>, msgs: Vec<Submission>) {
+    fn handle_submissions(&mut self, msgs: Vec<Submission>) {
         let submissions = msgs
             .into_iter()
             .filter_map(|submission| match submission {
@@ -56,14 +62,14 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
         {
             senders.retain(|sender| {
                 sender
-                    .try_send(SubscriptionResult::CowTransaction(submissions))
+                    .try_send(SubscriptionResult::CowTransaction(submissions.clone()))
                     .is_ok()
             });
         }
     }
 
     #[cfg(not(feature = "subscription"))]
-    fn handle_submissions(&mut self, cx: &mut Context<'_>, msgs: Vec<Submission>) {
+    fn handle_submissions(&mut self, msgs: Vec<Submission>) {
         let submissions = msgs
             .into_iter()
             .map(|submission| match submission {
@@ -83,21 +89,22 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
     }
 }
 
-impl<M: Middleware + Unpin, S: Simulator> Future for Guard<M, S> {
+impl<M: Middleware + Unpin, S: Simulator + Unpin> Future for Guard<M, S> {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if let Poll::Ready(new_msgs) = self.server.poll_next_unpin(cx) {
             let Some(new_msgs) = new_msgs else { return Poll::Ready(()) };
 
-            if self.handle_submissions(cx, new_msgs).is_ready() {
-                return Poll::Ready(())
-            };
+            self.handle_submissions(new_msgs);
+        }
+        if let Poll::Ready(Some(msgs)) = self.network.poll_next_unpin(cx) {
+            cx.waker().wake_by_ref();
+            println!("{msgs:?}");
         }
 
         if let Poll::Ready(msgs) = self.leader.poll(cx) {}
 
-        todo!()
+        return Poll::Pending
     }
 }
-

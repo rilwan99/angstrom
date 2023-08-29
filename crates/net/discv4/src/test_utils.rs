@@ -2,14 +2,6 @@
 
 #![allow(missing_docs, unused)]
 
-use crate::{
-    proto::{FindNode, Message, Neighbours, NodeEndpoint, Packet, Ping, Pong},
-    receive_loop, send_loop, Discv4, Discv4Config, Discv4Service, EgressSender, IngressEvent,
-    IngressReceiver, PeerId, SAFE_MAX_DATAGRAM_NEIGHBOUR_RECORDS,
-};
-use rand::{thread_rng, Rng, RngCore};
-use reth_primitives::{hex_literal::hex, ForkHash, ForkId, NodeRecord, H256};
-use secp256k1::{SecretKey, SECP256K1};
 use std::{
     collections::{HashMap, HashSet},
     io,
@@ -18,30 +10,40 @@ use std::{
     str::FromStr,
     sync::Arc,
     task::{Context, Poll},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH}
 };
+
+use rand::{thread_rng, Rng, RngCore};
+use reth_primitives::{hex_literal::hex, ForkHash, ForkId, NodeRecord, H256};
+use secp256k1::{SecretKey, SECP256K1};
 use tokio::{
     net::UdpSocket,
     sync::mpsc,
-    task::{JoinHandle, JoinSet},
+    task::{JoinHandle, JoinSet}
 };
 use tokio_stream::{Stream, StreamExt};
 use tracing::{debug, error};
 
+use crate::{
+    proto::{FindNode, Message, Neighbours, NodeEndpoint, Packet, Ping, Pong},
+    receive_loop, send_loop, Discv4, Discv4Config, Discv4Service, EgressSender, IngressEvent,
+    IngressReceiver, PeerId, SAFE_MAX_DATAGRAM_NEIGHBOUR_RECORDS
+};
+
 /// Mock discovery node
 pub struct MockDiscovery {
-    local_addr: SocketAddr,
-    local_enr: NodeRecord,
-    secret_key: SecretKey,
-    udp: Arc<UdpSocket>,
-    _tasks: JoinSet<()>,
+    local_addr:         SocketAddr,
+    local_enr:          NodeRecord,
+    secret_key:         SecretKey,
+    udp:                Arc<UdpSocket>,
+    _tasks:             JoinSet<()>,
     /// Receiver for incoming messages
-    ingress: IngressReceiver,
+    ingress:            IngressReceiver,
     /// Sender for sending outgoing messages
-    egress: EgressSender,
-    pending_pongs: HashSet<PeerId>,
+    egress:             EgressSender,
+    pending_pongs:      HashSet<PeerId>,
     pending_neighbours: HashMap<PeerId, Vec<NodeRecord>>,
-    command_rx: mpsc::Receiver<MockCommand>,
+    command_rx:         mpsc::Receiver<MockCommand>
 }
 
 impl MockDiscovery {
@@ -57,7 +59,7 @@ impl MockDiscovery {
             address: local_addr.ip(),
             tcp_port: local_addr.port(),
             udp_port: local_addr.port(),
-            id,
+            id
         };
 
         let (ingress_tx, ingress_rx) = mpsc::channel(128);
@@ -81,7 +83,7 @@ impl MockDiscovery {
             udp: socket,
             pending_pongs: Default::default(),
             pending_neighbours: Default::default(),
-            command_rx,
+            command_rx
         };
         Ok((this, tx))
     }
@@ -151,17 +153,17 @@ impl Stream for MockDiscovery {
                     Message::Ping(ping) => {
                         if this.pending_pongs.remove(&node_id) {
                             let pong = Pong {
-                                to: ping.from,
-                                echo: hash,
+                                to:     ping.from,
+                                echo:   hash,
                                 expire: ping.expire,
-                                enr_sq: None,
+                                enr_sq: None
                             };
                             let msg = Message::Pong(pong.clone());
                             this.send_packet(msg, remote_addr);
                             return Poll::Ready(Some(MockEvent::Pong {
                                 ping,
                                 pong,
-                                to: remote_addr,
+                                to: remote_addr
                             }))
                         }
                     }
@@ -169,19 +171,19 @@ impl Stream for MockDiscovery {
                     Message::FindNode(msg) => {
                         if let Some(nodes) = this.pending_neighbours.remove(&msg.id) {
                             let msg = Message::Neighbours(Neighbours {
-                                nodes: nodes.clone(),
-                                expire: this.send_neighbours_timeout(),
+                                nodes:  nodes.clone(),
+                                expire: this.send_neighbours_timeout()
                             });
                             this.send_packet(msg, remote_addr);
                             return Poll::Ready(Some(MockEvent::Neighbours {
                                 nodes,
-                                to: remote_addr,
+                                to: remote_addr
                             }))
                         }
                     }
                     Message::Neighbours(_) => {}
-                    Message::EnrRequest(_) | Message::EnrResponse(_) => todo!(),
-                },
+                    Message::EnrRequest(_) | Message::EnrResponse(_) => todo!()
+                }
             }
         }
 
@@ -192,22 +194,28 @@ impl Stream for MockDiscovery {
 /// The event type the mock service produces
 pub enum MockEvent {
     Pong { ping: Ping, pong: Pong, to: SocketAddr },
-    Neighbours { nodes: Vec<NodeRecord>, to: SocketAddr },
+    Neighbours { nodes: Vec<NodeRecord>, to: SocketAddr }
 }
 
 /// Command for interacting with the `MockDiscovery` service
 pub enum MockCommand {
     MockPong { node_id: PeerId },
-    MockNeighbours { target: PeerId, nodes: Vec<NodeRecord> },
+    MockNeighbours { target: PeerId, nodes: Vec<NodeRecord> }
 }
 
 /// Creates a new testing instance for [`Discv4`] and its service
 pub async fn create_discv4() -> (Discv4, Discv4Service) {
     let fork_id = ForkId { hash: ForkHash(hex!("743f3d89")), next: 16191202 };
-    create_discv4_with_config(Discv4Config::builder().add_eip868_pair("eth", fork_id).build()).await
+    create_discv4_with_config(
+        Discv4Config::builder()
+            .add_eip868_pair("eth", fork_id)
+            .build()
+    )
+    .await
 }
 
-/// Creates a new testing instance for [`Discv4`] and its service with the given config.
+/// Creates a new testing instance for [`Discv4`] and its service with the given
+/// config.
 pub async fn create_discv4_with_config(config: Discv4Config) -> (Discv4, Discv4Service) {
     let mut rng = thread_rng();
     let socket = SocketAddr::from_str("0.0.0.0:0").unwrap();
@@ -215,7 +223,9 @@ pub async fn create_discv4_with_config(config: Discv4Config) -> (Discv4, Discv4S
     let id = PeerId::from_slice(&pk.serialize_uncompressed()[1..]);
     let local_enr =
         NodeRecord { address: socket.ip(), tcp_port: socket.port(), udp_port: socket.port(), id };
-    Discv4::bind(socket, local_enr, secret_key, config).await.unwrap()
+    Discv4::bind(socket, local_enr, secret_key, config)
+        .await
+        .unwrap()
 }
 
 pub fn rng_endpoint(rng: &mut impl Rng) -> NodeEndpoint {
@@ -253,38 +263,43 @@ pub fn rng_ipv4_record(rng: &mut impl RngCore) -> NodeRecord {
 pub fn rng_message(rng: &mut impl RngCore) -> Message {
     match rng.gen_range(1..=4) {
         1 => Message::Ping(Ping {
-            from: rng_endpoint(rng),
-            to: rng_endpoint(rng),
+            from:   rng_endpoint(rng),
+            to:     rng_endpoint(rng),
             expire: rng.gen(),
-            enr_sq: None,
+            enr_sq: None
         }),
         2 => Message::Pong(Pong {
-            to: rng_endpoint(rng),
-            echo: H256::random(),
+            to:     rng_endpoint(rng),
+            echo:   H256::random(),
             expire: rng.gen(),
-            enr_sq: None,
+            enr_sq: None
         }),
         3 => Message::FindNode(FindNode { id: PeerId::random(), expire: rng.gen() }),
         4 => {
             let num: usize = rng.gen_range(1..=SAFE_MAX_DATAGRAM_NEIGHBOUR_RECORDS);
             Message::Neighbours(Neighbours {
-                nodes: std::iter::repeat_with(|| rng_record(rng)).take(num).collect(),
-                expire: rng.gen(),
+                nodes:  std::iter::repeat_with(|| rng_record(rng))
+                    .take(num)
+                    .collect(),
+                expire: rng.gen()
             })
         }
-        _ => unreachable!(),
+        _ => unreachable!()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::{Discv4Event, PingReason};
-    use reth_primitives::{hex_literal::hex, ForkHash, ForkId};
     use std::net::{IpAddr, Ipv4Addr};
 
-    /// This test creates two local UDP sockets. The mocked discovery service responds to specific
-    /// messages and we check the actual service receives answers
+    use reth_primitives::{hex_literal::hex, ForkHash, ForkId};
+
+    use super::*;
+    use crate::{Discv4Event, PingReason};
+
+    /// This test creates two local UDP sockets. The mocked discovery service
+    /// responds to specific messages and we check the actual service
+    /// receives answers
     #[tokio::test]
     async fn can_mock_discovery() {
         reth_tracing::init_test_tracing();
@@ -325,8 +340,9 @@ mod tests {
 
         assert!(service.contains_node(mock_enr.id));
 
-        let mock_nodes =
-            std::iter::repeat_with(|| rng_record(&mut rng)).take(5).collect::<Vec<_>>();
+        let mock_nodes = std::iter::repeat_with(|| rng_record(&mut rng))
+            .take(5)
+            .collect::<Vec<_>>();
 
         mockv4.queue_neighbours(discv_enr.id, mock_nodes.clone());
 

@@ -15,7 +15,7 @@ pub enum DecodePacketError {
     #[error("Message id {0} is not supported.")]
     UnknownMessage(u8),
     #[error("Failed to recover public key: {0:?}")]
-    Secp256k1(#[from] secp256k1::Error),
+    Secp256k1(#[from] secp256k1::Error)
 }
 
 /// High level errors that can occur when interacting with the discovery service
@@ -26,7 +26,7 @@ pub enum Discv4Error {
     Send,
     /// Failed to receive a command response
     #[error(transparent)]
-    Receive(#[from] RecvError),
+    Receive(#[from] RecvError)
 }
 
 impl<T> From<SendError<T>> for Discv4Error {

@@ -1,10 +1,9 @@
+use ethers_core::types::{BlockId, H160 as eH160, H256, U64 as eU64};
 use ethers_middleware::Middleware;
 use revm::Database;
-use revm_primitives::{AccountInfo, Bytecode, B160, B256, KECCAK_EMPTY, U256, db::DatabaseRef};
-use ethers_core::types::{BlockId, H160 as eH160, H256, U64 as eU64};
+use revm_primitives::{db::DatabaseRef, AccountInfo, Bytecode, B160, B256, KECCAK_EMPTY, U256};
 use std::sync::Arc;
 use tokio::runtime::Handle;
-
 
 pub struct RethClient<M>
 where
@@ -21,18 +20,12 @@ where
 {
     /// create ethers db connector inputs are url and block on what we are basing our database (None for latest)
     pub fn new(client: M, block_number: Option<BlockId>, handle: Handle) -> Self {
-        let mut out = Self {
-            client: Arc::new(client),
-            runtime_handle: handle,
-            block_number: None,
-        };
+        let mut out = Self { client: Arc::new(client), runtime_handle: handle, block_number: None };
 
         out.block_number = if block_number.is_some() {
             block_number
         } else {
-            Some(BlockId::from(
-                out.block_on(out.client.get_block_number()).ok().unwrap(),
-            ))
+            Some(BlockId::from(out.block_on(out.client.get_block_number()).ok().unwrap()))
         };
 
         out
@@ -40,7 +33,7 @@ where
 
     /// internal utility function to call tokio feature and wait for output
     fn block_on<F: core::future::Future>(&self, f: F) -> F::Output {
-       self.runtime_handle.block_on(f)
+        self.runtime_handle.block_on(f)
     }
 }
 
@@ -115,7 +108,6 @@ where
         Ok(B256(self.block_on(f).unwrap().hash.unwrap().0))
     }
 }
-
 
 impl<M> DatabaseRef for RethClient<M>
 where

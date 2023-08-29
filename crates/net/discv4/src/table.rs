@@ -1,13 +1,14 @@
 //! Additional support for tracking nodes.
 
-use reth_primitives::PeerId;
 use std::{collections::HashMap, net::IpAddr, time::Instant};
+
+use reth_primitives::PeerId;
 
 /// Keeps track of nodes from which we have received a `Pong` message.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct PongTable {
     /// The nodes we have received a `Pong` from.
-    nodes: HashMap<NodeKey, Instant>,
+    nodes: HashMap<NodeKey, Instant>
 }
 
 impl PongTable {
@@ -22,7 +23,8 @@ impl PongTable {
         self.nodes.get(&NodeKey { remote_id, remote_ip }).copied()
     }
 
-    /// Removes all nodes from the table that have not sent a `Pong` for at least `timeout`.
+    /// Removes all nodes from the table that have not sent a `Pong` for at
+    /// least `timeout`.
     pub(crate) fn evict_expired(&mut self, now: Instant, timeout: std::time::Duration) {
         self.nodes.retain(|_, last_pong| now - *last_pong < timeout);
     }
@@ -31,5 +33,5 @@ impl PongTable {
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub(crate) struct NodeKey {
     pub(crate) remote_id: PeerId,
-    pub(crate) remote_ip: IpAddr,
+    pub(crate) remote_ip: IpAddr
 }

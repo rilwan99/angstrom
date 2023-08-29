@@ -47,6 +47,7 @@ reth-rpc-builder.workspace = true
 async-trait.workspace = true
 tokio-stream.workspace = true
 shared.workspace = true
+serde.workspace = true
 
 jsonrpsee = { workspace = true, features = ["server"] }
 tower-http = { version = "0.4", features = ["full"] }
@@ -111,6 +112,7 @@ rayon = "1.7"
 itertools = "0.11"
 parking_lot = "0.12"
 metrics = "0.21.1"                                    # Needed for `metrics-macro` to resolve the crate using `::metrics` notation
+anyhow = "1.0.75"
 
 ### proc-macros
 proc-macro2 = "1.0"

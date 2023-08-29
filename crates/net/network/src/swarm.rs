@@ -525,6 +525,7 @@ impl Stream for Swarm {
 
 /// All events created or delegated by the [`Swarm`] that represents changes to
 /// the state of the network.
+#[derive(Debug)]
 pub enum SwarmEvent {
     /// Events related to the actual network protocol.
     ValidMessage {
@@ -658,4 +659,3 @@ pub enum NetworkEvent {
 pub enum DiscoveredEvent {
     EventQueued { peer_id: PeerId, socket_addr: SocketAddr, fork_id: Option<ForkId> }
 }
-

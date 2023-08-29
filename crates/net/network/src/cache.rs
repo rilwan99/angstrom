@@ -1,14 +1,16 @@
-use linked_hash_set::LinkedHashSet;
 use std::{borrow::Borrow, hash::Hash, num::NonZeroUsize};
+
+use linked_hash_set::LinkedHashSet;
 
 /// A minimal LRU cache based on a `LinkedHashSet` with limited capacity.
 ///
 /// If the length exceeds the set capacity, the oldest element will be removed
-/// In the limit, for each element inserted the oldest existing element will be removed.
+/// In the limit, for each element inserted the oldest existing element will be
+/// removed.
 #[derive(Debug, Clone)]
 pub struct LruCache<T: Hash + Eq> {
     limit: NonZeroUsize,
-    inner: LinkedHashSet<T>,
+    inner: LinkedHashSet<T>
 }
 
 impl<T: Hash + Eq> LruCache<T> {
@@ -19,9 +21,9 @@ impl<T: Hash + Eq> LruCache<T> {
 
     /// Insert an element into the set.
     ///
-    /// If the element is new (did not exist before [`LruCache::insert()`]) was called, then the
-    /// given length will be enforced and the oldest element will be removed if the limit was
-    /// exceeded.
+    /// If the element is new (did not exist before [`LruCache::insert()`]) was
+    /// called, then the given length will be enforced and the oldest
+    /// element will be removed if the limit was exceeded.
     ///
     /// If the set did not have this value present, true is returned.
     /// If the set did have this value present, false is returned.
@@ -48,7 +50,7 @@ impl<T: Hash + Eq> LruCache<T> {
     pub fn contains<Q: ?Sized>(&self, value: &Q) -> bool
     where
         T: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: Hash + Eq
     {
         self.inner.contains(value)
     }
@@ -56,7 +58,7 @@ impl<T: Hash + Eq> LruCache<T> {
 
 impl<T> Extend<T> for LruCache<T>
 where
-    T: Eq + Hash,
+    T: Eq + Hash
 {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for item in iter.into_iter() {

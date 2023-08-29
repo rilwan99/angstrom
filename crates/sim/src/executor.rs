@@ -1,4 +1,4 @@
-use futures_util::{Future, pin_mut};
+use futures_util::{pin_mut, Future};
 use tokio::{runtime::Runtime, task::JoinHandle};
 
 /// executes tasks on the runtime
@@ -7,13 +7,13 @@ pub(crate) struct ThreadPool {
     pub runtime: Runtime,
 }
 
-impl ThreadPool where {
+impl ThreadPool {
     pub fn new() -> Self {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .unwrap();
-        Self {runtime}
+        Self { runtime }
     }
 
     /// Spawns a regular task depending on the given [TaskKind]
@@ -37,25 +37,19 @@ impl ThreadPool where {
         let handle = self.runtime.handle().clone();
         match task_kind {
             TaskKind::Default => handle.spawn(fut),
-            TaskKind::Blocking => {
-                self.runtime.spawn_blocking(move || handle.block_on(fut))
-            }
+            TaskKind::Blocking => self.runtime.spawn_blocking(move || handle.block_on(fut)),
         }
     }
 }
 
-
-
-
 /// specifies a blocking or non blocking task
 pub(crate) enum TaskKind {
     Default,
-    Blocking
+    Blocking,
 }
 
-
 // finish shutdown mechanism
-/* 
+/*
 
 /// A Future that resolves when the shutdown event has been fired.
 #[derive(Debug, Clone)]
