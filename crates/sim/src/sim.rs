@@ -11,7 +11,7 @@ pub enum SimResult {
     /// execution result of the sim
     ExecutionResult(ExecutionResult),
     /// successful bundle sim
-    SuccessfulBundle,
+    SuccessfulBundle
 }
 
 /// errors for sim
@@ -25,5 +25,5 @@ pub enum SimError {
     #[error("EVM Simulation Error: {0:#?}")]
     EVMTransactError(TxEnv),
     #[error("Error Decoding EIP712 Transaction: {0:#?}")]
-    Eip712Error(Eip712Error),
+    Eip712Error(Eip712Error)
 }
