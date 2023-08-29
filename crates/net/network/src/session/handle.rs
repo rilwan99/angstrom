@@ -2,7 +2,7 @@
 use std::{io, net::SocketAddr, sync::Arc, time::Instant};
 
 use reth_ecies::{stream::ECIESStream, ECIESError};
-use reth_eth_wire::{
+use guard_eth_wire::{
     capability::{Capabilities, CapabilityMessage},
     errors::EthStreamError,
     DisconnectReason, EthStream, EthVersion, P2PStream, Status

@@ -1,4 +1,4 @@
-use reth_eth_wire::DisconnectReason;
+use guard_eth_wire::DisconnectReason;
 use reth_metrics::{
     metrics::{Counter, Gauge},
     Metrics

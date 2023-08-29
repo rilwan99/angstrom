@@ -10,7 +10,7 @@ use std::{
     task::{Context, Poll}
 };
 
-use reth_eth_wire::{capability::Capabilities, DisconnectReason};
+use guard_eth_wire::{capability::Capabilities, DisconnectReason};
 use reth_network_api::PeerKind;
 use reth_primitives::{ForkId, PeerId, H256};
 use tracing::debug;

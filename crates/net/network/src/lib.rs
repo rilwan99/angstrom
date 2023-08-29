@@ -129,19 +129,17 @@ mod discovery;
 pub mod error;
 mod flattened_response;
 mod listener;
+mod messages;
 mod metrics;
-mod network;
 pub mod peers;
 mod session;
 pub mod state;
 mod swarm;
-mod messages;
 
 pub use config::{NetworkConfig, NetworkConfigBuilder};
 pub use discovery::Discovery;
-pub use network::NetworkHandle;
+pub use guard_eth_wire::{DisconnectReason, HelloBuilder, HelloMessage};
 pub use peers::PeersConfig;
-pub use reth_eth_wire::{DisconnectReason, HelloBuilder, HelloMessage};
 pub use session::{
     ActiveSessionHandle, ActiveSessionMessage, Direction, PendingSessionEvent,
     PendingSessionHandle, PendingSessionHandshakeError, SessionCommand, SessionEvent, SessionId,

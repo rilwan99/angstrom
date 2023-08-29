@@ -14,7 +14,7 @@ use std::{
 use fnv::FnvHashMap;
 use futures::{SinkExt, StreamExt};
 use reth_ecies::stream::ECIESStream;
-use reth_eth_wire::{
+use guard_eth_wire::{
     capability::Capabilities,
     errors::{EthStreamError, P2PStreamError},
     message::EthBroadcastMessage,
@@ -225,7 +225,7 @@ impl Future for ActiveSession {
                         match cmd {
                             SessionCommand::Message(message) => {
                                 info!(target: "net::session", remote_peer_id=?this.remote_peer_id, "Received state data from session");
-                                this.to_session_manager.try_send(
+                                let _ = this.to_session_manager.try_send(
                                     ActiveSessionMessage::ValidMessage {
                                         message,
                                         peer_id: this.remote_peer_id
