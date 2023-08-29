@@ -58,6 +58,15 @@ pub struct CowSolver<S: Simulator + 'static> {
 }
 
 impl<S: Simulator + 'static> CowSolver<S> {
+    pub fn new(sim: S) -> Self {
+        Self {
+            sim,
+            all_valid_transactions: HashMap::default(),
+            pending_simulations: FuturesUnordered::default(),
+            best_simed_bundle: None
+        }
+    }
+
     pub fn best_bundle(&self) -> Option<&SealedBundle> {
         self.best_simed_bundle.as_ref()
     }

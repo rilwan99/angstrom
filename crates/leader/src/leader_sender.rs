@@ -24,7 +24,7 @@ type BundleKey = LocalWallet;
 
 #[derive(Debug)]
 pub struct LeaderSender<M: Middleware + 'static>(
-    pub &'static SignerMiddleware<BroadcasterMiddleware<M, BundleKey>, StakedWallet>
+    pub SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>
 );
 
 impl<M: Middleware + 'static> LeaderSender<M> {

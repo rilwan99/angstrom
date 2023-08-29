@@ -61,7 +61,7 @@ pub struct SubmissionServer {
 }
 
 impl SubmissionServer {
-    pub fn new(handle: ServerHandle, sender: Sender<Submission>) -> Self {
+    pub fn new(handle: ServerHandle) -> Self {
         Self { handle, submissions: Mutex::new(vec![]), waker: None }
     }
 }

@@ -7,8 +7,8 @@ use std::{
 use ethers_providers::Middleware;
 use futures::{Future, FutureExt};
 use futures_util::StreamExt;
-use guard_network::Swarm;
-use leader::leader_manager::Leader;
+use guard_network::{NetworkConfig, Swarm};
+use leader::leader_manager::{Leader, LeaderConfig};
 use sim::Simulator;
 use tokio::{sync::mpsc::Sender, task::JoinHandle};
 
@@ -28,12 +28,15 @@ pub struct Guard<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
     #[cfg(feature = "subscription")]
     /// make sure we keep subscribers upto date
     server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>,
-    // we also can't enforce
     /// handle
     _simulator_thread:    JoinHandle<()>
 }
 
 impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
+    pub fn new(network_config: NetworkConfig, leader_config: LeaderConfig<M, S>) -> Self {
+        todo!()
+    }
+
     #[cfg(feature = "subscription")]
     fn handle_submissions(&mut self, msgs: Vec<Submission>) {
         let submissions = msgs
@@ -86,7 +89,7 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
     }
 }
 
-impl<M: Middleware + Unpin, S: Simulator +Unpin> Future for Guard<M, S> {
+impl<M: Middleware + Unpin, S: Simulator + Unpin> Future for Guard<M, S> {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -95,9 +98,13 @@ impl<M: Middleware + Unpin, S: Simulator +Unpin> Future for Guard<M, S> {
 
             self.handle_submissions(new_msgs);
         }
+        if let Poll::Ready(Some(msgs)) = self.network.poll_next_unpin(cx) {
+            cx.waker().wake_by_ref();
+            println!("{msgs:?}");
+        }
 
         if let Poll::Ready(msgs) = self.leader.poll(cx) {}
 
-        todo!()
+        return Poll::Pending
     }
 }

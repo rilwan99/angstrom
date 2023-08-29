@@ -1,24 +1,23 @@
-use crate::{
-    discovery::DiscoveryEvent,
-    peers::PeersHandle, swarm::NetworkEvent,
+use std::{
+    net::SocketAddr,
+    sync::{
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc
+    }
 };
+
 use async_trait::async_trait;
 use parking_lot::Mutex;
 use reth_eth_wire::DisconnectReason;
 use reth_net_common::bandwidth_meter::BandwidthMeter;
 use reth_network_api::{
-    NetworkError, PeerKind, Peers, PeersInfo, Reputation, ReputationChangeKind,
+    NetworkError, PeerKind, Peers, PeersInfo, Reputation, ReputationChangeKind
 };
 use reth_primitives::{NodeRecord, PeerId};
-use std::{
-    net::SocketAddr,
-    sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-        Arc,
-    },
-};
 use tokio::sync::{mpsc, mpsc::UnboundedSender, oneshot};
 use tokio_stream::wrappers::UnboundedReceiverStream;
+
+use crate::{discovery::DiscoveryEvent, peers::PeersHandle, swarm::NetworkEvent};
 
 /// A _shareable_ network frontend. Used to interact with the network.
 ///
@@ -26,7 +25,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 #[derive(Clone, Debug)]
 pub struct NetworkHandle {
     /// The Arc'ed delegate that contains the state.
-    inner: Arc<NetworkInner>,
+    inner: Arc<NetworkInner>
 }
 
 // === impl NetworkHandle ===
@@ -40,7 +39,7 @@ impl NetworkHandle {
         to_manager_tx: UnboundedSender<NetworkHandleMessage>,
         local_peer_id: PeerId,
         peers: PeersHandle,
-        bandwidth_meter: BandwidthMeter,
+        bandwidth_meter: BandwidthMeter
     ) -> Self {
         let inner = NetworkInner {
             num_active_peers,
@@ -50,7 +49,7 @@ impl NetworkHandle {
             peers,
             bandwidth_meter,
             is_syncing: Arc::new(AtomicBool::new(false)),
-            initial_sync_done: Arc::new(AtomicBool::new(false)),
+            initial_sync_done: Arc::new(AtomicBool::new(false))
         };
         Self { inner: Arc::new(inner) }
     }
@@ -83,18 +82,19 @@ impl NetworkHandle {
     /// This stream yields [`DiscoveryEvent`]s for each peer that is discovered.
     pub fn discovery_listener(&self) -> UnboundedReceiverStream<DiscoveryEvent> {
         let (tx, rx) = mpsc::unbounded_channel();
-        let _ = self.manager().send(NetworkHandleMessage::DiscoveryListener(tx));
+        let _ = self
+            .manager()
+            .send(NetworkHandleMessage::DiscoveryListener(tx));
         UnboundedReceiverStream::new(rx)
     }
-
 
     /// Sends a [`NetworkHandleMessage`] to the manager
     pub(crate) fn send_message(&self, msg: NetworkHandleMessage) {
         let _ = self.inner.to_manager_tx.send(msg);
     }
 
-
-    /// Provides a shareable reference to the [`BandwidthMeter`] stored on the [`NetworkInner`]
+    /// Provides a shareable reference to the [`BandwidthMeter`] stored on the
+    /// [`NetworkInner`]
     pub fn bandwidth_meter(&self) -> &BandwidthMeter {
         &self.inner.bandwidth_meter
     }
@@ -136,26 +136,27 @@ impl PeersInfo for NetworkHandle {
 
 #[async_trait]
 impl Peers for NetworkHandle {
-    /// Sends a message to the [`NetworkManager`](crate::NetworkManager) to add a peer to the known
-    /// set, with the given kind.
+    /// Sends a message to the [`NetworkManager`](crate::NetworkManager) to add
+    /// a peer to the known set, with the given kind.
     fn add_peer_kind(&self, peer: PeerId, kind: PeerKind, addr: SocketAddr) {
         self.send_message(NetworkHandleMessage::AddPeerAddress(peer, kind, addr));
     }
 
-    /// Sends a message to the [`NetworkManager`](crate::NetworkManager) to remove a peer from the
-    /// set corresponding to given kind.
+    /// Sends a message to the [`NetworkManager`](crate::NetworkManager) to
+    /// remove a peer from the set corresponding to given kind.
     fn remove_peer(&self, peer: PeerId, kind: PeerKind) {
         self.send_message(NetworkHandleMessage::RemovePeer(peer, kind))
     }
 
-    /// Sends a message to the [`NetworkManager`](crate::NetworkManager)  to disconnect an existing
-    /// connection to the given peer.
+    /// Sends a message to the [`NetworkManager`](crate::NetworkManager)  to
+    /// disconnect an existing connection to the given peer.
     fn disconnect_peer(&self, peer: PeerId) {
         self.send_message(NetworkHandleMessage::DisconnectPeer(peer, None))
     }
 
-    /// Sends a message to the [`NetworkManager`](crate::NetworkManager)  to disconnect an existing
-    /// connection to the given peer using the provided reason
+    /// Sends a message to the [`NetworkManager`](crate::NetworkManager)  to
+    /// disconnect an existing connection to the given peer using the
+    /// provided reason
     fn disconnect_peer_with_reason(&self, peer: PeerId, reason: DisconnectReason) {
         self.send_message(NetworkHandleMessage::DisconnectPeer(peer, Some(reason)))
     }
@@ -167,33 +168,36 @@ impl Peers for NetworkHandle {
 
     async fn reputation_by_id(&self, peer_id: PeerId) -> Result<Option<Reputation>, NetworkError> {
         let (tx, rx) = oneshot::channel();
-        let _ = self.manager().send(NetworkHandleMessage::GetReputationById(peer_id, tx));
+        let _ = self
+            .manager()
+            .send(NetworkHandleMessage::GetReputationById(peer_id, tx));
         Ok(rx.await?)
     }
 }
 
-
 #[derive(Debug)]
 struct NetworkInner {
     /// Number of active peer sessions the node's currently handling.
-    num_active_peers: Arc<AtomicUsize>,
+    num_active_peers:  Arc<AtomicUsize>,
     /// Sender half of the message channel to the [`crate::NetworkManager`].
-    to_manager_tx: UnboundedSender<NetworkHandleMessage>,
+    to_manager_tx:     UnboundedSender<NetworkHandleMessage>,
     /// The local address that accepts incoming connections.
-    listener_address: Arc<Mutex<SocketAddr>>,
+    listener_address:  Arc<Mutex<SocketAddr>>,
     /// The identifier used by this node.
-    local_peer_id: PeerId,
+    local_peer_id:     PeerId,
     /// Access to the all the nodes.
-    peers: PeersHandle,
-    /// Used to measure inbound & outbound bandwidth across network streams (currently unused)
-    bandwidth_meter: BandwidthMeter,
+    peers:             PeersHandle,
+    /// Used to measure inbound & outbound bandwidth across network streams
+    /// (currently unused)
+    bandwidth_meter:   BandwidthMeter,
     /// Represents if the network is currently syncing.
-    is_syncing: Arc<AtomicBool>,
+    is_syncing:        Arc<AtomicBool>,
     /// Used to differentiate between an initial pipeline sync or a live sync
-    initial_sync_done: Arc<AtomicBool>,
+    initial_sync_done: Arc<AtomicBool>
 }
 
-/// Internal messages that can be passed to the  [`NetworkManager`](crate::NetworkManager).
+/// Internal messages that can be passed to the
+/// [`NetworkManager`](crate::NetworkManager).
 #[allow(missing_docs)]
 pub(crate) enum NetworkHandleMessage {
     /// Adds an address for a peer.
@@ -211,5 +215,5 @@ pub(crate) enum NetworkHandleMessage {
     /// Gracefully shutdown network
     Shutdown(oneshot::Sender<()>),
     /// Add a new listener for `DiscoveryEvent`.
-    DiscoveryListener(UnboundedSender<DiscoveryEvent>),
+    DiscoveryListener(UnboundedSender<DiscoveryEvent>)
 }

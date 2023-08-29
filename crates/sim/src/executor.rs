@@ -105,4 +105,3 @@ pub fn signal() -> (Signal, Shutdown) {
     (Signal(sender), Shutdown(receiver.shared()))
 }
 */
-
