@@ -1,6 +1,7 @@
 use ethers_core::types::transaction::eip712::Eip712Error;
 use revm_primitives::{ExecutionResult, TxEnv};
 use thiserror::Error;
+use tokio::sync::oneshot::error::RecvError;
 
 /// CLEAN THIS UP
 #[derive(Debug)]

@@ -7,6 +7,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 
 use crate::{
     executor::{TaskKind, ThreadPool},
+    sim::SimResult,
     state::RevmState,
     TransactionType
 };

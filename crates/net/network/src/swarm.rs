@@ -6,6 +6,7 @@ use std::{
     task::{Context, Poll}
 };
 
+use ethers_core::types::transaction::eip712::TypedData;
 use futures::Stream;
 use parking_lot::Mutex;
 use reth_eth_wire::{
@@ -17,9 +18,11 @@ use reth_net_common::bandwidth_meter::BandwidthMeter;
 use reth_network_api::ReputationChangeKind;
 use reth_primitives::{listener::EventListeners, ForkId, NodeRecord, PeerId, H256};
 use reth_provider::{BlockNumReader, BlockReader};
+use shared::SealedBundle;
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{debug, trace};
+use shared::*;
 
 use crate::{
     error::{NetworkError, ServiceKind},
@@ -99,11 +102,22 @@ pub struct Swarm {
     num_active_peers:     Arc<AtomicUsize>
 }
 
+/// Stale Guard specific
+impl Swarm {
+    pub fn propagate_transaction(&mut self, tx: TypedData) {}
+
+    pub fn propagate_sealed_bundle(&mut self, bundle: SealedBundle) {}
+
+    pub fn propagate_signature_request(&mut self, bundle: Bundle) {}
+
+    pub fn propagate_signed_bundle(&mut self, bundle: Bundle) {}
+}
+
 // === impl Swarm ===
 
 impl Swarm {
     /// Configures a new swarm instance.
-    pub(crate) async fn new(config: NetworkConfig) -> Result<Self, NetworkError> {
+    pub async fn new(config: NetworkConfig) -> Result<Self, NetworkError> {
         let NetworkConfig {
             secret_key,
             mut discovery_v4_config,

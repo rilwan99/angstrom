@@ -15,13 +15,27 @@ use crate::leader_sender::LeaderSender;
 
 const SIMULATION_RELAY: &str = "https://relay.flashbots.net";
 
-pub struct LeaderConfig<'a, M: Middleware + Unpin + 'static, S: Simulator + 'static> {
-    middleware: &'static M,
-    simulator:  S,
-    edsca_key:  LocalWallet,
-    bundle_key: LocalWallet,
-    // we can covert this
-    relays:     &'a [&'a str]
+static BUILDER_URLS: &[&str] = &[
+    "https://builder0x69.io",
+    "https://rpc.beaverbuild.org",
+    "https://relay.flashbots.net",
+    "https://rsync-builder.xyz",
+    "https://rpc.titanbuilder.xyz",
+    "https://api.blocknative.com/v1/auction",
+    "https://mev.api.blxrbdn.com",
+    "https://eth-builder.com",
+    "https://builder.gmbit.co/rpc",
+    "https://buildai.net",
+    "https://rpc.payload.de",
+    "https://rpc.lightspeedbuilder.info",
+    "https://rpc.nfactorial.xyz"
+];
+
+pub struct LeaderConfig<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
+    pub middleware: &'static M,
+    pub simulator:  S,
+    pub edsca_key:  LocalWallet,
+    pub bundle_key: LocalWallet
 }
 
 #[derive(Debug, Clone)]
@@ -66,7 +80,7 @@ pub struct Leader<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
 
 impl<M: Middleware + Unpin, S: Simulator> Leader<M, S> {
     pub fn new(config: LeaderConfig<M, S>) -> anyhow::Result<Self> {
-        let LeaderConfig { middleware, simulator, edsca_key, bundle_key, relays } = config;
+        let LeaderConfig { middleware, simulator, edsca_key, bundle_key } = config;
         Ok(Self {
             full_node_req:        middleware,
             cow_solver:           CowSolver::new(simulator.clone()),
@@ -75,7 +89,10 @@ impl<M: Middleware + Unpin, S: Simulator> Leader<M, S> {
             leader_sender:        LeaderSender(SignerMiddleware::new(
                 BroadcasterMiddleware::new(
                     middleware,
-                    relays.iter().map(|url| Url::parse(url).unwrap()).collect(),
+                    BUILDER_URLS
+                        .into_iter()
+                        .map(|u| Url::parse(u).unwrap())
+                        .collect(),
                     Url::parse(SIMULATION_RELAY)?,
                     bundle_key
                 ),
@@ -84,15 +101,11 @@ impl<M: Middleware + Unpin, S: Simulator> Leader<M, S> {
         })
     }
 
-    pub fn new_transaction(&mut self, txes: Vec<TypedData>) {
-        todo!()
-    }
+    pub fn new_transaction(&mut self, txes: TypedData) {}
 
     pub fn current_leader(&self) -> Option<&LeaderInfo> {
         self.active_leader_config.as_ref()
     }
-
-    pub fn process_msg(&mut self) {}
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Vec<LeaderMessage>> {
         let mut res = Vec::with_capacity(10);

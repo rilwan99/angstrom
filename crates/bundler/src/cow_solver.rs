@@ -126,6 +126,6 @@ impl<S: Simulator + Unpin> Stream for CowSolver<S> {
     type Item = CowMsg;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        todo!()
+        Poll::Pending
     }
 }

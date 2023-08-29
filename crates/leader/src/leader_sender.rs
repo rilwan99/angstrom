@@ -17,8 +17,6 @@ use ethers_signers::{LocalWallet, Signer};
 use shared::Bundle;
 use sim::Simulator;
 
-// use crate::cow_solver::CowSolver;
-
 type StakedWallet = LocalWallet;
 type BundleKey = LocalWallet;
 

@@ -48,7 +48,11 @@ async-trait.workspace = true
 tokio-stream.workspace = true
 shared.workspace = true
 serde.workspace = true
+anyhow.workspace = true
+url.workspace = true
+sim.workspace = true
 
+rand = "0.8.5"
 jsonrpsee = { workspace = true, features = ["server"] }
 tower-http = { version = "0.4", features = ["full"] }
 tower = { version = "0.4", features = ["full"] }
@@ -57,12 +61,13 @@ hyper = "0.14"
 parking_lot = "0.12"
 guard-network = { path = "./crates/net/network/" }
 leader = { path = "./crates/leader/" }
-sim = { path = "./crates/sim" }
 futures-util = "0.3.28"
 tokio-util = { version = "0.7.4", features = ["codec"] }
 soketto = "0.7.1"
 jsonrpsee-core = { version = "0.20" }
 jsonrpsee-types = { version = "0.20" }
+clap = { version = "4", features = ["derive"] }
+fdlimit = "0.2.1"
 
 [patch.crates-io]
 revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
@@ -113,6 +118,7 @@ itertools = "0.11"
 parking_lot = "0.12"
 metrics = "0.21.1"                                    # Needed for `metrics-macro` to resolve the crate using `::metrics` notation
 anyhow = "1.0.75"
+url = "2.4.1"
 
 ### proc-macros
 proc-macro2 = "1.0"
@@ -147,7 +153,3 @@ c-kzg = { git = "https://github.com/ethereum/c-kzg-4844" }
 ### misc-testing
 proptest = "1.0"
 arbitrary = "1.1"
-
-[features]
-default = ["subscription"]
-subscription = []
