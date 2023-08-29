@@ -58,8 +58,6 @@ impl<M: Middleware> Database for RevmLRU<M> {
                 ) {
                     return Ok(U256::ZERO)
                 } else {
-                    //let slot_val = Self::middleware_storage(self.handle.clone(), self.db.clone(),
-                    // self.block_number, address, index)?;
                     let slot_val = self.db.storage(address, index)?;
                     acct_entry.storage.insert(index, slot_val);
                     return Ok(slot_val)
@@ -102,7 +100,6 @@ impl<M: Middleware> DatabaseRef for RevmLRU<M> {
     }
 
     fn storage(&self, address: B160, index: U256) -> Result<U256, M::Error> {
-        // TODO: this can be simplified
         let mut entry_val = U256::ZERO;
 
         if let Some(acc_entry) = self.accounts.peek(&address) {

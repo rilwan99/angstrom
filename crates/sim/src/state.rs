@@ -50,6 +50,7 @@ where
 
     /// updates the evm state on a new block
     /// overhead from pulling state from disk on new block??
+    /// CLEAN THIS FUNCTION UP
     pub fn update_evm_state(state: Arc<RwLock<Self>>) {
         let mut state = state.write();
 
@@ -100,7 +101,6 @@ where
     }
 
     /// simulates a single transaction and caches touched slots
-    /// CHANGE TO EIP712DOMAIN
     pub fn simulate_single_tx(
         state: Arc<RwLock<Self>>,
         tx: TypedData,
@@ -125,7 +125,6 @@ where
     }
 
     /// simulates a bundle of transactions
-    /// CHANGE TO EIP712DOMAIN
     pub fn simulate_bundle(state: Arc<RwLock<Self>>, txs: TypedData, client_tx: Sender<SimResult>) {
         let txs = convert_eip712(txs).unwrap();
         let mut state = state.write();
@@ -237,21 +236,6 @@ pub fn convert_type_tx(tx: &TypedTransaction) -> TxEnv {
     tx_env
 }
 
-/// Signs message with the given secret key.
-/// Returns the corresponding signature.
-pub fn sign_message(secret: B256, message: B256) -> Result<Signature, secp256k1::Error> {
-    let sec = SecretKey::from_slice(secret.as_ref())?;
-    let s = SECP256K1.sign_ecdsa_recoverable(&Message::from_slice(&message[..])?, &sec);
-    let (rec_id, data) = s.serialize_compact();
-
-    let signature = Signature {
-        r:            U256::try_from_be_slice(&data[..32]).expect("The slice has at most 32 bytes"),
-        s:            U256::try_from_be_slice(&data[32..64])
-            .expect("The slice has at most 32 bytes"),
-        odd_y_parity: rec_id.to_i32() != 0
-    };
-    Ok(signature)
-}
 /*
 #[cfg(test)]
 mod tests {
