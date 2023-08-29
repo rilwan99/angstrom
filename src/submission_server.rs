@@ -1,7 +1,12 @@
-use std::task::{Poll, Waker};
+use std::{
+    net::SocketAddr,
+    ops::{Deref, DerefMut},
+    task::{Poll, Waker}
+};
 
 use ethers_core::types::transaction::eip712::{EIP712Domain, TypedData};
 use futures::{Stream, StreamExt};
+use hyper::{http::HeaderValue, Method};
 use jsonrpsee::{
     proc_macros::rpc, server::ServerHandle, PendingSubscriptionSink, SubscriptionSink
 };
@@ -10,6 +15,56 @@ use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_stream::wrappers::ReceiverStream;
+use tower::{
+    layer::{
+        util::{Identity, Stack},
+        Layer
+    },
+    ServiceBuilder
+};
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
+
+/// Error thrown when parsing cors domains went wrong
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum CorsDomainError {
+    #[error("{domain} is an invalid header value")]
+    InvalidHeader { domain: String },
+    #[error("Wildcard origin (`*`) cannot be passed as part of a list: {input}")]
+    WildCardNotAllowed { input: String }
+}
+
+/// Creates a [CorsLayer] from the given domains
+pub(crate) fn create_cors_layer(http_cors_domains: &str) -> Result<CorsLayer, CorsDomainError> {
+    let cors = match http_cors_domains.trim() {
+        "*" => CorsLayer::new()
+            .allow_methods([Method::GET, Method::POST])
+            .allow_origin(Any)
+            .allow_headers(Any),
+        _ => {
+            let iter = http_cors_domains.split(',');
+            if iter.clone().any(|o| o == "*") {
+                return Err(CorsDomainError::WildCardNotAllowed {
+                    input: http_cors_domains.to_string()
+                })
+            }
+
+            let origins = iter
+                .map(|domain| {
+                    domain
+                        .parse::<HeaderValue>()
+                        .map_err(|_| CorsDomainError::InvalidHeader { domain: domain.to_string() })
+                })
+                .collect::<Result<Vec<HeaderValue>, _>>()?;
+
+            let origin = AllowOrigin::list(origins);
+            CorsLayer::new()
+                .allow_methods([Method::GET, Method::POST])
+                .allow_origin(origin)
+                .allow_headers(Any)
+        }
+    };
+    Ok(cors)
+}
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 #[cfg(feature = "subscription")]
@@ -26,8 +81,8 @@ pub enum SubscriptionKind {
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum SubscriptionResult {
-    SealedBundle(Vec<shared::SealedBundle>),
-    CowTransaction(Vec<TypedData>)
+    SealedBundle(shared::SealedBundle),
+    CowTransaction(TypedData)
 }
 
 #[rpc(server, namespace = "guard")]
@@ -52,28 +107,61 @@ pub enum Submission {
     Subscription(SubscriptionKind, Sender<SubscriptionResult>)
 }
 
-pub struct SubmissionServer {
-    /// The handle is server: Server<Stack<CorsLayer, Identity>>,
-    handle:      ServerHandle,
-    // so gay
-    submissions: Mutex<Vec<Submission>>,
-    waker:       Option<Waker>
+pub struct SubmissionServerConfig {
+    addr:         SocketAddr,
+    cors_domains: String
 }
 
-impl SubmissionServer {
-    pub fn new(handle: ServerHandle) -> Self {
-        Self { handle, submissions: Mutex::new(vec![]), waker: None }
+pub struct SubmissionServer {
+    handle:   ServerHandle,
+    receiver: ReceiverStream<Submission>
+}
+
+impl Deref for SubmissionServer {
+    type Target = ReceiverStream<Submission>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.receiver
+    }
+}
+
+impl DerefMut for SubmissionServer {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.receiver
+    }
+}
+
+pub struct SubmissionServerInner {
+    sender: Sender<Submission>
+}
+
+impl SubmissionServerInner {
+    pub async fn new(config: SubmissionServerConfig) -> anyhow::Result<SubmissionServer> {
+        let SubmissionServerConfig { addr, cors_domains } = config;
+
+        let (tx, rx) = channel(10);
+
+        let middleware: ServiceBuilder<Stack<CorsLayer, Identity>> =
+            tower::ServiceBuilder::new().layer(create_cors_layer(&cors_domains)?);
+
+        let server = jsonrpsee::server::ServerBuilder::default()
+            .set_middleware(middleware)
+            .build(addr)
+            .await?;
+
+        let sub_server = Self { sender: tx };
+
+        let handle = server.start(sub_server.into_rpc());
+        Ok(SubmissionServer { receiver: ReceiverStream::new(rx), handle })
     }
 }
 
 #[async_trait::async_trait]
-impl GuardApiServer for SubmissionServer {
+impl GuardApiServer for SubmissionServerInner {
     async fn submit_eip712(&self, meta_tx: TypedData) -> bool {
-        let mut lock = self.submissions.lock();
-        lock.push(Submission::Submission(meta_tx));
-
-        if let Some(waker) = self.waker.as_ref() {
-            waker.wake_by_ref();
+        if self.sender.send(Submission::Submission(meta_tx)).await.is_err() {
+            // just for testing
+            panic!("failed to send a new eip712 tx");
         }
         true
     }
@@ -86,13 +174,11 @@ impl GuardApiServer for SubmissionServer {
     ) -> jsonrpsee::core::SubscriptionResult {
         let sink = pending.accept().await?;
         let (tx, rx) = channel(5);
-        let mut lock = self.submissions.lock();
-        lock.push(Submission::Subscription(kind, tx));
-        tokio::spawn(async move { pipe_from_stream(sink, ReceiverStream::new(rx)).await });
-
-        if let Some(waker) = self.waker.as_ref() {
-            waker.wake_by_ref();
+        if self.sender.send(Submission::Subscription(kind, tx)).await.is_err() {
+            // just for testing
+            panic!("failed to subscribe to a stream");
         }
+        tokio::spawn(async move { pipe_from_stream(sink, ReceiverStream::new(rx)).await });
 
         Ok(())
     }
@@ -128,22 +214,5 @@ where
                 }
             }
         }
-    }
-}
-
-impl Stream for SubmissionServer {
-    type Item = Vec<Submission>;
-
-    fn poll_next(
-        mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>
-    ) -> std::task::Poll<Option<Self::Item>> {
-        if self.handle.is_stopped() {
-            return Poll::Ready(None)
-        }
-
-        self.waker = Some(cx.waker().clone());
-        let mut lock = self.submissions.lock();
-        Poll::Ready(Some(lock.drain(..).collect()))
     }
 }

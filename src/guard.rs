@@ -8,23 +8,26 @@ use ethers_providers::Middleware;
 use futures::{Future, FutureExt};
 use futures_util::StreamExt;
 use guard_network::{NetworkConfig, Swarm};
+use jsonrpsee::server::ServerHandle;
 use leader::leader_manager::{Leader, LeaderConfig};
 use sim::Simulator;
 use tokio::{sync::mpsc::Sender, task::JoinHandle};
 
 use crate::submission_server::{
-    Submission, SubmissionServer, SubscriptionKind, SubscriptionResult
+    Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner, SubscriptionKind,
+    SubscriptionResult
 };
 
 /// This is the control unit of the guard that delegates
 /// all of our signing and messages.
 pub struct Guard<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
     /// guard network connection
-    network:              Swarm,
+    network: Swarm,
     /// deals with leader related requests and actions including bundle building
-    leader:               Leader<M, S>,
+    leader:  Leader<M, S>,
     /// deals with new submissions through a rpc to the network
-    server:               SubmissionServer,
+    server:  SubmissionServer,
+
     #[cfg(feature = "subscription")]
     /// make sure we keep subscribers upto date
     server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>,
@@ -33,27 +36,40 @@ pub struct Guard<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
 }
 
 impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
-    pub fn new(network_config: NetworkConfig, leader_config: LeaderConfig<M, S>) -> Self {
-        todo!()
+    pub async fn new(
+        network_config: NetworkConfig,
+        leader_config: LeaderConfig<'_, M, S>,
+        server_config: SubmissionServerConfig,
+        sim_thread: JoinHandle<()>
+    ) -> anyhow::Result<Self> {
+        let sub_server = SubmissionServerInner::new(server_config).await?;
+        let swarm = Swarm::new(network_config).await?;
+        let leader = Leader::new(leader_config)?;
+
+        Ok(Self {
+            leader,
+            #[cfg(feature = "subscription")]
+            server_subscriptions: HashMap::default(),
+            server: sub_server,
+            network: swarm,
+            _simulator_thread: sim_thread
+        })
     }
 
     #[cfg(feature = "subscription")]
-    fn handle_submissions(&mut self, msgs: Vec<Submission>) {
-        let submissions = msgs
-            .into_iter()
-            .filter_map(|submission| match submission {
-                Submission::Subscription(kind, sender) => {
-                    self.server_subscriptions
-                        .entry(kind)
-                        .or_default()
-                        .push(sender);
-                    None
-                }
-                Submission::Submission(typed_data) => Some(typed_data)
-            })
-            .collect::<Vec<_>>();
+    fn handle_submissions(&mut self, msg: Submission) {
+        let data = match msg {
+            Submission::Subscription(kind, sender) => {
+                self.server_subscriptions
+                    .entry(kind)
+                    .or_default()
+                    .push(sender);
+                return
+            }
+            Submission::Submission(typed_data) => typed_data
+        };
 
-        self.leader.new_transaction(submissions.clone());
+        self.leader.new_transaction(data.clone());
         //TODO: propagate to network
 
         if let Some(senders) = self
@@ -62,22 +78,16 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
         {
             senders.retain(|sender| {
                 sender
-                    .try_send(SubscriptionResult::CowTransaction(submissions.clone()))
+                    .try_send(SubscriptionResult::CowTransaction(data.clone()))
                     .is_ok()
             });
         }
     }
 
     #[cfg(not(feature = "subscription"))]
-    fn handle_submissions(&mut self, msgs: Vec<Submission>) {
-        let submissions = msgs
-            .into_iter()
-            .map(|submission| match submission {
-                Submission::Submission(typed_data) => typed_data
-            })
-            .collect::<Vec<_>>();
-        self.leader.new_transaction(submissions.clone());
-        //TODO: propagate to network
+    fn handle_submissions(&mut self, msgs: Submission) {
+        let Submission::Submission(data) = msg;
+        self.leader.new_transaction(data.clone());
     }
 
     fn handle_network_msg(&mut self, cx: &mut Context<'_>) -> Poll<()> {

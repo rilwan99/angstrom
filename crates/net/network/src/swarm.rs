@@ -103,7 +103,7 @@ pub struct Swarm {
 
 impl Swarm {
     /// Configures a new swarm instance.
-    pub(crate) async fn new(config: NetworkConfig) -> Result<Self, NetworkError> {
+    pub async fn new(config: NetworkConfig) -> Result<Self, NetworkError> {
         let NetworkConfig {
             secret_key,
             mut discovery_v4_config,

@@ -84,7 +84,7 @@ impl<M: Middleware + Unpin, S: Simulator> Leader<M, S> {
         })
     }
 
-    pub fn new_transaction(&mut self, txes: Vec<TypedData>) {
+    pub fn new_transaction(&mut self, txes: TypedData) {
         todo!()
     }
 
