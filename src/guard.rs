@@ -10,8 +10,11 @@ use futures_util::StreamExt;
 use guard_network::Swarm;
 use leader::leader_manager::Leader;
 use sim::Simulator;
-use tokio::task::JoinHandle;
+use tokio::{sync::mpsc::Sender, task::JoinHandle};
 
+use crate::submission_server::{
+    Submission, SubmissionServer, SubscriptionKind, SubscriptionResult
+};
 
 /// This is the control unit of the guard that delegates
 /// all of our signing and messages.
@@ -32,7 +35,7 @@ pub struct Guard<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
 
 impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
     #[cfg(feature = "subscription")]
-    fn handle_submissions(&mut self, cx: &mut Context<'_>, msgs: Vec<Submission>) {
+    fn handle_submissions(&mut self, msgs: Vec<Submission>) {
         let submissions = msgs
             .into_iter()
             .filter_map(|submission| match submission {
@@ -56,14 +59,14 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
         {
             senders.retain(|sender| {
                 sender
-                    .try_send(SubscriptionResult::CowTransaction(submissions))
+                    .try_send(SubscriptionResult::CowTransaction(submissions.clone()))
                     .is_ok()
             });
         }
     }
 
     #[cfg(not(feature = "subscription"))]
-    fn handle_submissions(&mut self, cx: &mut Context<'_>, msgs: Vec<Submission>) {
+    fn handle_submissions(&mut self, msgs: Vec<Submission>) {
         let submissions = msgs
             .into_iter()
             .map(|submission| match submission {
@@ -83,16 +86,14 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
     }
 }
 
-impl<M: Middleware + Unpin, S: Simulator> Future for Guard<M, S> {
+impl<M: Middleware + Unpin, S: Simulator +Unpin> Future for Guard<M, S> {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if let Poll::Ready(new_msgs) = self.server.poll_next_unpin(cx) {
             let Some(new_msgs) = new_msgs else { return Poll::Ready(()) };
 
-            if self.handle_submissions(cx, new_msgs).is_ready() {
-                return Poll::Ready(())
-            };
+            self.handle_submissions(new_msgs);
         }
 
         if let Poll::Ready(msgs) = self.leader.poll(cx) {}
@@ -100,4 +101,3 @@ impl<M: Middleware + Unpin, S: Simulator> Future for Guard<M, S> {
         todo!()
     }
 }
-

@@ -5,9 +5,10 @@ use std::{
     task::{Context, Poll}
 };
 
-use ethers_core::types::{transactions::eip712::TypedData, Address, U256};
+use ethers_core::types::{transaction::eip712::TypedData, Address, U256};
 use futures::{stream::FuturesUnordered, Stream};
 use revm::db::DbAccount;
+use revm_primitives::*;
 use shared::{SealedBundle, UserOrder};
 use sim::Simulator;
 
@@ -67,7 +68,7 @@ impl<S: Simulator + 'static> CowSolver<S> {
     pub fn new_bundle(&mut self, bundle: SealedBundle) -> bool {
         // TODO: this tech works because all we care is having the best gas bid
         if self.best_simed_bundle.is_some()
-            && bundle.gas_bid_sum() > self.best_simed_bundle.unwrap().gas_bid_sum()
+            && bundle.gas_bid_sum() > self.best_simed_bundle.as_ref().unwrap().gas_bid_sum()
         {
             self.best_simed_bundle = Some(bundle);
 

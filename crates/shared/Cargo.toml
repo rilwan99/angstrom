@@ -5,3 +5,4 @@ edition.workspace = true
 
 [dependencies]
 ethers-core.workspace = true
+serde.workspace = true

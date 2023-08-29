@@ -1,17 +1,29 @@
-use std::{future::Future, task::{Poll, Context}, pin::Pin};
-use futures_util::{pin_mut, future::{Shared, FusedFuture}, FutureExt};
-use tokio::{runtime::Handle, task::JoinHandle, sync::{oneshot, mpsc::UnboundedReceiver}, };
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll}
+};
+
+use futures_util::{
+    future::{FusedFuture, Shared},
+    pin_mut, FutureExt
+};
+use tokio::{
+    runtime::Handle,
+    sync::{mpsc::UnboundedReceiver, oneshot},
+    task::JoinHandle
+};
 
 /// executes tasks on the runtime
 /// used for a thread pool for the simulator
 #[derive(Clone)]
 pub(crate) struct ThreadPool {
     //TODO: why are we having the handle which is a ref
-    // why don't we just take the runtime to avoid the clone at the start
-    pub handle: Handle,
+    // why don't we just take the runtime to avoid the clone at the start?
+    pub handle: Handle
 }
 
-impl ThreadPool where {
+impl ThreadPool {
     pub fn new() -> Self {
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -19,8 +31,8 @@ impl ThreadPool where {
             .unwrap();
         //let (signal, shutdown ) = signal();
 
-        //
-        Self { handle: runtime.handle().clone()}
+        // TODO: see above
+        Self { handle: runtime.handle().clone() }
 
         //Self { handle: runtime.handle().clone(), shutdown, signal }
     }
@@ -28,7 +40,7 @@ impl ThreadPool where {
     /// Spawns a regular task depending on the given [TaskKind]
     pub fn spawn_task_as<F>(handle: self::Handle, fut: F, task_kind: TaskKind) -> JoinHandle<()>
     where
-        F: Future<Output = ()> + Send + Sync + 'static,
+        F: Future<Output = ()> + Send + Sync + 'static
     {
         let task = async move {
             pin_mut!(fut);
@@ -41,19 +53,14 @@ impl ThreadPool where {
     /// Spawns a future on the tokio runtime depending on the [TaskKind]
     fn spawn_on_rt<F>(handle: self::Handle, fut: F, task_kind: TaskKind) -> JoinHandle<()>
     where
-        F: Future<Output = ()> + Send + 'static,
+        F: Future<Output = ()> + Send + 'static
     {
         match task_kind {
             TaskKind::Default => handle.spawn(fut),
-            TaskKind::Blocking => {
-                handle.clone().spawn_blocking(move || rhandle.block_on(fut))
-            }
+            TaskKind::Blocking => handle.clone().spawn_blocking(move || handle.block_on(fut))
         }
     }
 }
-
-
-
 
 /// specifies a blocking or non blocking task
 pub(crate) enum TaskKind {
@@ -61,9 +68,8 @@ pub(crate) enum TaskKind {
     Blocking
 }
 
-
 // finish shutdown mechanism
-/* 
+/*
 
 /// A Future that resolves when the shutdown event has been fired.
 #[derive(Debug, Clone)]
@@ -99,3 +105,4 @@ pub fn signal() -> (Signal, Shutdown) {
     (Signal(sender), Shutdown(receiver.shared()))
 }
 */
+

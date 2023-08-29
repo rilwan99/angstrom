@@ -7,7 +7,7 @@ use reth_primitives::{Address, U64};
 use shared::{Bundle, SealedBundle};
 use sim::Simulator;
 
-use crate::leader_core::{leader_sender::LeaderSender, LeaderCore};
+use crate::leader_sender::LeaderSender;
 
 #[derive(Debug, Clone)]
 pub enum LeaderMessage {
@@ -35,7 +35,7 @@ pub struct LeaderConfig {
 }
 
 /// handles tasks around dealing with a leader
-pub struct Leader<M: Middleware + Unpin + 'static, S: Simulator> {
+pub struct Leader<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
     /// actively tells us who the selected leader is
     active_leader_config: Option<LeaderConfig>,
     /// used when selected to be leader. mostly for just submitting
@@ -62,10 +62,6 @@ impl<M: Middleware + Unpin, S: Simulator> Leader<M, S> {
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Vec<LeaderMessage>> {
         let mut res = Vec::with_capacity(10);
-        // pull all leader state
-        while let Poll::Ready(msg) = self.leader_core.poll(cx) {
-            // res.push(LeaderAction::Core(msg));
-        }
 
         if !res.is_empty() {
             return Poll::Ready(res)

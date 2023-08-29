@@ -1,10 +1,13 @@
 use std::task::{Poll, Waker};
 
-// use park
 use ethers_core::types::transaction::eip712::{EIP712Domain, TypedData};
-use futures::Stream;
-use jsonrpsee::{proc_macros::rpc, server::ServerHandle};
+use futures::{Stream, StreamExt};
+use jsonrpsee::{
+    proc_macros::rpc, server::ServerHandle, PendingSubscriptionSink, SubscriptionSink
+};
+use jsonrpsee_core::server::SubscriptionMessage;
 use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -19,7 +22,7 @@ pub enum SubscriptionKind {
     CowTransactions
 }
 
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum SubscriptionResult {
@@ -40,11 +43,7 @@ pub trait GuardApi {
         unsubscribe = "unsubscribe",
         item = reth_rpc_types::pubsub::SubscriptionResult
     )]
-    async fn subscribe(
-        &self,
-        kind: SubscriptionKind,
-        params: Option<Params>
-    ) -> jsonrpsee::core::SubscriptionResult;
+    async fn subscribe(&self, kind: SubscriptionKind) -> jsonrpsee::core::SubscriptionResult;
 }
 
 pub enum Submission {
@@ -58,7 +57,7 @@ pub struct SubmissionServer {
     handle:      ServerHandle,
     // so gay
     submissions: Mutex<Vec<Submission>>,
-    waker:       Option<&'static Waker>
+    waker:       Option<Waker>
 }
 
 impl SubmissionServer {
@@ -71,7 +70,7 @@ impl SubmissionServer {
 impl GuardApiServer for SubmissionServer {
     async fn submit_eip712(&self, meta_tx: TypedData) -> bool {
         let mut lock = self.submissions.lock();
-        lock.push(Submission(meta_tx));
+        lock.push(Submission::Submission(meta_tx));
 
         if let Some(waker) = self.waker.as_ref() {
             waker.wake_by_ref();
@@ -83,14 +82,13 @@ impl GuardApiServer for SubmissionServer {
     async fn subscribe(
         &self,
         pending: PendingSubscriptionSink,
-        kind: SubscriptionKind,
-        params: Option<Params>
+        kind: SubscriptionKind
     ) -> jsonrpsee::core::SubscriptionResult {
         let sink = pending.accept().await?;
         let (tx, rx) = channel(5);
         let mut lock = self.submissions.lock();
         lock.push(Submission::Subscription(kind, tx));
-        tokio::spawn(async move { pipe_from_stream(pending, ReceiverStream::new(rx)).await });
+        tokio::spawn(async move { pipe_from_stream(sink, ReceiverStream::new(rx)).await });
 
         if let Some(waker) = self.waker.as_ref() {
             waker.wake_by_ref();
@@ -144,7 +142,7 @@ impl Stream for SubmissionServer {
             return Poll::Ready(None)
         }
 
-        self.waker = Some(cx.waker());
+        self.waker = Some(cx.waker().clone());
         let mut lock = self.submissions.lock();
         Poll::Ready(Some(lock.drain(..).collect()))
     }
