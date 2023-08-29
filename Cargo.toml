@@ -51,6 +51,7 @@ serde.workspace = true
 anyhow.workspace = true
 url.workspace = true
 sim.workspace = true
+ethers-reth.workspace = true
 
 rand = "0.8.5"
 jsonrpsee = { workspace = true, features = ["server"] }
@@ -94,6 +95,7 @@ reth-network = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-network-api = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 
+ethers-reth = { git = "https://github.com/SorellaLabs/ethers-reth" }
 ethers-core = { version = "2.0", default-features = false }
 ethers-providers = { version = "2.0", default-features = false }
 ethers-signers = { version = "2.0", default-features = false }
