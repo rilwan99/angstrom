@@ -27,10 +27,13 @@ use tokio::{net::TcpStream, sync::mpsc::error::TrySendError, time::Interval};
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, info, trace};
 
-use crate::session::{
-    config::INITIAL_REQUEST_TIMEOUT,
-    handle::{ActiveSessionMessage, SessionCommand},
-    SessionId
+use crate::{
+    messages::PeerMessages,
+    session::{
+        config::INITIAL_REQUEST_TIMEOUT,
+        handle::{ActiveSessionMessage, SessionCommand},
+        SessionId
+    }
 };
 
 /// Constants for timeout updating
@@ -220,6 +223,15 @@ impl Future for ActiveSession {
                     Poll::Ready(Some(cmd)) => {
                         progress = true;
                         match cmd {
+                            SessionCommand::Message(message) => {
+                                info!(target: "net::session", remote_peer_id=?this.remote_peer_id, "Received state data from session");
+                                this.to_session_manager.try_send(
+                                    ActiveSessionMessage::ValidMessage {
+                                        message,
+                                        peer_id: this.remote_peer_id
+                                    }
+                                );
+                            }
                             SessionCommand::Disconnect { reason } => {
                                 info!(target: "net::session", ?reason, remote_peer_id=?this.remote_peer_id, "Received disconnect command for session");
                                 let reason =

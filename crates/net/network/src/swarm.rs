@@ -18,15 +18,15 @@ use reth_net_common::bandwidth_meter::BandwidthMeter;
 use reth_network_api::ReputationChangeKind;
 use reth_primitives::{listener::EventListeners, ForkId, NodeRecord, PeerId, H256};
 use reth_provider::{BlockNumReader, BlockReader};
-use shared::SealedBundle;
+use shared::{SealedBundle, *};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{debug, trace};
-use shared::*;
 
 use crate::{
     error::{NetworkError, ServiceKind},
     listener::{ConnectionListener, ListenerEvent},
+    messages::{PeerMessages, PeerRequests},
     network::NetworkHandleMessage,
     peers::{InboundConnectionError, PeersHandle, PeersManager},
     session::{Direction, PendingSessionHandshakeError, SessionEvent, SessionId, SessionManager},
@@ -100,17 +100,6 @@ pub struct Swarm {
     /// [`NetworkHandle`] Updated by the `NetworkWorker` and loaded by the
     /// `NetworkService`.
     num_active_peers:     Arc<AtomicUsize>
-}
-
-/// Stale Guard specific
-impl Swarm {
-    pub fn propagate_transaction(&mut self, tx: TypedData) {}
-
-    pub fn propagate_sealed_bundle(&mut self, bundle: SealedBundle) {}
-
-    pub fn propagate_signature_request(&mut self, bundle: Bundle) {}
-
-    pub fn propagate_signed_bundle(&mut self, bundle: Bundle) {}
 }
 
 // === impl Swarm ===
@@ -198,6 +187,10 @@ impl Swarm {
             event_listeners: Default::default(),
             num_active_peers
         })
+    }
+
+    pub fn propagate_msg(&mut self, msg: PeerMessages) {
+        self.sessions_mut().propagate_msg(msg)
     }
 
     /// Returns a shareable reference to the [`BandwidthMeter`] stored
@@ -292,6 +285,10 @@ impl Swarm {
     /// Handles a polled [`SessionEvent`]
     fn on_session_event(&mut self, event: SessionEvent) -> Option<SwarmEvent> {
         match event {
+            SessionEvent::Message { request, peer_id } => {
+                Some(SwarmEvent::ValidMessage { peer_id, request })
+            }
+
             SessionEvent::SessionEstablished {
                 peer_id,
                 remote_addr,
@@ -544,7 +541,9 @@ pub enum SwarmEvent {
     /// Events related to the actual network protocol.
     ValidMessage {
         /// The peer that sent the message
-        peer_id: PeerId
+        peer_id: PeerId,
+        /// the request the peer is making
+        request: PeerMessages
     },
     /// Received a message that does not match the announced capabilities of the
     /// peer.

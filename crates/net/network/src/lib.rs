@@ -135,6 +135,7 @@ pub mod peers;
 mod session;
 pub mod state;
 mod swarm;
+mod messages;
 
 pub use config::{NetworkConfig, NetworkConfigBuilder};
 pub use discovery::Discovery;

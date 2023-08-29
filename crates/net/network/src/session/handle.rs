@@ -17,7 +17,10 @@ use tokio::{
     }
 };
 
-use crate::session::{Direction, SessionId};
+use crate::{
+    messages::{PeerMessages, PeerRequests},
+    session::{Direction, SessionId}
+};
 
 /// A handler attached to a peer session that's not authenticated yet, pending
 /// Handshake and hello message which exchanges the `capabilities` of the peer.
@@ -225,6 +228,9 @@ pub enum PendingSessionEvent {
 /// Commands that can be sent to the spawned session.
 #[derive(Debug)]
 pub enum SessionCommand {
+    /// Sends a message to the peers
+    Message(PeerMessages),
+
     /// Disconnect the connection
     Disconnect {
         /// Why the disconnect was initiated
@@ -236,6 +242,13 @@ pub enum SessionCommand {
 /// [`SessionManager`](crate::session::SessionManager)
 #[derive(Debug)]
 pub enum ActiveSessionMessage {
+    /// A session received a valid message via RLPx.
+    ValidMessage {
+        /// Identifier of the remote peer.
+        peer_id: PeerId,
+        /// Message received from the peer.
+        message: PeerMessages
+    },
     /// Session was gracefully disconnected.
     Disconnected {
         /// The remote node's public key

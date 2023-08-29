@@ -7,9 +7,8 @@ use std::{
     task::{Context, Poll},
     time::{Duration, Instant}
 };
+
 use ethers_core::types::transaction::eip712::TypedData;
-
-
 use fnv::FnvHashMap;
 use futures::{future::Either, io, FutureExt, StreamExt};
 use reth_ecies::{stream::ECIESStream, ECIESError};
@@ -36,6 +35,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tracing::{instrument, trace};
 
 use crate::{
+    messages::{PeerMessages, PeerRequests},
     metrics::SessionManagerMetrics,
     session::{active::ActiveSession, config::SessionCounter}
 };
@@ -113,16 +113,6 @@ pub struct SessionManager {
     metrics: SessionManagerMetrics
 }
 
-impl SessionManager {
-    pub fn propagate_transaction(&mut self, tx: TypedData) {}
-
-    pub fn propagate_sealed_bundle(&mut self, bundle: SealedBundle) {}
-
-    pub fn propagate_signature_request(&mut self, bundle: Bundle) {}
-
-    pub fn propagate_signed_bundle(&mut self, bundle: Bundle) {}
-}
-
 // === impl SessionManager ===
 
 impl SessionManager {
@@ -159,6 +149,13 @@ impl SessionManager {
             bandwidth_meter,
             metrics: Default::default()
         }
+    }
+
+    pub fn propagate_msg(&mut self, msg: PeerMessages) {
+        self.active_sessions.values_mut().for_each(|peer| {
+            let _ = peer.commands_to_session
+                .try_send(SessionCommand::Message(msg.clone()));
+        });
     }
 
     /// Check whether the provided [`ForkId`] is compatible based on the
@@ -357,6 +354,14 @@ impl SessionManager {
             }
             Poll::Ready(Some(event)) => {
                 return match event {
+                    ActiveSessionMessage::ValidMessage { message, peer_id } => {
+                        trace!(
+                            target : "net::session",
+                            ?peer_id,
+                            "got a request from session"
+                        );
+                        Poll::Ready(SessionEvent::Message { request: message, peer_id })
+                    }
                     ActiveSessionMessage::Disconnected { peer_id, remote_addr } => {
                         trace!(
                             target : "net::session",
@@ -602,6 +607,8 @@ impl SessionManager {
 /// Events produced by the [`SessionManager`]
 #[derive(Debug)]
 pub enum SessionEvent {
+    /// Request for data by peer
+    Message { request: PeerMessages, peer_id: PeerId },
     /// A new session was successfully authenticated.
     ///
     /// This session is now able to exchange data.
