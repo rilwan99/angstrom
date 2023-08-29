@@ -6,7 +6,7 @@ use crate::{Simulator, TransactionType};
 /// clone-able handle to the simulator
 #[derive(Clone)]
 pub struct RevmClient {
-    transaction_tx: UnboundedSender<TransactionType>,
+    transaction_tx: UnboundedSender<TransactionType>
 }
 
 impl RevmClient {

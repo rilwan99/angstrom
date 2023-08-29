@@ -1,7 +1,7 @@
 use ethers_middleware::Middleware;
 use revm::{
     db::{AccountState, DbAccount},
-    Database,
+    Database
 };
 use revm_primitives::{db::DatabaseRef, Bytecode, *};
 use schnellru::{ByMemoryUsage, LruMap};
@@ -11,7 +11,7 @@ use crate::reth_client::RethClient;
 
 pub struct RevmLRU<M: Middleware> {
     pub accounts: LruMap<B160, DbAccount, ByMemoryUsage>,
-    pub db: RethClient<M>,
+    pub db:       RethClient<M>
 }
 
 impl<M: Middleware> RevmLRU<M> {
@@ -28,7 +28,7 @@ impl<M: Middleware> Database for RevmLRU<M> {
 
     fn basic(&mut self, address: B160) -> Result<Option<AccountInfo>, Self::Error> {
         if let Some(a) = self.accounts.get(&address) {
-            return Ok(a.info());
+            return Ok(a.info())
         } else {
             let basic = self
                 .db
@@ -37,7 +37,7 @@ impl<M: Middleware> Database for RevmLRU<M> {
                 .unwrap_or_else(DbAccount::new_not_existing);
 
             self.accounts.insert(address, basic.clone());
-            return Ok(basic.info());
+            return Ok(basic.info())
         }
     }
 
@@ -50,19 +50,19 @@ impl<M: Middleware> Database for RevmLRU<M> {
         let account = self.accounts.get(&address);
         if let Some(acct_entry) = account {
             if let Some(idx_entry) = acct_entry.storage.get(&index) {
-                return Ok(*idx_entry);
+                return Ok(*idx_entry)
             } else {
                 if matches!(
                     acct_entry.account_state,
                     AccountState::StorageCleared | AccountState::NotExisting
                 ) {
-                    return Ok(U256::ZERO);
+                    return Ok(U256::ZERO)
                 } else {
                     //let slot_val = Self::middleware_storage(self.handle.clone(), self.db.clone(),
                     // self.block_number, address, index)?;
                     let slot_val = self.db.storage(address, index)?;
                     acct_entry.storage.insert(index, slot_val);
-                    return Ok(slot_val);
+                    return Ok(slot_val)
                 }
             }
         } else {
@@ -92,7 +92,7 @@ impl<M: Middleware> DatabaseRef for RevmLRU<M> {
     fn basic(&self, address: B160) -> Result<Option<AccountInfo>, M::Error> {
         match self.accounts.peek(&address) {
             Some(acc) => Ok(acc.info()),
-            None => self.basic(address),
+            None => self.basic(address)
         }
     }
 
@@ -123,6 +123,7 @@ impl<M: Middleware> DatabaseRef for RevmLRU<M> {
     }
 
     fn block_hash(&self, _number: U256) -> Result<B256, Self::Error> {
-        unreachable!() // this should never be reached since we will never sim blocks
+        unreachable!() // this should never be reached since we will never sim
+                       // blocks
     }
 }
