@@ -6,6 +6,8 @@ use tokio::{runtime::Handle, task::JoinHandle, sync::{oneshot, mpsc::UnboundedRe
 /// used for a thread pool for the simulator
 #[derive(Clone)]
 pub(crate) struct ThreadPool {
+    //TODO: why are we having the handle which is a ref
+    // why don't we just take the runtime to avoid the clone at the start
     pub handle: Handle,
 }
 
@@ -17,6 +19,7 @@ impl ThreadPool where {
             .unwrap();
         //let (signal, shutdown ) = signal();
 
+        //
         Self { handle: runtime.handle().clone()}
 
         //Self { handle: runtime.handle().clone(), shutdown, signal }
@@ -43,7 +46,7 @@ impl ThreadPool where {
         match task_kind {
             TaskKind::Default => handle.spawn(fut),
             TaskKind::Blocking => {
-                handle.clone().spawn_blocking(move || handle.block_on(fut))
+                handle.clone().spawn_blocking(move || rhandle.block_on(fut))
             }
         }
     }

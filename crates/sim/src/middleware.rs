@@ -60,6 +60,7 @@ where
             tokio::join!(nonce, balance, code)
         };
         let (nonce, balance, code) = self.block_on(f);
+        // TODO: Db error and we would try to reconnect no?
         // panic on not getting data?
         let bytecode = Bytecode::new_raw(
             code.unwrap_or_else(|e| panic!("ethers get code error: {e:?}"))
@@ -102,6 +103,7 @@ where
         if number > U256::from(u64::MAX) {
             return Ok(KECCAK_EMPTY);
         }
+        // TODO: are all of these unwraps safe
         let number = eU64::from(u64::try_from(number).unwrap());
         let f = async {
             self.client

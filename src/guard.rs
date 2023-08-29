@@ -12,25 +12,26 @@ use leader::leader_manager::Leader;
 use sim::Simulator;
 use tokio::task::JoinHandle;
 
-// use crate::submission_server::SubmissionServer;
 
 /// This is the control unit of the guard that delegates
 /// all of our signing and messages.
 pub struct Guard<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
     /// guard network connection
     network:              Swarm,
-    /// deals with leader related requests and actions
+    /// deals with leader related requests and actions including bundle building
     leader:               Leader<M, S>,
     /// deals with new submissions through a rpc to the network
     server:               SubmissionServer,
+    #[cfg(feature = "subscription")]
+    /// make sure we keep subscribers upto date
     server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>,
-
     // we also can't enforce
     /// handle
-    _simulator_thread: JoinHandle<()>
+    _simulator_thread:    JoinHandle<()>
 }
 
 impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
+    #[cfg(feature = "subscription")]
     fn handle_submissions(&mut self, cx: &mut Context<'_>, msgs: Vec<Submission>) {
         let submissions = msgs
             .into_iter()
@@ -59,6 +60,18 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
                     .is_ok()
             });
         }
+    }
+
+    #[cfg(not(feature = "subscription"))]
+    fn handle_submissions(&mut self, cx: &mut Context<'_>, msgs: Vec<Submission>) {
+        let submissions = msgs
+            .into_iter()
+            .map(|submission| match submission {
+                Submission::Submission(typed_data) => typed_data
+            })
+            .collect::<Vec<_>>();
+        self.leader.new_transaction(submissions.clone());
+        //TODO: propagate to network
     }
 
     fn handle_network_msg(&mut self, cx: &mut Context<'_>) -> Poll<()> {
