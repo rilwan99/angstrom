@@ -29,8 +29,6 @@ pub fn spawn_revm_sim<M: Middleware>(
 // the simulator is a handle that we use to simulate transactions.
 #[async_trait::async_trait]
 pub trait Simulator: Clone {
-    //fn run_sim(&self, transaction: EIP12Domain, tx: Receiver<SimResult>, id:
-    // u64) -> Result<SimResult>;
     async fn run_sim(&self, transaction: TransactionType) -> Result<SimResult, SimError>;
 }
 

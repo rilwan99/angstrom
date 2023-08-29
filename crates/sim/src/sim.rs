@@ -3,7 +3,6 @@ use revm_primitives::{ExecutionResult, TxEnv};
 use thiserror::Error;
 use tokio::sync::oneshot::error::RecvError;
 
-/// CLEAN THIS UP
 #[derive(Debug)]
 pub enum SimResult {
     /// error running a sim on the evm
@@ -15,7 +14,6 @@ pub enum SimResult {
 }
 
 /// errors for sim
-/// CHANGE TO EIP712DOMAIN
 #[derive(Debug, Error)]
 pub enum SimError {
     #[error("No Transactions in Bundle: {0:#?}")]

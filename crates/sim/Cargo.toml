@@ -16,7 +16,6 @@ ethers-middleware.workspace = true
 ethers-core = "2.0.9"
 ethers-signers = "2.0.9"
 ethers-reth = { git = "https://github.com/SorellaLabs/ethers-reth/" }
-rlp = { version = "0.5", features = ["derive"] }
 
 # revm
 revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
