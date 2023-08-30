@@ -39,7 +39,7 @@ pub struct Args {
 
 impl Args {
     pub fn run(self, rt: Runtime) -> anyhow::Result<()> {
-        reth_tracing::init(vec![]);
+        reth_tracing::init_test_tracing();
         //let fake_key = SecretKey::new(&mut rand::thread_rng());
         let fake_key =
             SecretKey::from_str("046cfcdbef4955744de5f87e739883e7ffa5daa05945bda2b7f5d4b3123935de")
