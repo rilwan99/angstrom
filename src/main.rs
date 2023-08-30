@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
 
 use clap::Parser;
 use ethers_core::rand::rngs::ThreadRng;
@@ -29,14 +29,18 @@ pub struct Args {
     #[arg(long, default_value = "false")]
     pub enable_subscriptions: bool,
     #[arg(long)]
-    pub full_node:            PathBuf,
+    pub full_node: PathBuf,
     #[arg(long)]
-    pub full_node_ws:         Url
+    pub full_node_ws: Url,
 }
 
 impl Args {
     pub async fn run(self) -> anyhow::Result<()> {
-        let fake_key = SecretKey::new(&mut rand::thread_rng());
+        //let fake_key = SecretKey::new(&mut rand::thread_rng());
+        let fake_key =
+            SecretKey::from_str("ad21c16051f74f24b3fbad57b0010d98bfef20441c84ee5a872133f19f807fc4")
+                .unwrap();
+        let fake_pub_key = "04b80d553719877f1aac5f60b816300cd26ba35bf9275e5105400aa5edfc0b69256f920019187647446ecd24fbc8a7714ef580b76ab14a8185a3370426fa6df9d8";
 
         let fake_edsca = LocalWallet::new(&mut rand::thread_rng());
         let fake_bundle = LocalWallet::new(&mut rand::thread_rng());
@@ -45,22 +49,23 @@ impl Args {
 
         let middleware = Box::leak(Box::new(
             RethMiddleware::new(inner, self.full_node, tokio::runtime::Handle::current(), 1)
-                .unwrap()
+                .unwrap(),
         ));
         let (sim, handle) = spawn_revm_sim(middleware, 6942069);
 
-        let network_config = NetworkConfig::new(fake_key, H512::default());
+        let network_config = NetworkConfig::new(fake_key, fake_pub_key.parse().unwrap());
         let leader_config = LeaderConfig {
             simulator: sim,
             edsca_key: fake_edsca,
             bundle_key: fake_bundle,
-            middleware
+            middleware,
         };
 
+        let fake_addr = "ws://127.0.0.1:6969".parse()?;
         let server_config = SubmissionServerConfig {
-            addr:                "ws://127.0.0.1:6969".parse()?,
-            cors_domains:        "balls".into(),
-            allow_subscriptions: self.enable_subscriptions
+            addr: fake_addr,
+            cors_domains: "balls".into(),
+            allow_subscriptions: self.enable_subscriptions,
         };
 
         let guard = Guard::new(network_config, leader_config, server_config, handle).await?;
