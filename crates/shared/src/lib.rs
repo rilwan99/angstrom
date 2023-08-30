@@ -1,12 +1,15 @@
-mod tee_address;
 use ethers_core::types::{Address, U256};
 use reth_codecs::derive_arbitrary;
 use reth_primitives::{Bytes, Signature};
 use reth_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
-pub use tee_address::*;
+mod eip712;
 mod signature;
+mod tee_address;
+
+pub use eip712::*;
 pub use signature::*;
+pub use tee_address::*;
 
 /// struct Batch {
 ///     ArbitrageOrderSigned[] arbs;

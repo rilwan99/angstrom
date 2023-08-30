@@ -82,7 +82,7 @@ reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609"
 reth-interfaces = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
-reth-rlp = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-rlp = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609", features = ["alloc"]}
 reth-codecs = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-ecies = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }

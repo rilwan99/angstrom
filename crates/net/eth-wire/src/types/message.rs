@@ -6,7 +6,7 @@ use reth_primitives::bytes::{Buf, BufMut};
 use reth_rlp::{length_of_length, Decodable, Encodable, Header};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use shared::{Bundle, BundleSignature, SealedBundle, TeeAddress};
+use shared::{Bundle, BundleSignature, Eip712, SealedBundle, TeeAddress};
 
 use super::Status;
 use crate::{errors::EthStreamError, EthVersion};
@@ -25,25 +25,22 @@ impl ProtocolMessage {
         let message_type = EthMessageID::decode(buf)?;
 
         let message = match message_type {
-            // EthMessageID::
-            // EthMessageID::NodeData => {
-            //     if version >= EthVersion::Eth67 {
-            //         return Err(EthStreamError::EthInvalidMessageError(
-            //             version,
-            //             EthMessageID::GetNodeData
-            //         ))
-            //     }
-            //     let request_pair = RequestPair::<NodeData>::decode(buf)?;
-            //     EthMessage::NodeData(request_pair)
-            // }
-            // EthMessageID::GetReceipts => {
-            //     let request_pair = RequestPair::<GetReceipts>::decode(buf)?;
-            //     EthMessage::GetReceipts(request_pair)
-            // }
-            // EthMessageID::Receipts => {
-            //     let request_pair = RequestPair::<Receipts>::decode(buf)?;
-            //     EthMessage::Receipts(request_pair)
-            // }
+            EthMessageID::Status => EthMessage::Status(Status::decode(buf)?),
+            EthMessageID::GetTeeModule => {
+                EthMessage::GetTeeModule(RequestPair::<TeeAddress>::decode(buf)?)
+            }
+            EthMessageID::PropagateTransactions => {
+                EthMessage::PropagateTransactions(Vec::<Eip712>::decode(buf)?)
+            }
+            EthMessageID::PropagateSealedBundle => {
+                EthMessage::PropagateSealedBundle(SealedBundle::decode(buf)?)
+            }
+            EthMessageID::PropagateBundleSignature => {
+                EthMessage::PropagateBundleSignature(BundleSignature::decode(buf)?)
+            }
+            EthMessageID::PropagateSignatureRequest => {
+                EthMessage::PropagateSignatureRequest(Bundle::decode(buf)?)
+            }
         };
         Ok(ProtocolMessage { message_type, message })
     }
@@ -122,10 +119,10 @@ pub enum EthMessage {
     Status(Status),
     GetTeeModule(RequestPair<TeeAddress>),
     // broadcast
-    PropagateTransactions(Vec<Arc<TypedData>>),
-    PropagateSealedBundle(Arc<SealedBundle>),
-    PropagateSignatureRequest(Arc<Bundle>),
-    PropagateBundleSignature(Arc<BundleSignature>)
+    PropagateTransactions(Vec<Eip712>),
+    PropagateSealedBundle(SealedBundle),
+    PropagateSignatureRequest(Bundle),
+    PropagateBundleSignature(BundleSignature)
 }
 
 impl EthMessage {
@@ -176,7 +173,7 @@ impl Encodable for EthMessage {
 /// Note: This is only useful for outgoing messages.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EthBroadcastMessage {
-    PropagateTransactions(Vec<Arc<TypedData>>),
+    PropagateTransactions(Arc<Vec<Eip712>>),
     PropagateSealedBundle(Arc<SealedBundle>),
     PropagateSignatureRequest(Arc<Bundle>),
     PropagateBundleSignature(Arc<BundleSignature>)

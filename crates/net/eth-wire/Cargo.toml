@@ -19,13 +19,7 @@ secp256k1.workspace = true
 reth-codecs.workspace = true
 reth-primitives.workspace = true
 reth-ecies.workspace = true
-reth-rlp = { workspace = true, features = [
-    "alloc",
-    "derive",
-    "std",
-    "ethereum-types",
-    "smol_str",
-] }
+reth-rlp.workspace = true
 guard-discv4 = {path = "../discv4" }
 
 # metrics
