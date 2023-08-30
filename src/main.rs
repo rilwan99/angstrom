@@ -2,9 +2,10 @@ use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use clap::Parser;
 use ethers_core::rand::rngs::ThreadRng;
-use ethers_providers::{Http, Provider};
-use ethers_reth::RethMiddleware;
-use ethers_signers::LocalWallet;
+use ethers_middleware::SignerMiddleware;
+use ethers_providers::{Http, Middleware, Provider};
+use ethers_reth::{middleware, RethMiddleware};
+use ethers_signers::{LocalWallet, Signer};
 use guard_network::{config::SecretKey, NetworkConfig, PeersConfig};
 use leader::leader_manager::LeaderConfig;
 use reth_primitives::{mainnet_nodes, NodeRecord, H512};
@@ -48,10 +49,14 @@ impl Args {
 
         let inner = Provider::new(Http::new(self.full_node_ws));
 
-        let middleware = Box::leak(Box::new(
-            RethMiddleware::new(inner, self.full_node.clone(), rt.handle().clone(), 1).unwrap(),
-        ));
+        let middleware: &mut SignerMiddleware<Provider<Http>, LocalWallet> =
+            Box::leak(Box::new(SignerMiddleware::new(inner, fake_pub_key.parse().unwrap())));
 
+        /*
+                let middleware = Box::leak(Box::new(
+                    RethMiddleware::new(inner, self.full_node.clone(), rt.handle().clone(), 1).unwrap(),
+                ));
+        */
         let db_path = self.full_node.as_ref();
         let db = Arc::new(reth_db::mdbx::Env::<reth_db::mdbx::WriteMap>::open(
             db_path,
