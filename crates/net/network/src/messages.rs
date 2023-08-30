@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use ethers_core::types::transaction::eip712::TypedData;
 use guard_eth_wire::EthMessage;
-use shared::{Bundle, SealedBundle, TeeAddress, Eip712};
+use shared::{Bundle, SealedBundle, TeeAddress, Eip712, BundleSignature};
 use tokio::sync::oneshot::Sender as OneSender;
 
 /// General bi-directional messages sent to & from peers
@@ -12,7 +12,7 @@ pub enum PeerMessages {
     PropagateTransactions(Arc<Vec<Eip712>>),
     PropagateSealedBundle(Arc<SealedBundle>),
     PropagateSignatureRequest(Arc<Bundle>),
-    PropagateBundleSignature(Signature),
+    PropagateBundleSignature(BundleSignature),
 
     /// This is only for receiving and will never be propagated
     /// so we don't have to worry about this when we batch propagate

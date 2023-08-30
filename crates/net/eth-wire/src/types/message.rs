@@ -16,7 +16,7 @@ use crate::{errors::EthStreamError, EthVersion};
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ProtocolMessage {
     pub message_type: EthMessageID,
-    pub message:      EthMessage
+    pub message: EthMessage,
 }
 
 impl ProtocolMessage {
@@ -69,7 +69,7 @@ impl From<EthMessage> for ProtocolMessage {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProtocolBroadcastMessage {
     pub message_type: EthMessageID,
-    pub message:      EthBroadcastMessage
+    pub message: EthBroadcastMessage,
 }
 
 /// Encodes the protocol message into bytes.
@@ -122,7 +122,7 @@ pub enum EthMessage {
     PropagateTransactions(Vec<Eip712>),
     PropagateSealedBundle(SealedBundle),
     PropagateSignatureRequest(Bundle),
-    PropagateBundleSignature(BundleSignature)
+    PropagateBundleSignature(BundleSignature),
 }
 
 impl EthMessage {
@@ -134,7 +134,7 @@ impl EthMessage {
             EthMessage::PropagateTransactions(_) => EthMessageID::PropagateTransactions,
             EthMessage::PropagateSealedBundle(_) => EthMessageID::PropagateSealedBundle,
             EthMessage::PropagateBundleSignature(_) => EthMessageID::PropagateBundleSignature,
-            EthMessage::PropagateSignatureRequest(_) => EthMessageID::PropagateSignatureRequest
+            EthMessage::PropagateSignatureRequest(_) => EthMessageID::PropagateSignatureRequest,
         }
     }
 }
@@ -147,7 +147,7 @@ impl Encodable for EthMessage {
             EthMessage::PropagateTransactions(txes) => txes.encode(out),
             EthMessage::PropagateSealedBundle(bundle) => bundle.encode(out),
             EthMessage::PropagateBundleSignature(sig) => sig.encode(out),
-            EthMessage::PropagateSignatureRequest(sig_req) => sig_req.encode(out)
+            EthMessage::PropagateSignatureRequest(sig_req) => sig_req.encode(out),
         }
     }
 
@@ -158,7 +158,7 @@ impl Encodable for EthMessage {
             EthMessage::PropagateTransactions(txes) => txes.length(),
             EthMessage::PropagateSealedBundle(bundle) => bundle.length(),
             EthMessage::PropagateBundleSignature(sig) => sig.length(),
-            EthMessage::PropagateSignatureRequest(sig_req) => sig_req.length()
+            EthMessage::PropagateSignatureRequest(sig_req) => sig_req.length(),
         }
     }
 }
@@ -176,7 +176,7 @@ pub enum EthBroadcastMessage {
     PropagateTransactions(Arc<Vec<Eip712>>),
     PropagateSealedBundle(Arc<SealedBundle>),
     PropagateSignatureRequest(Arc<Bundle>),
-    PropagateBundleSignature(Arc<BundleSignature>)
+    PropagateBundleSignature(Arc<BundleSignature>),
 }
 
 // === impl EthBroadcastMessage ===
@@ -204,7 +204,7 @@ impl Encodable for EthBroadcastMessage {
             EthBroadcastMessage::PropagateSignatureRequest(sig) => sig.encode(out),
             EthBroadcastMessage::PropagateTransactions(tx) => tx.encode(out),
             EthBroadcastMessage::PropagateSealedBundle(bundle) => bundle.encode(out),
-            EthBroadcastMessage::PropagateBundleSignature(sig) => sig.encode(out)
+            EthBroadcastMessage::PropagateBundleSignature(sig) => sig.encode(out),
         }
     }
 
@@ -213,7 +213,7 @@ impl Encodable for EthBroadcastMessage {
             EthBroadcastMessage::PropagateSignatureRequest(sig) => sig.length(),
             EthBroadcastMessage::PropagateTransactions(tx) => tx.length(),
             EthBroadcastMessage::PropagateSealedBundle(bundle) => bundle.length(),
-            EthBroadcastMessage::PropagateBundleSignature(sig) => sig.length()
+            EthBroadcastMessage::PropagateBundleSignature(sig) => sig.length(),
         }
     }
 }
@@ -228,7 +228,7 @@ pub enum EthMessageID {
     PropagateSealedBundle = 0x02,
     PropagateSignatureRequest = 0x03,
     PropagateBundleSignature = 0x04,
-    Status       = 0x05
+    Status = 0x05,
 }
 
 impl Encodable for EthMessageID {
@@ -251,7 +251,7 @@ impl Decodable for EthMessageID {
             0x03 => EthMessageID::PropagateSignatureRequest,
             0x04 => EthMessageID::PropagateBundleSignature,
             0x05 => EthMessageID::Status,
-            _ => return Err(reth_rlp::DecodeError::Custom("Invalid message ID"))
+            _ => return Err(reth_rlp::DecodeError::Custom("Invalid message ID")),
         };
         buf.advance(1);
         Ok(id)
@@ -270,7 +270,7 @@ impl TryFrom<usize> for EthMessageID {
             0x03 => Ok(EthMessageID::PropagateSignatureRequest),
             0x04 => Ok(EthMessageID::PropagateBundleSignature),
             0x05 => Ok(EthMessageID::Status),
-            _ => Err("Invalid message ID")
+            _ => Err("Invalid message ID"),
         }
     }
 }
@@ -285,19 +285,17 @@ pub struct RequestPair<T> {
     pub request_id: u64,
 
     /// the request or response message payload
-    pub message: T
+    pub message: T,
 }
 
 /// Allows messages with request ids to be serialized into RLP bytes.
 impl<T> Encodable for RequestPair<T>
 where
-    T: Encodable
+    T: Encodable,
 {
     fn encode(&self, out: &mut dyn reth_rlp::BufMut) {
-        let header = Header {
-            list:           true,
-            payload_length: self.request_id.length() + self.message.length()
-        };
+        let header =
+            Header { list: true, payload_length: self.request_id.length() + self.message.length() };
 
         header.encode(out);
         self.request_id.encode(out);
@@ -316,7 +314,7 @@ where
 /// Allows messages with request ids to be deserialized into RLP bytes.
 impl<T> Decodable for RequestPair<T>
 where
-    T: Decodable
+    T: Decodable,
 {
     fn decode(buf: &mut &[u8]) -> Result<Self, reth_rlp::DecodeError> {
         let _header = Header::decode(buf)?;
@@ -331,7 +329,7 @@ mod test {
 
     use crate::{
         errors::EthStreamError, types::message::RequestPair, EthMessage, EthMessageID, GetNodeData,
-        NodeData, ProtocolMessage
+        NodeData, ProtocolMessage,
     };
 
     fn encode<T: Encodable>(value: T) -> Vec<u8> {
@@ -342,23 +340,19 @@ mod test {
 
     #[test]
     fn test_removed_message_at_eth67() {
-        let get_node_data = EthMessage::GetNodeData(RequestPair {
-            request_id: 1337,
-            message:    GetNodeData(vec![])
-        });
+        let get_node_data =
+            EthMessage::GetNodeData(RequestPair { request_id: 1337, message: GetNodeData(vec![]) });
         let buf = encode(ProtocolMessage {
             message_type: EthMessageID::GetNodeData,
-            message:      get_node_data
+            message: get_node_data,
         });
         let msg = ProtocolMessage::decode_message(crate::EthVersion::Eth67, &mut &buf[..]);
         assert!(matches!(msg, Err(EthStreamError::EthInvalidMessageError(..))));
 
         let node_data =
             EthMessage::NodeData(RequestPair { request_id: 1337, message: NodeData(vec![]) });
-        let buf = encode(ProtocolMessage {
-            message_type: EthMessageID::NodeData,
-            message:      node_data
-        });
+        let buf =
+            encode(ProtocolMessage { message_type: EthMessageID::NodeData, message: node_data });
         let msg = ProtocolMessage::decode_message(crate::EthVersion::Eth67, &mut &buf[..]);
         assert!(matches!(msg, Err(EthStreamError::EthInvalidMessageError(..))));
     }
