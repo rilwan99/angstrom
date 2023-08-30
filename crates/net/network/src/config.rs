@@ -62,24 +62,16 @@ pub struct NetworkConfig {
 
 impl NetworkConfig {
     /// Convenience method for creating the corresponding builder type
-    pub fn builder(
-        secret_key: SecretKey,
-        verification_msg: Option<String>,
-        pub_key: PeerId
-    ) -> NetworkConfigBuilder {
-        NetworkConfigBuilder::new(
-            secret_key,
-            &verification_msg.unwrap_or(DEFAULT_HELLO_VERIFICATION_MESSAGE.to_string()),
-            pub_key
-        )
+    pub fn builder(secret_key: SecretKey, pub_key: PeerId) -> NetworkConfigBuilder {
+        NetworkConfigBuilder::new(secret_key, DEFAULT_HELLO_VERIFICATION_MESSAGE, pub_key)
     }
 }
 
 impl NetworkConfig {
     /// Create a new instance with all mandatory fields set, rest is field with
     /// defaults.
-    pub fn new(secret_key: SecretKey, verification_msg: Option<String>, pub_key: PeerId) -> Self {
-        NetworkConfig::builder(secret_key, verification_msg, pub_key).build()
+    pub fn new(secret_key: SecretKey, pub_key: PeerId) -> Self {
+        NetworkConfig::builder(secret_key, pub_key).build()
     }
 
     /// Sets the config to use for the discovery v4 protocol.
@@ -135,7 +127,7 @@ pub struct NetworkConfigBuilder {
 
 #[allow(missing_docs)]
 impl NetworkConfigBuilder {
-    pub fn new(secret_key: SecretKey, verification_msg: &str, pub_key: PeerId) -> Self {
+    pub fn new(secret_key: SecretKey, verification_msg: &'static str, pub_key: PeerId) -> Self {
         Self {
             secret_key,
             pub_key,
@@ -359,6 +351,7 @@ impl NetworkConfigBuilder {
         let mut hello_message = hello_message.unwrap_or_else(|| {
             HelloMessage::builder(sig.to_bytes().to_vec(), signed_hello, pub_key).build()
         });
+
         hello_message.port = listener_addr.port();
 
         let head = head.unwrap_or(Head {

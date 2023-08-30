@@ -261,7 +261,7 @@ impl SessionManager {
             hello_message,
             status,
             fork_filter,
-            self.valid_stakers
+            self.valid_stakers.clone()
         ));
 
         let handle = PendingSessionHandle {
@@ -298,7 +298,7 @@ impl SessionManager {
                 status,
                 fork_filter,
                 band_with_meter,
-                self.valid_stakers
+                self.valid_stakers.clone()
             ));
 
             let handle = PendingSessionHandle {
@@ -437,8 +437,7 @@ impl SessionManager {
                 conn,
                 status,
                 direction,
-                client_id,
-                peer_address
+                client_id
             } => {
                 // move from pending to established.
                 self.remove_pending_session(&session_id);
@@ -481,7 +480,6 @@ impl SessionManager {
                 let session = ActiveSession {
                     next_id: 0,
                     remote_peer_id: peer_id,
-                    remote_peer_eth_addr: peer_address,
                     remote_addr,
                     remote_capabilities: Arc::clone(&capabilities),
                     session_id,
@@ -961,8 +959,7 @@ async fn authenticate_stream(
     valid_stakers: Vec<PeerId>
 ) -> PendingSessionEvent {
     // conduct the p2p handshake and return the authenticated stream
-    let (p2p_stream, their_hello) = match stream.handshake(hello, valid_stakers).await
-    {
+    let (p2p_stream, their_hello) = match stream.handshake(hello, valid_stakers).await {
         Ok(stream_res) => stream_res,
         Err(err) => {
             return PendingSessionEvent::Disconnected {
@@ -998,7 +995,6 @@ async fn authenticate_stream(
         status: their_status,
         conn: eth_stream,
         direction,
-        client_id: their_hello.client_version,
-        peer_address
+        client_id: their_hello.client_version
     }
 }

@@ -1,10 +1,15 @@
-use std::{net::SocketAddr, sync::Arc};
-use reth_interfaces::p2p::error::RequestResult;
+use std::{
+    net::SocketAddr,
+    sync::Arc,
+    task::{ready, Context, Poll}
+};
+
 use ethers_core::types::transaction::eip712::TypedData;
-use guard_eth_wire::EthMessage;
+use futures::FutureExt;
+use guard_eth_wire::{message::RequestPair, EthMessage};
+use reth_interfaces::p2p::error::RequestResult;
 use shared::{Bundle, BundleSignature, Eip712, SealedBundle, TeeAddress};
-guard_eth_wire::message::RequestPair;
-use tokio::sync::oneshot::Sender as OneSender;
+use tokio::sync::{oneshot, oneshot::Sender as OneSender};
 
 /// General bi-directional messages sent to & from peers
 #[derive(Debug, Clone)]
@@ -23,19 +28,48 @@ pub enum PeerMessages {
 /// Specific requests from a peer
 #[derive(Debug)]
 pub enum PeerRequests {
-    GetTeeModule(OneSender<TeeAddress>)
+    GetTeeModule(GetTeeModule, OneSender<TeeAddress>)
 }
+
+#[derive(Debug)]
+pub struct GetTeeModule(pub TeeAddress);
 
 impl PeerRequests {
     pub fn create_request_message(&self, request_id: u64) -> EthMessage {
         match self {
-            PeerRequests::GetTeeModule(_) => {
+            PeerRequests::GetTeeModule(msg, _) => {
                 EthMessage::GetTeeModule(guard_eth_wire::message::RequestPair {
                     request_id,
-                    message: ()
+                    message: msg.0.clone()
                 })
             }
         }
+    }
+}
+
+pub enum PeerResponse {
+    GetTeeModule(oneshot::Receiver<RequestResult<TeeAddress>>)
+}
+
+impl PeerResponse {
+    /// Polls the type to completion.
+    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<PeerResponseResult> {
+        macro_rules! poll_request {
+            ($response:ident, $item:ident, $cx:ident) => {
+                match ready!($response.poll_unpin($cx)) {
+                    Ok(res) => PeerResponseResult::$item(res),
+                    Err(err) => PeerResponseResult::$item(Err(err.into()))
+                }
+            };
+        }
+
+        let res = match self {
+            PeerResponse::GetTeeModule(response) => {
+                poll_request!(response, GetTeeModule, cx)
+            }
+        };
+
+        Poll::Ready(res)
     }
 }
 
@@ -43,23 +77,20 @@ impl PeerRequests {
 #[derive(Debug)]
 #[allow(missing_docs)]
 pub enum PeerResponseResult {
-    TeeModule(RequestResult<TeeAddress>)
+    GetTeeModule(RequestResult<TeeAddress>)
 }
 impl PeerResponseResult {
     pub fn try_into_message(self, id: u64) -> RequestResult<EthMessage> {
         match self {
-            PeerResponseResult::TeeModule(addr) =>  {
-                match addr {
-                    Ok(msg) => Ok(EthMessage::TeeModule(RequestPair { request_id: id, message: msg})),
-                    Err(err) => Err(err)
-
+            PeerResponseResult::GetTeeModule(addr) => match addr {
+                Ok(msg) => {
+                    Ok(EthMessage::GetTeeModule(RequestPair { request_id: id, message: msg }))
                 }
+                Err(err) => Err(err)
             }
         }
     }
 }
-
-
 
 /// Dummy implementation, this will never be cloned
 impl Clone for PeerRequests {

@@ -23,7 +23,7 @@ use reth_ecies::stream::ECIESStream;
 use reth_interfaces::p2p::error::RequestError;
 use reth_metrics::common::mpsc::MeteredSender;
 use reth_net_common::bandwidth_meter::MeteredStream;
-use reth_primitives::PeerId;
+use reth_primitives::{Address, PeerId};
 use tokio::{
     net::TcpStream,
     sync::{mpsc::error::TrySendError, oneshot},
@@ -33,7 +33,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, info, trace};
 
 use crate::{
-    messages::{PeerMessages, PeerRequests, PeerResponseResult},
+    messages::{PeerMessages, PeerRequests, PeerResponse, PeerResponseResult},
     session::{
         config::INITIAL_REQUEST_TIMEOUT,
         handle::{ActiveSessionMessage, SessionCommand},
@@ -69,8 +69,6 @@ pub(crate) struct ActiveSession {
     pub(crate) conn: EthStream<P2PStream<ECIESStream<MeteredStream<TcpStream>>>>,
     /// Identifier of the node we're connected to.
     pub(crate) remote_peer_id: PeerId,
-    /// Identifier of the node we're connected to.
-    pub(crate) remote_peer_eth_addr: Address,
     /// The address we're connected to.
     pub(crate) remote_addr: SocketAddr,
     /// All capabilities the peer announced
@@ -399,7 +397,7 @@ pub(crate) struct ReceivedRequest {
     received:   Instant,
     /// Receiver half of the channel that's supposed to receive the proper
     /// response.
-    rx:         PeerResponses
+    rx:         PeerResponse
 }
 
 /// A request that waits for a response from the peer

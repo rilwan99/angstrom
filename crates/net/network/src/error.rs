@@ -198,6 +198,8 @@ impl SessionError for EthStreamError {
                     // [`SessionError::is_fatal_protocol_error`]
                     Some(BackoffKind::High)
                 }
+                // all non reth are because of sig failure
+                _ => Some(BackoffKind::High)
             }
         }
 

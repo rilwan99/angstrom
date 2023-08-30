@@ -7,7 +7,7 @@ use ethers_reth::RethMiddleware;
 use ethers_signers::LocalWallet;
 use guard_network::{config::SecretKey, NetworkConfig, PeersConfig};
 use leader::leader_manager::LeaderConfig;
-use reth_primitives::{mainnet_nodes, NodeRecord};
+use reth_primitives::{mainnet_nodes, NodeRecord, H512};
 use sim::spawn_revm_sim;
 use stale_guard::{Guard, SubmissionServerConfig};
 use url::Url;
@@ -49,7 +49,7 @@ impl Args {
         ));
         let (sim, handle) = spawn_revm_sim(middleware, 6942069);
 
-        let network_config = NetworkConfig::new(fake_key);
+        let network_config = NetworkConfig::new(fake_key, H512::default());
         let leader_config = LeaderConfig {
             simulator: sim,
             edsca_key: fake_edsca,

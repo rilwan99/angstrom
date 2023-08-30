@@ -187,9 +187,7 @@ pub enum PendingSessionEvent {
         direction:    Direction,
         /// The remote node's user agent, usually containing the client name and
         /// version
-        client_id:    String,
-        /// address of the peer
-        peer_address: H160
+        client_id:    String
     },
     /// Handshake unsuccessful, session was disconnected.
     Disconnected {
