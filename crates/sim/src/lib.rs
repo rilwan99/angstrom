@@ -35,5 +35,5 @@ pub trait Simulator: Clone {
 /// CHANGE TO EIP712DOMAIN
 pub enum TransactionType {
     Single(TypedData, Sender<SimResult>),
-    Bundle(TypedData, Sender<SimResult>),
+    Bundle(TypedData, Sender<SimResult>)
 }
