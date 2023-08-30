@@ -6,7 +6,7 @@ use reth_db::mdbx::WriteMap;
 use sim::SimResult;
 use tokio::{
     sync::{mpsc::unbounded_channel, oneshot::Sender},
-    task::JoinHandle,
+    task::JoinHandle
 };
 
 use crate::{revm::Revm, sim::SimError};
@@ -38,5 +38,5 @@ pub trait Simulator: Clone {
 /// CHANGE TO EIP712DOMAIN
 pub enum TransactionType {
     Single(TypedData, Sender<SimResult>),
-    Bundle(TypedData, Sender<SimResult>),
+    Bundle(TypedData, Sender<SimResult>)
 }

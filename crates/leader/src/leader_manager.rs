@@ -28,28 +28,28 @@ static BUILDER_URLS: &[&str] = &[
     "https://buildai.net",
     "https://rpc.payload.de",
     "https://rpc.lightspeedbuilder.info",
-    "https://rpc.nfactorial.xyz",
+    "https://rpc.nfactorial.xyz"
 ];
 
 pub struct LeaderConfig<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
     pub middleware: &'static M,
-    pub simulator: S,
-    pub edsca_key: LocalWallet,
-    pub bundle_key: LocalWallet,
+    pub simulator:  S,
+    pub edsca_key:  LocalWallet,
+    pub bundle_key: LocalWallet
 }
 
 #[derive(Debug, Clone)]
 pub enum LeaderMessage {
     NewBestBundle(SealedBundle),
     NewValidTransactions(Vec<SimulatedTransaction>),
-    SignedBundle(Bundle),
+    SignedBundle(Bundle)
 }
 
 impl From<CowMsg> for LeaderMessage {
     fn from(value: CowMsg) -> Self {
         match value {
             CowMsg::NewBestBundle(b) => LeaderMessage::NewBestBundle(b),
-            CowMsg::NewValidTransactions(t) => LeaderMessage::NewValidTransactions(t),
+            CowMsg::NewValidTransactions(t) => LeaderMessage::NewValidTransactions(t)
         }
     }
 }
@@ -60,7 +60,7 @@ pub struct LeaderInfo {
     /// the current selected leader
     pub selected_leader: Address,
     /// block number to check for stale state
-    pub block_number: U64,
+    pub block_number:    U64
 }
 
 /// handles tasks around dealing with a leader
@@ -68,25 +68,25 @@ pub struct Leader<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
     /// actively tells us who the selected leader is
     active_leader_config: Option<LeaderInfo>,
     /// used when selected to be leader. mostly for just submitting
-    leader_sender: LeaderSender<M>,
+    leader_sender:        LeaderSender<M>,
     /// used to sim and then sign bundles that are requested
     /// by leader
-    bundle_signer: BundleSigner<S>,
+    bundle_signer:        BundleSigner<S>,
     /// deals with our bundle state
-    cow_solver: CowSolver<S>,
+    cow_solver:           CowSolver<S>,
     /// used to make basic requests
-    full_node_req: &'static M,
+    full_node_req:        &'static M
 }
 
 impl<M: Middleware + Unpin, S: Simulator> Leader<M, S> {
     pub fn new(config: LeaderConfig<M, S>) -> anyhow::Result<Self> {
         let LeaderConfig { middleware, simulator, edsca_key, bundle_key } = config;
         Ok(Self {
-            full_node_req: middleware,
-            cow_solver: CowSolver::new(simulator.clone()),
-            bundle_signer: BundleSigner::new(simulator, edsca_key.clone()),
+            full_node_req:        middleware,
+            cow_solver:           CowSolver::new(simulator.clone()),
+            bundle_signer:        BundleSigner::new(simulator, edsca_key.clone()),
             active_leader_config: None,
-            leader_sender: LeaderSender(SignerMiddleware::new(
+            leader_sender:        LeaderSender(SignerMiddleware::new(
                 BroadcasterMiddleware::new(
                     middleware,
                     BUILDER_URLS
@@ -94,10 +94,10 @@ impl<M: Middleware + Unpin, S: Simulator> Leader<M, S> {
                         .map(|u| Url::parse(u).unwrap())
                         .collect(),
                     Url::parse(SIMULATION_RELAY)?,
-                    bundle_key,
+                    bundle_key
                 ),
-                edsca_key,
-            )),
+                edsca_key
+            ))
         })
     }
 
@@ -111,7 +111,7 @@ impl<M: Middleware + Unpin, S: Simulator> Leader<M, S> {
         let mut res = Vec::with_capacity(10);
 
         if !res.is_empty() {
-            return Poll::Ready(res);
+            return Poll::Ready(res)
         }
 
         Poll::Pending
