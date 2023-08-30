@@ -30,7 +30,7 @@ pub struct Guard<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
     /// deals with leader related requests and actions including bundle building
     leader:               Leader<M, S>,
     /// deals with new submissions through a rpc to the network
-    server:               SubmissionServer,
+    // server:               SubmissionServer,
     /// channel for sending updates to the set of stakers
     valid_stakers_tx:     UnboundedSender<GaurdStakingEvent>,
     /// make sure we keep subscribers upto date
@@ -51,7 +51,7 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
         Ok(Self {
             leader,
             server_subscriptions: HashMap::default(),
-            server: sub_server,
+            // server: sub_server,
             valid_stakers_tx,
             network: swarm
         })
@@ -97,17 +97,18 @@ impl<M: Middleware + Unpin, S: Simulator + Unpin> Future for Guard<M, S> {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Poll::Ready(new_msgs) = self.server.poll_next_unpin(cx) {
-            let Some(new_msgs) = new_msgs else { return Poll::Ready(()) };
-
-            self.handle_submissions(new_msgs);
-        }
+        // if let Poll::Ready(new_msgs) = self.server.poll_next_unpin(cx) {
+        //     let Some(new_msgs) = new_msgs else { return Poll::Ready(()) };
+        //
+        //     self.handle_submissions(new_msgs);
+        // }
         if let Poll::Ready(Some(msgs)) = self.network.poll_next_unpin(cx) {
             cx.waker().wake_by_ref();
             println!("{msgs:?}");
         }
 
         if let Poll::Ready(msgs) = self.leader.poll(cx) {}
+        cx.waker().wake_by_ref();
 
         return Poll::Pending
     }
