@@ -5,4 +5,7 @@ edition.workspace = true
 
 [dependencies]
 ethers-core.workspace = true
+reth-primitives.workspace = true
 serde.workspace = true
+reth-codecs.workspace = true
+reth-rlp.workspace = true

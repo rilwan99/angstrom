@@ -1,15 +1,16 @@
-use crate::{capability::Capability, EthVersion, ProtocolVersion};
 use guard_discv4::DEFAULT_DISCOVERY_PORT;
 use reth_codecs::derive_arbitrary;
 use reth_primitives::{constants::RETH_CLIENT_VERSION, PeerId, H256};
 use reth_rlp::{RlpDecodable, RlpEncodable};
-
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-// TODO: determine if we should allow for the extra fields at the end like EIP-706 suggests
-/// Message used in the `p2p` handshake, containing information about the supported RLPx protocol
-/// version and capabilities.
+use crate::{capability::Capability, EthVersion, ProtocolVersion};
+
+// TODO: determine if we should allow for the extra fields at the end like
+// EIP-706 suggests
+/// Message used in the `p2p` handshake, containing information about the
+/// supported RLPx protocol version and capabilities.
 #[derive_arbitrary(rlp)]
 #[derive(Clone, Debug, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -18,13 +19,14 @@ pub struct HelloMessage {
     pub protocol_version: ProtocolVersion,
     /// Specifies the client software identity, as a human-readable string (e.g.
     /// "Ethereum(++)/1.0.0").
-    pub client_version: String,
+    pub client_version:   String,
     /// The list of supported capabilities and their versions.
-    pub capabilities: Vec<Capability>,
-    /// The port that the client is listening on, zero indicates the client is not listening.
-    pub port: u16,
+    pub capabilities:     Vec<Capability>,
+    /// The port that the client is listening on, zero indicates the client is
+    /// not listening.
+    pub port:             u16,
     /// Signed Noop "Hello" message to allow public key verification
-    pub signed_hello: H256,
+    pub signed_hello:     H256
 }
 
 // === impl HelloMessage ===
@@ -50,13 +52,14 @@ pub struct HelloMessageBuilder {
     pub protocol_version: Option<ProtocolVersion>,
     /// Specifies the client software identity, as a human-readable string (e.g.
     /// "Ethereum(++)/1.0.0").
-    pub client_version: Option<String>,
+    pub client_version:   Option<String>,
     /// The list of supported capabilities and their versions.
-    pub capabilities: Option<Vec<Capability>>,
-    /// The port that the client is listening on, zero indicates the client is not listening.
-    pub port: Option<u16>,
+    pub capabilities:     Option<Vec<Capability>>,
+    /// The port that the client is listening on, zero indicates the client is
+    /// not listening.
+    pub port:             Option<u16>,
     /// Signed Noop "Hello" message to allow public key verification
-    pub signed_hello: H256,
+    pub signed_hello:     H256
 }
 
 // === impl HelloMessageBuilder ===
@@ -69,7 +72,7 @@ impl HelloMessageBuilder {
             client_version: None,
             capabilities: None,
             port: None,
-            signed_hello,
+            signed_hello
         }
     }
 
@@ -107,7 +110,7 @@ impl HelloMessageBuilder {
                 vec![EthVersion::Eth68.into(), EthVersion::Eth67.into(), EthVersion::Eth66.into()]
             }),
             port: port.unwrap_or(DEFAULT_DISCOVERY_PORT),
-            signed_hello,
+            signed_hello
         }
     }
 }

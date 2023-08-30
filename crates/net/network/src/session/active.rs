@@ -13,13 +13,13 @@ use std::{
 
 use fnv::FnvHashMap;
 use futures::{SinkExt, StreamExt};
-use reth_ecies::stream::ECIESStream;
 use guard_eth_wire::{
     capability::Capabilities,
     errors::{EthStreamError, P2PStreamError},
     message::EthBroadcastMessage,
     DisconnectReason, EthMessage, EthStream, P2PStream
 };
+use reth_ecies::stream::ECIESStream;
 use reth_metrics::common::mpsc::MeteredSender;
 use reth_net_common::bandwidth_meter::MeteredStream;
 use reth_primitives::PeerId;
@@ -80,6 +80,8 @@ pub(crate) struct ActiveSession {
     pub(crate) inflight_requests: FnvHashMap<u64, InflightRequest>,
     /// All requests that were sent by the remote peer.
     pub(crate) received_requests_from_remote: Vec<ReceivedRequest>,
+    /// Incoming request to send to delegate to the remote peer.
+    pub(crate) internal_request_tx: Fuse<ReceiverStream<PeerRequest>>,
     /// Buffered messages that should be handled and sent to the peer.
     pub(crate) queued_outgoing: VecDeque<OutgoingMessage>,
     /// The maximum time we wait for a response from a peer.
@@ -178,6 +180,12 @@ impl ActiveSession {
         }
     }
 
+    ///
+    fn request_deadline(&self) -> Instant {
+        Instant::now()
+            + Duration::from_millis(self.internal_request_timeout.load(Ordering::Relaxed))
+    }
+
     /// Updates the request timeout with a request's timestamps
     fn update_request_timeout(&mut self, sent: Instant, received: Instant) {
         let elapsed = received.saturating_duration_since(sent);
@@ -187,6 +195,59 @@ impl ActiveSession {
         self.internal_request_timeout
             .store(request_timeout.as_millis() as u64, Ordering::Relaxed);
         self.internal_request_timeout_interval = tokio::time::interval(request_timeout);
+    }
+
+    fn on_peer_msg(&mut self, msg: PeerMessages) {
+        match msg {
+            PeerMessages::PeerRequests(req) => {
+                let deadline = self.request_deadline();
+                self.on_internal_peer_request(req, deadline);
+            }
+            PeerMessages::PropagateTransactions(txes) => {
+                self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
+                    EthBroadcastMessage::PropagateTransactions(txes)
+                ));
+            }
+            PeerMessages::PropagateSealedBundle(bundle) => {
+                self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
+                    EthBroadcastMessage::PropagateSealedBundle(bundle)
+                ));
+            }
+            PeerMessages::PropagateBundleSignature(sig) => {
+                self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
+                    EthBroadcastMessage::PropagateBundleSignature(sig)
+                ));
+            }
+            PeerMessages::PropagateSignatureRequest(bundle) => {
+                self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
+                    EthBroadcastMessage::PropagateSignatureRequest(bundle)
+                ));
+            }
+        }
+    }
+
+    /// Handle an internal peer request that will be sent to the remote.
+    fn on_internal_peer_request(&mut self, request: PeerRequests, deadline: Instant) {
+        let request_id = self.next_id();
+        let msg = request.create_request_message(request_id);
+        self.queued_outgoing.push_back(OutgoingMessage::Eth(msg));
+        let req = InflightRequest {
+            request: RequestState::Waiting(request),
+            timestamp: Instant::now(),
+            deadline
+        };
+        self.inflight_requests.insert(request_id, req);
+    }
+
+    fn handle_outgoing_response(&mut self, id: u64, resp: PeerResponseResult) {
+        match resp.try_into_message(id) {
+            Ok(msg) => {
+                self.queued_outgoing.push_back(msg.into());
+            }
+            Err(err) => {
+                debug!(target : "net", ?err, "Failed to respond to received request");
+            }
+        }
     }
 }
 
@@ -225,12 +286,7 @@ impl Future for ActiveSession {
                         match cmd {
                             SessionCommand::Message(message) => {
                                 info!(target: "net::session", remote_peer_id=?this.remote_peer_id, "Received state data from session");
-                                let _ = this.to_session_manager.try_send(
-                                    ActiveSessionMessage::ValidMessage {
-                                        message,
-                                        peer_id: this.remote_peer_id
-                                    }
-                                );
+                                this.on_peer_msg(message);
                             }
                             SessionCommand::Disconnect { reason } => {
                                 info!(target: "net::session", ?reason, remote_peer_id=?this.remote_peer_id, "Received disconnect command for session");
@@ -240,6 +296,28 @@ impl Future for ActiveSession {
                                 return this.try_disconnect(reason, cx)
                             }
                         }
+                    }
+                }
+            }
+
+            let deadline = this.request_deadline();
+
+            while let Poll::Ready(Some(req)) = this.internal_request_tx.poll_next_unpin(cx) {
+                progress = true;
+                this.on_internal_peer_request(req, deadline);
+            }
+
+            // Advance all active requests.
+            // We remove each request one by one and add them back.
+            for idx in (0..this.received_requests_from_remote.len()).rev() {
+                let mut req = this.received_requests_from_remote.swap_remove(idx);
+                match req.rx.poll(cx) {
+                    Poll::Pending => {
+                        // not ready yet
+                        this.received_requests_from_remote.push(req);
+                    }
+                    Poll::Ready(resp) => {
+                        this.handle_outgoing_response(req.request_id, resp);
                     }
                 }
             }
@@ -311,7 +389,10 @@ pub(crate) struct ReceivedRequest {
     request_id: u64,
     /// Timestamp when we read this msg from the wire.
     #[allow(unused)]
-    received:   Instant
+    received:   Instant,
+    /// Receiver half of the channel that's supposed to receive the proper
+    /// response.
+    rx:         PeerResponses
 }
 
 /// A request that waits for a response from the peer
@@ -354,6 +435,8 @@ impl From<Result<(), ActiveSessionMessage>> for OnIncomingMessageOutcome {
 }
 
 enum RequestState {
+    /// Waiting for the response
+    Waiting(PeerRequests),
     /// Request already timed out
     TimedOut
 }

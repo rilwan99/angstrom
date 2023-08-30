@@ -1,11 +1,12 @@
 //! Builder structs for [`Status`](crate::types::Status) and
 //! [`HelloMessage`](crate::HelloMessage) messages.
 
-use crate::{
-    capability::Capability, hello::HelloMessage, p2pstream::ProtocolVersion, EthVersion, Status,
-};
 use guard_discv4::DEFAULT_DISCOVERY_PORT;
 use reth_primitives::{Chain, ForkId, PeerId, H256, U256};
+
+use crate::{
+    capability::Capability, hello::HelloMessage, p2pstream::ProtocolVersion, EthVersion, Status
+};
 
 /// Builder for [`Status`](crate::types::Status) messages.
 ///
@@ -39,11 +40,12 @@ use reth_primitives::{Chain, ForkId, PeerId, H256, U256};
 /// ```
 #[derive(Debug, Default)]
 pub struct StatusBuilder {
-    status: Status,
+    status: Status
 }
 
 impl StatusBuilder {
-    /// Consumes the type and creates the actual [`Status`](crate::types::Status) message.
+    /// Consumes the type and creates the actual
+    /// [`Status`](crate::types::Status) message.
     pub fn build(self) -> Status {
         self.status
     }
@@ -87,12 +89,13 @@ impl StatusBuilder {
 
 /// Builder for [`HelloMessage`](crate::HelloMessage) messages.
 pub struct HelloBuilder {
-    hello: HelloMessage,
+    hello: HelloMessage
 }
 
 impl HelloBuilder {
-    /// Creates a new [`HelloBuilder`](crate::builder::HelloBuilder) with default [`HelloMessage`]
-    /// values, and a with a signed 'Hello' message to verify the public key
+    /// Creates a new [`HelloBuilder`](crate::builder::HelloBuilder) with
+    /// default [`HelloMessage`] values, and a with a signed 'Hello' message
+    /// to verify the public key
     pub fn new(signed_hello: H256) -> Self {
         Self {
             hello: HelloMessage {
@@ -101,8 +104,8 @@ impl HelloBuilder {
                 client_version: "Ethereum/1.0.0".to_string(),
                 capabilities: vec![EthVersion::Eth68.into()],
                 port: DEFAULT_DISCOVERY_PORT,
-                signed_hello,
-            },
+                signed_hello
+            }
         }
     }
 

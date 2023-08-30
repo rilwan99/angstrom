@@ -30,7 +30,7 @@ use crate::{
     peers::{InboundConnectionError, PeersHandle, PeersManager},
     session::{Direction, PendingSessionHandshakeError, SessionEvent, SessionId, SessionManager},
     state::{NetworkState, StateAction},
-    Discovery, NetworkConfig 
+    Discovery, NetworkConfig
 };
 
 /// Contains the connectivity related state of the network.

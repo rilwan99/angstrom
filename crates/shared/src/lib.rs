@@ -1,21 +1,32 @@
-use ethers_core::types::{Address, Bytes, U256};
+mod tee_address;
+use ethers_core::types::{Address, U256};
+use reth_codecs::derive_arbitrary;
+use reth_primitives::{Bytes, Signature};
+use reth_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
+pub use tee_address::*;
+mod signature;
+pub use signature::*;
+
 /// struct Batch {
 ///     ArbitrageOrderSigned[] arbs;
 ///     PoolSettlement[] pools;
 ///     UserSettlement[] users;
 /// }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive_arbitrary(rlp)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct Bundle {
     pub arbs:  Vec<ArbitrageOrderSigned>,
     pub pools: Vec<PoolSettlement>,
     pub users: Vec<UserSettlement>
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive_arbitrary(rlp)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct SealedOrder(pub [u8; 32]);
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive_arbitrary(rlp)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct SealedBundle {
     pub arbs: Vec<SealedOrder>,
 
@@ -36,7 +47,8 @@ impl SealedBundle {
 ///     ArbitrageOrder order;
 ///    bytes signature;
 /// }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive_arbitrary(rlp)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct ArbitrageOrderSigned {
     pub signature: Bytes,
     pub order:     ArbitrageOrder
@@ -54,7 +66,8 @@ pub struct ArbitrageOrderSigned {
 ///     bytes preHook;
 ///     bytes postHook;
 /// }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive_arbitrary(rlp)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct ArbitrageOrder {
     /// TODO: move to wrapped fix size for quicker encoding
     pub pool:           [u8; 32],
@@ -75,7 +88,8 @@ pub struct ArbitrageOrder {
 ///     uint256 token0In;
 ///     uint256 token1In;
 /// }
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive_arbitrary(rlp)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct PoolSettlement {
     pub pool:       PoolKey,
     pub token_0_in: U256,
@@ -90,7 +104,8 @@ pub struct PoolSettlement {
 ///     // Guard provided.
 ///     uint256 amountOut;
 /// }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive_arbitrary(rlp)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct UserSettlement {
     pub order:      UserOrder,
     pub signature:  Bytes,
@@ -107,7 +122,8 @@ pub struct UserSettlement {
 ///     bytes preHook;
 ///     bytes postHook;
 /// }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive_arbitrary(rlp)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct UserOrder {
     pub token_out:      Address,
     pub token_in:       Address,
@@ -126,7 +142,8 @@ pub struct UserOrder {
 ///     int24 tickSpacing;
 ///     address hooks;
 /// }
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive_arbitrary(rlp)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct PoolKey {
     pub currency_0:   Address,
     pub currency_1:   Address,

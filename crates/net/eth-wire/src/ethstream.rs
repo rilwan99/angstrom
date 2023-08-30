@@ -1,36 +1,39 @@
-use crate::{
-    errors::{EthHandshakeError, EthStreamError},
-    message::{EthBroadcastMessage, ProtocolBroadcastMessage},
-    types::{EthMessage, ProtocolMessage, Status},
-    CanDisconnect, DisconnectReason, EthVersion,
+use std::{
+    pin::Pin,
+    task::{Context, Poll}
 };
+
 use futures::{ready, Sink, SinkExt, StreamExt};
 use pin_project::pin_project;
 use reth_primitives::{
     bytes::{Bytes, BytesMut},
-    ForkFilter,
+    ForkFilter
 };
 use reth_rlp::Encodable;
-use std::{
-    pin::Pin,
-    task::{Context, Poll},
-};
 use tokio_stream::Stream;
+
+use crate::{
+    errors::{EthHandshakeError, EthStreamError},
+    message::{EthBroadcastMessage, ProtocolBroadcastMessage},
+    types::{EthMessage, ProtocolMessage, Status},
+    CanDisconnect, DisconnectReason, EthVersion
+};
 
 /// [`MAX_MESSAGE_SIZE`] is the maximum cap on the size of a protocol message.
 // https://github.com/ethereum/go-ethereum/blob/30602163d5d8321fbc68afdcbbaf2362b2641bde/eth/protocols/eth/protocol.go#L50
 pub const MAX_MESSAGE_SIZE: usize = 10 * 1024 * 1024;
 
-/// An un-authenticated [`EthStream`]. This is consumed and returns a [`EthStream`] after the
-/// `Status` handshake is completed.
+/// An un-authenticated [`EthStream`]. This is consumed and returns a
+/// [`EthStream`] after the `Status` handshake is completed.
 #[pin_project]
 pub struct UnauthedEthStream<S> {
     #[pin]
-    inner: S,
+    inner: S
 }
 
 impl<S> UnauthedEthStream<S> {
-    /// Create a new `UnauthedEthStream` from a type `S` which implements `Stream` and `Sink`.
+    /// Create a new `UnauthedEthStream` from a type `S` which implements
+    /// `Stream` and `Sink`.
     pub fn new(inner: S) -> Self {
         Self { inner }
     }
@@ -44,23 +47,24 @@ impl<S> UnauthedEthStream<S> {
 impl<S, E> UnauthedEthStream<S>
 where
     S: Stream<Item = Result<BytesMut, E>> + CanDisconnect<Bytes> + Unpin,
-    EthStreamError: From<E> + From<<S as Sink<Bytes>>::Error>,
+    EthStreamError: From<E> + From<<S as Sink<Bytes>>::Error>
 {
-    /// Consumes the [`UnauthedEthStream`] and returns an [`EthStream`] after the `Status`
-    /// handshake is completed successfully. This also returns the `Status` message sent by the
-    /// remote peer.
+    /// Consumes the [`UnauthedEthStream`] and returns an [`EthStream`] after
+    /// the `Status` handshake is completed successfully. This also returns
+    /// the `Status` message sent by the remote peer.
     pub async fn handshake(
         mut self,
         status: Status,
-        fork_filter: ForkFilter,
+        fork_filter: ForkFilter
     ) -> Result<(EthStream<S>, Status), EthStreamError> {
         tracing::trace!(
             %status,
             "sending eth status to peer"
         );
 
-        // we need to encode and decode here on our own because we don't have an `EthStream` yet
-        // The max length for a status with TTD is: <msg id = 1 byte> + <rlp(status) = 88 byte>
+        // we need to encode and decode here on our own because we don't have an
+        // `EthStream` yet The max length for a status with TTD is: <msg id = 1
+        // byte> + <rlp(status) = 88 byte>
         let mut our_status_bytes = BytesMut::with_capacity(1 + 88);
         ProtocolMessage::from(EthMessage::Status(status)).encode(&mut our_status_bytes);
         let our_status_bytes = our_status_bytes.freeze();
@@ -74,7 +78,7 @@ where
                 self.inner
                     .disconnect(DisconnectReason::DisconnectRequested)
                     .await?;
-                return Err(EthStreamError::EthHandshakeError(EthHandshakeError::NoResponse));
+                return Err(EthStreamError::EthHandshakeError(EthHandshakeError::NoResponse))
             }
         }?;
 
@@ -82,7 +86,7 @@ where
             self.inner
                 .disconnect(DisconnectReason::ProtocolBreach)
                 .await?;
-            return Err(EthStreamError::MessageTooBig(their_msg.len()));
+            return Err(EthStreamError::MessageTooBig(their_msg.len()))
         }
 
         let version = EthVersion::try_from(status.version)?;
@@ -93,7 +97,7 @@ where
                 self.inner
                     .disconnect(DisconnectReason::DisconnectRequested)
                     .await?;
-                return Err(err);
+                return Err(err)
             }
         };
 
@@ -111,9 +115,9 @@ where
                         .await?;
                     return Err(EthHandshakeError::MismatchedGenesis {
                         expected: status.genesis,
-                        got: resp.genesis,
+                        got:      resp.genesis
                     }
-                    .into());
+                    .into())
                 }
 
                 if status.version != resp.version {
@@ -122,9 +126,9 @@ where
                         .await?;
                     return Err(EthHandshakeError::MismatchedProtocolVersion {
                         expected: status.version,
-                        got: resp.version,
+                        got:      resp.version
                     }
-                    .into());
+                    .into())
                 }
 
                 if status.chain != resp.chain {
@@ -133,9 +137,9 @@ where
                         .await?;
                     return Err(EthHandshakeError::MismatchedChain {
                         expected: status.chain,
-                        got: resp.chain,
+                        got:      resp.chain
                     }
-                    .into());
+                    .into())
                 }
 
                 // TD at mainnet block #7753254 is 76 bits. If it becomes 100 million times
@@ -146,9 +150,9 @@ where
                         .await?;
                     return Err(EthHandshakeError::TotalDifficultyBitLenTooLarge {
                         maximum: 100,
-                        got: status.total_difficulty.bit_len(),
+                        got:     status.total_difficulty.bit_len()
                     }
-                    .into());
+                    .into())
                 }
 
                 if let Err(err) = fork_filter
@@ -158,7 +162,7 @@ where
                     self.inner
                         .disconnect(DisconnectReason::ProtocolBreach)
                         .await?;
-                    return Err(err.into());
+                    return Err(err.into())
                 }
 
                 // now we can create the `EthStream` because the peer has successfully completed
@@ -172,7 +176,7 @@ where
                     .disconnect(DisconnectReason::ProtocolBreach)
                     .await?;
                 Err(EthStreamError::EthHandshakeError(
-                    EthHandshakeError::NonStatusMessageInHandshake,
+                    EthHandshakeError::NonStatusMessageInHandshake
                 ))
             }
         }
@@ -180,18 +184,19 @@ where
 }
 
 /// An `EthStream` wraps over any `Stream` that yields bytes and makes it
-/// compatible with eth-networking protocol messages, which get RLP encoded/decoded.
+/// compatible with eth-networking protocol messages, which get RLP
+/// encoded/decoded.
 #[pin_project]
 #[derive(Debug)]
 pub struct EthStream<S> {
     version: EthVersion,
     #[pin]
-    inner: S,
+    inner:   S
 }
 
 impl<S> EthStream<S> {
-    /// Creates a new unauthed [`EthStream`] from a provided stream. You will need
-    /// to manually handshake a peer.
+    /// Creates a new unauthed [`EthStream`] from a provided stream. You will
+    /// need to manually handshake a peer.
     pub fn new(version: EthVersion, inner: S) -> Self {
         Self { version, inner }
     }
@@ -220,12 +225,13 @@ impl<S> EthStream<S> {
 impl<S, E> EthStream<S>
 where
     S: Sink<Bytes, Error = E> + Unpin,
-    EthStreamError: From<E>,
+    EthStreamError: From<E>
 {
-    /// Same as [`Sink::start_send`] but accepts a [`EthBroadcastMessage`] instead.
+    /// Same as [`Sink::start_send`] but accepts a [`EthBroadcastMessage`]
+    /// instead.
     pub fn start_send_broadcast(
         &mut self,
-        item: EthBroadcastMessage,
+        item: EthBroadcastMessage
     ) -> Result<(), EthStreamError> {
         let mut bytes = BytesMut::new();
         ProtocolBroadcastMessage::from(item).encode(&mut bytes);
@@ -240,7 +246,7 @@ where
 impl<S, E> Stream for EthStream<S>
 where
     S: Stream<Item = Result<BytesMut, E>> + Unpin,
-    EthStreamError: From<E>,
+    EthStreamError: From<E>
 {
     type Item = Result<EthMessage, EthStreamError>;
 
@@ -250,25 +256,25 @@ where
         let bytes = match res {
             Some(Ok(bytes)) => bytes,
             Some(Err(err)) => return Poll::Ready(Some(Err(err.into()))),
-            None => return Poll::Ready(None),
+            None => return Poll::Ready(None)
         };
 
         if bytes.len() > MAX_MESSAGE_SIZE {
-            return Poll::Ready(Some(Err(EthStreamError::MessageTooBig(bytes.len()))));
+            return Poll::Ready(Some(Err(EthStreamError::MessageTooBig(bytes.len()))))
         }
 
         let msg = match ProtocolMessage::decode_message(*this.version, &mut bytes.as_ref()) {
             Ok(m) => m,
             Err(err) => {
                 tracing::debug!("decode error: msg={bytes:x}");
-                return Poll::Ready(Some(Err(err)));
+                return Poll::Ready(Some(Err(err)))
             }
         };
 
         if matches!(msg.message, EthMessage::Status(_)) {
             return Poll::Ready(Some(Err(EthStreamError::EthHandshakeError(
-                EthHandshakeError::StatusNotInHandshake,
-            ))));
+                EthHandshakeError::StatusNotInHandshake
+            ))))
         }
 
         Poll::Ready(Some(Ok(msg.message)))
@@ -278,7 +284,7 @@ where
 impl<S> Sink<EthMessage> for EthStream<S>
 where
     S: CanDisconnect<Bytes> + Unpin,
-    EthStreamError: From<<S as Sink<Bytes>>::Error>,
+    EthStreamError: From<<S as Sink<Bytes>>::Error>
 {
     type Error = EthStreamError;
 
@@ -289,15 +295,16 @@ where
     fn start_send(self: Pin<&mut Self>, item: EthMessage) -> Result<(), Self::Error> {
         if matches!(item, EthMessage::Status(_)) {
             // TODO: to disconnect here we would need to do something similar to P2PStream's
-            // start_disconnect, which would ideally be a part of the CanDisconnect trait, or at
-            // least similar.
+            // start_disconnect, which would ideally be a part of the CanDisconnect trait,
+            // or at least similar.
             //
             // Other parts of reth do not need traits like CanDisconnect because they work
-            // exclusively with EthStream<P2PStream<S>>, where the inner P2PStream is accessible,
-            // allowing for its start_disconnect method to be called.
+            // exclusively with EthStream<P2PStream<S>>, where the inner P2PStream is
+            // accessible, allowing for its start_disconnect method to be
+            // called.
             //
             // self.project().inner.start_disconnect(DisconnectReason::ProtocolBreach);
-            return Err(EthStreamError::EthHandshakeError(EthHandshakeError::StatusNotInHandshake));
+            return Err(EthStreamError::EthHandshakeError(EthHandshakeError::StatusNotInHandshake))
         }
 
         let mut bytes = BytesMut::new();
@@ -322,7 +329,7 @@ where
 impl<S> CanDisconnect<EthMessage> for EthStream<S>
 where
     S: CanDisconnect<Bytes> + Send,
-    EthStreamError: From<<S as Sink<Bytes>>::Error>,
+    EthStreamError: From<<S as Sink<Bytes>>::Error>
 {
     async fn disconnect(&mut self, reason: DisconnectReason) -> Result<(), EthStreamError> {
         self.inner.disconnect(reason).await.map_err(Into::into)

@@ -4,7 +4,7 @@ use std::{
     collections::{hash_map::Entry, HashMap, VecDeque},
     net::{IpAddr, SocketAddr},
     sync::Arc,
-    task::{Context, Poll},
+    task::{Context, Poll}
 };
 
 use futures::StreamExt;
@@ -16,7 +16,7 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
     error::{NetworkError, ServiceKind},
-    swarm::DiscoveredEvent,
+    swarm::DiscoveredEvent
 };
 
 /// An abstraction over the configured discovery protocol.
@@ -28,19 +28,19 @@ pub struct Discovery {
     /// All nodes discovered via discovery protocol.
     ///
     /// These nodes can be ephemeral and are updated via the discovery protocol.
-    discovered_nodes: HashMap<PeerId, SocketAddr>,
+    discovered_nodes:    HashMap<PeerId, SocketAddr>,
     /// Local ENR of the discovery service.
-    local_enr: NodeRecord,
+    local_enr:           NodeRecord,
     /// Handler to interact with the Discovery v4 service
-    discv4: Option<Discv4>,
+    discv4:              Option<Discv4>,
     /// All KAD table updates from the discv4 service.
-    discv4_updates: Option<ReceiverStream<DiscoveryUpdate>>,
+    discv4_updates:      Option<ReceiverStream<DiscoveryUpdate>>,
     /// The handle to the spawned discv4 service
-    _discv4_service: Option<JoinHandle<()>>,
+    _discv4_service:     Option<JoinHandle<()>>,
     /// Events buffered until polled.
-    queued_events: VecDeque<DiscoveryEvent>,
+    queued_events:       VecDeque<DiscoveryEvent>,
     /// List of listeners subscribed to discovery events.
-    discovery_listeners: Vec<mpsc::UnboundedSender<DiscoveryEvent>>,
+    discovery_listeners: Vec<mpsc::UnboundedSender<DiscoveryEvent>>
 }
 
 impl Discovery {
@@ -51,7 +51,7 @@ impl Discovery {
     pub async fn new(
         discovery_addr: SocketAddr,
         sk: SecretKey,
-        discv4_config: Option<Discv4Config>,
+        discv4_config: Option<Discv4Config>
     ) -> Result<Self, NetworkError> {
         // setup discv4
         let local_enr = NodeRecord::from_secret_key(discovery_addr, &sk);
@@ -77,7 +77,7 @@ impl Discovery {
             discv4_updates,
             _discv4_service,
             discovered_nodes: Default::default(),
-            queued_events: Default::default(),
+            queued_events: Default::default()
         })
     }
 
@@ -137,7 +137,7 @@ impl Discovery {
             Entry::Vacant(entry) => {
                 entry.insert(addr);
                 self.queued_events.push_back(DiscoveryEvent::NewNode(
-                    DiscoveredEvent::EventQueued { peer_id: id, socket_addr: addr, fork_id },
+                    DiscoveredEvent::EventQueued { peer_id: id, socket_addr: addr, fork_id }
                 ));
             }
         }
@@ -170,7 +170,7 @@ impl Discovery {
             // Drain all buffered events first
             if let Some(event) = self.queued_events.pop_front() {
                 self.notify_listeners(&event);
-                return Poll::Ready(event);
+                return Poll::Ready(event)
             }
 
             // drain the update streams
@@ -183,7 +183,7 @@ impl Discovery {
             }
 
             if self.queued_events.is_empty() {
-                return Poll::Pending;
+                return Poll::Pending
             }
         }
     }
@@ -200,18 +200,18 @@ impl Discovery {
             mpsc::unbounded_channel();
 
         Self {
-            discovered_nodes: Default::default(),
-            local_enr: NodeRecord {
-                address: IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
+            discovered_nodes:    Default::default(),
+            local_enr:           NodeRecord {
+                address:  IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
                 tcp_port: 0,
                 udp_port: 0,
-                id: PeerId::random(),
+                id:       PeerId::random()
             },
-            discv4: Default::default(),
-            discv4_updates: Default::default(),
-            queued_events: Default::default(),
-            _discv4_service: Default::default(),
-            discovery_listeners: Default::default(),
+            discv4:              Default::default(),
+            discv4_updates:      Default::default(),
+            queued_events:       Default::default(),
+            _discv4_service:     Default::default(),
+            discovery_listeners: Default::default()
         }
     }
 }
@@ -222,7 +222,7 @@ pub enum DiscoveryEvent {
     /// Discovered a node
     NewNode(DiscoveredEvent),
     /// Retrieved a [`ForkId`] from the peer via ENR request, See <https://eips.ethereum.org/EIPS/eip-868>
-    EnrForkId(PeerId, ForkId),
+    EnrForkId(PeerId, ForkId)
 }
 
 #[cfg(test)]

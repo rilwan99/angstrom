@@ -1,12 +1,12 @@
 //! Session handles
 use std::{io, net::SocketAddr, sync::Arc, time::Instant};
 
-use reth_ecies::{stream::ECIESStream, ECIESError};
 use guard_eth_wire::{
     capability::{Capabilities, CapabilityMessage},
     errors::EthStreamError,
     DisconnectReason, EthStream, EthVersion, P2PStream, Status
 };
+use reth_ecies::{stream::ECIESStream, ECIESError};
 use reth_net_common::bandwidth_meter::MeteredStream;
 use reth_primitives::PeerId;
 use tokio::{

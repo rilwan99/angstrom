@@ -1,18 +1,18 @@
 //! Disconnect
 
+use std::fmt::Display;
+
 use bytes::Bytes;
 use futures::{Sink, SinkExt};
 use reth_codecs::derive_arbitrary;
 use reth_ecies::stream::ECIESStream;
 use reth_primitives::bytes::{Buf, BufMut};
 use reth_rlp::{Decodable, DecodeError, Encodable, Header};
-use std::fmt::Display;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::io::AsyncWrite;
 use tokio_util::codec::{Encoder, Framed};
-
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 
 /// RLPx disconnect reason.
 #[derive_arbitrary(rlp)]
@@ -23,29 +23,30 @@ pub enum DisconnectReason {
     #[default]
     DisconnectRequested = 0x00,
     /// TCP related error
-    TcpSubsystemError = 0x01,
+    TcpSubsystemError   = 0x01,
     /// Breach of protocol at the transport or p2p level
-    ProtocolBreach = 0x02,
+    ProtocolBreach      = 0x02,
     /// Node has no matching protocols.
-    UselessPeer = 0x03,
+    UselessPeer         = 0x03,
     /// Either the remote or local node has too many peers.
-    TooManyPeers = 0x04,
+    TooManyPeers        = 0x04,
     /// Already connected to the peer.
-    AlreadyConnected = 0x05,
+    AlreadyConnected    = 0x05,
     /// `p2p` protocol version is incompatible
     IncompatibleP2PProtocolVersion = 0x06,
     /// Received a null node identity.
-    NullNodeIdentity = 0x07,
+    NullNodeIdentity    = 0x07,
     /// Reason when the client is shutting down.
-    ClientQuitting = 0x08,
-    /// When the received handshake's identify is different from what is expected.
+    ClientQuitting      = 0x08,
+    /// When the received handshake's identify is different from what is
+    /// expected.
     UnexpectedHandshakeIdentity = 0x09,
     /// The node is connected to itself
-    ConnectedToSelf = 0x0a,
+    ConnectedToSelf     = 0x0a,
     /// Peer or local node did not respond to a ping in time.
-    PingTimeout = 0x0b,
+    PingTimeout         = 0x0b,
     /// Peer or local node violated a subprotocol-specific rule.
-    SubprotocolSpecific = 0x10,
+    SubprotocolSpecific = 0x10
 }
 
 impl Display for DisconnectReason {
@@ -69,7 +70,7 @@ impl Display for DisconnectReason {
                 "Identity is the same as this node (i.e. connected to itself)"
             }
             DisconnectReason::PingTimeout => "Ping timeout",
-            DisconnectReason::SubprotocolSpecific => "Some other reason specific to a subprotocol",
+            DisconnectReason::SubprotocolSpecific => "Some other reason specific to a subprotocol"
         };
 
         write!(f, "{message}")
@@ -82,8 +83,8 @@ impl Display for DisconnectReason {
 pub struct UnknownDisconnectReason(u8);
 
 impl TryFrom<u8> for DisconnectReason {
-    // This error type should not be used to crash the node, but rather to log the error and
-    // disconnect the peer.
+    // This error type should not be used to crash the node, but rather to log the
+    // error and disconnect the peer.
     type Error = UnknownDisconnectReason;
 
     fn try_from(value: u8) -> Result<Self, Self::Error> {
@@ -101,24 +102,27 @@ impl TryFrom<u8> for DisconnectReason {
             0x0a => Ok(DisconnectReason::ConnectedToSelf),
             0x0b => Ok(DisconnectReason::PingTimeout),
             0x10 => Ok(DisconnectReason::SubprotocolSpecific),
-            _ => Err(UnknownDisconnectReason(value)),
+            _ => Err(UnknownDisconnectReason(value))
         }
     }
 }
 
-/// The [`Encodable`](reth_rlp::Encodable) implementation for [`DisconnectReason`] encodes the
-/// disconnect reason in a single-element RLP list.
+/// The [`Encodable`](reth_rlp::Encodable) implementation for
+/// [`DisconnectReason`] encodes the disconnect reason in a single-element RLP
+/// list.
 impl Encodable for DisconnectReason {
     fn encode(&self, out: &mut dyn BufMut) {
         vec![*self as u8].encode(out);
     }
+
     fn length(&self) -> usize {
         vec![*self as u8].length()
     }
 }
 
-/// The [`Decodable`](reth_rlp::Decodable) implementation for [`DisconnectReason`] supports either
-/// a disconnect reason encoded a single byte or a RLP list containing the disconnect reason.
+/// The [`Decodable`](reth_rlp::Decodable) implementation for
+/// [`DisconnectReason`] supports either a disconnect reason encoded a single
+/// byte or a RLP list containing the disconnect reason.
 impl Decodable for DisconnectReason {
     fn decode(buf: &mut &[u8]) -> Result<Self, DecodeError> {
         if buf.is_empty() {
@@ -128,16 +132,16 @@ impl Decodable for DisconnectReason {
         }
 
         if buf.len() > 1 {
-            // this should be a list, so decode the list header. this should advance the buffer so
-            // buf[0] is the first (and only) element of the list.
+            // this should be a list, so decode the list header. this should advance the
+            // buffer so buf[0] is the first (and only) element of the list.
             let header = Header::decode(buf)?;
             if !header.list {
                 return Err(DecodeError::UnexpectedString)
             }
         }
 
-        // geth rlp encodes [`DisconnectReason::DisconnectRequested`] as 0x00 and not as empty
-        // string 0x80
+        // geth rlp encodes [`DisconnectReason::DisconnectRequested`] as 0x00 and not as
+        // empty string 0x80
         if buf[0] == 0x00 {
             buf.advance(1);
             Ok(DisconnectReason::DisconnectRequested)
@@ -148,17 +152,17 @@ impl Decodable for DisconnectReason {
     }
 }
 
-/// This trait is meant to allow higher level protocols like `eth` to disconnect from a peer, using
-/// lower-level disconnect functions (such as those that exist in the `p2p` protocol) if the
-/// underlying stream supports it.
+/// This trait is meant to allow higher level protocols like `eth` to disconnect
+/// from a peer, using lower-level disconnect functions (such as those that
+/// exist in the `p2p` protocol) if the underlying stream supports it.
 #[async_trait::async_trait]
 pub trait CanDisconnect<T>: Sink<T> + Unpin + Sized {
-    /// Disconnects from the underlying stream, using a [`DisconnectReason`] as disconnect
-    /// information if the stream implements a protocol that can carry the additional disconnect
-    /// metadata.
+    /// Disconnects from the underlying stream, using a [`DisconnectReason`] as
+    /// disconnect information if the stream implements a protocol that can
+    /// carry the additional disconnect metadata.
     async fn disconnect(
         &mut self,
-        reason: DisconnectReason,
+        reason: DisconnectReason
     ) -> Result<(), <Self as Sink<T>>::Error>;
 }
 
@@ -167,11 +171,11 @@ pub trait CanDisconnect<T>: Sink<T> + Unpin + Sized {
 impl<T, I, U> CanDisconnect<I> for Framed<T, U>
 where
     T: AsyncWrite + Unpin + Send,
-    U: Encoder<I> + Send,
+    U: Encoder<I> + Send
 {
     async fn disconnect(
         &mut self,
-        _reason: DisconnectReason,
+        _reason: DisconnectReason
     ) -> Result<(), <Self as Sink<I>>::Error> {
         self.close().await
     }
@@ -180,7 +184,7 @@ where
 #[async_trait::async_trait]
 impl<S> CanDisconnect<Bytes> for ECIESStream<S>
 where
-    S: AsyncWrite + Unpin + Send,
+    S: AsyncWrite + Unpin + Send
 {
     async fn disconnect(&mut self, _reason: DisconnectReason) -> Result<(), std::io::Error> {
         self.close().await
@@ -189,9 +193,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::{p2pstream::P2PMessage, DisconnectReason};
     use reth_primitives::hex;
     use reth_rlp::{Decodable, Encodable};
+
+    use crate::{p2pstream::P2PMessage, DisconnectReason};
 
     fn all_reasons() -> Vec<DisconnectReason> {
         vec![

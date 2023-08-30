@@ -29,9 +29,9 @@ pub struct Args {
     #[arg(long, default_value = "false")]
     pub enable_subscriptions: bool,
     #[arg(long)]
-    pub full_node:      PathBuf,
+    pub full_node:            PathBuf,
     #[arg(long)]
-    pub full_node_ws: Url
+    pub full_node_ws:         Url
 }
 
 impl Args {
@@ -43,12 +43,10 @@ impl Args {
 
         let inner = Provider::new(Http::new(self.full_node_ws));
 
-        let middleware = Box::leak(Box::new(RethMiddleware::new(
-            inner,
-            self.full_node,
-            tokio::runtime::Handle::current(),
-            1
-        ).unwrap()));
+        let middleware = Box::leak(Box::new(
+            RethMiddleware::new(inner, self.full_node, tokio::runtime::Handle::current(), 1)
+                .unwrap()
+        ));
         let (sim, handle) = spawn_revm_sim(middleware, 6942069);
 
         let network_config = NetworkConfig::new(fake_key);

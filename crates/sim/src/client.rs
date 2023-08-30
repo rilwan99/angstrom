@@ -4,8 +4,10 @@ use tokio::sync::{
     oneshot::{channel, Sender}
 };
 
-use crate::sim::SimError;
-use crate::{sim::SimResult, Simulator, TransactionType};
+use crate::{
+    sim::{SimError, SimResult},
+    Simulator, TransactionType
+};
 
 /// clone-able handle to the simulator
 #[derive(Clone)]

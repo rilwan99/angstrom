@@ -1,8 +1,10 @@
 //! Support for representing the version of the `eth`. [`Capability`].
 
-use crate::capability::Capability;
 use std::str::FromStr;
+
 use thiserror::Error;
+
+use crate::capability::Capability;
 
 /// Error thrown when failed to parse a valid [`EthVersion`].
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -20,7 +22,7 @@ pub enum EthVersion {
     Eth67 = 67,
 
     /// The `eth` protocol version 68.
-    Eth68 = 68,
+    Eth68 = 68
 }
 
 impl EthVersion {
@@ -57,7 +59,7 @@ impl TryFrom<&str> for EthVersion {
             "66" => Ok(EthVersion::Eth66),
             "67" => Ok(EthVersion::Eth67),
             "68" => Ok(EthVersion::Eth68),
-            _ => Err(ParseVersionError(s.to_string())),
+            _ => Err(ParseVersionError(s.to_string()))
         }
     }
 }
@@ -80,7 +82,7 @@ impl TryFrom<u8> for EthVersion {
             66 => Ok(EthVersion::Eth66),
             67 => Ok(EthVersion::Eth67),
             68 => Ok(EthVersion::Eth68),
-            _ => Err(ParseVersionError(u.to_string())),
+            _ => Err(ParseVersionError(u.to_string()))
         }
     }
 }
@@ -107,7 +109,7 @@ impl From<EthVersion> for &'static str {
         match v {
             EthVersion::Eth66 => "66",
             EthVersion::Eth67 => "67",
-            EthVersion::Eth68 => "68",
+            EthVersion::Eth68 => "68"
         }
     }
 }
@@ -121,8 +123,9 @@ impl From<EthVersion> for Capability {
 
 #[cfg(test)]
 mod test {
-    use super::{EthVersion, ParseVersionError};
     use std::{convert::TryFrom, string::ToString};
+
+    use super::{EthVersion, ParseVersionError};
 
     #[test]
     fn test_eth_version_try_from_str() {

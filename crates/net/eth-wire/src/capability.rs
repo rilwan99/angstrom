@@ -1,39 +1,38 @@
 //! All capability related types
 
-use crate::{version::ParseVersionError, EthMessage, EthVersion};
-use reth_codecs::add_arbitrary_tests;
-use reth_primitives::bytes::{BufMut, Bytes};
-use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
-use smol_str::SmolStr;
-
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
-
 #[cfg(any(test, feature = "arbitrary"))]
 use proptest::{
     arbitrary::{any_with, ParamsFor},
-    strategy::{BoxedStrategy, Strategy},
+    strategy::{BoxedStrategy, Strategy}
 };
+use reth_codecs::add_arbitrary_tests;
+use reth_primitives::bytes::{BufMut, Bytes};
+use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+use smol_str::SmolStr;
+
+use crate::{version::ParseVersionError, EthMessage, EthVersion};
 
 /// A Capability message consisting of the message-id and the payload
 #[derive(Debug, Clone, Eq, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RawCapabilityMessage {
     /// Identifier of the message.
-    pub id: usize,
+    pub id:      usize,
     /// Actual payload
-    pub payload: Bytes,
+    pub payload: Bytes
 }
 
-/// Various protocol related event types bubbled up from a session that need to be handled by the
-/// network.
+/// Various protocol related event types bubbled up from a session that need to
+/// be handled by the network.
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum CapabilityMessage {
     /// Eth sub-protocol message.
     Eth(EthMessage),
     /// Any other capability message.
-    Other(RawCapabilityMessage),
+    Other(RawCapabilityMessage)
 }
 
 /// A message indicating a supported capability and capability version.
@@ -42,9 +41,9 @@ pub enum CapabilityMessage {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Capability {
     /// The name of the subprotocol
-    pub name: SmolStr,
+    pub name:    SmolStr,
     /// The version of the subprotocol
-    pub version: usize,
+    pub version: usize
 }
 
 impl Capability {
@@ -84,6 +83,8 @@ impl<'a> arbitrary::Arbitrary<'a> for Capability {
 #[cfg(any(test, feature = "arbitrary"))]
 impl proptest::arbitrary::Arbitrary for Capability {
     type Parameters = ParamsFor<String>;
+    type Strategy = BoxedStrategy<Capability>;
+
     fn arbitrary_with(args: Self::Parameters) -> Self::Strategy {
         any_with::<String>(args) // TODO: what possible values?
             .prop_flat_map(move |name| {
@@ -92,18 +93,16 @@ impl proptest::arbitrary::Arbitrary for Capability {
             })
             .boxed()
     }
-
-    type Strategy = BoxedStrategy<Capability>;
 }
 
 /// Represents all capabilities of a node.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Capabilities {
     /// All Capabilities and their versions
-    inner: Vec<Capability>,
+    inner:  Vec<Capability>,
     eth_66: bool,
     eth_67: bool,
-    eth_68: bool,
+    eth_68: bool
 }
 
 impl Capabilities {
@@ -150,7 +149,7 @@ impl From<Vec<Capability>> for Capabilities {
             eth_66: value.iter().any(Capability::is_eth_v66),
             eth_67: value.iter().any(Capability::is_eth_v67),
             eth_68: value.iter().any(Capability::is_eth_v68),
-            inner: value,
+            inner:  value
         }
     }
 }
@@ -169,7 +168,7 @@ impl Decodable for Capabilities {
             eth_66: inner.iter().any(Capability::is_eth_v66),
             eth_67: inner.iter().any(Capability::is_eth_v67),
             eth_68: inner.iter().any(Capability::is_eth_v68),
-            inner,
+            inner
         })
     }
 }
@@ -182,15 +181,16 @@ pub enum SharedCapability {
     Eth { version: EthVersion, offset: u8 },
 
     /// An unknown capability.
-    UnknownCapability { name: SmolStr, version: u8, offset: u8 },
+    UnknownCapability { name: SmolStr, version: u8, offset: u8 }
 }
 
 impl SharedCapability {
-    /// Creates a new [`SharedCapability`] based on the given name, offset, and version.
+    /// Creates a new [`SharedCapability`] based on the given name, offset, and
+    /// version.
     pub(crate) fn new(name: &str, version: u8, offset: u8) -> Result<Self, SharedCapabilityError> {
         match name {
             "eth" => Ok(Self::Eth { version: EthVersion::try_from(version)?, offset }),
-            _ => Ok(Self::UnknownCapability { name: name.into(), version, offset }),
+            _ => Ok(Self::UnknownCapability { name: name.into(), version, offset })
         }
     }
 
@@ -198,7 +198,7 @@ impl SharedCapability {
     pub fn name(&self) -> &str {
         match self {
             SharedCapability::Eth { .. } => "eth",
-            SharedCapability::UnknownCapability { name, .. } => name,
+            SharedCapability::UnknownCapability { name, .. } => name
         }
     }
 
@@ -206,7 +206,7 @@ impl SharedCapability {
     pub fn version(&self) -> u8 {
         match self {
             SharedCapability::Eth { version, .. } => *version as u8,
-            SharedCapability::UnknownCapability { version, .. } => *version,
+            SharedCapability::UnknownCapability { version, .. } => *version
         }
     }
 
@@ -214,7 +214,7 @@ impl SharedCapability {
     pub fn offset(&self) -> u8 {
         match self {
             SharedCapability::Eth { offset, .. } => *offset,
-            SharedCapability::UnknownCapability { offset, .. } => *offset,
+            SharedCapability::UnknownCapability { offset, .. } => *offset
         }
     }
 
@@ -222,7 +222,7 @@ impl SharedCapability {
     pub fn num_messages(&self) -> Result<u8, SharedCapabilityError> {
         match self {
             SharedCapability::Eth { version, .. } => Ok(version.total_messages()),
-            _ => Err(SharedCapabilityError::UnknownCapability),
+            _ => Err(SharedCapabilityError::UnknownCapability)
         }
     }
 }
@@ -235,7 +235,7 @@ pub enum SharedCapabilityError {
     UnsupportedVersion(#[from] ParseVersionError),
     /// Cannot determine the number of messages for unknown capabilities.
     #[error("cannot determine the number of messages for unknown capabilities")]
-    UnknownCapability,
+    UnknownCapability
 }
 
 #[cfg(test)]

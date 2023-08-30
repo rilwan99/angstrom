@@ -1,8 +1,9 @@
 //! Decoding tests for [`NewPooledTransactions`]
+use std::{fs, path::PathBuf};
+
 use guard_eth_wire::NewPooledTransactionHashes66;
 use reth_primitives::hex;
 use reth_rlp::Decodable;
-use std::{fs, path::PathBuf};
 
 #[test]
 fn decode_new_pooled_transaction_hashes_network() {
