@@ -29,6 +29,8 @@ pub use builder::*;
 pub mod types;
 pub use types::*;
 
+pub const DEFAULT_HELLO_VERIFICATION_MESSAGE: &str = "ANGSTROM";
+
 #[cfg(test)]
 pub use tokio_util::codec::{
     LengthDelimitedCodec as PassthroughCodec, LengthDelimitedCodecError as PassthroughCodecError,

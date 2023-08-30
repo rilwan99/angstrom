@@ -12,7 +12,7 @@ use reth_codecs::derive_arbitrary;
 use reth_metrics::metrics::counter;
 use reth_primitives::{
     bytes::{Buf, BufMut, Bytes, BytesMut},
-    hex,
+    hex, Signature, H160,
 };
 use reth_rlp::{Decodable, DecodeError, Encodable, EMPTY_LIST_CODE};
 use std::{
@@ -86,7 +86,8 @@ where
     pub async fn handshake(
         mut self,
         hello: HelloMessage,
-    ) -> Result<(P2PStream<S>, HelloMessage), P2PStreamError> {
+        valid_stakers: Vec<H160>,
+    ) -> Result<(P2PStream<S>, HelloMessage, H160), P2PStreamError> {
         tracing::trace!(?hello, "sending p2p hello to peer");
 
         // send our hello message with the Sink
@@ -159,9 +160,40 @@ where
             Ok(cap) => Ok(cap),
         }?;
 
-        let stream = P2PStream::new(self.inner, shared_capability);
+        let sig = match Signature::decode(&mut hello.signature.as_slice()) {
+            Ok(s) => s,
+            Err(err) => {
+                self.send_disconnect(DisconnectReason::UnreadableSignature)
+                    .await?;
+                return Err(P2PStreamError::HandshakeError(
+                    P2PHandshakeError::UnableToDecodeSignature(err.to_string()),
+                ));
+            }
+        };
 
-        Ok((stream, their_hello))
+        let signer = match sig.recover_signer(hello.signed_hello) {
+            Some(address) => address,
+            None => {
+                self.send_disconnect(DisconnectReason::NoRecoveredSigner)
+                    .await?;
+                return Err(P2PStreamError::HandshakeError(
+                    P2PHandshakeError::UnableToRecoverSigner(format!(
+                        "Hash: {:#x} -- Signer: {:?}",
+                        hello.signed_hello, sig
+                    )),
+                ));
+            }
+        };
+
+        if !valid_stakers.contains(&signer) {
+            self.send_disconnect(DisconnectReason::SignerNotStaked)
+                .await?;
+            return Err(P2PStreamError::HandshakeError(P2PHandshakeError::SignerNotStaked(signer)));
+        }
+
+        let stream = P2PStream::new(self.inner, shared_capability, signer);
+
+        Ok((stream, their_hello, signer))
     }
 }
 
@@ -224,6 +256,10 @@ pub struct P2PStream<S> {
     /// [Poll::Pending].
     outgoing_message_buffer_capacity: usize,
 
+    /// Maximum number of messages that we can buffer here before the [Sink] impl returns
+    /// [Poll::Pending].
+    peer_address: H160,
+
     /// Whether this stream is currently in the process of disconnecting by sending a disconnect
     /// message.
     disconnecting: bool,
@@ -233,7 +269,7 @@ impl<S> P2PStream<S> {
     /// Create a new [`P2PStream`] from the provided stream.
     /// New [`P2PStream`]s are assumed to have completed the `p2p` handshake successfully and are
     /// ready to send and receive subprotocol messages.
-    pub fn new(inner: S, capability: SharedCapability) -> Self {
+    pub fn new(inner: S, capability: SharedCapability, peer_address: H160) -> Self {
         Self {
             inner,
             encoder: snap::raw::Encoder::new(),
@@ -242,6 +278,7 @@ impl<S> P2PStream<S> {
             shared_capability: capability,
             outgoing_messages: VecDeque::new(),
             outgoing_message_buffer_capacity: MAX_P2P_CAPACITY,
+            peer_address,
             disconnecting: false,
         }
     }

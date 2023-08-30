@@ -1,7 +1,7 @@
 use crate::{capability::Capability, EthVersion, ProtocolVersion};
 use guard_discv4::DEFAULT_DISCOVERY_PORT;
 use reth_codecs::derive_arbitrary;
-use reth_primitives::{constants::RETH_CLIENT_VERSION, PeerId, H256};
+use reth_primitives::{constants::RETH_CLIENT_VERSION, H256};
 use reth_rlp::{RlpDecodable, RlpEncodable};
 
 #[cfg(feature = "serde")]
@@ -25,6 +25,8 @@ pub struct HelloMessage {
     pub port: u16,
     /// Signed Noop "Hello" message to allow public key verification
     pub signed_hello: H256,
+    /// Signature from signing the above message
+    pub signature: Vec<u8>,
 }
 
 // === impl HelloMessage ===
@@ -40,8 +42,8 @@ impl HelloMessage {
     /// let id =  pk2id(&secret_key.public_key(SECP256K1));
     /// let status = HelloMessage::builder(id).build();
     /// ```
-    pub fn builder(signed_hello: H256) -> HelloMessageBuilder {
-        HelloMessageBuilder::new(signed_hello)
+    pub fn builder(signature: Vec<u8>, signed_hello: H256) -> HelloMessageBuilder {
+        HelloMessageBuilder::new(signature, signed_hello)
     }
 }
 
@@ -57,19 +59,22 @@ pub struct HelloMessageBuilder {
     pub port: Option<u16>,
     /// Signed Noop "Hello" message to allow public key verification
     pub signed_hello: H256,
+    /// Signature from signing the above message
+    pub signature: Vec<u8>,
 }
 
 // === impl HelloMessageBuilder ===
 
 impl HelloMessageBuilder {
     /// Create a new builder to configure a [`HelloMessage`]
-    pub fn new(signed_hello: H256) -> Self {
+    pub fn new(signature: Vec<u8>, signed_hello: H256) -> Self {
         Self {
             protocol_version: None,
             client_version: None,
             capabilities: None,
             port: None,
             signed_hello,
+            signature,
         }
     }
 
@@ -99,7 +104,8 @@ impl HelloMessageBuilder {
 
     /// Consumes the type and returns the configured [`HelloMessage`]
     pub fn build(self) -> HelloMessage {
-        let Self { protocol_version, client_version, capabilities, port, signed_hello } = self;
+        let Self { protocol_version, client_version, capabilities, port, signature, signed_hello } =
+            self;
         HelloMessage {
             protocol_version: protocol_version.unwrap_or_default(),
             client_version: client_version.unwrap_or_else(|| RETH_CLIENT_VERSION.to_string()),
@@ -108,6 +114,7 @@ impl HelloMessageBuilder {
             }),
             port: port.unwrap_or(DEFAULT_DISCOVERY_PORT),
             signed_hello,
+            signature,
         }
     }
 }

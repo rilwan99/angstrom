@@ -46,6 +46,12 @@ pub enum DisconnectReason {
     PingTimeout = 0x0b,
     /// Peer or local node violated a subprotocol-specific rule.
     SubprotocolSpecific = 0x10,
+    /// Unable to decode signature
+    UnreadableSignature = 0x11,
+    /// Unable to recover signer
+    NoRecoveredSigner = 0x12,
+    /// Signer not staked
+    SignerNotStaked = 0x13,
 }
 
 impl Display for DisconnectReason {
@@ -70,6 +76,11 @@ impl Display for DisconnectReason {
             }
             DisconnectReason::PingTimeout => "Ping timeout",
             DisconnectReason::SubprotocolSpecific => "Some other reason specific to a subprotocol",
+            DisconnectReason::UnreadableSignature => "Unable to decode peer's signature",
+            DisconnectReason::NoRecoveredSigner => {
+                "Unable to recover peer's address from signature"
+            }
+            DisconnectReason::SignerNotStaked => "Signer address not found as staked",
         };
 
         write!(f, "{message}")
@@ -122,9 +133,9 @@ impl Encodable for DisconnectReason {
 impl Decodable for DisconnectReason {
     fn decode(buf: &mut &[u8]) -> Result<Self, DecodeError> {
         if buf.is_empty() {
-            return Err(DecodeError::InputTooShort)
+            return Err(DecodeError::InputTooShort);
         } else if buf.len() > 2 {
-            return Err(DecodeError::Overflow)
+            return Err(DecodeError::Overflow);
         }
 
         if buf.len() > 1 {
@@ -132,7 +143,7 @@ impl Decodable for DisconnectReason {
             // buf[0] is the first (and only) element of the list.
             let header = Header::decode(buf)?;
             if !header.list {
-                return Err(DecodeError::UnexpectedString)
+                return Err(DecodeError::UnexpectedString);
             }
         }
 
