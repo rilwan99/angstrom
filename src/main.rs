@@ -51,7 +51,7 @@ impl Args {
         let middleware = Box::leak(Box::new(
             RethMiddleware::new(inner, self.full_node, rt.handle().clone(), 1).unwrap()
         ));
-        let sim = spawn_revm_sim(middleware, 6942069);
+        let sim = spawn_revm_sim(&self.full_node, 6942069);
 
         let network_config = NetworkConfig::new(fake_key, fake_pub_key.parse().unwrap());
         let leader_config = LeaderConfig {
@@ -81,6 +81,7 @@ fn main() -> anyhow::Result<()> {
         .worker_threads(3)
         .build()
         .unwrap();
+
     Args::parse().run(rt)?;
 
     Ok(())

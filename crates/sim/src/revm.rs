@@ -1,20 +1,14 @@
 use crate::lru_db::RevmLRU;
-use ethers_middleware::Middleware;
 use futures_util::Future;
 use parking_lot::RwLock;
-<<<<<<< HEAD
-use reth_db::mdbx::Transaction;
 use reth_db::mdbx::WriteMap;
 use reth_db::mdbx::RO;
+use reth_db::mdbx::tx::Tx;
 use std::{path::Path, sync::Arc, task::Poll};
-use tokio::sync::mpsc::UnboundedReceiver;
-=======
 use tokio::{runtime::Handle, sync::mpsc::UnboundedReceiver};
->>>>>>> ff6f408aa3188a91416ffc69dea5255726bfb9f0
 
 use crate::{
     executor::{TaskKind, ThreadPool},
-    sim::SimResult,
     state::RevmState,
     TransactionType,
 };
@@ -23,7 +17,7 @@ use crate::{
 pub struct Revm<'a> {
     transaction_rx: UnboundedReceiver<TransactionType>,
     threadpool: ThreadPool,
-    state: Arc<RwLock<RevmLRU<'a, 'a, Transaction<'a, RO, WriteMap>>>>,
+    state: Arc<RwLock<RevmLRU<'a, 'a, Tx<'a, RO, WriteMap>>>>,
 }
 
 impl Revm<'_> {
