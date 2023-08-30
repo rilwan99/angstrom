@@ -356,8 +356,9 @@ impl NetworkConfigBuilder {
             SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, DEFAULT_DISCOVERY_PORT))
         });
 
-        let mut hello_message = hello_message
-            .unwrap_or_else(|| HelloMessage::builder(sig, signed_hello, pub_key).build());
+        let mut hello_message = hello_message.unwrap_or_else(|| {
+            HelloMessage::builder(sig.to_bytes(), signed_hello, pub_key).build()
+        });
         hello_message.port = listener_addr.port();
 
         let head = head.unwrap_or(Head {
