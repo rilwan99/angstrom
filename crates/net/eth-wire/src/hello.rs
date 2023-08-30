@@ -1,16 +1,15 @@
+use crate::{capability::Capability, EthVersion, ProtocolVersion};
 use guard_discv4::DEFAULT_DISCOVERY_PORT;
 use reth_codecs::derive_arbitrary;
-use reth_primitives::{constants::RETH_CLIENT_VERSION, H256};
+use reth_primitives::{constants::RETH_CLIENT_VERSION, PeerId, H256};
 use reth_rlp::{RlpDecodable, RlpEncodable};
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::{capability::Capability, EthVersion, ProtocolVersion};
-
-// TODO: determine if we should allow for the extra fields at the end like
-// EIP-706 suggests
-/// Message used in the `p2p` handshake, containing information about the
-/// supported RLPx protocol version and capabilities.
+// TODO: determine if we should allow for the extra fields at the end like EIP-706 suggests
+/// Message used in the `p2p` handshake, containing information about the supported RLPx protocol
+/// version and capabilities.
 #[derive_arbitrary(rlp)]
 #[derive(Clone, Debug, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -22,13 +21,14 @@ pub struct HelloMessage {
     pub client_version: String,
     /// The list of supported capabilities and their versions.
     pub capabilities: Vec<Capability>,
-    /// The port that the client is listening on, zero indicates the client is
-    /// not listening.
+    /// The port that the client is listening on, zero indicates the client is not listening.
     pub port: u16,
     /// Signed Noop "Hello" message to allow public key verification
     pub signed_hello: H256,
     /// Signature from signing the above message
     pub signature: Vec<u8>,
+    /// pub key
+    pub id: PeerId,
 }
 
 // === impl HelloMessage ===
@@ -44,8 +44,8 @@ impl HelloMessage {
     /// let id =  pk2id(&secret_key.public_key(SECP256K1));
     /// let status = HelloMessage::builder(id).build();
     /// ```
-    pub fn builder(signature: Vec<u8>, signed_hello: H256) -> HelloMessageBuilder {
-        HelloMessageBuilder::new(signature, signed_hello)
+    pub fn builder(signature: Vec<u8>, signed_hello: H256, id: PeerId) -> HelloMessageBuilder {
+        HelloMessageBuilder::new(signature, signed_hello, id)
     }
 }
 
@@ -57,20 +57,21 @@ pub struct HelloMessageBuilder {
     pub client_version: Option<String>,
     /// The list of supported capabilities and their versions.
     pub capabilities: Option<Vec<Capability>>,
-    /// The port that the client is listening on, zero indicates the client is
-    /// not listening.
+    /// The port that the client is listening on, zero indicates the client is not listening.
     pub port: Option<u16>,
     /// Signed Noop "Hello" message to allow public key verification
     pub signed_hello: H256,
     /// Signature from signing the above message
     pub signature: Vec<u8>,
+    /// pub key
+    pub id: PeerId,
 }
 
 // === impl HelloMessageBuilder ===
 
 impl HelloMessageBuilder {
     /// Create a new builder to configure a [`HelloMessage`]
-    pub fn new(signature: Vec<u8>, signed_hello: H256) -> Self {
+    pub fn new(signature: Vec<u8>, signed_hello: H256, id: PeerId) -> Self {
         Self {
             protocol_version: None,
             client_version: None,
@@ -78,6 +79,7 @@ impl HelloMessageBuilder {
             port: None,
             signed_hello,
             signature,
+            id,
         }
     }
 
@@ -107,8 +109,15 @@ impl HelloMessageBuilder {
 
     /// Consumes the type and returns the configured [`HelloMessage`]
     pub fn build(self) -> HelloMessage {
-        let Self { protocol_version, client_version, capabilities, port, signature, signed_hello } =
-            self;
+        let Self {
+            protocol_version,
+            client_version,
+            capabilities,
+            port,
+            signature,
+            signed_hello,
+            id,
+        } = self;
         HelloMessage {
             protocol_version: protocol_version.unwrap_or_default(),
             client_version: client_version.unwrap_or_else(|| RETH_CLIENT_VERSION.to_string()),
@@ -118,6 +127,7 @@ impl HelloMessageBuilder {
             port: port.unwrap_or(DEFAULT_DISCOVERY_PORT),
             signed_hello,
             signature,
+            id,
         }
     }
 }
