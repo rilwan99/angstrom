@@ -30,6 +30,8 @@ pub fn rng_secret_key() -> SecretKey {
 pub struct NetworkConfig {
     /// The node's secret key, from which the node's identity is derived.
     pub secret_key: SecretKey,
+    /// The node's public key
+    pub pub_key: PeerId,
     /// All boot nodes to start network discovery with.
     pub boot_nodes: HashSet<NodeRecord>,
     /// How to set up discovery over DNS.
@@ -63,10 +65,12 @@ impl NetworkConfig {
     pub fn builder(
         secret_key: SecretKey,
         verification_msg: Option<String>,
+        pub_key: PeerId,
     ) -> NetworkConfigBuilder {
         NetworkConfigBuilder::new(
             secret_key,
             &verification_msg.unwrap_or(DEFAULT_HELLO_VERIFICATION_MESSAGE.to_string()),
+            pub_key,
         )
     }
 }
@@ -74,8 +78,8 @@ impl NetworkConfig {
 impl NetworkConfig {
     /// Create a new instance with all mandatory fields set, rest is field with
     /// defaults.
-    pub fn new(secret_key: SecretKey, verification_msg: Option<String>) -> Self {
-        NetworkConfig::builder(secret_key, verification_msg).build()
+    pub fn new(secret_key: SecretKey, verification_msg: Option<String>, pub_key: PeerId) -> Self {
+        NetworkConfig::builder(secret_key, verification_msg, pub_key).build()
     }
 
     /// Sets the config to use for the discovery v4 protocol.
@@ -98,6 +102,8 @@ impl NetworkConfig {
 pub struct NetworkConfigBuilder {
     /// The node's secret key, from which the node's identity is derived.
     secret_key: SecretKey,
+    /// The node's public key
+    pub_key: PeerId,
     /// Message to sign so that pubkey can be derived
     verification_msg: &'static str,
     /// How to configure discovery over DNS.
@@ -129,9 +135,10 @@ pub struct NetworkConfigBuilder {
 
 #[allow(missing_docs)]
 impl NetworkConfigBuilder {
-    pub fn new(secret_key: SecretKey, verification_msg: &str) -> Self {
+    pub fn new(secret_key: SecretKey, verification_msg: &str, pub_key: PeerId) -> Self {
         Self {
             secret_key,
+            pub_key,
             verification_msg,
             dns_discovery_config: Some(Default::default()),
             discovery_v4_builder: Some(Default::default()),
@@ -342,14 +349,15 @@ impl NetworkConfigBuilder {
             executor,
             hello_message,
             head,
+            pub_key,
         } = self;
 
         let listener_addr = listener_addr.unwrap_or_else(|| {
             SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, DEFAULT_DISCOVERY_PORT))
         });
 
-        let mut hello_message =
-            hello_message.unwrap_or_else(|| HelloMessage::builder(sig, signed_hello).build());
+        let mut hello_message = hello_message
+            .unwrap_or_else(|| HelloMessage::builder(sig, signed_hello, pub_key).build());
         hello_message.port = listener_addr.port();
 
         let head = head.unwrap_or(Head {
@@ -395,6 +403,7 @@ impl NetworkConfigBuilder {
             status,
             hello_message,
             fork_filter,
+            pub_key,
         }
     }
 }

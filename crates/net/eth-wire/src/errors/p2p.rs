@@ -1,7 +1,7 @@
 //! Error handling for [`P2PStream`](crate::P2PStream)
 use std::io;
 
-use reth_primitives::{Signature, H160};
+use reth_primitives::{PeerId, Signature, H160};
 
 use crate::{
     capability::SharedCapabilityError, disconnect::UnknownDisconnectReason, DisconnectReason,
@@ -82,7 +82,7 @@ pub enum P2PHandshakeError {
     #[error("unable to recover signer: {0}")]
     UnableToRecoverSigner(String),
     #[error("unable to recover signer: {0:#x}")]
-    SignerNotStaked(H160),
+    SignerNotStaked(PeerId),
 }
 
 /// An error that can occur when interacting with a pinger.
