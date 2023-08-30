@@ -14,7 +14,7 @@ use ethers_flashbots::{
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::Middleware;
 use ethers_signers::{LocalWallet, Signer};
-use shared::Bundle;
+use shared::Batch;
 use sim::Simulator;
 
 type StakedWallet = LocalWallet;

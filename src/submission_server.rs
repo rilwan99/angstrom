@@ -1,28 +1,22 @@
 use std::{
     net::SocketAddr,
     ops::{Deref, DerefMut},
-    task::{Poll, Waker}
+    sync::Arc
 };
 
-use ethers_core::types::transaction::eip712::{EIP712Domain, TypedData};
+use ethers_core::types::transaction::eip712::TypedData;
 use futures::{Stream, StreamExt};
 use hyper::{http::HeaderValue, Method};
 use jsonrpsee::{
-    proc_macros::rpc, server::ServerHandle, PendingSubscriptionSink, SubscriptionSink
+    proc_macros::rpc, server::ServerHandle, PendingSubscriptionSink, SubscriptionSink,
 };
 use jsonrpsee_core::server::SubscriptionMessage;
-use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use shared::Eip712;
+use tokio::sync::mpsc::{channel, Sender};
 use tokio_stream::wrappers::ReceiverStream;
-use tower::{
-    layer::{
-        util::{Identity, Stack},
-        Layer
-    },
-    ServiceBuilder
-};
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
+use tracing::info;
 
 /// Error thrown when parsing cors domains went wrong
 #[derive(Debug, thiserror::Error)]
@@ -30,7 +24,7 @@ pub(crate) enum CorsDomainError {
     #[error("{domain} is an invalid header value")]
     InvalidHeader { domain: String },
     #[error("Wildcard origin (`*`) cannot be passed as part of a list: {input}")]
-    WildCardNotAllowed { input: String }
+    WildCardNotAllowed { input: String },
 }
 
 /// Creates a [CorsLayer] from the given domains
@@ -44,8 +38,8 @@ pub(crate) fn create_cors_layer(http_cors_domains: &str) -> Result<CorsLayer, Co
             let iter = http_cors_domains.split(',');
             if iter.clone().any(|o| o == "*") {
                 return Err(CorsDomainError::WildCardNotAllowed {
-                    input: http_cors_domains.to_string()
-                })
+                    input: http_cors_domains.to_string(),
+                });
             }
 
             let origins = iter
@@ -73,15 +67,15 @@ pub enum SubscriptionKind {
     /// New best sealed bundle seen by this guard
     SealedBundle,
     /// New cow transactions that this guard has seen
-    CowTransactions
+    CowTransactions,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum SubscriptionResult {
-    SealedBundle(shared::SealedBundle),
-    CowTransaction(TypedData)
+    Bundle(shared::Batch),
+    CowTransaction(Arc<Vec<Eip712>>)
 }
 
 #[rpc(server, namespace = "guard")]
@@ -103,20 +97,21 @@ pub trait GaurdSubscribeApi {
     async fn subscribe(&self, kind: SubscriptionKind) -> jsonrpsee::core::SubscriptionResult;
 }
 
+#[derive(Debug)]
 pub enum Submission {
-    Submission(TypedData),
-    Subscription(SubscriptionKind, Sender<SubscriptionResult>)
+    Submission(Eip712),
+    Subscription(SubscriptionKind, Sender<SubscriptionResult>),
 }
 
 pub struct SubmissionServerConfig {
-    pub addr:                SocketAddr,
-    pub cors_domains:        String,
-    pub allow_subscriptions: bool
+    pub addr: SocketAddr,
+    // pub cors_domains:        String,
+    pub allow_subscriptions: bool,
 }
 
 pub struct SubmissionServer {
-    handle:   ServerHandle,
-    receiver: ReceiverStream<Submission>
+    handle: ServerHandle,
+    receiver: ReceiverStream<Submission>,
 }
 
 impl Deref for SubmissionServer {
@@ -135,20 +130,20 @@ impl DerefMut for SubmissionServer {
 
 #[derive(Debug, Clone)]
 pub struct SubmissionServerInner {
-    sender: Sender<Submission>
+    sender: Sender<Submission>,
 }
 
 impl SubmissionServerInner {
     pub async fn new(config: SubmissionServerConfig) -> anyhow::Result<SubmissionServer> {
-        let SubmissionServerConfig { addr, cors_domains, allow_subscriptions } = config;
+        let SubmissionServerConfig { addr, allow_subscriptions } = config;
 
         let (tx, rx) = channel(10);
 
-        let middleware: ServiceBuilder<Stack<CorsLayer, Identity>> =
-            tower::ServiceBuilder::new().layer(create_cors_layer(&cors_domains)?);
+        // let middleware: ServiceBuilder<Stack<CorsLayer, Identity>> =
+        //     tower::ServiceBuilder::new().layer(create_cors_layer(&cors_domains)?);
 
         let server = jsonrpsee::server::ServerBuilder::default()
-            .set_middleware(middleware)
+            // .set_middleware(middleware)
             .build(addr)
             .await?;
 
@@ -167,9 +162,10 @@ impl SubmissionServerInner {
 #[async_trait::async_trait]
 impl GuardSubmitApiServer for SubmissionServerInner {
     async fn submit_eip712(&self, meta_tx: TypedData) -> bool {
+        info!(?meta_tx, "new submission");
         if self
             .sender
-            .send(Submission::Submission(meta_tx))
+            .send(Submission::Submission(Eip712(meta_tx)))
             .await
             .is_err()
         {
@@ -185,8 +181,9 @@ impl GaurdSubscribeApiServer for SubmissionServerInner {
     async fn subscribe(
         &self,
         pending: PendingSubscriptionSink,
-        kind: SubscriptionKind
+        kind: SubscriptionKind,
     ) -> jsonrpsee::core::SubscriptionResult {
+        info!(?pending, ?kind, "subscription request");
         let sink = pending.accept().await?;
         let (tx, rx) = channel(5);
         if self
@@ -207,11 +204,11 @@ impl GaurdSubscribeApiServer for SubmissionServerInner {
 /// Pipes all stream items to the subscription sink.
 async fn pipe_from_stream<T, St>(
     sink: SubscriptionSink,
-    mut stream: St
+    mut stream: St,
 ) -> Result<(), jsonrpsee::core::Error>
 where
     St: Stream<Item = T> + Unpin,
-    T: Serialize
+    T: Serialize,
 {
     loop {
         tokio::select! {

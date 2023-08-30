@@ -1,13 +1,10 @@
-use std::{path::Path, sync::Arc};
+use std::sync::Arc;
 
 use client::RevmClient;
 use ethers_core::types::transaction::eip712::TypedData;
 use reth_db::mdbx::WriteMap;
 use sim::SimResult;
-use tokio::{
-    sync::{mpsc::unbounded_channel, oneshot::Sender},
-    task::JoinHandle
-};
+use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
 
 use crate::{revm::Revm, sim::SimError};
 
@@ -31,12 +28,12 @@ pub fn spawn_revm_sim(db: Arc<reth_db::mdbx::Env<WriteMap>>, max_bytes: usize) -
 // the simulator is a handle that we use to simulate transactions.
 #[async_trait::async_trait]
 pub trait Simulator: Clone {
-    async fn run_sim(&self, transaction: TransactionType) -> Result<SimResult, SimError>;
+    fn run_sim(&self, transaction: TransactionType) -> Result<(), SimError>;
 }
 
 /// enum of transaction type
 /// CHANGE TO EIP712DOMAIN
 pub enum TransactionType {
     Single(TypedData, Sender<SimResult>),
-    Bundle(TypedData, Sender<SimResult>)
+    Bundle(TypedData, Sender<SimResult>),
 }

@@ -32,13 +32,14 @@ pub struct Args {
     #[arg(long, default_value = "false")]
     pub enable_subscriptions: bool,
     #[arg(long)]
-    pub full_node: PathBuf,
+    pub full_node:            PathBuf,
     #[arg(long)]
-    pub full_node_ws: String,
+    pub full_node_ws:         String
 }
 
 impl Args {
     pub fn run(self, rt: Runtime) -> anyhow::Result<()> {
+        reth_tracing::init_test_tracing();
         //let fake_key = SecretKey::new(&mut rand::thread_rng());
         let fake_key =
             SecretKey::from_str("ad21c16051f74f24b3fbad57b0010d98bfef20441c84ee5a872133f19f807fc4")
@@ -59,7 +60,7 @@ impl Args {
                 inner,
                 "ad21c16051f74f24b3fbad57b0010d98bfef20441c84ee5a872133f19f807fc4"
                     .parse()
-                    .unwrap(),
+                    .unwrap()
             )));
 
         /*
@@ -71,7 +72,7 @@ impl Args {
         let db = Arc::new(reth_db::mdbx::Env::<reth_db::mdbx::WriteMap>::open(
             db_path,
             reth_db::mdbx::EnvKind::RO,
-            None,
+            None
         )?);
 
         let sim = spawn_revm_sim(db, 6942069);
@@ -82,15 +83,16 @@ impl Args {
             simulator: sim,
             edsca_key: fake_edsca,
             bundle_key: fake_bundle,
-            middleware,
+            middleware
         };
 
-        let fake_addr = "ws://127.0.0.1:6970".parse()?;
+        let fake_addr = "127.0.0.1:6969".parse()?;
         let server_config = SubmissionServerConfig {
-            addr: fake_addr,
-            cors_domains: "balls".into(),
-            allow_subscriptions: self.enable_subscriptions,
+            addr:                fake_addr,
+            // cors_domains:        "balls".into(),
+            allow_subscriptions: self.enable_subscriptions
         };
+        println!("spawning guard");
 
         let guard = rt.block_on(Guard::new(network_config, leader_config, server_config));
         rt.block_on(guard?);

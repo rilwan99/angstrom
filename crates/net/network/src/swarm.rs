@@ -6,7 +6,6 @@ use std::{
     task::{Context, Poll}
 };
 
-use ethers_core::types::transaction::eip712::TypedData;
 use futures::Stream;
 use guard_eth_wire::{
     capability::{Capabilities, CapabilityMessage},
@@ -17,16 +16,13 @@ use parking_lot::Mutex;
 use reth_net_common::bandwidth_meter::BandwidthMeter;
 use reth_network_api::ReputationChangeKind;
 use reth_primitives::{listener::EventListeners, ForkId, NodeRecord, PeerId, H160, H256};
-use reth_provider::{BlockNumReader, BlockReader};
-use shared::{SealedBundle, *};
-use tokio::sync::mpsc::{self, UnboundedReceiver};
-use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::{debug, trace};
 
 use crate::{
     error::{NetworkError, ServiceKind},
     listener::{ConnectionListener, ListenerEvent},
-    messages::{PeerMessages, PeerRequests},
+    messages::PeerMessages,
     peers::{InboundConnectionError, PeersHandle, PeersManager},
     session::{Direction, PendingSessionHandshakeError, SessionEvent, SessionId, SessionManager},
     state::{NetworkState, StateAction},

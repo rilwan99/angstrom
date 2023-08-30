@@ -1,5 +1,5 @@
 use ethers_signers::LocalWallet;
-use shared::Bundle;
+use shared::Batch;
 use sim::Simulator;
 use thiserror::Error;
 
@@ -23,7 +23,7 @@ impl<S: Simulator> BundleSigner<S> {
         Self { sim, key }
     }
 
-    async fn sim_and_sign_bundle(&self) -> Result<Bundle, BundleSigningError> {
+    async fn sim_and_sign_bundle(&self) -> Result<Batch, BundleSigningError> {
         todo!()
     }
 }

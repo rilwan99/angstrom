@@ -1,14 +1,13 @@
-use reth_codecs::derive_arbitrary;
 use reth_primitives::{bytes, Signature};
-use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
+use reth_rlp::{Decodable, DecodeError, Encodable};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct BundleSignature {
+pub struct BatchSignature {
     sig: Signature
 }
 
-impl Encodable for BundleSignature {
+impl Encodable for BatchSignature {
     fn encode(&self, out: &mut dyn bytes::BufMut) {
         self.sig.encode(out)
     }
@@ -22,8 +21,8 @@ impl Encodable for BundleSignature {
 /// transactions as it's used by p2p.
 ///
 /// CAUTION: this expects that the given buf contains rlp
-impl Decodable for BundleSignature {
+impl Decodable for BatchSignature {
     fn decode(buf: &mut &[u8]) -> Result<Self, DecodeError> {
-        Ok(BundleSignature { sig: Signature::decode(buf)? })
+        Ok(BatchSignature { sig: Signature::decode(buf)? })
     }
 }

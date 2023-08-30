@@ -1,13 +1,15 @@
-use std::task::{Context, Poll};
+use std::{
+    sync::Arc,
+    task::{Context, Poll}
+};
 
 use bundler::{BundleSigner, CowMsg, CowSolver, SimulatedTransaction};
-use ethers_core::types::transaction::eip712::TypedData;
 use ethers_flashbots::BroadcasterMiddleware;
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::Middleware;
 use ethers_signers::LocalWallet;
 use reth_primitives::{Address, U64};
-use shared::{Bundle, SealedBundle};
+use shared::{Batch, BatchSignature, Eip712};
 use sim::Simulator;
 use url::Url;
 
@@ -40,9 +42,9 @@ pub struct LeaderConfig<M: Middleware + Unpin + 'static, S: Simulator + 'static>
 
 #[derive(Debug, Clone)]
 pub enum LeaderMessage {
-    NewBestBundle(SealedBundle),
+    NewBestBundle(Batch),
     NewValidTransactions(Vec<SimulatedTransaction>),
-    SignedBundle(Bundle)
+    SignedBundle(BatchSignature)
 }
 
 impl From<CowMsg> for LeaderMessage {
@@ -101,7 +103,7 @@ impl<M: Middleware + Unpin, S: Simulator> Leader<M, S> {
         })
     }
 
-    pub fn new_transaction(&mut self, txes: TypedData) {}
+    pub fn new_transactions(&mut self, txes: Vec<Eip712>) {}
 
     pub fn current_leader(&self) -> Option<&LeaderInfo> {
         self.active_leader_config.as_ref()

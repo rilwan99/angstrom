@@ -147,6 +147,7 @@ where
             "validating incoming p2p hello from peer"
         );
 
+        tracing::trace!(?hello.protocol_version, ?their_hello.protocol_version, "validating protocol version");
         if (hello.protocol_version as u8) != their_hello.protocol_version as u8 {
             // send a disconnect message notifying the peer of the protocol version mismatch
             self.send_disconnect(DisconnectReason::IncompatibleP2PProtocolVersion)
@@ -157,6 +158,7 @@ where
             })
         }
 
+        tracing::trace!(?hello.capabilities, ?their_hello.capabilities, "validating capabilities version");
         // determine shared capabilities (currently returns only one capability)
         let capability_res =
             set_capability_offsets(hello.capabilities, their_hello.capabilities.clone());
@@ -170,7 +172,8 @@ where
             Ok(cap) => Ok(cap)
         }?;
 
-        let signature = match Signature::decode(&mut hello.signature.as_slice()) {
+        tracing::trace!(?their_hello.signature, "Validating Signature -- DECODING");
+        let signature = match Signature::decode(&mut their_hello.signature.as_slice()) {
             Ok(s) => s,
             Err(err) => {
                 self.send_disconnect(DisconnectReason::UnreadableSignature)
@@ -182,6 +185,7 @@ where
         }
         .to_bytes();
 
+        tracing::trace!(?signature, "Validating Signature -- RECOVERING SIGNATURE");
         // secp256k1 sig
         let sig = RecoverableSignature::from_compact(
             &signature[0..64],
@@ -197,6 +201,7 @@ where
             ))
         })?;
 
+        tracing::trace!(?sig, "Validating Signature -- RECOVERING PUBLIC KEY");
         // secp256k1 public key
         let public_key = SECP256K1
             .recover_ecdsa(
@@ -213,6 +218,11 @@ where
                 ))
             })?;
 
+        tracing::trace!(
+            ?public_key,
+            ?valid_stakers,
+            "Validating Signature -- CHECKING CURRENT STAKERS STAKERS"
+        );
         let pub_key = H512::from_slice(&public_key.serialize_uncompressed()[1..]);
         if !valid_stakers.contains(&pub_key) || pub_key != hello.id {
             self.send_disconnect(DisconnectReason::SignerNotStaked)
@@ -220,6 +230,8 @@ where
             return Err(P2PStreamError::HandshakeError(P2PHandshakeError::SignerNotStaked(pub_key)))
         }
 
+        tracing::trace!(?signature, ?pub_key, "signature and public key valid");
+        tracing::trace!("creating P2P stream");
         let stream = P2PStream::new(self.inner, shared_capability);
 
         Ok((stream, their_hello))

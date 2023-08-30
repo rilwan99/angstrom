@@ -1,21 +1,22 @@
 use std::{
     collections::HashMap,
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll}
 };
 
-use ethers_core::types::H160;
 use ethers_providers::Middleware;
 use futures::{Future, FutureExt};
 use futures_util::StreamExt;
-use guard_network::{GaurdStakingEvent, NetworkConfig, Swarm};
+use guard_network::{GaurdStakingEvent, NetworkConfig, PeerMessages, Swarm, SwarmEvent};
 use jsonrpsee::server::ServerHandle;
-use leader::leader_manager::{Leader, LeaderConfig};
+use leader::leader_manager::{Leader, LeaderConfig, LeaderMessage};
 use sim::Simulator;
 use tokio::{
     sync::mpsc::{Sender, UnboundedSender},
     task::JoinHandle
 };
+use tracing::{debug, trace};
 
 use crate::submission_server::{
     Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner, SubscriptionKind,
@@ -57,39 +58,44 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
         })
     }
 
-    fn handle_submissions(&mut self, msg: Submission) {
-        let data = match msg {
-            Submission::Subscription(kind, sender) => {
-                self.server_subscriptions
-                    .entry(kind)
-                    .or_default()
-                    .push(sender);
-                return
-            }
-            Submission::Submission(typed_data) => typed_data
-        };
+    fn handle_submissions(&mut self, msgs: Vec<Submission>) {
+        debug!(amount = msgs.len(), "handling new submissions");
 
-        self.leader.new_transaction(data.clone());
-        //TODO: propagate to network
+        let submissions = msgs
+            .into_iter()
+            .filter_map(|msg| match msg {
+                Submission::Subscription(kind, sender) => {
+                    self.server_subscriptions
+                        .entry(kind)
+                        .or_default()
+                        .push(sender);
+                    None
+                }
+                Submission::Submission(typed_data) => Some(typed_data)
+            })
+            .collect::<Vec<_>>();
 
+        self.leader.new_transactions(submissions.clone());
+        let submissions = Arc::new(submissions);
+        // we sim transactions locally before
         if let Some(senders) = self
             .server_subscriptions
             .get_mut(&SubscriptionKind::CowTransactions)
         {
             senders.retain(|sender| {
                 sender
-                    .try_send(SubscriptionResult::CowTransaction(data.clone()))
+                    .try_send(SubscriptionResult::CowTransaction(submissions.clone()))
                     .is_ok()
             });
         }
     }
 
-    fn handle_network_msg(&mut self, cx: &mut Context<'_>) -> Poll<()> {
-        if let Poll::Ready(msg) = self.network.poll_next_unpin(cx) {
-            let Some(swarm_event) = msg else { return Poll::Ready(()) };
-        }
+    fn handle_network_events(&mut self, network_events: Vec<SwarmEvent>) {
+        debug!(?network_events, "got events from the swarm");
+    }
 
-        Poll::Ready(())
+    fn handle_leader_events(&mut self, leader_events: Vec<LeaderMessage>) {
+        debug!(?leader_events, "got actions from the leader");
     }
 }
 
@@ -97,18 +103,30 @@ impl<M: Middleware + Unpin, S: Simulator + Unpin> Future for Guard<M, S> {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Poll::Ready(new_msgs) = self.server.poll_next_unpin(cx) {
-            let Some(new_msgs) = new_msgs else { return Poll::Ready(()) };
+        let mut work = 4096;
+        loop {
+            let mut sub_server_msg = Vec::with_capacity(3);
+            while let Poll::Ready(new_msg) = self.server.poll_next_unpin(cx) {
+                let Some(new_msg) = new_msg else { return Poll::Ready(()) };
 
-            self.handle_submissions(new_msgs);
+                sub_server_msg.push(new_msg)
+            }
+            self.handle_submissions(sub_server_msg);
+
+            let mut swarm_msgs = Vec::with_capacity(3);
+            while let Poll::Ready(new_msg) = self.network.poll_next_unpin(cx) {
+                let Some(new_msg) = new_msg else { return Poll::Ready(()) };
+                swarm_msgs.push(new_msg);
+            }
+            self.handle_network_events(swarm_msgs);
+
+            while let Poll::Ready(msgs) = self.leader.poll(cx) {}
+
+            work -= 1;
+            if work == 0 {
+                cx.waker().wake_by_ref();
+                return Poll::Pending
+            }
         }
-        if let Poll::Ready(Some(msgs)) = self.network.poll_next_unpin(cx) {
-            cx.waker().wake_by_ref();
-            println!("{msgs:?}");
-        }
-
-        if let Poll::Ready(msgs) = self.leader.poll(cx) {}
-
-        return Poll::Pending
     }
 }
