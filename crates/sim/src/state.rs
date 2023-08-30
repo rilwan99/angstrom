@@ -2,7 +2,7 @@ use std::{collections::HashMap, path::Path, sync::Arc};
 
 use ethers_core::types::transaction::{
     eip2718::TypedTransaction,
-    eip712::{Eip712, TypedData}
+    eip712::{Eip712, TypedData},
 };
 use eyre::Result;
 use parking_lot::RwLock;
@@ -10,7 +10,7 @@ use reth_db::mdbx::{tx::Tx, WriteMap, RO};
 use reth_primitives::Signature;
 use revm::{
     db::{CacheDB, DatabaseRef, DbAccount, EmptyDB},
-    DatabaseCommit, EVM
+    DatabaseCommit, EVM,
 };
 use revm_primitives::*;
 use shared::UserSettlement;
@@ -18,23 +18,23 @@ use tokio::sync::oneshot::Sender;
 
 use crate::{
     lru_db::RevmLRU,
-    sim::{SimError, SimResult}
+    sim::{SimError, SimResult},
 };
 
 /// struct used to share the mutable state across threads
-pub struct RevmState<'a> {
+pub struct RevmState {
     /// touched slots in tx sim
     slot_changes: HashMap<B160, HashMap<U256, U256>>,
     /// cached database for bundle state differences
-    cache_db:     CacheDB<EmptyDB>,
+    cache_db: CacheDB<EmptyDB>,
     /// evm -> holds state to sim on
-    evm:          EVM<RevmLRU<'a, 'a, Tx<'a, RO, WriteMap>>>
+    evm: EVM<RevmLRU>,
 }
 
-impl<'a> RevmState<'a> {
-    pub fn new(db_path: &Path, max_bytes: usize) -> Self {
+impl RevmState {
+    pub fn new(db: Arc<reth_db::mdbx::Env<WriteMap>>, max_bytes: usize) -> Self {
         let mut evm = EVM::new();
-        evm.database(RevmLRU::new(max_bytes, db_path));
+        evm.database(RevmLRU::new(max_bytes, db));
         Self { evm, cache_db: CacheDB::new(EmptyDB {}), slot_changes: HashMap::new() }
     }
 
@@ -50,27 +50,21 @@ impl<'a> RevmState<'a> {
     pub fn update_evm_state(state: Arc<RwLock<Self>>) {
         let mut state = state.write();
 
-        let block = state.evm.db().unwrap().db.get_block_gas_limit();
+        /*
+                let block = state.evm.db().unwrap().db.get_block_gas_limit();
 
-        state.evm.env.block.number =
-            Into::<ethers_core::types::U256>::into(block.number.unwrap().as_u64()).into();
-        state.evm.env.block.timestamp = block.timestamp.into();
-        state.evm.env.block.difficulty = block.difficulty.into();
-        state.evm.env.block.basefee = block.base_fee_per_gas.unwrap().into();
-        state.evm.env.block.gas_limit = block.gas_limit.into();
-
+                state.evm.env.block.number =
+                    Into::<ethers_core::types::U256>::into(block.number.unwrap().as_u64()).into();
+                state.evm.env.block.timestamp = block.timestamp.into();
+                state.evm.env.block.difficulty = block.difficulty.into();
+                state.evm.env.block.basefee = block.base_fee_per_gas.unwrap().into();
+                state.evm.env.block.gas_limit = block.gas_limit.into();
+        */
         for (addr, storage) in state.slot_changes.clone().into_iter() {
             let verified_storage = storage
                 .iter()
                 .map(|(idx, val)| {
-                    let new_state = state
-                        .evm
-                        .db
-                        .as_ref()
-                        .unwrap()
-                        .db
-                        .storage(addr, *idx)
-                        .unwrap(); // verify the touched slots
+                    let new_state = state.evm.db.as_ref().unwrap().storage(addr, *idx).unwrap(); // verify the touched slots
                     if new_state == *val {
                         (*idx, *val)
                     } else {
@@ -82,13 +76,19 @@ impl<'a> RevmState<'a> {
             let evm_db = state.evm.db().unwrap();
             let _ = verified_storage.into_iter().map(|(idx, key)| {
                 // update the touched slots that were correct
-                let acct = evm_db
-                    .accounts
-                    .get_or_insert(addr, || DbAccount {
-                        info: evm_db.db.basic(addr).unwrap().unwrap(),
-                        ..Default::default()
-                    })
-                    .unwrap();
+                let acct = if let Some(a) = evm_db.accounts.get(&addr) {
+                    a
+                } else {
+                    evm_db.accounts.insert(
+                        addr,
+                        DbAccount {
+                            info: evm_db.basic(addr).unwrap().unwrap(),
+                            ..Default::default()
+                        },
+                    );
+                    evm_db.accounts.get(&addr).unwrap()
+                };
+
                 acct.storage.insert(idx.clone(), key.clone());
             });
         }
@@ -100,7 +100,7 @@ impl<'a> RevmState<'a> {
     pub fn simulate_single_tx(
         state: Arc<RwLock<Self>>,
         tx: TypedData,
-        client_tx: Sender<SimResult>
+        client_tx: Sender<SimResult>,
     ) {
         let tx = &convert_eip712(tx).unwrap()[0];
 
@@ -116,7 +116,7 @@ impl<'a> RevmState<'a> {
                 Ok(None) => client_tx
                     .send(SimResult::SimulationError(SimError::CreateTransaction(tx.clone()))),
                 Err(_) => client_tx
-                    .send(SimResult::SimulationError(SimError::EVMTransactError(tx.clone())))
+                    .send(SimResult::SimulationError(SimError::EVMTransactError(tx.clone()))),
             };
     }
 
@@ -135,7 +135,7 @@ impl<'a> RevmState<'a> {
                 state.cache_db.commit(r.state)
             } else {
                 sim_res = SimResult::SimulationError(SimError::EVMTransactError(tx));
-                break
+                break;
             };
         }
         let _ = client_tx.send(sim_res);
@@ -144,14 +144,11 @@ impl<'a> RevmState<'a> {
     /// updates the slots touched by a transaction if they haven't already been
     /// touched
     fn set_touched_slots(
-        &mut self
-    ) -> Result<
-        Option<ExecutionResult>,
-        EVMError<<RevmLRU<'a, 'a, Tx<'a, RO, WriteMap>> as DatabaseRef>::Error>
-    > {
+        &mut self,
+    ) -> Result<Option<ExecutionResult>, EVMError<<RevmLRU as DatabaseRef>::Error>> {
         let contract_address = match self.evm.env.tx.transact_to {
             TransactTo::Call(a) => a,
-            TransactTo::Create(_) => return Ok(None)
+            TransactTo::Create(_) => return Ok(None),
         };
         let contract_slots = self
             .slot_changes
@@ -200,7 +197,7 @@ pub fn convert_eip712(eip_typed_data: TypedData) -> Result<Vec<TxEnv>, SimResult
             data,
             chain_id: eip_typed_data.domain.chain_id.map(|c| c.as_u64().into()),
             nonce: None,
-            access_list: Vec::new()
+            access_list: Vec::new(),
         };
         transactions.push(tx_env)
     }
@@ -212,7 +209,7 @@ pub fn convert_eip712(eip_typed_data: TypedData) -> Result<Vec<TxEnv>, SimResult
 pub fn convert_type_tx(tx: &TypedTransaction) -> TxEnv {
     let transact_to = match tx.to_addr() {
         Some(to) => TransactTo::Call(B160::from(*to)),
-        None => TransactTo::Create(CreateScheme::Create)
+        None => TransactTo::Create(CreateScheme::Create),
     };
 
     let tx_env = TxEnv {
@@ -229,7 +226,7 @@ pub fn convert_type_tx(tx: &TypedTransaction) -> TxEnv {
             .into(),
         chain_id: None,
         nonce: None,
-        access_list: Vec::new()
+        access_list: Vec::new(),
     };
 
     tx_env

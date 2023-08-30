@@ -1,7 +1,8 @@
-use std::path::Path;
+use std::{path::Path, sync::Arc};
 
 use client::RevmClient;
 use ethers_core::types::transaction::eip712::TypedData;
+use reth_db::mdbx::WriteMap;
 use sim::SimResult;
 use tokio::{
     sync::{mpsc::unbounded_channel, oneshot::Sender},
@@ -17,10 +18,10 @@ pub mod revm;
 pub mod sim;
 pub mod state;
 
-pub fn spawn_revm_sim(path: &Path, max_bytes: usize) -> RevmClient {
+pub fn spawn_revm_sim(db: Arc<reth_db::mdbx::Env<WriteMap>>, max_bytes: usize) -> RevmClient {
     let (tx, rx) = unbounded_channel();
+    let revm_client = Revm::new(rx, db, max_bytes);
     std::thread::spawn(move || {
-        let revm_client = Revm::new(rx, path, max_bytes);
         let handle = revm_client.get_threadpool_handle();
         handle.block_on(revm_client);
     });

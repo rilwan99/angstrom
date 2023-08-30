@@ -1,9 +1,9 @@
 use crate::lru_db::RevmLRU;
 use futures_util::Future;
 use parking_lot::RwLock;
+use reth_db::mdbx::tx::Tx;
 use reth_db::mdbx::WriteMap;
 use reth_db::mdbx::RO;
-use reth_db::mdbx::tx::Tx;
 use std::{path::Path, sync::Arc, task::Poll};
 use tokio::{runtime::Handle, sync::mpsc::UnboundedReceiver};
 
@@ -14,23 +14,23 @@ use crate::{
 };
 
 /// revm state handler
-pub struct Revm<'a> {
+pub struct Revm {
     transaction_rx: UnboundedReceiver<TransactionType>,
     threadpool: ThreadPool,
-    state: Arc<RwLock<RevmLRU<'a, 'a, Tx<'a, RO, WriteMap>>>>,
+    state: Arc<RwLock<RevmState>>,
 }
 
-impl Revm<'_> {
+impl Revm {
     pub fn new(
         transaction_rx: UnboundedReceiver<TransactionType>,
-        evm_db_path: &Path,
+        evm_db: Arc<reth_db::mdbx::Env<WriteMap>>,
         max_bytes: usize,
     ) -> Self {
         let threadpool = ThreadPool::new();
         Self {
             transaction_rx,
             threadpool,
-            state: Arc::new(RwLock::new(RevmState::new(evm_db_path, max_bytes))),
+            state: Arc::new(RwLock::new(RevmState::new(evm_db, max_bytes))),
         }
     }
 
@@ -55,7 +55,7 @@ impl Revm<'_> {
     }
 }
 
-impl Future for Revm<'_> {
+impl Future for Revm {
     type Output = ();
 
     fn poll(

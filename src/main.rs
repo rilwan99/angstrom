@@ -1,4 +1,4 @@
-use std::{path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use clap::Parser;
 use ethers_core::rand::rngs::ThreadRng;
@@ -30,9 +30,9 @@ pub struct Args {
     #[arg(long, default_value = "false")]
     pub enable_subscriptions: bool,
     #[arg(long)]
-    pub full_node:            PathBuf,
+    pub full_node: PathBuf,
     #[arg(long)]
-    pub full_node_ws:         Url
+    pub full_node_ws: Url,
 }
 
 impl Args {
@@ -49,23 +49,31 @@ impl Args {
         let inner = Provider::new(Http::new(self.full_node_ws));
 
         let middleware = Box::leak(Box::new(
-            RethMiddleware::new(inner, self.full_node, rt.handle().clone(), 1).unwrap()
+            RethMiddleware::new(inner, self.full_node.clone(), rt.handle().clone(), 1).unwrap(),
         ));
-        let sim = spawn_revm_sim(&self.full_node, 6942069);
+
+        let db_path = self.full_node.as_ref();
+        let db = Arc::new(reth_db::mdbx::Env::<reth_db::mdbx::WriteMap>::open(
+            db_path,
+            reth_db::mdbx::EnvKind::RO,
+            None,
+        )?);
+
+        let sim = spawn_revm_sim(db, 6942069);
 
         let network_config = NetworkConfig::new(fake_key, fake_pub_key.parse().unwrap());
         let leader_config = LeaderConfig {
             simulator: sim,
             edsca_key: fake_edsca,
             bundle_key: fake_bundle,
-            middleware
+            middleware,
         };
 
         let fake_addr = "ws://127.0.0.1:6969".parse()?;
         let server_config = SubmissionServerConfig {
-            addr:                fake_addr,
-            cors_domains:        "balls".into(),
-            allow_subscriptions: self.enable_subscriptions
+            addr: fake_addr,
+            cors_domains: "balls".into(),
+            allow_subscriptions: self.enable_subscriptions,
         };
 
         let guard = rt.block_on(Guard::new(network_config, leader_config, server_config));
