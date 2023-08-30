@@ -181,16 +181,16 @@ impl SessionManager {
     }
 
     /// Adds a valid stakers to the set
-    pub fn add_valid_staker(&mut self, address: H160) {
-        self.valid_stakers.push(address);
+    pub fn add_valid_staker(&mut self, pubkey: PeerId) {
+        self.valid_stakers.push(pubkey);
     }
 
     /// Removes a valid stakers to the set
-    pub fn remove_staker(&mut self, address: H160) {
+    pub fn remove_staker(&mut self, pubkey: PeerId) {
         let index = self
             .valid_stakers
             .iter()
-            .position(|staker| *staker == address)
+            .position(|staker| *staker == pubkey)
             .unwrap();
         self.valid_stakers.remove(index);
     }
