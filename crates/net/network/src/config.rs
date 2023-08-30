@@ -3,15 +3,16 @@
 use std::{
     collections::HashSet,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
-    sync::Arc
+    sync::Arc,
 };
 
 use guard_discv4::{Discv4Config, Discv4ConfigBuilder, DEFAULT_DISCOVERY_PORT};
-use guard_eth_wire::{HelloMessage, Status};
+use guard_eth_wire::{HelloMessage, Status, DEFAULT_HELLO_VERIFICATION_MESSAGE};
 use reth_dns_discovery::DnsDiscoveryConfig;
 use reth_ecies::util::pk2id;
 use reth_primitives::{
-    mainnet_nodes, sepolia_nodes, ChainSpec, ForkFilter, Head, NodeRecord, PeerId, MAINNET
+    keccak256, mainnet_nodes, sepolia_nodes, sign_message, ChainSpec, ForkFilter, Head, NodeRecord,
+    PeerId, Signature, H256, MAINNET,
 };
 use reth_tasks::{TaskSpawner, TokioTaskExecutor};
 // re-export for convenience
@@ -28,47 +29,53 @@ pub fn rng_secret_key() -> SecretKey {
 /// All network related initialization settings.
 pub struct NetworkConfig {
     /// The node's secret key, from which the node's identity is derived.
-    pub secret_key:           SecretKey,
+    pub secret_key: SecretKey,
     /// All boot nodes to start network discovery with.
-    pub boot_nodes:           HashSet<NodeRecord>,
+    pub boot_nodes: HashSet<NodeRecord>,
     /// How to set up discovery over DNS.
     pub dns_discovery_config: Option<DnsDiscoveryConfig>,
     /// How to set up discovery.
-    pub discovery_v4_config:  Option<Discv4Config>,
+    pub discovery_v4_config: Option<Discv4Config>,
     /// Address to use for discovery
-    pub discovery_addr:       SocketAddr,
+    pub discovery_addr: SocketAddr,
     /// Address to listen for incoming connections
-    pub listener_addr:        SocketAddr,
+    pub listener_addr: SocketAddr,
     /// How to instantiate peer manager.
-    pub peers_config:         PeersConfig,
+    pub peers_config: PeersConfig,
     /// How to configure the [SessionManager](crate::session::SessionManager).
-    pub sessions_config:      SessionsConfig,
+    pub sessions_config: SessionsConfig,
     /// The chain spec
-    pub chain_spec:           Arc<ChainSpec>,
+    pub chain_spec: Arc<ChainSpec>,
     /// The executor to use for spawning tasks.
-    pub executor:             Box<dyn TaskSpawner>,
+    pub executor: Box<dyn TaskSpawner>,
     /// The `Status` message to send to peers at the beginning.
-    pub status:               Status,
+    pub status: Status,
     /// Sets the hello message for the p2p handshake in RLPx
-    pub hello_message:        HelloMessage,
+    pub hello_message: HelloMessage,
     /// The [`ForkFilter`] used to validate the peer's `Status` message.
-    pub fork_filter:          ForkFilter
+    pub fork_filter: ForkFilter,
 }
 
 // === impl NetworkConfig ===
 
 impl NetworkConfig {
     /// Convenience method for creating the corresponding builder type
-    pub fn builder(secret_key: SecretKey) -> NetworkConfigBuilder {
-        NetworkConfigBuilder::new(secret_key)
+    pub fn builder(
+        secret_key: SecretKey,
+        verification_msg: Option<String>,
+    ) -> NetworkConfigBuilder {
+        NetworkConfigBuilder::new(
+            secret_key,
+            &verification_msg.unwrap_or(DEFAULT_HELLO_VERIFICATION_MESSAGE.to_string()),
+        )
     }
 }
 
 impl NetworkConfig {
     /// Create a new instance with all mandatory fields set, rest is field with
     /// defaults.
-    pub fn new(secret_key: SecretKey) -> Self {
-        NetworkConfig::builder(secret_key).build()
+    pub fn new(secret_key: SecretKey, verification_msg: Option<String>) -> Self {
+        NetworkConfig::builder(secret_key, verification_msg).build()
     }
 
     /// Sets the config to use for the discovery v4 protocol.
@@ -90,39 +97,42 @@ impl NetworkConfig {
 #[allow(missing_docs)]
 pub struct NetworkConfigBuilder {
     /// The node's secret key, from which the node's identity is derived.
-    secret_key:           SecretKey,
+    secret_key: SecretKey,
+    /// Message to sign so that pubkey can be derived
+    verification_msg: &'static str,
     /// How to configure discovery over DNS.
     dns_discovery_config: Option<DnsDiscoveryConfig>,
     /// How to set up discovery.
     discovery_v4_builder: Option<Discv4ConfigBuilder>,
     /// All boot nodes to start network discovery with.
-    boot_nodes:           HashSet<NodeRecord>,
+    boot_nodes: HashSet<NodeRecord>,
     /// Address to use for discovery
-    discovery_addr:       Option<SocketAddr>,
+    discovery_addr: Option<SocketAddr>,
     /// Listener for incoming connections
-    listener_addr:        Option<SocketAddr>,
+    listener_addr: Option<SocketAddr>,
     /// How to instantiate peer manager.
-    peers_config:         Option<PeersConfig>,
+    peers_config: Option<PeersConfig>,
     /// How to configure the sessions manager
-    sessions_config:      Option<SessionsConfig>,
+    sessions_config: Option<SessionsConfig>,
     /// The network's chain spec
-    chain_spec:           Arc<ChainSpec>,
+    chain_spec: Arc<ChainSpec>,
     /// The executor to use for spawning tasks.
     #[serde(skip)]
-    executor:             Option<Box<dyn TaskSpawner>>,
+    executor: Option<Box<dyn TaskSpawner>>,
     /// Sets the hello message for the p2p handshake in RLPx
-    hello_message:        Option<HelloMessage>,
+    hello_message: Option<HelloMessage>,
     /// Head used to start set for the fork filter and status.
-    head:                 Option<Head>
+    head: Option<Head>,
 }
 
 // === impl NetworkConfigBuilder ===
 
 #[allow(missing_docs)]
 impl NetworkConfigBuilder {
-    pub fn new(secret_key: SecretKey) -> Self {
+    pub fn new(secret_key: SecretKey, verification_msg: &str) -> Self {
         Self {
             secret_key,
+            verification_msg,
             dns_discovery_config: Some(Default::default()),
             discovery_v4_builder: Some(Default::default()),
             boot_nodes: Default::default(),
@@ -133,13 +143,16 @@ impl NetworkConfigBuilder {
             chain_spec: MAINNET.clone(),
             executor: None,
             hello_message: None,
-            head: None
+            head: None,
         }
     }
 
     /// Returns the configured [`PeerId`]
-    pub fn get_peer_id(&self) -> PeerId {
-        pk2id(&self.secret_key.public_key(SECP256K1))
+    pub fn get_signed_hello(&self) -> (Signature, H256) {
+        let encoded_msg = keccak256(self.verification_msg);
+        let signature =
+            sign_message(H256::from_slice(self.secret_key.as_ref()), encoded_msg).unwrap();
+        (signature, encoded_msg)
     }
 
     /// Sets the chain spec.
@@ -314,9 +327,10 @@ impl NetworkConfigBuilder {
     /// receive from a peer in the status message when establishing a
     /// connection.
     pub fn build(self) -> NetworkConfig {
-        let peer_id = self.get_peer_id();
+        let (sig, signed_hello) = self.get_signed_hello().to_bytes();
         let Self {
             secret_key,
+            verification_msg,
             mut dns_discovery_config,
             discovery_v4_builder,
             boot_nodes,
@@ -327,7 +341,7 @@ impl NetworkConfigBuilder {
             chain_spec,
             executor,
             hello_message,
-            head
+            head,
         } = self;
 
         let listener_addr = listener_addr.unwrap_or_else(|| {
@@ -335,15 +349,15 @@ impl NetworkConfigBuilder {
         });
 
         let mut hello_message =
-            hello_message.unwrap_or_else(|| HelloMessage::builder(peer_id).build());
+            hello_message.unwrap_or_else(|| HelloMessage::builder(sig, signed_hello).build());
         hello_message.port = listener_addr.port();
 
         let head = head.unwrap_or(Head {
-            hash:             chain_spec.genesis_hash(),
-            number:           0,
-            timestamp:        chain_spec.genesis.timestamp,
-            difficulty:       chain_spec.genesis.difficulty,
-            total_difficulty: chain_spec.genesis.difficulty
+            hash: chain_spec.genesis_hash(),
+            number: 0,
+            timestamp: chain_spec.genesis.timestamp,
+            difficulty: chain_spec.genesis.difficulty,
+            total_difficulty: chain_spec.genesis.difficulty,
         });
 
         // set the status
@@ -380,7 +394,7 @@ impl NetworkConfigBuilder {
             executor: executor.unwrap_or_else(|| Box::<TokioTaskExecutor>::default()),
             status,
             hello_message,
-            fork_filter
+            fork_filter,
         }
     }
 }
@@ -396,11 +410,12 @@ mod tests {
 
     use super::*;
 
-    fn builder() -> NetworkConfigBuilder {
-        let secret_key = SecretKey::new(&mut thread_rng());
-        NetworkConfigBuilder::new(secret_key)
-    }
-
+    /*
+        fn builder() -> NetworkConfigBuilder {
+            let secret_key = SecretKey::new(&mut thread_rng());
+            NetworkConfigBuilder::new(secret_key);
+        }
+    */
     #[test]
     fn test_network_dns_defaults() {
         let config = builder().build();

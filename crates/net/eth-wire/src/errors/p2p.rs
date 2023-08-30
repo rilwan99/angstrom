@@ -1,8 +1,10 @@
 //! Error handling for [`P2PStream`](crate::P2PStream)
 use std::io;
 
+use reth_primitives::{Signature, H160};
+
 use crate::{
-    capability::SharedCapabilityError, disconnect::UnknownDisconnectReason, DisconnectReason
+    capability::SharedCapabilityError, disconnect::UnknownDisconnectReason, DisconnectReason,
 };
 
 /// Errors when sending/receiving p2p messages. These should result in kicking
@@ -39,7 +41,7 @@ pub enum P2PStreamError {
     #[error("disconnected")]
     Disconnected(DisconnectReason),
     #[error("unknown disconnect reason: {0}")]
-    UnknownDisconnectReason(#[from] UnknownDisconnectReason)
+    UnknownDisconnectReason(#[from] UnknownDisconnectReason),
 }
 
 // === impl P2PStreamError ===
@@ -50,7 +52,7 @@ impl P2PStreamError {
         let reason = match self {
             P2PStreamError::HandshakeError(P2PHandshakeError::Disconnected(reason)) => reason,
             P2PStreamError::Disconnected(reason) => reason,
-            _ => return None
+            _ => return None,
         };
 
         Some(*reason)
@@ -74,7 +76,13 @@ pub enum P2PHandshakeError {
     #[error("Disconnected by peer: {0}")]
     Disconnected(DisconnectReason),
     #[error("error decoding a message during handshake: {0}")]
-    DecodeError(#[from] reth_rlp::DecodeError)
+    DecodeError(#[from] reth_rlp::DecodeError),
+    #[error("unable to decode signature: {0}")]
+    UnableToDecodeSignature(String),
+    #[error("unable to recover signer: {0}")]
+    UnableToRecoverSigner(String),
+    #[error("unable to recover signer: {0:#x}")]
+    SignerNotStaked(H160),
 }
 
 /// An error that can occur when interacting with a pinger.
@@ -83,5 +91,5 @@ pub enum PingerError {
     /// An unexpected pong was received while the pinger was in the `Ready`
     /// state.
     #[error("pong received while ready")]
-    UnexpectedPong
+    UnexpectedPong,
 }
