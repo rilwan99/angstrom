@@ -62,6 +62,11 @@ impl Args {
                     .unwrap(),
             )));
 
+        /*
+                let middleware = Box::leak(Box::new(
+                    RethMiddleware::new(inner, self.full_node.clone(), rt.handle().clone(), 1).unwrap(),
+                ));
+        */
         let db_path = self.full_node.as_ref();
         let db = Arc::new(reth_db::mdbx::Env::<reth_db::mdbx::WriteMap>::open(
             db_path,
