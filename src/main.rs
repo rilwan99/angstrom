@@ -10,6 +10,7 @@ use leader::leader_manager::LeaderConfig;
 use reth_primitives::{mainnet_nodes, NodeRecord, H512};
 use sim::spawn_revm_sim;
 use stale_guard::{Guard, SubmissionServerConfig};
+use tokio::runtime::Handle;
 use url::Url;
 
 #[derive(Debug, Parser)]
@@ -75,7 +76,7 @@ impl Args {
     }
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    Args::parse().run().await
+fn main() -> anyhow::Result<()> {
+    Handle::current().spawn_blocking(|| Args::parse().run());
+    Ok(())
 }
