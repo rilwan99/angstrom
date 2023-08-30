@@ -55,6 +55,8 @@ sim.workspace = true
 ethers-reth.workspace = true
 reth-db.workspace = true
 
+
+hex-literal = "0.4.1"
 rand = "0.8.5"
 jsonrpsee = { workspace = true, features = ["server"] }
 tower-http = { version = "0.4", features = ["full"] }
