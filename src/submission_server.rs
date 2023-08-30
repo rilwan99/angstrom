@@ -1,7 +1,7 @@
 use std::{
     net::SocketAddr,
     ops::{Deref, DerefMut},
-    sync::Arc,
+    sync::Arc
 };
 
 use ethers_core::types::transaction::eip712::TypedData;
@@ -74,7 +74,7 @@ pub enum SubscriptionKind {
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum SubscriptionResult {
-    SealedBundle(shared::SealedBundle),
+    Bundle(shared::Batch),
     CowTransaction(Arc<Vec<Eip712>>)
 }
 

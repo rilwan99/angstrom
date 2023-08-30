@@ -8,9 +8,9 @@ use std::{
 use ethers_providers::Middleware;
 use futures::{Future, FutureExt};
 use futures_util::StreamExt;
-use guard_network::{GaurdStakingEvent, NetworkConfig, PeerMessages, Swarm};
+use guard_network::{GaurdStakingEvent, NetworkConfig, PeerMessages, Swarm, SwarmEvent};
 use jsonrpsee::server::ServerHandle;
-use leader::leader_manager::{Leader, LeaderConfig};
+use leader::leader_manager::{Leader, LeaderConfig, LeaderMessage};
 use sim::Simulator;
 use tokio::{
     sync::mpsc::{Sender, UnboundedSender},
@@ -77,10 +77,7 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
 
         self.leader.new_transactions(submissions.clone());
         let submissions = Arc::new(submissions);
-
-        self.network
-            .propagate_msg(PeerMessages::PropagateTransactions(submissions.clone()));
-
+        // we sim transactions locally before
         if let Some(senders) = self
             .server_subscriptions
             .get_mut(&SubscriptionKind::CowTransactions)
@@ -92,6 +89,14 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
             });
         }
     }
+
+    fn handle_network_events(&mut self, network_events: Vec<SwarmEvent>) {
+        debug!(?network_events, "got events from the swarm");
+    }
+
+    fn handle_leader_events(&mut self, leader_events: Vec<LeaderMessage>) {
+        debug!(?leader_events, "got actions from the leader");
+    }
 }
 
 impl<M: Middleware + Unpin, S: Simulator + Unpin> Future for Guard<M, S> {
@@ -100,13 +105,20 @@ impl<M: Middleware + Unpin, S: Simulator + Unpin> Future for Guard<M, S> {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut work = 4096;
         loop {
-            let mut messages = Vec::new();
-            while let Poll::Ready(new_msgs) = self.server.poll_next_unpin(cx) {
-                let Some(new_msgs) = new_msgs else { break; };
-                messages.push(new_msgs)
+            let mut sub_server_msg = Vec::with_capacity(3);
+            while let Poll::Ready(new_msg) = self.server.poll_next_unpin(cx) {
+                let Some(new_msg) = new_msg else { return Poll::Ready(()) };
+
+                sub_server_msg.push(new_msg)
             }
-            self.handle_submissions(messages);
-            while let Poll::Ready(Some(msgs)) = self.network.poll_next_unpin(cx) {}
+            self.handle_submissions(sub_server_msg);
+
+            let mut swarm_msgs = Vec::with_capacity(3);
+            while let Poll::Ready(new_msg) = self.network.poll_next_unpin(cx) {
+                let Some(new_msg) = new_msg else { return Poll::Ready(()) };
+                swarm_msgs.push(new_msg);
+            }
+            self.handle_network_events(swarm_msgs);
 
             while let Poll::Ready(msgs) = self.leader.poll(cx) {}
 

@@ -184,7 +184,7 @@ pub fn convert_eip712(eip_typed_data: TypedData) -> Result<Vec<TxEnv>, SimResult
     for tx in user_txs {
         let sig = Signature::decode(&mut &tx.signature[..]).unwrap();
         let from = sig.recover_signer(hash.into()).unwrap();
-        let gas_limit = tx.order.gas_bid;
+        let gas_limit = tx.order.gas_cap;
         let data = Bytes::default(); // add data
 
         let tx_env = TxEnv {

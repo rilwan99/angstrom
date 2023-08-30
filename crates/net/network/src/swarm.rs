@@ -16,7 +16,6 @@ use parking_lot::Mutex;
 use reth_net_common::bandwidth_meter::BandwidthMeter;
 use reth_network_api::ReputationChangeKind;
 use reth_primitives::{listener::EventListeners, ForkId, NodeRecord, PeerId, H160, H256};
-use shared::{SealedBundle, *};
 use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::{debug, trace};
 

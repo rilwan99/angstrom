@@ -9,7 +9,7 @@ use ethers_core::types::{transaction::eip712::TypedData, Address, U256};
 use futures::{stream::FuturesUnordered, Stream};
 use revm::db::DbAccount;
 use revm_primitives::*;
-use shared::{SealedBundle, UserOrder};
+use shared::{Batch, UserOrder};
 use sim::Simulator;
 
 #[derive(Debug, Clone)]
@@ -28,7 +28,7 @@ impl SimulatedTransaction {
     }
 
     pub fn gas_bid(&self) -> U256 {
-        self.details.gas_bid
+        self.details.gas_cap
     }
 
     /// true if we are swapping from pools token0 to token1
@@ -43,7 +43,7 @@ impl SimulatedTransaction {
 
 #[derive(Debug, Clone)]
 pub enum CowMsg {
-    NewBestBundle(SealedBundle),
+    NewBestBundle(Batch),
     NewValidTransactions(Vec<SimulatedTransaction>)
 }
 
@@ -51,7 +51,7 @@ pub type SimFut = Pin<Box<dyn Future<Output = ()> + Send + Sync + 'static>>;
 
 pub struct CowSolver<S: Simulator + 'static> {
     all_valid_transactions: HashMap<Address, Vec<SimulatedTransaction>>,
-    best_simed_bundle:      Option<SealedBundle>,
+    best_simed_bundle:      Option<Batch>,
     sim:                    S,
 
     pending_simulations: FuturesUnordered<SimFut>
@@ -67,23 +67,15 @@ impl<S: Simulator + 'static> CowSolver<S> {
         }
     }
 
-    pub fn best_bundle(&self) -> Option<&SealedBundle> {
+    pub fn best_bundle(&self) -> Option<&Batch> {
         self.best_simed_bundle.as_ref()
     }
 
     /// NOTICE: you need to verify that the sealed bundle already
     /// passed the simulation before trying to compare it. this
     /// is to guarantee no memory slot collusion
-    pub fn new_bundle(&mut self, bundle: SealedBundle) -> bool {
+    pub fn new_bundle(&mut self, bundle: Batch) -> bool {
         // TODO: this tech works because all we care is having the best gas bid
-        if self.best_simed_bundle.is_some()
-            && bundle.gas_bid_sum() > self.best_simed_bundle.as_ref().unwrap().gas_bid_sum()
-        {
-            self.best_simed_bundle = Some(bundle);
-
-            return true
-        }
-
         false
     }
 

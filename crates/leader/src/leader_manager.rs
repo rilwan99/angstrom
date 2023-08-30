@@ -9,7 +9,7 @@ use ethers_middleware::SignerMiddleware;
 use ethers_providers::Middleware;
 use ethers_signers::LocalWallet;
 use reth_primitives::{Address, U64};
-use shared::{Bundle, Eip712, SealedBundle};
+use shared::{Batch, BatchSignature, Eip712};
 use sim::Simulator;
 use url::Url;
 
@@ -42,9 +42,9 @@ pub struct LeaderConfig<M: Middleware + Unpin + 'static, S: Simulator + 'static>
 
 #[derive(Debug, Clone)]
 pub enum LeaderMessage {
-    NewBestBundle(SealedBundle),
+    NewBestBundle(Batch),
     NewValidTransactions(Vec<SimulatedTransaction>),
-    SignedBundle(Bundle)
+    SignedBundle(BatchSignature)
 }
 
 impl From<CowMsg> for LeaderMessage {
