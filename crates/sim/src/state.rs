@@ -1,16 +1,16 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use ethers_core::types::transaction::{
     eip2718::TypedTransaction,
-    eip712::{Eip712, TypedData}
+    eip712::{Eip712, TypedData},
 };
 use eyre::Result;
 use parking_lot::RwLock;
-use reth_db::mdbx::{tx::Tx, WriteMap, RO};
+use reth_db::mdbx::WriteMap;
 use reth_primitives::Signature;
 use revm::{
     db::{CacheDB, DatabaseRef, DbAccount, EmptyDB},
-    DatabaseCommit, EVM
+    DatabaseCommit, EVM,
 };
 use revm_primitives::*;
 use shared::UserSettlement;
@@ -18,7 +18,7 @@ use tokio::sync::oneshot::Sender;
 
 use crate::{
     lru_db::RevmLRU,
-    sim::{SimError, SimResult}
+    sim::{SimError, SimResult},
 };
 
 /// struct used to share the mutable state across threads
@@ -26,9 +26,9 @@ pub struct RevmState {
     /// touched slots in tx sim
     slot_changes: HashMap<B160, HashMap<U256, U256>>,
     /// cached database for bundle state differences
-    cache_db:     CacheDB<EmptyDB>,
+    cache_db: CacheDB<EmptyDB>,
     /// evm -> holds state to sim on
-    evm:          EVM<RevmLRU>
+    evm: EVM<RevmLRU>,
 }
 
 impl RevmState {
@@ -84,7 +84,7 @@ impl RevmState {
                         DbAccount {
                             info: evm_db.basic(addr).unwrap().unwrap(),
                             ..Default::default()
-                        }
+                        },
                     );
                     evm_db.accounts.get(&addr).unwrap()
                 };
@@ -100,7 +100,7 @@ impl RevmState {
     pub fn simulate_single_tx(
         state: Arc<RwLock<Self>>,
         tx: TypedData,
-        client_tx: Sender<SimResult>
+        client_tx: Sender<SimResult>,
     ) {
         let tx = &convert_eip712(tx).unwrap()[0];
 
@@ -116,7 +116,7 @@ impl RevmState {
                 Ok(None) => client_tx
                     .send(SimResult::SimulationError(SimError::CreateTransaction(tx.clone()))),
                 Err(_) => client_tx
-                    .send(SimResult::SimulationError(SimError::EVMTransactError(tx.clone())))
+                    .send(SimResult::SimulationError(SimError::EVMTransactError(tx.clone()))),
             };
     }
 
@@ -135,7 +135,7 @@ impl RevmState {
                 state.cache_db.commit(r.state)
             } else {
                 sim_res = SimResult::SimulationError(SimError::EVMTransactError(tx));
-                break
+                break;
             };
         }
         let _ = client_tx.send(sim_res);
@@ -144,11 +144,11 @@ impl RevmState {
     /// updates the slots touched by a transaction if they haven't already been
     /// touched
     fn set_touched_slots(
-        &mut self
+        &mut self,
     ) -> Result<Option<ExecutionResult>, EVMError<<RevmLRU as DatabaseRef>::Error>> {
         let contract_address = match self.evm.env.tx.transact_to {
             TransactTo::Call(a) => a,
-            TransactTo::Create(_) => return Ok(None)
+            TransactTo::Create(_) => return Ok(None),
         };
         let contract_slots = self
             .slot_changes
@@ -197,7 +197,7 @@ pub fn convert_eip712(eip_typed_data: TypedData) -> Result<Vec<TxEnv>, SimResult
             data,
             chain_id: eip_typed_data.domain.chain_id.map(|c| c.as_u64().into()),
             nonce: None,
-            access_list: Vec::new()
+            access_list: Vec::new(),
         };
         transactions.push(tx_env)
     }
@@ -209,7 +209,7 @@ pub fn convert_eip712(eip_typed_data: TypedData) -> Result<Vec<TxEnv>, SimResult
 pub fn convert_type_tx(tx: &TypedTransaction) -> TxEnv {
     let transact_to = match tx.to_addr() {
         Some(to) => TransactTo::Call(B160::from(*to)),
-        None => TransactTo::Create(CreateScheme::Create)
+        None => TransactTo::Create(CreateScheme::Create),
     };
 
     let tx_env = TxEnv {
@@ -226,7 +226,7 @@ pub fn convert_type_tx(tx: &TypedTransaction) -> TxEnv {
             .into(),
         chain_id: None,
         nonce: None,
-        access_list: Vec::new()
+        access_list: Vec::new(),
     };
 
     tx_env
