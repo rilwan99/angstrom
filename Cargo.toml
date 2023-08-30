@@ -53,6 +53,7 @@ anyhow.workspace = true
 url.workspace = true
 sim.workspace = true
 ethers-reth.workspace = true
+reth-db.workspace = true
 
 rand = "0.8.5"
 jsonrpsee = { workspace = true, features = ["server"] }

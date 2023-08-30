@@ -1,40 +1,41 @@
-use std::{sync::Arc, task::Poll};
-
-use ethers_middleware::Middleware;
+use crate::lru_db::RevmLRU;
 use futures_util::Future;
 use parking_lot::RwLock;
-use tokio::sync::mpsc::UnboundedReceiver;
+use reth_db::mdbx::tx::Tx;
+use reth_db::mdbx::WriteMap;
+use reth_db::mdbx::RO;
+use std::{path::Path, sync::Arc, task::Poll};
+use tokio::{runtime::Handle, sync::mpsc::UnboundedReceiver};
 
 use crate::{
     executor::{TaskKind, ThreadPool},
-    sim::SimResult,
     state::RevmState,
-    TransactionType
+    TransactionType,
 };
 
 /// revm state handler
-pub struct Revm<M: Middleware + 'static> {
+pub struct Revm {
     transaction_rx: UnboundedReceiver<TransactionType>,
-    threadpool:     ThreadPool,
-    state:          Arc<RwLock<RevmState<M>>>
+    threadpool: ThreadPool,
+    state: Arc<RwLock<RevmState>>,
 }
 
-impl<M> Revm<M>
-where
-    M: Middleware
-{
+impl Revm {
     pub fn new(
         transaction_rx: UnboundedReceiver<TransactionType>,
-        evm_db: M,
-        max_bytes: usize
+        evm_db: Arc<reth_db::mdbx::Env<WriteMap>>,
+        max_bytes: usize,
     ) -> Self {
         let threadpool = ThreadPool::new();
-        let handle = threadpool.runtime.handle().clone();
         Self {
             transaction_rx,
             threadpool,
-            state: Arc::new(RwLock::new(RevmState::new(evm_db, max_bytes, handle)))
+            state: Arc::new(RwLock::new(RevmState::new(evm_db, max_bytes))),
         }
+    }
+
+    pub fn get_threadpool_handle(&self) -> Handle {
+        self.threadpool.runtime.handle().clone()
     }
 
     /// handles incoming transactions from clients
@@ -54,24 +55,21 @@ where
     }
 }
 
-impl<M> Future for Revm<M>
-where
-    M: Middleware + Unpin
-{
+impl Future for Revm {
     type Output = ();
 
     fn poll(
         self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>
+        cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
         let this = self.get_mut();
 
         while let Poll::Ready(poll_tx) = this.transaction_rx.poll_recv(cx) {
             match poll_tx {
                 Some(tx) => this.handle_incoming_tx(tx),
-                None => return Poll::Ready(())
+                None => return Poll::Ready(()),
             }
         }
-        return Poll::Pending
+        return Poll::Pending;
     }
 }

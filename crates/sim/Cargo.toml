@@ -15,7 +15,7 @@ exclude.workspace = true
 ethers-middleware.workspace = true
 ethers-core = "2.0.9"
 ethers-signers = "2.0.9"
-ethers-reth = { git = "https://github.com/SorellaLabs/ethers-reth/" }
+
 
 # revm
 revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
@@ -23,6 +23,9 @@ revm-primitives = { git = "https://github.com/bluealloy/revm/", branch = "releas
 
 # reth
 reth-primitives.workspace = true
+reth-provider.workspace = true
+reth-revm.workspace = true
+reth-db.workspace = true
 
 # async/futures
 tokio = { version = "1.21", default-features = false }

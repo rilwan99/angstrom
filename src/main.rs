@@ -1,4 +1,4 @@
-use std::{path::PathBuf, str::FromStr};
+use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use clap::Parser;
 use ethers_core::rand::rngs::ThreadRng;
@@ -10,6 +10,7 @@ use leader::leader_manager::LeaderConfig;
 use reth_primitives::{mainnet_nodes, NodeRecord, H512};
 use sim::spawn_revm_sim;
 use stale_guard::{Guard, SubmissionServerConfig};
+use tokio::runtime::{Handle, Runtime};
 use url::Url;
 
 #[derive(Debug, Parser)]
@@ -48,34 +49,54 @@ impl Args {
         let inner = Provider::new(Http::new(self.full_node_ws));
 
         let middleware = Box::leak(Box::new(
-            RethMiddleware::new(inner, self.full_node, tokio::runtime::Handle::current(), 1)
-                .unwrap(),
+            RethMiddleware::new(inner, self.full_node.clone(), rt.handle().clone(), 1).unwrap(),
         ));
-        let (sim, handle) = spawn_revm_sim(middleware, 6942069);
 
+        let db_path = self.full_node.as_ref();
+        let db = Arc::new(reth_db::mdbx::Env::<reth_db::mdbx::WriteMap>::open(
+            db_path,
+            reth_db::mdbx::EnvKind::RO,
+            None,
+        )?);
+
+        let sim = spawn_revm_sim(db, 6942069);
+
+        let network_config = NetworkConfig::new(fake_key, fake_pub_key.parse().unwrap());
         let network_config = NetworkConfig::new(fake_key, fake_pub_key.parse().unwrap());
         let leader_config = LeaderConfig {
             simulator: sim,
             edsca_key: fake_edsca,
             bundle_key: fake_bundle,
             middleware,
+            middleware,
         };
 
+        let fake_addr = "ws://127.0.0.1:6969".parse()?;
         let fake_addr = "ws://127.0.0.1:6969".parse()?;
         let server_config = SubmissionServerConfig {
             addr: fake_addr,
             cors_domains: "balls".into(),
             allow_subscriptions: self.enable_subscriptions,
+            addr: fake_addr,
+            cors_domains: "balls".into(),
+            allow_subscriptions: self.enable_subscriptions,
         };
 
-        let guard = Guard::new(network_config, leader_config, server_config, handle).await?;
-        tokio::spawn(guard).await?;
+        let guard = rt.block_on(Guard::new(network_config, leader_config, server_config));
+        rt.block_on(guard?);
 
         Ok(())
     }
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    Args::parse().run().await
+fn main() -> anyhow::Result<()> {
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(3)
+        .build()
+        .unwrap();
+
+    Args::parse().run(rt)?;
+
+    Ok(())
 }
