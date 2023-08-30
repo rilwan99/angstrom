@@ -39,6 +39,7 @@ pub struct Args {
 
 impl Args {
     pub fn run(self, rt: Runtime) -> anyhow::Result<()> {
+        reth_tracing::init(vec![]);
         //let fake_key = SecretKey::new(&mut rand::thread_rng());
         let fake_key =
             SecretKey::from_str("046cfcdbef4955744de5f87e739883e7ffa5daa05945bda2b7f5d4b3123935de")
@@ -80,11 +81,11 @@ impl Args {
             middleware
         };
 
-        let fake_addr = "ws://127.0.0.1:6969".parse()?;
+        let fake_addr = "127.0.0.1:6969".parse()?;
 
         let server_config = SubmissionServerConfig {
             addr:                fake_addr,
-            cors_domains:        "balls".into(),
+            // cors_domains:        "balls".into(),
             allow_subscriptions: self.enable_subscriptions
         };
         println!("spawning guard");

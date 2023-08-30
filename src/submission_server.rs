@@ -110,7 +110,7 @@ pub enum Submission {
 
 pub struct SubmissionServerConfig {
     pub addr:                SocketAddr,
-    pub cors_domains:        String,
+    // pub cors_domains:        String,
     pub allow_subscriptions: bool
 }
 
@@ -140,15 +140,15 @@ pub struct SubmissionServerInner {
 
 impl SubmissionServerInner {
     pub async fn new(config: SubmissionServerConfig) -> anyhow::Result<SubmissionServer> {
-        let SubmissionServerConfig { addr, cors_domains, allow_subscriptions } = config;
+        let SubmissionServerConfig { addr, allow_subscriptions } = config;
 
         let (tx, rx) = channel(10);
 
-        let middleware: ServiceBuilder<Stack<CorsLayer, Identity>> =
-            tower::ServiceBuilder::new().layer(create_cors_layer(&cors_domains)?);
+        // let middleware: ServiceBuilder<Stack<CorsLayer, Identity>> =
+        //     tower::ServiceBuilder::new().layer(create_cors_layer(&cors_domains)?);
 
         let server = jsonrpsee::server::ServerBuilder::default()
-            .set_middleware(middleware)
+            // .set_middleware(middleware)
             .build(addr)
             .await?;
 
