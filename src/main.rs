@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
 
 use clap::Parser;
 use ethers_core::rand::rngs::ThreadRng;
@@ -37,7 +37,9 @@ pub struct Args {
 impl Args {
     pub async fn run(self) -> anyhow::Result<()> {
         //let fake_key = SecretKey::new(&mut rand::thread_rng());
-        let fake_key = "046cfcdbef4955744de5f87e739883e7ffa5daa05945bda2b7f5d4b3123935de";
+        let fake_key =
+            SecretKey::from_str("046cfcdbef4955744de5f87e739883e7ffa5daa05945bda2b7f5d4b3123935de")
+                .unwrap();
         let fake_pub_key = "04a3905ec9415c386d249b9bc9e430ce47c2f0e9dff67f749042dd2e58b24c3dda4e77f6c6c93d9b5d6377d63dd76c7e51e75057b7c3ff2b39f70027dcd50e80eb";
 
         let fake_edsca = LocalWallet::new(&mut rand::thread_rng());
