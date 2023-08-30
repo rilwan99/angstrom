@@ -10,7 +10,7 @@ use leader::leader_manager::LeaderConfig;
 use reth_primitives::{mainnet_nodes, NodeRecord, H512};
 use sim::spawn_revm_sim;
 use stale_guard::{Guard, SubmissionServerConfig};
-use tokio::runtime::Handle;
+use tokio::runtime::{Handle, Runtime};
 use url::Url;
 
 #[derive(Debug, Parser)]
@@ -30,13 +30,13 @@ pub struct Args {
     #[arg(long, default_value = "false")]
     pub enable_subscriptions: bool,
     #[arg(long)]
-    pub full_node: PathBuf,
+    pub full_node:            PathBuf,
     #[arg(long)]
-    pub full_node_ws: Url,
+    pub full_node_ws:         Url
 }
 
 impl Args {
-    pub async fn run(self) -> anyhow::Result<()> {
+    pub fn run(self, rt: Runtime) -> anyhow::Result<()> {
         //let fake_key = SecretKey::new(&mut rand::thread_rng());
         let fake_key =
             SecretKey::from_str("046cfcdbef4955744de5f87e739883e7ffa5daa05945bda2b7f5d4b3123935de")
@@ -49,34 +49,39 @@ impl Args {
         let inner = Provider::new(Http::new(self.full_node_ws));
 
         let middleware = Box::leak(Box::new(
-            RethMiddleware::new(inner, self.full_node, tokio::runtime::Handle::current(), 1)
-                .unwrap(),
+            RethMiddleware::new(inner, self.full_node, rt.handle().clone(), 1).unwrap()
         ));
-        let (sim, handle) = spawn_revm_sim(middleware, 6942069);
+        let sim = spawn_revm_sim(middleware, 6942069);
 
         let network_config = NetworkConfig::new(fake_key, fake_pub_key.parse().unwrap());
         let leader_config = LeaderConfig {
             simulator: sim,
             edsca_key: fake_edsca,
             bundle_key: fake_bundle,
-            middleware,
+            middleware
         };
 
         let fake_addr = "ws://127.0.0.1:6969".parse()?;
         let server_config = SubmissionServerConfig {
-            addr: fake_addr,
-            cors_domains: "balls".into(),
-            allow_subscriptions: self.enable_subscriptions,
+            addr:                fake_addr,
+            cors_domains:        "balls".into(),
+            allow_subscriptions: self.enable_subscriptions
         };
 
-        let guard = Guard::new(network_config, leader_config, server_config, handle).await?;
-        tokio::spawn(guard).await?;
+        let guard = rt.block_on(Guard::new(network_config, leader_config, server_config));
+        rt.block_on(guard?);
 
         Ok(())
     }
 }
 
 fn main() -> anyhow::Result<()> {
-    Handle::current().spawn_blocking(|| Args::parse().run());
+    let rt = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(3)
+        .build()
+        .unwrap();
+    Args::parse().run(rt)?;
+
     Ok(())
 }

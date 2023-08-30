@@ -3,7 +3,7 @@ use std::{sync::Arc, task::Poll};
 use ethers_middleware::Middleware;
 use futures_util::Future;
 use parking_lot::RwLock;
-use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::{runtime::Handle, sync::mpsc::UnboundedReceiver};
 
 use crate::{
     executor::{TaskKind, ThreadPool},
@@ -35,6 +35,10 @@ where
             threadpool,
             state: Arc::new(RwLock::new(RevmState::new(evm_db, max_bytes, handle)))
         }
+    }
+
+    pub fn get_threadpool_handle(&self) -> Handle {
+        self.threadpool.runtime.handle().clone()
     }
 
     /// handles incoming transactions from clients

@@ -17,14 +17,15 @@ pub mod revm;
 pub mod sim;
 pub mod state;
 
-pub fn spawn_revm_sim<M: Middleware>(
-    middleware: &'static M,
-    max_bytes: usize
-) -> (RevmClient, JoinHandle<()>) {
+pub fn spawn_revm_sim<M: Middleware>(middleware: &'static M, max_bytes: usize) -> RevmClient {
     let (tx, rx) = unbounded_channel();
-    let revm_client = Revm::new(rx, middleware, max_bytes);
+    std::thread::spawn(move || {
+        let revm_client = Revm::new(rx, middleware, max_bytes);
+        let handle = revm_client.get_threadpool_handle();
+        handle.block_on(revm_client);
+    });
 
-    (RevmClient::new(tx), tokio::spawn(revm_client))
+    RevmClient::new(tx)
 }
 // the simulator is a handle that we use to simulate transactions.
 #[async_trait::async_trait]
