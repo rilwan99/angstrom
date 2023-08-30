@@ -15,7 +15,7 @@ exclude.workspace = true
 ethers-middleware.workspace = true
 ethers-core = "2.0.9"
 ethers-signers = "2.0.9"
-ethers-reth = { git = "https://github.com/SorellaLabs/ethers-reth/" }
+ethers-reth.workspace = true
 
 # revm
 revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
