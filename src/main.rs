@@ -50,7 +50,12 @@ impl Args {
         let inner = Provider::new(Http::new(self.full_node_ws));
 
         let middleware: &mut SignerMiddleware<Provider<Http>, LocalWallet> =
-            Box::leak(Box::new(SignerMiddleware::new(inner, fake_pub_key.parse().unwrap())));
+            Box::leak(Box::new(SignerMiddleware::new(
+                inner,
+                "046cfcdbef4955744de5f87e739883e7ffa5daa05945bda2b7f5d4b3123935de"
+                    .parse()
+                    .unwrap(),
+            )));
 
         /*
                 let middleware = Box::leak(Box::new(
