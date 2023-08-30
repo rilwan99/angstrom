@@ -614,6 +614,6 @@ pub enum DiscoveredEvent {
 #[derive(Debug, Clone)]
 /// event triggered on addition or deletion of a staked gaurd from the network
 pub enum GaurdStakingEvent {
-    NewStaker(H160),
-    RemovedStaker(H160)
+    NewStaker(PeerId),
+    RemovedStaker(PeerId),
 }
