@@ -81,11 +81,13 @@ impl Args {
         };
 
         let fake_addr = "ws://127.0.0.1:6969".parse()?;
+
         let server_config = SubmissionServerConfig {
             addr:                fake_addr,
             cors_domains:        "balls".into(),
             allow_subscriptions: self.enable_subscriptions
         };
+        println!("spawning guard");
 
         let guard = rt.block_on(Guard::new(network_config, leader_config, server_config));
         rt.block_on(guard?);
