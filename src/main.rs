@@ -36,7 +36,7 @@ pub struct Args {
 }
 
 impl Args {
-    pub async fn run(self) -> anyhow::Result<()> {
+    pub fn run(self, rt: Runtime) -> anyhow::Result<()> {
         //let fake_key = SecretKey::new(&mut rand::thread_rng());
         let fake_key =
             SecretKey::from_str("ad21c16051f74f24b3fbad57b0010d98bfef20441c84ee5a872133f19f807fc4")
@@ -62,21 +62,15 @@ impl Args {
         let sim = spawn_revm_sim(db, 6942069);
 
         let network_config = NetworkConfig::new(fake_key, fake_pub_key.parse().unwrap());
-        let network_config = NetworkConfig::new(fake_key, fake_pub_key.parse().unwrap());
         let leader_config = LeaderConfig {
             simulator: sim,
             edsca_key: fake_edsca,
             bundle_key: fake_bundle,
             middleware,
-            middleware,
         };
 
         let fake_addr = "ws://127.0.0.1:6969".parse()?;
-        let fake_addr = "ws://127.0.0.1:6969".parse()?;
         let server_config = SubmissionServerConfig {
-            addr: fake_addr,
-            cors_domains: "balls".into(),
-            allow_subscriptions: self.enable_subscriptions,
             addr: fake_addr,
             cors_domains: "balls".into(),
             allow_subscriptions: self.enable_subscriptions,
