@@ -1,10 +1,8 @@
 use std::{
-    net::SocketAddr,
     sync::Arc,
     task::{ready, Context, Poll}
 };
 
-use ethers_core::types::transaction::eip712::TypedData;
 use futures::FutureExt;
 use guard_eth_wire::{message::RequestPair, EthMessage};
 use reth_interfaces::p2p::error::RequestResult;
@@ -14,9 +12,14 @@ use tokio::sync::{oneshot, oneshot::Sender as OneSender};
 /// General bi-directional messages sent to & from peers
 #[derive(Debug, Clone)]
 pub enum PeerMessages {
+    /// propagates new 712 transactions
     PropagateTransactions(Arc<Vec<Eip712>>),
+    /// propgates when we calculated a bundle that is better than
+    /// our current
     PropagateSealedBundle(Arc<SealedBundle>),
+    /// leader request to get signatures on a new bundle
     PropagateSignatureRequest(Arc<Bundle>),
+    /// propgating the signature for the send out bundle
     PropagateBundleSignature(Arc<BundleSignature>),
 
     /// This is only for receiving and will never be propagated
@@ -28,6 +31,7 @@ pub enum PeerMessages {
 /// Specific requests from a peer
 #[derive(Debug)]
 pub enum PeerRequests {
+    /// for connecting for sealed second bid
     GetTeeModule(GetTeeModule, OneSender<TeeAddress>)
 }
 

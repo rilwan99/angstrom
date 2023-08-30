@@ -1,28 +1,22 @@
 use std::{
     net::SocketAddr,
     ops::{Deref, DerefMut},
-    task::{Poll, Waker}
+    sync::Arc,
 };
 
-use ethers_core::types::transaction::eip712::{EIP712Domain, TypedData};
+use ethers_core::types::transaction::eip712::TypedData;
 use futures::{Stream, StreamExt};
 use hyper::{http::HeaderValue, Method};
 use jsonrpsee::{
     proc_macros::rpc, server::ServerHandle, PendingSubscriptionSink, SubscriptionSink
 };
 use jsonrpsee_core::server::SubscriptionMessage;
-use parking_lot::Mutex;
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use shared::Eip712;
+use tokio::sync::mpsc::{channel, Sender};
 use tokio_stream::wrappers::ReceiverStream;
-use tower::{
-    layer::{
-        util::{Identity, Stack},
-        Layer
-    },
-    ServiceBuilder
-};
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
+use tracing::info;
 
 /// Error thrown when parsing cors domains went wrong
 #[derive(Debug, thiserror::Error)]
@@ -81,7 +75,7 @@ pub enum SubscriptionKind {
 #[serde(rename_all = "camelCase")]
 pub enum SubscriptionResult {
     SealedBundle(shared::SealedBundle),
-    CowTransaction(TypedData)
+    CowTransaction(Arc<Vec<Eip712>>)
 }
 
 #[rpc(server, namespace = "guard")]
@@ -103,8 +97,9 @@ pub trait GaurdSubscribeApi {
     async fn subscribe(&self, kind: SubscriptionKind) -> jsonrpsee::core::SubscriptionResult;
 }
 
+#[derive(Debug)]
 pub enum Submission {
-    Submission(TypedData),
+    Submission(Eip712),
     Subscription(SubscriptionKind, Sender<SubscriptionResult>)
 }
 
@@ -167,9 +162,10 @@ impl SubmissionServerInner {
 #[async_trait::async_trait]
 impl GuardSubmitApiServer for SubmissionServerInner {
     async fn submit_eip712(&self, meta_tx: TypedData) -> bool {
+        info!(?meta_tx, "new submission");
         if self
             .sender
-            .send(Submission::Submission(meta_tx))
+            .send(Submission::Submission(Eip712(meta_tx)))
             .await
             .is_err()
         {
@@ -187,6 +183,7 @@ impl GaurdSubscribeApiServer for SubmissionServerInner {
         pending: PendingSubscriptionSink,
         kind: SubscriptionKind
     ) -> jsonrpsee::core::SubscriptionResult {
+        info!(?pending, ?kind, "subscription request");
         let sink = pending.accept().await?;
         let (tx, rx) = channel(5);
         if self

@@ -4,7 +4,6 @@
     html_favicon_url = "https://avatars0.githubusercontent.com/u/97369466?s=256",
     issue_tracker_base_url = "https://github.com/paradigmxzy/reth/issues/"
 )]
-#![warn(missing_docs)]
 #![deny(unused_must_use, rust_2018_idioms, rustdoc::broken_intra_doc_links)]
 #![allow(rustdoc::private_intra_doc_links)]
 #![doc(test(
@@ -136,6 +135,7 @@ mod session;
 pub mod state;
 mod swarm;
 
+pub use messages::*;
 pub use config::{NetworkConfig, NetworkConfigBuilder};
 pub use discovery::Discovery;
 pub use guard_eth_wire::{DisconnectReason, HelloBuilder, HelloMessage};

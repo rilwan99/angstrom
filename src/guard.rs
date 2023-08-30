@@ -1,14 +1,14 @@
 use std::{
     collections::HashMap,
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll}
 };
 
-use ethers_core::types::H160;
 use ethers_providers::Middleware;
 use futures::{Future, FutureExt};
 use futures_util::StreamExt;
-use guard_network::{GaurdStakingEvent, NetworkConfig, Swarm};
+use guard_network::{GaurdStakingEvent, NetworkConfig, PeerMessages, Swarm};
 use jsonrpsee::server::ServerHandle;
 use leader::leader_manager::{Leader, LeaderConfig};
 use sim::Simulator;
@@ -16,6 +16,7 @@ use tokio::{
     sync::mpsc::{Sender, UnboundedSender},
     task::JoinHandle
 };
+use tracing::{debug, trace};
 
 use crate::submission_server::{
     Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner, SubscriptionKind,
@@ -57,20 +58,28 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
         })
     }
 
-    fn handle_submissions(&mut self, msg: Submission) {
-        let data = match msg {
-            Submission::Subscription(kind, sender) => {
-                self.server_subscriptions
-                    .entry(kind)
-                    .or_default()
-                    .push(sender);
-                return
-            }
-            Submission::Submission(typed_data) => typed_data
-        };
+    fn handle_submissions(&mut self, msgs: Vec<Submission>) {
+        debug!(amount = msgs.len(), "handling new submissions");
 
-        self.leader.new_transaction(data.clone());
-        //TODO: propagate to network
+        let submissions = msgs
+            .into_iter()
+            .filter_map(|msg| match msg {
+                Submission::Subscription(kind, sender) => {
+                    self.server_subscriptions
+                        .entry(kind)
+                        .or_default()
+                        .push(sender);
+                    None
+                }
+                Submission::Submission(typed_data) => Some(typed_data)
+            })
+            .collect::<Vec<_>>();
+
+        self.leader.new_transactions(submissions.clone());
+        let submissions = Arc::new(submissions);
+
+        self.network
+            .propagate_msg(PeerMessages::PropagateTransactions(submissions.clone()));
 
         if let Some(senders) = self
             .server_subscriptions
@@ -78,7 +87,7 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
         {
             senders.retain(|sender| {
                 sender
-                    .try_send(SubscriptionResult::CowTransaction(data.clone()))
+                    .try_send(SubscriptionResult::CowTransaction(submissions.clone()))
                     .is_ok()
             });
         }
@@ -91,17 +100,15 @@ impl<M: Middleware + Unpin, S: Simulator + Unpin> Future for Guard<M, S> {
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut work = 4096;
         loop {
-            if let Poll::Ready(new_msgs) = self.server.poll_next_unpin(cx) {
-                let Some(new_msgs) = new_msgs else { return Poll::Ready(()) };
-
-                self.handle_submissions(new_msgs);
+            let mut messages = Vec::new();
+            while let Poll::Ready(new_msgs) = self.server.poll_next_unpin(cx) {
+                let Some(new_msgs) = new_msgs else { break; };
+                messages.push(new_msgs)
             }
-            if let Poll::Ready(Some(msgs)) = self.network.poll_next_unpin(cx) {
-                cx.waker().wake_by_ref();
-                println!("{msgs:?}");
-            }
+            self.handle_submissions(messages);
+            while let Poll::Ready(Some(msgs)) = self.network.poll_next_unpin(cx) {}
 
-            if let Poll::Ready(msgs) = self.leader.poll(cx) {}
+            while let Poll::Ready(msgs) = self.leader.poll(cx) {}
 
             work -= 1;
             if work == 0 {
