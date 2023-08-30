@@ -53,6 +53,8 @@ pub enum DisconnectReason {
     NoRecoveredSigner = 0x12,
     /// Signer not staked
     SignerNotStaked = 0x13,
+    /// Peer no longer staked
+    StakerRemoved = 0x14,
 }
 
 impl Display for DisconnectReason {
@@ -82,6 +84,7 @@ impl Display for DisconnectReason {
                 "Unable to recover peer's address from signature"
             }
             DisconnectReason::SignerNotStaked => "Signer address not found as staked",
+            DisconnectReason::StakerRemoved => "This peer is no longer staked",
         };
 
         write!(f, "{message}")
