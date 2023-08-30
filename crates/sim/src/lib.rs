@@ -3,14 +3,16 @@ use std::path::Path;
 use client::RevmClient;
 use ethers_core::types::transaction::eip712::TypedData;
 use sim::SimResult;
-use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
+use tokio::{
+    sync::{mpsc::unbounded_channel, oneshot::Sender},
+    task::JoinHandle,
+};
 
 use crate::{revm::Revm, sim::SimError};
 
 pub mod client;
 pub mod executor;
 pub mod lru_db;
-pub mod reth_client;
 pub mod revm;
 pub mod sim;
 pub mod state;
@@ -35,5 +37,5 @@ pub trait Simulator: Clone {
 /// CHANGE TO EIP712DOMAIN
 pub enum TransactionType {
     Single(TypedData, Sender<SimResult>),
-    Bundle(TypedData, Sender<SimResult>)
+    Bundle(TypedData, Sender<SimResult>),
 }
