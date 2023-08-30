@@ -187,12 +187,16 @@ impl SessionManager {
 
     /// Removes a valid stakers to the set
     pub fn remove_staker(&mut self, pubkey: PeerId) {
+        // removes the staker from the tracked list
         let index = self
             .valid_stakers
             .iter()
             .position(|staker| *staker == pubkey)
             .unwrap();
         self.valid_stakers.remove(index);
+
+        // drops the peer connection (if it exists)
+        self.disconnect(pubkey, Some(DisconnectReason::StakerRemoved))
     }
 
     /// Returns the session hello message.

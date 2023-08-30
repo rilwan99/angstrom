@@ -23,36 +23,38 @@ pub enum DisconnectReason {
     #[default]
     DisconnectRequested = 0x00,
     /// TCP related error
-    TcpSubsystemError   = 0x01,
+    TcpSubsystemError = 0x01,
     /// Breach of protocol at the transport or p2p level
-    ProtocolBreach      = 0x02,
+    ProtocolBreach = 0x02,
     /// Node has no matching protocols.
-    UselessPeer         = 0x03,
+    UselessPeer = 0x03,
     /// Either the remote or local node has too many peers.
-    TooManyPeers        = 0x04,
+    TooManyPeers = 0x04,
     /// Already connected to the peer.
-    AlreadyConnected    = 0x05,
+    AlreadyConnected = 0x05,
     /// `p2p` protocol version is incompatible
     IncompatibleP2PProtocolVersion = 0x06,
     /// Received a null node identity.
-    NullNodeIdentity    = 0x07,
+    NullNodeIdentity = 0x07,
     /// Reason when the client is shutting down.
-    ClientQuitting      = 0x08,
+    ClientQuitting = 0x08,
     /// When the received handshake's identify is different from what is
     /// expected.
     UnexpectedHandshakeIdentity = 0x09,
     /// The node is connected to itself
-    ConnectedToSelf     = 0x0a,
+    ConnectedToSelf = 0x0a,
     /// Peer or local node did not respond to a ping in time.
-    PingTimeout         = 0x0b,
+    PingTimeout = 0x0b,
     /// Peer or local node violated a subprotocol-specific rule.
     SubprotocolSpecific = 0x10,
     /// Unable to decode signature
     UnreadableSignature = 0x11,
     /// Unable to recover signer
-    NoRecoveredSigner   = 0x12,
+    NoRecoveredSigner = 0x12,
     /// Signer not staked
-    SignerNotStaked     = 0x13
+    SignerNotStaked = 0x13,
+    /// Peer no longer staked
+    StakerRemoved = 0x14,
 }
 
 impl Display for DisconnectReason {
@@ -81,7 +83,8 @@ impl Display for DisconnectReason {
             DisconnectReason::NoRecoveredSigner => {
                 "Unable to recover peer's address from signature"
             }
-            DisconnectReason::SignerNotStaked => "Signer address not found as staked"
+            DisconnectReason::SignerNotStaked => "Signer address not found as staked",
+            DisconnectReason::StakerRemoved => "This peer is no longer staked",
         };
 
         write!(f, "{message}")
@@ -113,7 +116,7 @@ impl TryFrom<u8> for DisconnectReason {
             0x0a => Ok(DisconnectReason::ConnectedToSelf),
             0x0b => Ok(DisconnectReason::PingTimeout),
             0x10 => Ok(DisconnectReason::SubprotocolSpecific),
-            _ => Err(UnknownDisconnectReason(value))
+            _ => Err(UnknownDisconnectReason(value)),
         }
     }
 }
@@ -137,9 +140,9 @@ impl Encodable for DisconnectReason {
 impl Decodable for DisconnectReason {
     fn decode(buf: &mut &[u8]) -> Result<Self, DecodeError> {
         if buf.is_empty() {
-            return Err(DecodeError::InputTooShort)
+            return Err(DecodeError::InputTooShort);
         } else if buf.len() > 2 {
-            return Err(DecodeError::Overflow)
+            return Err(DecodeError::Overflow);
         }
 
         if buf.len() > 1 {
@@ -147,7 +150,7 @@ impl Decodable for DisconnectReason {
             // buffer so buf[0] is the first (and only) element of the list.
             let header = Header::decode(buf)?;
             if !header.list {
-                return Err(DecodeError::UnexpectedString)
+                return Err(DecodeError::UnexpectedString);
             }
         }
 
@@ -173,7 +176,7 @@ pub trait CanDisconnect<T>: Sink<T> + Unpin + Sized {
     /// carry the additional disconnect metadata.
     async fn disconnect(
         &mut self,
-        reason: DisconnectReason
+        reason: DisconnectReason,
     ) -> Result<(), <Self as Sink<T>>::Error>;
 }
 
@@ -182,11 +185,11 @@ pub trait CanDisconnect<T>: Sink<T> + Unpin + Sized {
 impl<T, I, U> CanDisconnect<I> for Framed<T, U>
 where
     T: AsyncWrite + Unpin + Send,
-    U: Encoder<I> + Send
+    U: Encoder<I> + Send,
 {
     async fn disconnect(
         &mut self,
-        _reason: DisconnectReason
+        _reason: DisconnectReason,
     ) -> Result<(), <Self as Sink<I>>::Error> {
         self.close().await
     }
@@ -195,7 +198,7 @@ where
 #[async_trait::async_trait]
 impl<S> CanDisconnect<Bytes> for ECIESStream<S>
 where
-    S: AsyncWrite + Unpin + Send
+    S: AsyncWrite + Unpin + Send,
 {
     async fn disconnect(&mut self, _reason: DisconnectReason) -> Result<(), std::io::Error> {
         self.close().await
