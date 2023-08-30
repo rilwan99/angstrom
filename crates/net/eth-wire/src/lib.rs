@@ -33,7 +33,7 @@ pub const DEFAULT_HELLO_VERIFICATION_MESSAGE: &str = "ANGSTROM";
 
 #[cfg(test)]
 pub use tokio_util::codec::{
-    LengthDelimitedCodec as PassthroughCodec, LengthDelimitedCodecError as PassthroughCodecError,
+    LengthDelimitedCodec as PassthroughCodec, LengthDelimitedCodecError as PassthroughCodecError
 };
 pub use types::*;
 
@@ -41,5 +41,5 @@ pub use crate::{
     disconnect::{CanDisconnect, DisconnectReason},
     ethstream::{EthStream, UnauthedEthStream, MAX_MESSAGE_SIZE},
     hello::HelloMessage,
-    p2pstream::{P2PMessage, P2PMessageID, P2PStream, ProtocolVersion, UnauthedP2PStream},
+    p2pstream::{P2PMessage, P2PMessageID, P2PStream, ProtocolVersion, UnauthedP2PStream}
 };

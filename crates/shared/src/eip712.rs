@@ -58,10 +58,9 @@ mod test {
 
     use super::*;
     use crate::eip712::bytes::BytesMut;
- 
+
     #[test]
     fn test_encode_decode() {
-
         let json = serde_json::json!({
           "types": {
             "EIP712Domain": [
@@ -179,7 +178,7 @@ mod test {
         let eip = Eip712(typed_data);
         let mut bytes = BytesMut::new();
         eip.encode(&mut bytes);
-        let mut bytes= &(*bytes.freeze());
+        let mut bytes = &(*bytes.freeze());
 
         let decode = Eip712::decode(&mut bytes).unwrap();
 

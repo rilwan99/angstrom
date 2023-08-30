@@ -8,32 +8,38 @@ use std::{
     pin::Pin,
     sync::{atomic::AtomicU64, Arc},
     task::{ready, Context, Poll},
-    time::{Duration, Instant},
+    time::{Duration, Instant}
 };
 
 use fnv::FnvHashMap;
-use futures::{SinkExt, StreamExt};
+use futures::{stream::Fuse, SinkExt, StreamExt};
 use guard_eth_wire::{
     capability::Capabilities,
-    errors::{EthStreamError, P2PStreamError},
-    message::EthBroadcastMessage,
-    DisconnectReason, EthMessage, EthStream, P2PStream,
+    errors::{EthHandshakeError, EthStreamError, P2PStreamError},
+    message::{EthBroadcastMessage, RequestPair},
+    DisconnectReason, EthMessage, EthStream, P2PStream
 };
 use reth_ecies::stream::ECIESStream;
+use reth_interfaces::p2p::error::RequestError;
 use reth_metrics::common::mpsc::MeteredSender;
 use reth_net_common::bandwidth_meter::MeteredStream;
-use reth_primitives::{Address, PeerId};
-use tokio::{net::TcpStream, sync::mpsc::error::TrySendError, time::Interval};
+use reth_primitives::PeerId;
+use tokio::{
+    net::TcpStream,
+    sync::{mpsc::error::TrySendError, oneshot},
+    time::Interval
+};
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, info, trace};
 
 use crate::{
+    message::{NewBlockMessage, PeerMessage, PeerRequest, PeerResponse, PeerResponseResult},
     messages::PeerMessages,
     session::{
         config::INITIAL_REQUEST_TIMEOUT,
         handle::{ActiveSessionMessage, SessionCommand},
-        SessionId,
-    },
+        SessionId
+    }
 };
 
 /// Constants for timeout updating
@@ -93,7 +99,7 @@ pub(crate) struct ActiveSession {
     /// If an [ActiveSession] does not receive a response at all within this
     /// duration then it is considered a protocol violation and the session
     /// will initiate a drop.
-    pub(crate) protocol_breach_request_timeout: Duration,
+    pub(crate) protocol_breach_request_timeout: Duration
 }
 
 impl ActiveSession {
@@ -131,8 +137,8 @@ impl ActiveSession {
             .to_session_manager
             .clone()
             .try_send(ActiveSessionMessage::Disconnected {
-                peer_id: self.remote_peer_id,
-                remote_addr: self.remote_addr,
+                peer_id:     self.remote_peer_id,
+                remote_addr: self.remote_addr
             });
     }
 
@@ -143,8 +149,8 @@ impl ActiveSession {
             ActiveSessionMessage::ClosedOnConnectionError {
                 peer_id: self.remote_peer_id,
                 remote_addr: self.remote_addr,
-                error,
-            },
+                error
+            }
         );
     }
 
@@ -207,22 +213,22 @@ impl ActiveSession {
             }
             PeerMessages::PropagateTransactions(txes) => {
                 self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
-                    EthBroadcastMessage::PropagateTransactions(txes),
+                    EthBroadcastMessage::PropagateTransactions(txes)
                 ));
             }
             PeerMessages::PropagateSealedBundle(bundle) => {
                 self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
-                    EthBroadcastMessage::PropagateSealedBundle(bundle),
+                    EthBroadcastMessage::PropagateSealedBundle(bundle)
                 ));
             }
             PeerMessages::PropagateBundleSignature(sig) => {
                 self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
-                    EthBroadcastMessage::PropagateBundleSignature(sig),
+                    EthBroadcastMessage::PropagateBundleSignature(sig)
                 ));
             }
             PeerMessages::PropagateSignatureRequest(bundle) => {
                 self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
-                    EthBroadcastMessage::PropagateSignatureRequest(bundle),
+                    EthBroadcastMessage::PropagateSignatureRequest(bundle)
                 ));
             }
         }
@@ -236,7 +242,7 @@ impl ActiveSession {
         let req = InflightRequest {
             request: RequestState::Waiting(request),
             timestamp: Instant::now(),
-            deadline,
+            deadline
         };
         self.inflight_requests.insert(request_id, req);
     }
@@ -260,7 +266,7 @@ impl Future for ActiveSession {
         let this = self.get_mut();
 
         if this.is_disconnecting() {
-            return this.poll_disconnect(cx);
+            return this.poll_disconnect(cx)
         }
 
         // The receive loop can be CPU intensive since it involves message decoding
@@ -281,7 +287,7 @@ impl Future for ActiveSession {
                     Poll::Ready(None) => {
                         // this is only possible when the manager was dropped, in which case we also
                         // terminate this session
-                        return Poll::Ready(());
+                        return Poll::Ready(())
                     }
                     Poll::Ready(Some(cmd)) => {
                         progress = true;
@@ -295,7 +301,7 @@ impl Future for ActiveSession {
                                 let reason =
                                     reason.unwrap_or(DisconnectReason::DisconnectRequested);
 
-                                return this.try_disconnect(reason, cx);
+                                return this.try_disconnect(reason, cx)
                             }
                         }
                     }
@@ -330,17 +336,17 @@ impl Future for ActiveSession {
                     progress = true;
                     let res = match msg {
                         OutgoingMessage::Eth(msg) => this.conn.start_send_unpin(msg),
-                        OutgoingMessage::Broadcast(msg) => this.conn.start_send_broadcast(msg),
+                        OutgoingMessage::Broadcast(msg) => this.conn.start_send_broadcast(msg)
                     };
                     if let Err(err) = res {
                         debug!(target: "net::session", ?err,  remote_peer_id=?this.remote_peer_id, "failed to send message");
                         // notify the manager
                         this.close_on_error(err);
-                        return Poll::Ready(());
+                        return Poll::Ready(())
                     }
                 } else {
                     // no more messages to send over the wire
-                    break;
+                    break
                 }
             }
 
@@ -351,7 +357,7 @@ impl Future for ActiveSession {
                 if budget == 0 {
                     // make sure we're woken up again
                     cx.waker().wake_by_ref();
-                    break 'main;
+                    break 'main
                 }
 
                 // try to resend the pending message that we could not send because the channel
@@ -365,7 +371,7 @@ impl Future for ActiveSession {
                                     this.pending_message_to_session = Some(msg);
                                     // ensure we're woken up again
                                     cx.waker().wake_by_ref();
-                                    break 'receive;
+                                    break 'receive
                                 }
                                 TrySendError::Closed(_) => {}
                             }
@@ -375,7 +381,7 @@ impl Future for ActiveSession {
             }
 
             if !progress {
-                break 'main;
+                break 'main
             }
         }
 
@@ -391,20 +397,20 @@ pub(crate) struct ReceivedRequest {
     request_id: u64,
     /// Timestamp when we read this msg from the wire.
     #[allow(unused)]
-    received: Instant,
+    received:   Instant,
     /// Receiver half of the channel that's supposed to receive the proper
     /// response.
-    rx: PeerResponses,
+    rx:         PeerResponses
 }
 
 /// A request that waits for a response from the peer
 pub(crate) struct InflightRequest {
     /// Request we sent to peer and the internal response channel
-    request: RequestState,
+    request:   RequestState,
     /// Instant when the request was sent
     timestamp: Instant,
     /// Time limit for the response
-    deadline: Instant,
+    deadline:  Instant
 }
 
 // === impl InflightRequest ===
@@ -424,14 +430,14 @@ enum OnIncomingMessageOutcome {
     /// Message is considered to be in violation fo the protocol
     BadMessage { error: EthStreamError, message: EthMessage },
     /// Currently no capacity to handle the message
-    NoCapacity(ActiveSessionMessage),
+    NoCapacity(ActiveSessionMessage)
 }
 
 impl From<Result<(), ActiveSessionMessage>> for OnIncomingMessageOutcome {
     fn from(res: Result<(), ActiveSessionMessage>) -> Self {
         match res {
             Ok(_) => OnIncomingMessageOutcome::Ok,
-            Err(msg) => OnIncomingMessageOutcome::NoCapacity(msg),
+            Err(msg) => OnIncomingMessageOutcome::NoCapacity(msg)
         }
     }
 }
@@ -440,7 +446,7 @@ enum RequestState {
     /// Waiting for the response
     Waiting(PeerRequests),
     /// Request already timed out
-    TimedOut,
+    TimedOut
 }
 
 /// Outgoing messages that can be sent over the wire.
@@ -448,7 +454,7 @@ pub(crate) enum OutgoingMessage {
     /// A message that is owned.
     Eth(EthMessage),
     /// A message that may be shared by multiple sessions.
-    Broadcast(EthBroadcastMessage),
+    Broadcast(EthBroadcastMessage)
 }
 
 impl From<EthMessage> for OutgoingMessage {

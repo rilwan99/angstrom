@@ -5,7 +5,7 @@ use guard_discv4::DEFAULT_DISCOVERY_PORT;
 use reth_primitives::{Chain, ForkId, PeerId, Signature, H256, U256};
 
 use crate::{
-    capability::Capability, hello::HelloMessage, p2pstream::ProtocolVersion, EthVersion, Status,
+    capability::Capability, hello::HelloMessage, p2pstream::ProtocolVersion, EthVersion, Status
 };
 
 /// Builder for [`Status`](crate::types::Status) messages.
@@ -40,7 +40,7 @@ use crate::{
 /// ```
 #[derive(Debug, Default)]
 pub struct StatusBuilder {
-    status: Status,
+    status: Status
 }
 
 impl StatusBuilder {
@@ -89,12 +89,13 @@ impl StatusBuilder {
 
 /// Builder for [`HelloMessage`](crate::HelloMessage) messages.
 pub struct HelloBuilder {
-    hello: HelloMessage,
+    hello: HelloMessage
 }
 
 impl HelloBuilder {
-    /// Creates a new [`HelloBuilder`](crate::builder::HelloBuilder) with default [`HelloMessage`]
-    /// values, and a with a signed 'Hello' message to verify the public key
+    /// Creates a new [`HelloBuilder`](crate::builder::HelloBuilder) with
+    /// default [`HelloMessage`] values, and a with a signed 'Hello' message
+    /// to verify the public key
     pub fn new(signature: Vec<u8>, signed_hello: H256, id: PeerId) -> Self {
         Self {
             hello: HelloMessage {
@@ -105,8 +106,8 @@ impl HelloBuilder {
                 port: DEFAULT_DISCOVERY_PORT,
                 signed_hello,
                 signature,
-                id,
-            },
+                id
+            }
         }
     }
 

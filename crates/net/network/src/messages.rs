@@ -1,9 +1,8 @@
-use std::net::SocketAddr;
-use std::sync::Arc;
+use std::{net::SocketAddr, sync::Arc};
 
 use ethers_core::types::transaction::eip712::TypedData;
 use guard_eth_wire::EthMessage;
-use shared::{Bundle, SealedBundle, TeeAddress, Eip712, BundleSignature};
+use shared::{Bundle, BundleSignature, Eip712, SealedBundle, TeeAddress};
 use tokio::sync::oneshot::Sender as OneSender;
 
 /// General bi-directional messages sent to & from peers

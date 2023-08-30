@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     pin::Pin,
-    task::{Context, Poll},
+    task::{Context, Poll}
 };
 
 use ethers_core::types::H160;
@@ -14,29 +14,29 @@ use leader::leader_manager::{Leader, LeaderConfig};
 use sim::Simulator;
 use tokio::{
     sync::mpsc::{Sender, UnboundedSender},
-    task::JoinHandle,
+    task::JoinHandle
 };
 
 use crate::submission_server::{
     Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner, SubscriptionKind,
-    SubscriptionResult,
+    SubscriptionResult
 };
 
 /// This is the control unit of the guard that delegates
 /// all of our signing and messages.
 pub struct Guard<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
     /// guard network connection
-    network: Swarm,
+    network:              Swarm,
     /// deals with leader related requests and actions including bundle building
-    leader: Leader<M, S>,
+    leader:               Leader<M, S>,
     /// deals with new submissions through a rpc to the network
-    server: SubmissionServer,
+    server:               SubmissionServer,
     /// channel for sending updates to the set of stakers
-    valid_stakers_tx: UnboundedSender<GaurdStakingEvent>,
+    valid_stakers_tx:     UnboundedSender<GaurdStakingEvent>,
     /// make sure we keep subscribers upto date
     server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>,
     /// handle
-    _simulator_thread: JoinHandle<()>,
+    _simulator_thread:    JoinHandle<()>
 }
 
 impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
@@ -44,7 +44,7 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
         network_config: NetworkConfig,
         leader_config: LeaderConfig<M, S>,
         server_config: SubmissionServerConfig,
-        sim_thread: JoinHandle<()>,
+        sim_thread: JoinHandle<()>
     ) -> anyhow::Result<Self> {
         let (valid_stakers_tx, valid_stakers_rx) = tokio::sync::mpsc::unbounded_channel();
         let sub_server = SubmissionServerInner::new(server_config).await?;
@@ -57,7 +57,7 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
             server: sub_server,
             valid_stakers_tx,
             network: swarm,
-            _simulator_thread: sim_thread,
+            _simulator_thread: sim_thread
         })
     }
 
@@ -68,9 +68,9 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
                     .entry(kind)
                     .or_default()
                     .push(sender);
-                return;
+                return
             }
-            Submission::Submission(typed_data) => typed_data,
+            Submission::Submission(typed_data) => typed_data
         };
 
         self.leader.new_transaction(data.clone());
@@ -113,6 +113,6 @@ impl<M: Middleware + Unpin, S: Simulator + Unpin> Future for Guard<M, S> {
 
         if let Poll::Ready(msgs) = self.leader.poll(cx) {}
 
-        return Poll::Pending;
+        return Poll::Pending
     }
 }
