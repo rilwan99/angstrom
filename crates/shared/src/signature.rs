@@ -3,7 +3,6 @@ use reth_primitives::{bytes, Signature};
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-#[derive_arbitrary(rlp)]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BundleSignature {
     sig: Signature

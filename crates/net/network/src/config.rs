@@ -327,7 +327,7 @@ impl NetworkConfigBuilder {
     /// receive from a peer in the status message when establishing a
     /// connection.
     pub fn build(self) -> NetworkConfig {
-        let (sig, signed_hello) = self.get_signed_hello().to_bytes();
+        let (sig, signed_hello) = self.get_signed_hello();
         let Self {
             secret_key,
             verification_msg,
@@ -349,7 +349,7 @@ impl NetworkConfigBuilder {
         });
 
         let mut hello_message =
-            hello_message.unwrap_or_else(|| HelloMessage::builder(sig, signed_hello).build());
+            hello_message.unwrap_or_else(|| HelloMessage::builder(sig.to_bytes().to_vec(), signed_hello).build());
         hello_message.port = listener_addr.port();
 
         let head = head.unwrap_or(Head {

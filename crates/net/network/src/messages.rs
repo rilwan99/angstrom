@@ -1,14 +1,15 @@
 use std::net::SocketAddr;
+use std::sync::Arc;
 
 use ethers_core::types::transaction::eip712::TypedData;
 use guard_eth_wire::EthMessage;
-use shared::{Bundle, SealedBundle, TeeAddress};
+use shared::{Bundle, SealedBundle, TeeAddress, Eip712};
 use tokio::sync::oneshot::Sender as OneSender;
 
 /// General bi-directional messages sent to & from peers
 #[derive(Debug, Clone)]
 pub enum PeerMessages {
-    PropagateTransactions(Vec<Arc<TypedData>>),
+    PropagateTransactions(Arc<Vec<Eip712>>),
     PropagateSealedBundle(Arc<SealedBundle>),
     PropagateSignatureRequest(Arc<Bundle>),
     PropagateBundleSignature(Signature),
@@ -42,7 +43,7 @@ impl PeerRequests {
 #[derive(Debug)]
 #[allow(missing_docs)]
 pub enum PeerResponseResult {
-    TeeModule(SocketAddr)
+    TeeModule(TeeAddress)
 }
 
 /// Dummy implementation, this will never be cloned
