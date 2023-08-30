@@ -957,7 +957,7 @@ async fn authenticate_stream(
     valid_stakers: Vec<PeerId>
 ) -> PendingSessionEvent {
     // conduct the p2p handshake and return the authenticated stream
-    let (p2p_stream, their_hello, peer_address) = match stream.handshake(hello, valid_stakers).await
+    let (p2p_stream, their_hello) = match stream.handshake(hello, valid_stakers).await
     {
         Ok(stream_res) => stream_res,
         Err(err) => {

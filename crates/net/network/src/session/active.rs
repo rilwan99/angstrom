@@ -33,8 +33,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, info, trace};
 
 use crate::{
-    message::{NewBlockMessage, PeerMessage, PeerRequest, PeerResponse, PeerResponseResult},
-    messages::PeerMessages,
+    messages::{PeerMessages, PeerRequests, PeerResponseResult},
     session::{
         config::INITIAL_REQUEST_TIMEOUT,
         handle::{ActiveSessionMessage, SessionCommand},
@@ -89,7 +88,7 @@ pub(crate) struct ActiveSession {
     /// All requests that were sent by the remote peer.
     pub(crate) received_requests_from_remote: Vec<ReceivedRequest>,
     /// Incoming request to send to delegate to the remote peer.
-    pub(crate) internal_request_tx: Fuse<ReceiverStream<PeerRequest>>,
+    pub(crate) internal_request_tx: Fuse<ReceiverStream<PeerRequests>>,
     /// Buffered messages that should be handled and sent to the peer.
     pub(crate) queued_outgoing: VecDeque<OutgoingMessage>,
     /// The maximum time we wait for a response from a peer.

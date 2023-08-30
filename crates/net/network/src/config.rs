@@ -357,7 +357,7 @@ impl NetworkConfigBuilder {
         });
 
         let mut hello_message = hello_message.unwrap_or_else(|| {
-            HelloMessage::builder(sig.to_bytes(), signed_hello, pub_key).build()
+            HelloMessage::builder(sig.to_bytes().to_vec(), signed_hello, pub_key).build()
         });
         hello_message.port = listener_addr.port();
 
