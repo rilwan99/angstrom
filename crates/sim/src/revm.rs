@@ -6,6 +6,7 @@ use reth_db::mdbx::WriteMap;
 use tokio::{runtime::Handle, sync::mpsc::UnboundedReceiver};
 
 use crate::{
+    errors::SimError,
     executor::{TaskKind, ThreadPool},
     state::RevmState,
     TransactionType,
@@ -23,13 +24,13 @@ impl Revm {
         transaction_rx: UnboundedReceiver<TransactionType>,
         evm_db: Arc<reth_db::mdbx::Env<WriteMap>>,
         max_bytes: usize,
-    ) -> Self {
-        let threadpool = ThreadPool::new();
-        Self {
+    ) -> Result<Self, SimError> {
+        let threadpool = ThreadPool::new()?;
+        Ok(Self {
             transaction_rx,
             threadpool,
             state: Arc::new(RwLock::new(RevmState::new(evm_db, max_bytes))),
-        }
+        })
     }
 
     pub fn get_threadpool_handle(&self) -> Handle {

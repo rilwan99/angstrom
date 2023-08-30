@@ -26,6 +26,7 @@ reth-primitives.workspace = true
 reth-provider.workspace = true
 reth-revm.workspace = true
 reth-db.workspace = true
+reth-interfaces.workspace = true
 
 # async/futures
 tokio = { version = "1.21", default-features = false }

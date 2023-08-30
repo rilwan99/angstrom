@@ -1,9 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use ethers_core::types::transaction::{
-    eip2718::TypedTransaction,
-    eip712::{Eip712, TypedData},
-};
+use ethers_core::types::transaction::{eip2718::TypedTransaction, eip712::Eip712 as Ethers_Eip712};
 use eyre::Result;
 use parking_lot::RwLock;
 use reth_db::mdbx::WriteMap;
@@ -13,12 +10,12 @@ use revm::{
     DatabaseCommit, EVM,
 };
 use revm_primitives::*;
-use shared::UserSettlement;
+use shared::{Eip712, UserSettlement};
 use tokio::sync::oneshot::Sender;
 
 use crate::{
+    errors::{SimError, SimResult},
     lru_db::RevmLRU,
-    sim::{SimError, SimResult},
 };
 
 /// struct used to share the mutable state across threads
@@ -50,16 +47,6 @@ impl RevmState {
     pub fn update_evm_state(state: Arc<RwLock<Self>>) {
         let mut state = state.write();
 
-        /*
-                let block = state.evm.db().unwrap().db.get_block_gas_limit();
-
-                state.evm.env.block.number =
-                    Into::<ethers_core::types::U256>::into(block.number.unwrap().as_u64()).into();
-                state.evm.env.block.timestamp = block.timestamp.into();
-                state.evm.env.block.difficulty = block.difficulty.into();
-                state.evm.env.block.basefee = block.base_fee_per_gas.unwrap().into();
-                state.evm.env.block.gas_limit = block.gas_limit.into();
-        */
         for (addr, storage) in state.slot_changes.clone().into_iter() {
             let verified_storage = storage
                 .iter()
@@ -97,11 +84,7 @@ impl RevmState {
     }
 
     /// simulates a single transaction and caches touched slots
-    pub fn simulate_single_tx(
-        state: Arc<RwLock<Self>>,
-        tx: TypedData,
-        client_tx: Sender<SimResult>,
-    ) {
+    pub fn simulate_single_tx(state: Arc<RwLock<Self>>, tx: Eip712, client_tx: Sender<SimResult>) {
         let tx = &convert_eip712(tx).unwrap()[0];
 
         let res = {
@@ -121,7 +104,7 @@ impl RevmState {
     }
 
     /// simulates a bundle of transactions
-    pub fn simulate_bundle(state: Arc<RwLock<Self>>, txs: TypedData, client_tx: Sender<SimResult>) {
+    pub fn simulate_bundle(state: Arc<RwLock<Self>>, txs: Eip712, client_tx: Sender<SimResult>) {
         let txs = convert_eip712(txs).unwrap();
         let mut state = state.write();
 
@@ -172,7 +155,8 @@ impl RevmState {
 
 /// helper function to convert EIP712 Typed Data to TxEnv
 /// ADD FUNCTION DATA WHEN FINIALIZED
-pub fn convert_eip712(eip_typed_data: TypedData) -> Result<Vec<TxEnv>, SimResult> {
+pub fn convert_eip712(eip: Eip712) -> Result<Vec<TxEnv>, SimResult> {
+    let eip_typed_data = eip.0;
     let hash = eip_typed_data.encode_eip712().unwrap();
 
     let user_txs: Vec<UserSettlement> =

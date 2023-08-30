@@ -10,6 +10,8 @@ use revm::{
 use revm_primitives::{db::DatabaseRef, Bytecode, *};
 use schnellru::{ByMemoryUsage, LruMap};
 
+use crate::errors::SimError;
+
 pub struct RevmLRU {
     pub accounts: LruMap<B160, DbAccount, ByMemoryUsage>,
     pub db: Arc<reth_db::mdbx::Env<WriteMap>>,
@@ -25,7 +27,6 @@ impl RevmLRU {
     pub fn get_lastest_state_provider(
         tx: Tx<'_, RO, WriteMap>,
     ) -> State<LatestStateProvider<'_, Tx<'_, RO, WriteMap>>> {
-        //let tx = Tx::new(self.db.begin_ro_txn().unwrap());
         let db_provider = LatestStateProvider::new(tx);
 
         State::new(db_provider)
@@ -33,16 +34,15 @@ impl RevmLRU {
 }
 
 impl Database for RevmLRU {
-    type Error = ();
+    type Error = SimError;
 
     fn basic(&mut self, address: B160) -> Result<Option<AccountInfo>, Self::Error> {
-        let db = Self::get_lastest_state_provider(Tx::new(self.db.begin_ro_txn().unwrap()));
+        let db = Self::get_lastest_state_provider(Tx::new(self.db.begin_ro_txn()?));
         if let Some(a) = self.accounts.get(&address) {
             return Ok(a.info());
         } else {
             let basic = db
-                .basic(address)
-                .unwrap()
+                .basic(address)?
                 .map(|info| DbAccount { info, ..Default::default() })
                 .unwrap_or_else(DbAccount::new_not_existing);
 
@@ -57,7 +57,7 @@ impl Database for RevmLRU {
     }
 
     fn storage(&mut self, address: B160, index: U256) -> Result<U256, Self::Error> {
-        let db = Self::get_lastest_state_provider(Tx::new(self.db.begin_ro_txn().unwrap()));
+        let db = Self::get_lastest_state_provider(Tx::new(self.db.begin_ro_txn()?));
         let account = self.accounts.get(&address);
         if let Some(acct_entry) = account {
             if let Some(idx_entry) = acct_entry.storage.get(&index) {
@@ -69,15 +69,15 @@ impl Database for RevmLRU {
                 ) {
                     return Ok(U256::ZERO);
                 } else {
-                    let slot_val = db.storage(address, index).unwrap();
+                    let slot_val = db.storage(address, index)?;
                     acct_entry.storage.insert(index, slot_val);
                     return Ok(slot_val);
                 }
             }
         } else {
-            let info = db.basic(address).unwrap();
+            let info = db.basic(address)?;
             let (account, value) = if info.is_some() {
-                let value = db.storage(address, index).unwrap();
+                let value = db.storage(address, index)?;
                 let mut account: DbAccount = info.into();
                 account.storage.insert(index, value);
                 (account, value)
@@ -96,7 +96,7 @@ impl Database for RevmLRU {
 }
 
 impl DatabaseRef for RevmLRU {
-    type Error = ();
+    type Error = SimError;
 
     fn basic(&self, address: B160) -> Result<Option<AccountInfo>, Self::Error> {
         match self.accounts.peek(&address) {
@@ -111,7 +111,7 @@ impl DatabaseRef for RevmLRU {
     }
 
     fn storage(&self, address: B160, index: U256) -> Result<U256, Self::Error> {
-        let db = Self::get_lastest_state_provider(Tx::new(self.db.begin_ro_txn().unwrap()));
+        let db = Self::get_lastest_state_provider(Tx::new(self.db.begin_ro_txn()?));
 
         let mut entry_val = U256::ZERO;
 
@@ -123,10 +123,10 @@ impl DatabaseRef for RevmLRU {
                 acc_entry.account_state,
                 AccountState::StorageCleared | AccountState::NotExisting
             ) {
-                entry_val = db.storage(address, index).unwrap();
+                entry_val = db.storage(address, index)?;
             }
         } else {
-            entry_val = db.storage(address, index).unwrap();
+            entry_val = db.storage(address, index)?;
         }
 
         Ok(entry_val)
