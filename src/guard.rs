@@ -34,17 +34,14 @@ pub struct Guard<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
     /// channel for sending updates to the set of stakers
     valid_stakers_tx:     UnboundedSender<GaurdStakingEvent>,
     /// make sure we keep subscribers upto date
-    server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>,
-    /// handle
-    _simulator_thread:    JoinHandle<()>
+    server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>
 }
 
 impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
     pub async fn new(
         network_config: NetworkConfig,
         leader_config: LeaderConfig<M, S>,
-        server_config: SubmissionServerConfig,
-        sim_thread: JoinHandle<()>
+        server_config: SubmissionServerConfig
     ) -> anyhow::Result<Self> {
         let (valid_stakers_tx, valid_stakers_rx) = tokio::sync::mpsc::unbounded_channel();
         let sub_server = SubmissionServerInner::new(server_config).await?;
@@ -56,8 +53,7 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
             server_subscriptions: HashMap::default(),
             server: sub_server,
             valid_stakers_tx,
-            network: swarm,
-            _simulator_thread: sim_thread
+            network: swarm
         })
     }
 
