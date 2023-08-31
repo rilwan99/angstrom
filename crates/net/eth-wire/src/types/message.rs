@@ -38,6 +38,7 @@ impl ProtocolMessage {
             EthMessageID::PropagateSignatureRequest => {
                 EthMessage::PropagateSignatureRequest(Batch::decode(buf)?)
             }
+            EthMessageID::PropagateBundle => EthMessage::PropagateBundle(Batch::decode(buf)?)
         };
         Ok(ProtocolMessage { message_type, message })
     }
@@ -116,6 +117,7 @@ pub enum EthMessage {
     Status(Status),
     GetTeeModule(RequestPair<TeeAddress>),
     // broadcast
+    PropagateBundle(Batch),
     PropagateTransactions(Vec<Eip712>),
     PropagateSignatureRequest(Batch),
     PropagateBundleSignature(BatchSignature)
@@ -129,7 +131,8 @@ impl EthMessage {
             EthMessage::GetTeeModule(_) => EthMessageID::GetTeeModule,
             EthMessage::PropagateTransactions(_) => EthMessageID::PropagateTransactions,
             EthMessage::PropagateBundleSignature(_) => EthMessageID::PropagateBundleSignature,
-            EthMessage::PropagateSignatureRequest(_) => EthMessageID::PropagateSignatureRequest
+            EthMessage::PropagateSignatureRequest(_) => EthMessageID::PropagateSignatureRequest,
+            EthMessage::PropagateBundle(_) => EthMessageID::PropagateBundle
         }
     }
 }
@@ -141,7 +144,8 @@ impl Encodable for EthMessage {
             EthMessage::GetTeeModule(module) => module.encode(out),
             EthMessage::PropagateTransactions(txes) => txes.encode(out),
             EthMessage::PropagateBundleSignature(sig) => sig.encode(out),
-            EthMessage::PropagateSignatureRequest(sig_req) => sig_req.encode(out)
+            EthMessage::PropagateSignatureRequest(sig_req) => sig_req.encode(out),
+            EthMessage::PropagateBundle(bundle) => bundle.encode(out)
         }
     }
 
@@ -151,7 +155,8 @@ impl Encodable for EthMessage {
             EthMessage::GetTeeModule(module) => module.length(),
             EthMessage::PropagateTransactions(txes) => txes.length(),
             EthMessage::PropagateBundleSignature(sig) => sig.length(),
-            EthMessage::PropagateSignatureRequest(sig_req) => sig_req.length()
+            EthMessage::PropagateSignatureRequest(sig_req) => sig_req.length(),
+            EthMessage::PropagateBundle(bundle) => bundle.length()
         }
     }
 }
@@ -168,6 +173,7 @@ impl Encodable for EthMessage {
 pub enum EthBroadcastMessage {
     PropagateTransactions(Arc<Vec<Eip712>>),
     PropagateSignatureRequest(Arc<Batch>),
+    PropagateBundle(Arc<Batch>),
     PropagateBundleSignature(Arc<BatchSignature>)
 }
 
@@ -185,6 +191,7 @@ impl EthBroadcastMessage {
             EthBroadcastMessage::PropagateSignatureRequest(_) => {
                 EthMessageID::PropagateSignatureRequest
             }
+            EthBroadcastMessage::PropagateBundle(_) => EthMessageID::PropagateBundle
         }
     }
 }
@@ -194,7 +201,8 @@ impl Encodable for EthBroadcastMessage {
         match self {
             EthBroadcastMessage::PropagateSignatureRequest(sig) => sig.encode(out),
             EthBroadcastMessage::PropagateTransactions(tx) => tx.encode(out),
-            EthBroadcastMessage::PropagateBundleSignature(sig) => sig.encode(out)
+            EthBroadcastMessage::PropagateBundleSignature(sig) => sig.encode(out),
+            EthBroadcastMessage::PropagateBundle(bundle) => bundle.encode(out)
         }
     }
 
@@ -202,7 +210,8 @@ impl Encodable for EthBroadcastMessage {
         match self {
             EthBroadcastMessage::PropagateSignatureRequest(sig) => sig.length(),
             EthBroadcastMessage::PropagateTransactions(tx) => tx.length(),
-            EthBroadcastMessage::PropagateBundleSignature(sig) => sig.length()
+            EthBroadcastMessage::PropagateBundleSignature(sig) => sig.length(),
+            EthBroadcastMessage::PropagateBundle(bundle) => bundle.length()
         }
     }
 }
@@ -212,11 +221,12 @@ impl Encodable for EthBroadcastMessage {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum EthMessageID {
-    GetTeeModule = 0x00,
+    GetTeeModule    = 0x00,
     PropagateTransactions = 0x01,
     PropagateSignatureRequest = 0x02,
     PropagateBundleSignature = 0x03,
-    Status       = 0x04
+    Status          = 0x04,
+    PropagateBundle = 0x05
 }
 
 impl Encodable for EthMessageID {

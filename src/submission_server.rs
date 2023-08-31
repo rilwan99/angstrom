@@ -12,7 +12,7 @@ use jsonrpsee::{
 };
 use jsonrpsee_core::server::SubscriptionMessage;
 use serde::{Deserialize, Serialize};
-use shared::Eip712;
+use shared::{Batch, Eip712};
 use tokio::sync::mpsc::{channel, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
@@ -65,7 +65,7 @@ pub(crate) fn create_cors_layer(http_cors_domains: &str) -> Result<CorsLayer, Co
 #[serde(rename_all = "camelCase")]
 pub enum SubscriptionKind {
     /// New best sealed bundle seen by this guard
-    SealedBundle,
+    BestBundles,
     /// New cow transactions that this guard has seen
     CowTransactions
 }
@@ -74,7 +74,7 @@ pub enum SubscriptionKind {
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum SubscriptionResult {
-    Bundle(shared::Batch),
+    Bundle(Arc<Batch>),
     CowTransaction(Arc<Vec<Eip712>>)
 }
 

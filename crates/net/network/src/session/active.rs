@@ -204,6 +204,9 @@ impl ActiveSession {
 
     fn on_peer_msg(&mut self, msg: PeerMessages) {
         match msg {
+            PeerMessages::PropagateBundle(req) => self
+                .queued_outgoing
+                .push_back(OutgoingMessage::Broadcast(EthBroadcastMessage::PropagateBundle(req))),
             PeerMessages::PeerRequests(req) => {
                 let deadline = self.request_deadline();
                 self.on_internal_peer_request(req, deadline);

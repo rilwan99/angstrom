@@ -44,8 +44,9 @@ pub struct LeaderConfig<M: Middleware + Unpin + 'static, S: Simulator + 'static>
 
 #[derive(Debug, Clone)]
 pub enum LeaderMessage {
-    NewBestBundle(Batch),
-    NewValidTransactions(Arc<Vec<Eip712>>)
+    NewBestBundle(Arc<Batch>),
+    NewValidTransactions(Arc<Vec<Eip712>>),
+    GetBundleSignatures(Arc<Batch>)
 }
 
 impl From<CowMsg> for LeaderMessage {
@@ -70,7 +71,7 @@ pub struct LeaderInfo {
 pub struct Leader<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
     /// actively tells us who the selected leader is
     active_leader_config: Option<LeaderInfo>,
-    /// used for signature collection
+    /// used for signautre collections and reaching consensus
     leader_sender:        LeaderSender<M>,
     /// used to sim and then sign bundles that are requested
     /// by leader
@@ -106,6 +107,10 @@ impl<M: Middleware + Unpin, S: Simulator + Unpin> Leader<M, S> {
 
     pub fn new_transactions(&mut self, txes: Vec<Eip712>) {
         self.cow_solver.new_transactions(txes)
+    }
+
+    pub fn on_new_bundle(&mut self, bundle: Batch) {
+        self.cow_solver.new_bundle(bundle);
     }
 
     pub fn on_sign_batch(&mut self, batch: Batch) -> Result<BatchSignature, BundleSigningError> {

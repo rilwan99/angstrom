@@ -14,6 +14,8 @@ use tokio::sync::{oneshot, oneshot::Sender as OneSender};
 pub enum PeerMessages {
     /// propagates new 712 transactions
     PropagateTransactions(Arc<Vec<Eip712>>),
+    /// propagates a new bundle
+    PropagateBundle(Arc<Batch>),
     /// leader request to get signatures on a new bundle
     PropagateSignatureRequest(Arc<Batch>),
     /// propgating the signature for the send out bundle

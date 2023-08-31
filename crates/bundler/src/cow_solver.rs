@@ -44,7 +44,7 @@ impl SimulatedTransaction {
 
 #[derive(Debug, Clone)]
 pub enum CowMsg {
-    NewBestBundle(Batch),
+    NewBestBundle(Arc<Batch>),
     NewTransactions(Arc<Vec<Eip712>>)
 }
 

@@ -38,7 +38,7 @@ pub struct Guard<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
     server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>
 }
 
-impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
+impl<M: Middleware + Unpin, S: Simulator + Unpin> Guard<M, S> {
     pub async fn new(
         network_config: NetworkConfig,
         leader_config: LeaderConfig<M, S>,
@@ -76,18 +76,8 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
             .collect::<Vec<_>>();
 
         self.leader.new_transactions(submissions.clone());
-        let submissions = Arc::new(submissions);
+        // let submissions = Arc::new(submissions);
         // we sim transactions locally before
-        if let Some(senders) = self
-            .server_subscriptions
-            .get_mut(&SubscriptionKind::CowTransactions)
-        {
-            senders.retain(|sender| {
-                sender
-                    .try_send(SubscriptionResult::CowTransaction(submissions.clone()))
-                    .is_ok()
-            });
-        }
     }
 
     fn handle_network_events(&mut self, network_events: Vec<SwarmEvent>) {
@@ -95,6 +85,7 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
             SwarmEvent::ValidMessage { peer_id, request } => {
                 debug!(?peer_id, ?request, "got data from peer");
                 match request {
+                    PeerMessages::PropagateBundle(bundle) => {}
                     PeerMessages::PeerRequests(req) => match req {
                         guard_network::PeerRequests::GetTeeModule(_, sender) => {
                             warn!("got a tee module request");
@@ -113,8 +104,45 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
         });
     }
 
-    fn handle_leader_events(&mut self, leader_events: Vec<LeaderMessage>) {
+    fn handle_leader_messages(&mut self, leader_events: Vec<LeaderMessage>) {
         debug!(?leader_events, "got actions from the leader");
+        leader_events.into_iter().for_each(|event| match event {
+            LeaderMessage::GetBundleSignatures(bundle) => {
+                self.network
+                    .propagate_msg(PeerMessages::PropagateSignatureRequest(bundle));
+            }
+            LeaderMessage::NewBestBundle(bundle) => {
+                self.network
+                    .propagate_msg(PeerMessages::PropagateBundle(bundle.clone()));
+                // submit to subscribers
+                if let Some(senders) = self
+                    .server_subscriptions
+                    .get_mut(&SubscriptionKind::BestBundles)
+                {
+                    senders.retain(|sender| {
+                        sender
+                            .try_send(SubscriptionResult::Bundle(bundle.clone()))
+                            .is_ok()
+                    });
+                }
+            }
+            LeaderMessage::NewValidTransactions(transactions) => {
+                // prop to other peers
+                self.network
+                    .propagate_msg(PeerMessages::PropagateTransactions(transactions.clone()));
+                // submit to subscribers
+                if let Some(senders) = self
+                    .server_subscriptions
+                    .get_mut(&SubscriptionKind::CowTransactions)
+                {
+                    senders.retain(|sender| {
+                        sender
+                            .try_send(SubscriptionResult::CowTransaction(transactions.clone()))
+                            .is_ok()
+                    });
+                }
+            }
+        });
     }
 }
 
@@ -139,7 +167,9 @@ impl<M: Middleware + Unpin, S: Simulator + Unpin> Future for Guard<M, S> {
             }
             self.handle_network_events(swarm_msgs);
 
-            while let Poll::Ready(msgs) = self.leader.poll(cx) {}
+            if let Poll::Ready(msg) = self.leader.poll(cx) {
+                self.handle_leader_messages(msg);
+            }
 
             work -= 1;
             if work == 0 {
