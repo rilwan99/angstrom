@@ -1,24 +1,21 @@
-use std::{collections::HashMap, path::Path, sync::Arc};
+use std::sync::Arc;
 
-use ethers_core::types::transaction::{
-    eip2718::TypedTransaction,
-    eip712::{Eip712, TypedData}
-};
+use ethers_core::types::transaction::{eip2718::TypedTransaction, eip712::Eip712 as Ethers_Eip712};
 use eyre::Result;
 use parking_lot::RwLock;
-use reth_db::mdbx::{tx::Tx, WriteMap, RO};
+use reth_db::mdbx::WriteMap;
 use reth_primitives::Signature;
 use revm::{
     db::{CacheDB, DatabaseRef, DbAccount, EmptyDB},
-    DatabaseCommit, EVM
+    DatabaseCommit, EVM,
 };
 use revm_primitives::*;
-use shared::UserSettlement;
+use shared::{Eip712, UserSettlement};
 use tokio::sync::oneshot::Sender;
 
 use crate::{
+    errors::{SimError, SimResult},
     lru_db::RevmLRU,
-    sim::{SimError, SimResult}
 };
 
 /// struct used to share the mutable state across threads
@@ -26,9 +23,9 @@ pub struct RevmState {
     /// touched slots in tx sim
     slot_changes: HashMap<B160, HashMap<U256, U256>>,
     /// cached database for bundle state differences
-    cache_db:     CacheDB<EmptyDB>,
+    cache_db: CacheDB<EmptyDB>,
     /// evm -> holds state to sim on
-    evm:          EVM<RevmLRU>
+    evm: EVM<RevmLRU>,
 }
 
 impl RevmState {
@@ -47,20 +44,15 @@ impl RevmState {
     /// updates the evm state on a new block
     /// overhead from pulling state from disk on new block??
     /// CLEAN THIS FUNCTION UP
-    pub fn update_evm_state(state: Arc<RwLock<Self>>) {
+    pub fn update_evm_state(state: Arc<RwLock<Self>>) -> Result<(), SimError> {
+        let slot_changes = {
+            let state = state.read();
+            state.slot_changes.clone()
+        };
+
         let mut state = state.write();
 
-        /*
-                let block = state.evm.db().unwrap().db.get_block_gas_limit();
-
-                state.evm.env.block.number =
-                    Into::<ethers_core::types::U256>::into(block.number.unwrap().as_u64()).into();
-                state.evm.env.block.timestamp = block.timestamp.into();
-                state.evm.env.block.difficulty = block.difficulty.into();
-                state.evm.env.block.basefee = block.base_fee_per_gas.unwrap().into();
-                state.evm.env.block.gas_limit = block.gas_limit.into();
-        */
-        for (addr, storage) in state.slot_changes.clone().into_iter() {
+        for (addr, storage) in slot_changes.into_iter() {
             let verified_storage = storage
                 .iter()
                 .map(|(idx, val)| {
@@ -79,13 +71,10 @@ impl RevmState {
                 let acct = if let Some(a) = evm_db.accounts.get(&addr) {
                     a
                 } else {
-                    evm_db.accounts.insert(
-                        addr,
-                        DbAccount {
-                            info: evm_db.basic(addr).unwrap().unwrap(),
-                            ..Default::default()
-                        }
-                    );
+                    let info = evm_db.basic(addr).unwrap().unwrap();
+                    evm_db
+                        .accounts
+                        .insert(addr, DbAccount { info, ..Default::default() });
                     evm_db.accounts.get(&addr).unwrap()
                 };
 
@@ -94,68 +83,93 @@ impl RevmState {
         }
 
         state.slot_changes.clear(); // reset the cache
+        Ok(())
     }
 
+    /*
+        fn update_single_slot(&mut self, addr: B160, slot_idx: U256, slot_val: U256) {
+
+        }
+    */
     /// simulates a single transaction and caches touched slots
-    pub fn simulate_single_tx(
-        state: Arc<RwLock<Self>>,
-        tx: TypedData,
-        client_tx: Sender<SimResult>
-    ) {
-        let tx = &convert_eip712(tx).unwrap()[0];
+    pub fn simulate_single_tx(state: Arc<RwLock<Self>>, tx: Eip712, client_tx: Sender<SimResult>) {
+        let eip_tx = match convert_eip712(tx.clone()) {
+            Ok(t) => t,
+            Err(e) => {
+                send_result(SimResult::SimError(e.into()), client_tx);
+                return;
+            }
+        };
+
+        let tx_env = if let Some(tx) = eip_tx.last() {
+            tx
+        } else {
+            send_result(SimResult::SimError(SimError::NoTransactionsInEip712(tx)), client_tx);
+            return;
+        };
 
         let res = {
             let mut state = state.write();
-            state.evm.env.tx = tx.clone();
+            state.evm.env.tx = tx_env.clone();
             state.set_touched_slots()
         };
 
-        let _ =
-            match res {
-                Ok(Some(r)) => client_tx.send(SimResult::ExecutionResult(r)),
-                Ok(None) => client_tx
-                    .send(SimResult::SimulationError(SimError::CreateTransaction(tx.clone()))),
-                Err(_) => client_tx
-                    .send(SimResult::SimulationError(SimError::EVMTransactError(tx.clone())))
-            };
+        match res {
+            Ok(res) => send_result(SimResult::ExecutionResult(res), client_tx),
+            Err(err) => send_result(SimResult::SimError(err.into()), client_tx),
+        };
     }
 
     /// simulates a bundle of transactions
-    pub fn simulate_bundle(state: Arc<RwLock<Self>>, txs: TypedData, client_tx: Sender<SimResult>) {
-        let txs = convert_eip712(txs).unwrap();
+    pub fn simulate_bundle(
+        state: Arc<RwLock<Self>>,
+        eip_txs: Eip712,
+        client_tx: Sender<SimResult>,
+    ) {
+        let txs = match convert_eip712(eip_txs) {
+            Ok(txs) => txs,
+            Err(e) => {
+                send_result(SimResult::SimError(e.into()), client_tx);
+                return;
+            }
+        };
+
         let mut state = state.write();
 
         state.cache_db = CacheDB::default(); // reset the cache db before new bundle sim
 
-        let mut sim_res: SimResult = SimResult::SuccessfulBundle;
+        let mut exec_result = None;
         for tx in txs {
             state.evm.env.tx = tx.clone();
-            let state_change = state.evm.transact();
-            if let Ok(r) = state_change {
-                state.cache_db.commit(r.state)
+            if let Ok(state_change) = state.evm.transact() {
+                exec_result = Some(state_change.result);
+                state.cache_db.commit(state_change.state);
             } else {
-                sim_res = SimResult::SimulationError(SimError::EVMTransactError(tx));
-                break
-            };
+                send_result(SimResult::SimError(SimError::RevmEVMTransactionError(tx)), client_tx);
+                return;
+            }
         }
-        let _ = client_tx.send(sim_res);
+
+        send_result(SimResult::ExecutionResult(exec_result.unwrap()), client_tx);
     }
 
     /// updates the slots touched by a transaction if they haven't already been
     /// touched
-    fn set_touched_slots(
-        &mut self
-    ) -> Result<Option<ExecutionResult>, EVMError<<RevmLRU as DatabaseRef>::Error>> {
-        let contract_address = match self.evm.env.tx.transact_to {
+    fn set_touched_slots(&mut self) -> Result<ExecutionResult, SimError> {
+        let tx = self.evm.env.tx.clone();
+        let contract_address = match tx.transact_to {
             TransactTo::Call(a) => a,
-            TransactTo::Create(_) => return Ok(None)
+            TransactTo::Create(_) => return Err(SimError::CallInsteadOfCreateError(tx)),
         };
         let contract_slots = self
             .slot_changes
             .entry(contract_address)
             .or_insert(HashMap::new());
 
-        let result = self.evm.transact()?;
+        let result = self
+            .evm
+            .transact()
+            .map_err(|_| SimError::RevmEVMTransactionError(tx))?;
         let slots = &result.state.get(&contract_address).unwrap().storage;
 
         for (idx, slot) in slots.into_iter() {
@@ -166,24 +180,36 @@ impl RevmState {
             }
         }
 
-        Ok(Some(result.result))
+        Ok(result.result)
     }
 }
 
 /// helper function to convert EIP712 Typed Data to TxEnv
 /// ADD FUNCTION DATA WHEN FINIALIZED
-pub fn convert_eip712(eip_typed_data: TypedData) -> Result<Vec<TxEnv>, SimResult> {
-    let hash = eip_typed_data.encode_eip712().unwrap();
+pub fn convert_eip712(eip: Eip712) -> Result<Vec<TxEnv>, SimError> {
+    let eip_typed_data = eip.0.clone();
+    let hash = eip_typed_data.encode_eip712()?;
 
-    let user_txs: Vec<UserSettlement> =
-        serde_json::from_value(eip_typed_data.message.get("users").unwrap().clone()).unwrap();
+    let user_txs: Vec<UserSettlement> = serde_json::from_value(
+        eip_typed_data
+            .message
+            .get("users")
+            .ok_or(SimError::Eip712DecodingError(eip_typed_data.clone()))?
+            .clone(),
+    )?;
 
-    let address = eip_typed_data.domain.verifying_contract.unwrap();
+    let address = eip_typed_data
+        .domain
+        .verifying_contract
+        .ok_or(SimError::NoVerifyingContract(eip.clone()))?;
 
     let mut transactions = Vec::new();
     for tx in user_txs {
-        let sig = Signature::decode(&mut &tx.signature[..]).unwrap();
-        let from = sig.recover_signer(hash.into()).unwrap();
+        let sig = Signature::decode(&mut &tx.signature[..])
+            .map_err(|_| SimError::DecodingSignatureError(tx.clone()))?;
+        let from = sig
+            .recover_signer(hash.into())
+            .ok_or(SimError::RecoveringSignerError(sig))?;
         let gas_limit = tx.order.gas_bid;
         let data = Bytes::default(); // add data
 
@@ -197,7 +223,7 @@ pub fn convert_eip712(eip_typed_data: TypedData) -> Result<Vec<TxEnv>, SimResult
             data,
             chain_id: eip_typed_data.domain.chain_id.map(|c| c.as_u64().into()),
             nonce: None,
-            access_list: Vec::new()
+            access_list: Vec::new(),
         };
         transactions.push(tx_env)
     }
@@ -209,7 +235,7 @@ pub fn convert_eip712(eip_typed_data: TypedData) -> Result<Vec<TxEnv>, SimResult
 pub fn convert_type_tx(tx: &TypedTransaction) -> TxEnv {
     let transact_to = match tx.to_addr() {
         Some(to) => TransactTo::Call(B160::from(*to)),
-        None => TransactTo::Create(CreateScheme::Create)
+        None => TransactTo::Create(CreateScheme::Create),
     };
 
     let tx_env = TxEnv {
@@ -226,10 +252,14 @@ pub fn convert_type_tx(tx: &TypedTransaction) -> TxEnv {
             .into(),
         chain_id: None,
         nonce: None,
-        access_list: Vec::new()
+        access_list: Vec::new(),
     };
 
     tx_env
+}
+
+pub(crate) fn send_result(res: SimResult, sender: Sender<SimResult>) {
+    sender.send(res).unwrap();
 }
 
 /*

@@ -1,10 +1,8 @@
-use std::{borrow::Borrow, sync::Arc};
+use std::borrow::Borrow;
 
 use ethers_core::types::transaction::eip712::TypedData;
 use reth_primitives::bytes;
-use reth_rlp::{
-    length_of_length, BufMut, Decodable, DecodeError, Encodable, Header, RlpDecodable, RlpEncodable
-};
+use reth_rlp::{Decodable, DecodeError, Encodable, Header};
 use serde::{Deserialize, Serialize};
 
 fn rlp_list_header<E, K>(v: &[K]) -> Header
@@ -20,7 +18,7 @@ where
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Eip712(TypedData);
+pub struct Eip712(pub TypedData);
 
 impl Encodable for Eip712 {
     fn encode(&self, out: &mut dyn bytes::BufMut) {
@@ -44,9 +42,6 @@ impl Decodable for Eip712 {
         if !header.list {
             return Err(DecodeError::NonCanonicalSize)
         }
-
-        let length = header.payload_length;
-
         let decoded_rlp: Vec<u8> = Vec::<u8>::decode(buf)?;
 
         Ok(serde_json::from_slice(&decoded_rlp).unwrap())
