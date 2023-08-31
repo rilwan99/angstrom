@@ -7,7 +7,7 @@ use reth_db::mdbx::WriteMap;
 use reth_primitives::Signature;
 use revm::{
     db::{CacheDB, DatabaseRef, DbAccount, EmptyDB},
-    DatabaseCommit, EVM,
+    DatabaseCommit, EVM
 };
 use revm_primitives::*;
 use shared::{Eip712, UserSettlement};
@@ -15,7 +15,7 @@ use tokio::sync::oneshot::Sender;
 
 use crate::{
     errors::{SimError, SimResult},
-    lru_db::RevmLRU,
+    lru_db::RevmLRU
 };
 
 /// struct used to share the mutable state across threads
@@ -23,9 +23,9 @@ pub struct RevmState {
     /// touched slots in tx sim
     slot_changes: HashMap<B160, HashMap<U256, U256>>,
     /// cached database for bundle state differences
-    cache_db: CacheDB<EmptyDB>,
+    cache_db:     CacheDB<EmptyDB>,
     /// evm -> holds state to sim on
-    evm: EVM<RevmLRU>,
+    evm:          EVM<RevmLRU>
 }
 
 impl RevmState {
@@ -97,7 +97,7 @@ impl RevmState {
             Ok(t) => t,
             Err(e) => {
                 send_result(SimResult::SimError(e.into()), client_tx);
-                return;
+                return
             }
         };
 
@@ -105,7 +105,7 @@ impl RevmState {
             tx
         } else {
             send_result(SimResult::SimError(SimError::NoTransactionsInEip712(tx)), client_tx);
-            return;
+            return
         };
 
         let res = {
@@ -116,7 +116,7 @@ impl RevmState {
 
         match res {
             Ok(res) => send_result(SimResult::ExecutionResult(res), client_tx),
-            Err(err) => send_result(SimResult::SimError(err.into()), client_tx),
+            Err(err) => send_result(SimResult::SimError(err.into()), client_tx)
         };
     }
 
@@ -124,13 +124,13 @@ impl RevmState {
     pub fn simulate_bundle(
         state: Arc<RwLock<Self>>,
         eip_txs: Eip712,
-        client_tx: Sender<SimResult>,
+        client_tx: Sender<SimResult>
     ) {
         let txs = match convert_eip712(eip_txs) {
             Ok(txs) => txs,
             Err(e) => {
                 send_result(SimResult::SimError(e.into()), client_tx);
-                return;
+                return
             }
         };
 
@@ -146,7 +146,7 @@ impl RevmState {
                 state.cache_db.commit(state_change.state);
             } else {
                 send_result(SimResult::SimError(SimError::RevmEVMTransactionError(tx)), client_tx);
-                return;
+                return
             }
         }
 
@@ -159,7 +159,7 @@ impl RevmState {
         let tx = self.evm.env.tx.clone();
         let contract_address = match tx.transact_to {
             TransactTo::Call(a) => a,
-            TransactTo::Create(_) => return Err(SimError::CallInsteadOfCreateError(tx)),
+            TransactTo::Create(_) => return Err(SimError::CallInsteadOfCreateError(tx))
         };
         let contract_slots = self
             .slot_changes
@@ -195,7 +195,7 @@ pub fn convert_eip712(eip: Eip712) -> Result<Vec<TxEnv>, SimError> {
             .message
             .get("users")
             .ok_or(SimError::Eip712DecodingError(eip_typed_data.clone()))?
-            .clone(),
+            .clone()
     )?;
 
     let address = eip_typed_data
@@ -210,7 +210,7 @@ pub fn convert_eip712(eip: Eip712) -> Result<Vec<TxEnv>, SimError> {
         let from = sig
             .recover_signer(hash.into())
             .ok_or(SimError::RecoveringSignerError(sig))?;
-        let gas_limit = tx.order.gas_bid;
+        let gas_limit = tx.order.gas_cap;
         let data = Bytes::default(); // add data
 
         let tx_env = TxEnv {
@@ -223,7 +223,7 @@ pub fn convert_eip712(eip: Eip712) -> Result<Vec<TxEnv>, SimError> {
             data,
             chain_id: eip_typed_data.domain.chain_id.map(|c| c.as_u64().into()),
             nonce: None,
-            access_list: Vec::new(),
+            access_list: Vec::new()
         };
         transactions.push(tx_env)
     }
@@ -235,7 +235,7 @@ pub fn convert_eip712(eip: Eip712) -> Result<Vec<TxEnv>, SimError> {
 pub fn convert_type_tx(tx: &TypedTransaction) -> TxEnv {
     let transact_to = match tx.to_addr() {
         Some(to) => TransactTo::Call(B160::from(*to)),
-        None => TransactTo::Create(CreateScheme::Create),
+        None => TransactTo::Create(CreateScheme::Create)
     };
 
     let tx_env = TxEnv {
@@ -252,7 +252,7 @@ pub fn convert_type_tx(tx: &TypedTransaction) -> TxEnv {
             .into(),
         chain_id: None,
         nonce: None,
-        access_list: Vec::new(),
+        access_list: Vec::new()
     };
 
     tx_env

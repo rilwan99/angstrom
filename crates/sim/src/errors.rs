@@ -11,7 +11,7 @@ pub enum SimResult {
     /// error running a sim on the evm
     SimError(SimError),
     /// execution result of the sim
-    ExecutionResult(ExecutionResult),
+    ExecutionResult(ExecutionResult)
 }
 
 /// errors for sim
@@ -43,7 +43,7 @@ pub enum SimError {
     //#[error("Error decoding signature: {0:#?}")]
     DecodingSignatureError(UserSettlement),
     // #[error("Error decoding signature: {0:#?}")]
-    RecoveringSignerError(Signature),
+    RecoveringSignerError(Signature)
 }
 
 impl From<SendError<TransactionType>> for SimError {

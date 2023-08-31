@@ -32,9 +32,9 @@ pub struct Args {
     #[arg(long, default_value = "false")]
     pub enable_subscriptions: bool,
     #[arg(long)]
-    pub full_node: PathBuf,
+    pub full_node:            PathBuf,
     #[arg(long)]
-    pub full_node_ws: String,
+    pub full_node_ws:         String
 }
 
 impl Args {
@@ -57,12 +57,12 @@ impl Args {
         let db = Arc::new(reth_db::mdbx::Env::<reth_db::mdbx::WriteMap>::open(
             db_path,
             reth_db::mdbx::EnvKind::RO,
-            None,
+            None
         )?);
 
-        let sim = spawn_revm_sim(db, 6942069);
+        let sim = spawn_revm_sim(db, 6942069).unwrap();
         let edsca_key = LocalWallet::from_str(
-            "ad21c16051f74f24b3fbad57b0010d98bfef20441c84ee5a872133f19f807fc4",
+            "ad21c16051f74f24b3fbad57b0010d98bfef20441c84ee5a872133f19f807fc4"
         )?;
 
         let fake_bundle = LocalWallet::new(&mut rand::thread_rng());
@@ -72,8 +72,8 @@ impl Args {
 
         let fake_addr = "127.0.0.1:6969".parse()?;
         let server_config = SubmissionServerConfig {
-            addr: fake_addr,
-            allow_subscriptions: self.enable_subscriptions,
+            addr:                fake_addr,
+            allow_subscriptions: self.enable_subscriptions
         };
 
         println!("spawning guard");

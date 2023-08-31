@@ -17,7 +17,7 @@ pub mod state;
 
 pub fn spawn_revm_sim(
     db: Arc<reth_db::mdbx::Env<WriteMap>>,
-    max_bytes: usize,
+    max_bytes: usize
 ) -> Result<RevmClient, SimError> {
     let (tx, rx) = unbounded_channel();
     let revm_client = Revm::new(rx, db, max_bytes)?;
@@ -37,5 +37,5 @@ pub trait Simulator: Clone {
 /// enum of transaction type
 pub enum TransactionType {
     Single(Eip712, Sender<SimResult>),
-    Bundle(Eip712, Sender<SimResult>),
+    Bundle(Eip712, Sender<SimResult>)
 }
