@@ -2,33 +2,34 @@ use std::{
     collections::HashMap,
     future::Future,
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll}
 };
 
-use ethers_core::types::{transaction::eip712::TypedData, Address, U256};
+use ethers_core::types::{Address, U256};
 use futures::{stream::FuturesUnordered, Stream};
 use revm::db::DbAccount;
 use revm_primitives::*;
-use shared::{Batch, UserOrder};
+use shared::{Batch, Eip712, UserSettlement};
 use sim::Simulator;
 
 #[derive(Debug, Clone)]
 pub struct SimulatedTransaction {
-    typed_data:    TypedData,
-    details:       UserOrder,
+    pub transaction:   Eip712,
+    pub details:       UserSettlement,
     /// true if we are swapping from pools token0 to token1
-    direction:     bool,
-    slots_touched: HashMap<B160, DbAccount>
+    pub direction:     bool,
+    pub slots_touched: HashMap<B160, DbAccount>
 }
 
 impl SimulatedTransaction {
     // TODO: we need to choose a rational library
     pub fn limit_price(&self) -> u128 {
-        self.details.amount_in / self.details.amount_out_min
+        self.details.order.amount_in / self.details.order.amount_out_min
     }
 
     pub fn gas_bid(&self) -> U256 {
-        self.details.gas_cap
+        self.details.order.gas_cap
     }
 
     /// true if we are swapping from pools token0 to token1
@@ -37,14 +38,14 @@ impl SimulatedTransaction {
     }
 
     pub fn token_out(&self) -> Address {
-        self.details.token_out
+        self.details.order.token_out
     }
 }
 
 #[derive(Debug, Clone)]
 pub enum CowMsg {
     NewBestBundle(Batch),
-    NewValidTransactions(Vec<SimulatedTransaction>)
+    NewTransactions(Arc<Vec<Eip712>>)
 }
 
 pub type SimFut = Pin<Box<dyn Future<Output = ()> + Send + Sync + 'static>>;
@@ -81,16 +82,13 @@ impl<S: Simulator + 'static> CowSolver<S> {
 
     /// TODO: does this deal with conflicts
     /// self.all_valid_transactions.extend(transactions);
-    pub fn new_simmed_transaction(
-        &mut self,
-        transactions: HashMap<Address, Vec<SimulatedTransaction>>
-    ) {
-        transactions.into_iter().for_each(|(addr, txes)| {
-            self.all_valid_transactions
-                .entry(addr)
-                .or_default()
-                .extend(txes);
-        });
+    pub fn new_transactions(&mut self, transactions: Vec<Eip712>) {
+        // transactions.into_iter().for_each(|(addr, txes)| {
+        //     self.all_valid_transactions
+        //         .entry(addr)
+        //         .or_default()
+        //         .extend(txes);
+        // });
     }
 
     /// TODO: this assumes full cow of transactions and doesn't account for

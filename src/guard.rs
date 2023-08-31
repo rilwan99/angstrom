@@ -16,7 +16,7 @@ use tokio::{
     sync::mpsc::{Sender, UnboundedSender},
     task::JoinHandle
 };
-use tracing::{debug, trace};
+use tracing::{debug, trace, warn};
 
 use crate::submission_server::{
     Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner, SubscriptionKind,
@@ -91,7 +91,26 @@ impl<M: Middleware + Unpin, S: Simulator> Guard<M, S> {
     }
 
     fn handle_network_events(&mut self, network_events: Vec<SwarmEvent>) {
-        debug!(?network_events, "got events from the swarm");
+        network_events.into_iter().for_each(|event| match event {
+            SwarmEvent::ValidMessage { peer_id, request } => {
+                debug!(?peer_id, ?request, "got data from peer");
+                match request {
+                    PeerMessages::PeerRequests(req) => match req {
+                        guard_network::PeerRequests::GetTeeModule(_, sender) => {
+                            warn!("got a tee module request");
+                        }
+                    },
+                    PeerMessages::PropagateTransactions(new_txes) => {}
+                    PeerMessages::PropagateBundleSignature(new_sig) => {
+                        if self.leader.is_leader() {}
+                    }
+                    PeerMessages::PropagateSignatureRequest(btach) => {}
+                }
+            }
+            res @ _ => {
+                debug!(?res, "got swarm event");
+            }
+        });
     }
 
     fn handle_leader_events(&mut self, leader_events: Vec<LeaderMessage>) {

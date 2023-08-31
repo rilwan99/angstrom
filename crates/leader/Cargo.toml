@@ -24,6 +24,7 @@ tokio.workspace = true
 
 shared.workspace = true
 bundler.workspace = true
+tracing.workspace = true
 
 sim.workspace = true
 url.workspace = true

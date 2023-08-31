@@ -6,7 +6,9 @@ mod eip712;
 mod signature;
 mod tee_address;
 pub use eip712::*;
+use ethers_core::types::H256;
 use reth_rlp::{Decodable, DecodeError, Encodable};
+use secp256k1::Secp256k1;
 pub use signature::*;
 pub use tee_address::*;
 
