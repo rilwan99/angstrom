@@ -11,7 +11,7 @@ use futures::{stream::FuturesUnordered, Stream};
 use revm::db::DbAccount;
 use revm_primitives::*;
 use shared::{Batch, Eip712, UserSettlement};
-use sim::Simulator;
+use sim::{errors::SimResult, Simulator};
 
 #[derive(Debug, Clone)]
 pub struct SimulatedTransaction {
@@ -48,7 +48,7 @@ pub enum CowMsg {
     NewTransactions(Arc<Vec<Eip712>>)
 }
 
-pub type SimFut = Pin<Box<dyn Future<Output = ()> + Send + Sync + 'static>>;
+pub type SimFut = Pin<Box<dyn Future<Output = SimResult> + Send + Sync + 'static>>;
 
 pub struct CowSolver<S: Simulator + 'static> {
     all_valid_transactions: HashMap<Address, Vec<SimulatedTransaction>>,
@@ -66,6 +66,10 @@ impl<S: Simulator + 'static> CowSolver<S> {
             pending_simulations: FuturesUnordered::default(),
             best_simed_bundle: None
         }
+    }
+
+    pub fn new_block(&mut self) {
+        self.best_simed_bundle = None;
     }
 
     pub fn best_bundle(&self) -> Option<&Batch> {

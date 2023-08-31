@@ -43,6 +43,14 @@ impl<M: Middleware + 'static> LeaderSender<M> {
         }
     }
 
+    pub fn has_submitted(&self) -> bool {
+        self.future.is_some()
+    }
+
+    pub fn has_selected_bundle(&self) -> bool {
+        self.batch.is_some()
+    }
+
     pub fn set_selected_batch(&mut self, batch: Batch) {
         self.batch = Some(batch);
     }

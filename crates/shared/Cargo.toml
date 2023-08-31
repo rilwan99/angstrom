@@ -13,3 +13,4 @@ serde.workspace = true
 reth-codecs.workspace = true
 reth-rlp.workspace = true
 secp256k1.workspace = true
+open-fastrlp = "0.1.4"

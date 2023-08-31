@@ -1,18 +1,16 @@
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
 use clap::Parser;
-use ethers_core::rand::rngs::ThreadRng;
-use ethers_middleware::SignerMiddleware;
-use ethers_providers::{Http, Provider};
-use ethers_reth::RethMiddleware;
+use ethers_providers::{Provider, Ws};
 use ethers_signers::LocalWallet;
-use guard_network::{config::SecretKey, NetworkConfig, PeersConfig};
+use guard_network::{config::SecretKey, NetworkConfig};
 use hex_literal::hex;
+use jsonrpsee::client_transport::ws;
 use leader::leader_manager::LeaderConfig;
 use reth_primitives::{mainnet_nodes, NodeRecord, PeerId, H512};
 use sim::spawn_revm_sim;
 use stale_guard::{Guard, SubmissionServerConfig};
-use tokio::runtime::{Handle, Runtime};
+use tokio::runtime::Runtime;
 use url::Url;
 
 #[derive(Debug, Parser)]
@@ -50,8 +48,9 @@ impl Args {
         let fake_pub_key: &[u8; 64] =
             unsafe { &*(fake_pub_key as *const _ as *mut [u8]).cast() as &[u8; 64] };
 
-        let middleware =
-            Box::leak(Box::new(Provider::new(Http::new(self.full_node_ws.parse::<Url>()?))));
+        let middleware = Box::leak(Box::new(Provider::new(
+            rt.block_on(Ws::connect(self.full_node_ws.parse::<Url>()?))?
+        )));
 
         let db_path = self.full_node.as_ref();
         let db = Arc::new(reth_db::mdbx::Env::<reth_db::mdbx::WriteMap>::open(
@@ -75,7 +74,6 @@ impl Args {
             addr:                fake_addr,
             allow_subscriptions: self.enable_subscriptions
         };
-
         println!("spawning guard");
 
         let guard = rt.block_on(Guard::new(network_config, leader_config, server_config))?;
@@ -88,7 +86,6 @@ impl Args {
 fn main() -> anyhow::Result<()> {
     let rt = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
-        .worker_threads(3)
         .build()
         .unwrap();
 

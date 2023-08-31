@@ -5,7 +5,7 @@ use std::{
     task::{Context, Poll}
 };
 
-use ethers_providers::Middleware;
+use ethers_providers::{Middleware, PubsubClient};
 use futures::{Future, FutureExt};
 use futures_util::StreamExt;
 use guard_network::{GaurdStakingEvent, NetworkConfig, PeerMessages, Swarm, SwarmEvent};
@@ -25,7 +25,10 @@ use crate::submission_server::{
 
 /// This is the control unit of the guard that delegates
 /// all of our signing and messages.
-pub struct Guard<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
+pub struct Guard<M: Middleware + Unpin + 'static, S: Simulator + 'static>
+where
+    <M as Middleware>::Provider: PubsubClient
+{
     /// guard network connection
     network:              Swarm,
     /// deals with leader related requests and actions including bundle building
@@ -38,7 +41,10 @@ pub struct Guard<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
     server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>
 }
 
-impl<M: Middleware + Unpin, S: Simulator + Unpin> Guard<M, S> {
+impl<M: Middleware + Unpin, S: Simulator + Unpin> Guard<M, S>
+where
+    <M as Middleware>::Provider: PubsubClient
+{
     pub async fn new(
         network_config: NetworkConfig,
         leader_config: LeaderConfig<M, S>,
@@ -47,7 +53,7 @@ impl<M: Middleware + Unpin, S: Simulator + Unpin> Guard<M, S> {
         let (valid_stakers_tx, valid_stakers_rx) = tokio::sync::mpsc::unbounded_channel();
         let sub_server = SubmissionServerInner::new(server_config).await?;
         let swarm = Swarm::new(network_config, valid_stakers_rx).await?;
-        let leader = Leader::new(leader_config)?;
+        let leader = Leader::new(leader_config).await?;
 
         Ok(Self {
             leader,
@@ -146,7 +152,10 @@ impl<M: Middleware + Unpin, S: Simulator + Unpin> Guard<M, S> {
     }
 }
 
-impl<M: Middleware + Unpin, S: Simulator + Unpin> Future for Guard<M, S> {
+impl<M: Middleware + Unpin, S: Simulator + Unpin> Future for Guard<M, S>
+where
+    <M as Middleware>::Provider: PubsubClient
+{
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {

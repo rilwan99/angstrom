@@ -1,12 +1,15 @@
 use std::{
+    collections::VecDeque,
     sync::Arc,
-    task::{Context, Poll}
+    task::{Context, Poll},
+    time::{Duration, SystemTime}
 };
 
 use bundler::{BundleSigner, BundleSigningError, CowMsg, CowSolver};
+use ethers_core::types::{Block, H256};
 use ethers_flashbots::BroadcasterMiddleware;
 use ethers_middleware::SignerMiddleware;
-use ethers_providers::Middleware;
+use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
 use ethers_signers::LocalWallet;
 use futures::stream::StreamExt;
 use reth_primitives::{Address, U64};
@@ -58,6 +61,26 @@ impl From<CowMsg> for LeaderMessage {
     }
 }
 
+pub const EIGHT_SECONDS: CriticalDurations = CriticalDurations::EightSeconds;
+
+pub const TEN_SECONDS: CriticalDurations = CriticalDurations::TenSeconds;
+
+pub enum CriticalDurations {
+    InitPhase,
+    EightSeconds,
+    TenSeconds
+}
+
+impl CriticalDurations {
+    pub fn get_mode(duration: Duration) -> CriticalDurations {
+        match duration.as_millis() {
+            0..=7999 => CriticalDurations::InitPhase,
+            8000..=9999 => CriticalDurations::EightSeconds,
+            _ => CriticalDurations::TenSeconds
+        }
+    }
+}
+
 /// This is going to be changing.. just a placeholder
 #[derive(Debug)]
 pub struct LeaderInfo {
@@ -68,7 +91,10 @@ pub struct LeaderInfo {
 }
 
 /// handles tasks around dealing with a leader
-pub struct Leader<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
+pub struct Leader<M: Middleware + Unpin + 'static, S: Simulator + 'static>
+where
+    <M as Middleware>::Provider: PubsubClient
+{
     /// actively tells us who the selected leader is
     active_leader_config: Option<LeaderInfo>,
     /// used for signautre collections and reaching consensus
@@ -78,19 +104,31 @@ pub struct Leader<M: Middleware + Unpin + 'static, S: Simulator + 'static> {
     bundle_signer:        BundleSigner<S>,
     /// deals with our bundle state
     cow_solver:           CowSolver<S>,
-    /// used to make basic requests
-    full_node_req:        &'static M
+    /// used to know the current blocks
+    block_stream:         SubscriptionStream<'static, M::Provider, Block<H256>>,
+    /// timestamp of last block
+    last_block:           SystemTime,
+    outbound_buffer:      VecDeque<LeaderMessage>
 }
 
-impl<M: Middleware + Unpin, S: Simulator + Unpin> Leader<M, S> {
-    pub fn new(config: LeaderConfig<M, S>) -> anyhow::Result<Self> {
+impl<M: Middleware + Unpin, S: Simulator + Unpin> Leader<M, S>
+where
+    <M as Middleware>::Provider: PubsubClient
+{
+    pub async fn new(config: LeaderConfig<M, S>) -> anyhow::Result<Self> {
         let LeaderConfig { middleware, simulator, edsca_key, bundle_key } = config;
+        let mut block_stream = middleware.subscribe_blocks().await?;
+
+        // we do this to make sure we are in sync from the start
+        block_stream.next().await;
+        let last_block = SystemTime::now();
+
         Ok(Self {
-            full_node_req:        middleware,
-            cow_solver:           CowSolver::new(simulator.clone()),
-            bundle_signer:        BundleSigner::new(simulator, edsca_key.clone()),
+            block_stream,
+            cow_solver: CowSolver::new(simulator.clone()),
+            bundle_signer: BundleSigner::new(simulator, edsca_key.clone()),
             active_leader_config: None,
-            leader_sender:        LeaderSender::new(Arc::new(SignerMiddleware::new(
+            leader_sender: LeaderSender::new(Arc::new(SignerMiddleware::new(
                 BroadcasterMiddleware::new(
                     middleware,
                     BUILDER_URLS
@@ -101,7 +139,9 @@ impl<M: Middleware + Unpin, S: Simulator + Unpin> Leader<M, S> {
                     bundle_key
                 ),
                 edsca_key
-            )))
+            ))),
+            last_block,
+            outbound_buffer: VecDeque::default()
         })
     }
 
@@ -113,8 +153,15 @@ impl<M: Middleware + Unpin, S: Simulator + Unpin> Leader<M, S> {
         self.cow_solver.new_bundle(bundle);
     }
 
-    pub fn on_sign_batch(&mut self, batch: Batch) -> Result<BatchSignature, BundleSigningError> {
-        self.bundle_signer.verify_batch_for_inclusion(batch)
+    pub fn on_sign_batch(&mut self, batch: &Batch) -> Result<BatchSignature, BundleSigningError> {
+        if matches!(
+            self.get_duration(),
+            CriticalDurations::EightSeconds | CriticalDurations::TenSeconds
+        ) {
+            return self.bundle_signer.verify_batch_for_inclusion(&batch)
+        }
+
+        return Err(BundleSigningError::NotDelegatedSigningTime)
     }
 
     pub fn is_leader(&self) -> bool {
@@ -128,8 +175,48 @@ impl<M: Middleware + Unpin, S: Simulator + Unpin> Leader<M, S> {
         self.active_leader_config.as_ref()
     }
 
+    fn get_duration(&self) -> CriticalDurations {
+        CriticalDurations::get_mode(SystemTime::now().duration_since(self.last_block).unwrap())
+    }
+
+    fn start_settlement(&mut self) {
+        if self.is_leader()
+            && !self.leader_sender.has_submitted()
+            && !self.leader_sender.has_selected_bundle()
+        {
+            if let Some(bundle) = self.cow_solver.best_bundle().cloned() {
+                self.leader_sender.set_selected_batch(bundle.clone());
+                // we should never produce a invalid bundle signing
+                let local_res = self
+                    .bundle_signer
+                    .verify_batch_for_inclusion(&bundle)
+                    .unwrap();
+
+                self.leader_sender.new_signature(local_res);
+                self.outbound_buffer
+                    .push_back(LeaderMessage::GetBundleSignatures(bundle.into()))
+            }
+        }
+    }
+
+    fn on_new_block(&mut self) {
+        self.leader_sender.on_new_block();
+        self.cow_solver.new_block();
+    }
+
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Vec<LeaderMessage>> {
-        let mut res = Vec::with_capacity(10);
+        let mut res = self.outbound_buffer.drain(..).collect::<Vec<_>>();
+
+        if let Poll::Ready(Some(_)) = self.block_stream.poll_next_unpin(cx) {
+            self.on_new_block();
+            self.last_block = SystemTime::now();
+        }
+
+        match self.get_duration() {
+            CriticalDurations::TenSeconds => self.start_settlement(),
+            CriticalDurations::EightSeconds => self.start_settlement(),
+            _ => {}
+        }
 
         if let Poll::Ready(_) = self.leader_sender.poll(cx) {
             info!("leader submitted bundle");

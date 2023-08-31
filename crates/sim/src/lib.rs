@@ -9,7 +9,7 @@ use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
 use crate::{errors::SimError, revm::Revm};
 
 pub mod client;
-pub(crate) mod errors;
+pub mod errors;
 pub mod executor;
 pub mod lru_db;
 pub mod revm;

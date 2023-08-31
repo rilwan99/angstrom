@@ -1,4 +1,6 @@
-use reth_primitives::{bytes, PeerId, Signature, H256, H512};
+use ethers_core::types::Signature;
+use open_fastrlp::{Decodable as FDecodeable, Encodable as FEncodable};
+use reth_primitives::{bytes, PeerId, H256, H512};
 use reth_rlp::{Decodable, DecodeError, Encodable};
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
@@ -25,9 +27,10 @@ pub struct BatchSignature {
 }
 impl BatchSignature {
     pub fn recover_key(&self) -> Result<PeerId, RecoveryError> {
+        // let (recoverable, a) =self.sig.as_sig();
         let sig = RecoverableSignature::from_compact(
-            &self.sig.to_bytes()[0..64],
-            RecoveryId::from_i32(self.sig.to_bytes()[64] as i32)
+            &self.sig.to_vec()[0..64],
+            RecoveryId::from_i32(self.sig.to_vec()[64] as i32)
                 .map_err(|e| RecoveryError::UnableToDecodeSignature(e.to_string()))?
         )
         .map_err(|err| RecoveryError::UnableToDecodeSignature(err.to_string()))?;
@@ -52,7 +55,7 @@ impl Encodable for BatchSignature {
     }
 
     fn length(&self) -> usize {
-        self.sig.payload_len() + self.hash.length()
+        self.sig.length() + self.hash.length()
     }
 }
 
@@ -62,6 +65,6 @@ impl Encodable for BatchSignature {
 /// CAUTION: this expects that the given buf contains rlp
 impl Decodable for BatchSignature {
     fn decode(buf: &mut &[u8]) -> Result<Self, DecodeError> {
-        Ok(BatchSignature { sig: Signature::decode(buf)?, hash: H256::decode(buf)? })
+        Ok(BatchSignature { sig: Signature::decode(buf).unwrap(), hash: H256::decode(buf)? })
     }
 }
