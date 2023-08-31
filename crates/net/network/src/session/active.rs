@@ -213,11 +213,6 @@ impl ActiveSession {
                     EthBroadcastMessage::PropagateTransactions(txes)
                 ));
             }
-            PeerMessages::PropagateSealedBundle(bundle) => {
-                self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
-                    EthBroadcastMessage::PropagateSealedBundle(bundle)
-                ));
-            }
             PeerMessages::PropagateBundleSignature(sig) => {
                 self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
                     EthBroadcastMessage::PropagateBundleSignature(sig)

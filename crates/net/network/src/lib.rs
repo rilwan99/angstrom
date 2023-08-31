@@ -135,10 +135,10 @@ mod session;
 pub mod state;
 mod swarm;
 
-pub use messages::*;
 pub use config::{NetworkConfig, NetworkConfigBuilder};
 pub use discovery::Discovery;
 pub use guard_eth_wire::{DisconnectReason, HelloBuilder, HelloMessage};
+pub use messages::*;
 pub use peers::PeersConfig;
 pub use session::{
     ActiveSessionHandle, ActiveSessionMessage, Direction, PendingSessionEvent,

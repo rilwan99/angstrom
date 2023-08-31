@@ -40,7 +40,7 @@ pub struct Args {
 impl Args {
     pub fn run(self, rt: Runtime) -> anyhow::Result<()> {
         reth_tracing::init_test_tracing();
-        //let fake_key = SecretKey::new(&mut rand::thread_rng());
+
         let fake_key =
             SecretKey::from_str("ad21c16051f74f24b3fbad57b0010d98bfef20441c84ee5a872133f19f807fc4")
                 .unwrap();
@@ -50,24 +50,9 @@ impl Args {
         let fake_pub_key: &[u8; 64] =
             unsafe { &*(fake_pub_key as *const _ as *mut [u8]).cast() as &[u8; 64] };
 
-        let fake_edsca = LocalWallet::new(&mut rand::thread_rng());
-        let fake_bundle = LocalWallet::new(&mut rand::thread_rng());
+        let middleware =
+            Box::leak(Box::new(Provider::new(Http::new(self.full_node_ws.parse::<Url>()?))));
 
-        let inner = Provider::new(Http::new(self.full_node_ws.parse::<Url>()?));
-
-        let middleware: &mut SignerMiddleware<Provider<Http>, LocalWallet> =
-            Box::leak(Box::new(SignerMiddleware::new(
-                inner,
-                "ad21c16051f74f24b3fbad57b0010d98bfef20441c84ee5a872133f19f807fc4"
-                    .parse()
-                    .unwrap(),
-            )));
-
-        /*
-                let middleware = Box::leak(Box::new(
-                    RethMiddleware::new(inner, self.full_node.clone(), rt.handle().clone(), 1).unwrap(),
-                ));
-        */
         let db_path = self.full_node.as_ref();
         let db = Arc::new(reth_db::mdbx::Env::<reth_db::mdbx::WriteMap>::open(
             db_path,
@@ -75,23 +60,22 @@ impl Args {
             None,
         )?);
 
-        let sim = spawn_revm_sim(db, 6942069)?;
+        let sim = spawn_revm_sim(db, 6942069);
+        let edsca_key = LocalWallet::from_str(
+            "ad21c16051f74f24b3fbad57b0010d98bfef20441c84ee5a872133f19f807fc4",
+        )?;
 
-        //let fake_pub_key: PeerId = fake_pub_key.into();
+        let fake_bundle = LocalWallet::new(&mut rand::thread_rng());
         let network_config = NetworkConfig::new(fake_key, fake_pub_key.into());
-        let leader_config = LeaderConfig {
-            simulator: sim,
-            edsca_key: fake_edsca,
-            bundle_key: fake_bundle,
-            middleware,
-        };
+        let leader_config =
+            LeaderConfig { simulator: sim, edsca_key, bundle_key: fake_bundle, middleware };
 
-        let fake_addr = "ws://127.0.0.1:6969".parse()?;
+        let fake_addr = "127.0.0.1:6969".parse()?;
         let server_config = SubmissionServerConfig {
             addr: fake_addr,
-            cors_domains: "balls".into(),
             allow_subscriptions: self.enable_subscriptions,
         };
+
         println!("spawning guard");
 
         let guard = rt.block_on(Guard::new(network_config, leader_config, server_config))?;

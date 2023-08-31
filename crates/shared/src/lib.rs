@@ -1,60 +1,34 @@
-use ethers_core::types::{Address, U256};
-use reth_codecs::derive_arbitrary;
-use reth_primitives::{Bytes, Signature};
+use ethers_core::types::{Address, I256, U256};
+use reth_primitives::{bytes, Bytes};
 use reth_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 mod eip712;
 mod signature;
 mod tee_address;
-
 pub use eip712::*;
+use ethers_core::types::H256;
+use reth_rlp::{Decodable, DecodeError, Encodable};
+use secp256k1::Secp256k1;
 pub use signature::*;
 pub use tee_address::*;
 
 /// struct Batch {
-///     ArbitrageOrderSigned[] arbs;
-///     PoolSettlement[] pools;
+///     // UniV4 swaps to execute.
+///     PoolSwap[] swaps;
+///     // Settlement flows.
+///     LvrSettlement[] lvr;
 ///     UserSettlement[] users;
+///     CurrencySettlement[] currencies;
+///     PoolFees[] pools;
 /// }
-#[derive_arbitrary(rlp)]
 #[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
-pub struct Bundle {
-    pub arbs:  Vec<ArbitrageOrderSigned>,
-    pub pools: Vec<PoolSettlement>,
-    pub users: Vec<UserSettlement>
-}
-
-#[derive_arbitrary(rlp)]
-#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
-pub struct SealedOrder(pub [u8; 32]);
-
-#[derive_arbitrary(rlp)]
-#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
-pub struct SealedBundle {
-    pub arbs: Vec<SealedOrder>,
-
-    pub pools: Vec<PoolSettlement>,
-    pub users: Vec<UserSettlement>
-}
-
-impl SealedBundle {
-    pub fn gas_bid_sum(&self) -> U256 {
-        self.users
-            .iter()
-            .map(|user| user.order.gas_bid)
-            .fold(U256::zero(), |a, b| a + b)
-    }
-}
-
-/// struct ArbitrageOrderSigned {
-///     ArbitrageOrder order;
-///    bytes signature;
-/// }
-#[derive_arbitrary(rlp)]
-#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
-pub struct ArbitrageOrderSigned {
-    pub signature: Bytes,
-    pub order:     ArbitrageOrder
+pub struct Batch {
+    // Univ4 swaps
+    pub swaps:      Vec<PoolSwap>,
+    pub lvr:        Vec<LvrSettlement>,
+    pub users:      Vec<UserSettlement>,
+    pub currencies: Vec<CurrencySettlement>,
+    pub pools:      Vec<PoolFees>
 }
 
 /// struct ArbitrageOrder {
@@ -69,9 +43,8 @@ pub struct ArbitrageOrderSigned {
 ///     bytes preHook;
 ///     bytes postHook;
 /// }
-#[derive_arbitrary(rlp)]
 #[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
-pub struct ArbitrageOrder {
+pub struct SearcherOrder {
     /// TODO: move to wrapped fix size for quicker encoding
     pub pool:           [u8; 32],
     pub token_in:       Address,
@@ -80,8 +53,8 @@ pub struct ArbitrageOrder {
     pub amount_out:     u128,
     pub amount_out_min: u128,
     pub deadline:       U256,
-    pub gas_bid:        U256,
-    pub bride:          U256,
+    pub gas_cap:        U256,
+    pub bribe:          U256,
     pub pre_hook:       Bytes,
     pub post_hock:      Bytes
 }
@@ -91,7 +64,6 @@ pub struct ArbitrageOrder {
 ///     uint256 token0In;
 ///     uint256 token1In;
 /// }
-#[derive_arbitrary(rlp)]
 #[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct PoolSettlement {
     pub pool:       PoolKey,
@@ -103,16 +75,43 @@ pub struct PoolSettlement {
 ///     // User provided.
 ///     UserOrder order;
 ///     bytes signature;
-///
 ///     // Guard provided.
 ///     uint256 amountOut;
+///     uint256 gasActual;
 /// }
-#[derive_arbitrary(rlp)]
 #[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct UserSettlement {
     pub order:      UserOrder,
     pub signature:  Bytes,
-    pub amount_out: U256
+    // guard provider
+    pub amount_out: U256,
+    pub gas_actual: U256
+}
+
+/// struct LvrSettlement {
+///     // User provided.
+///     SearcherOrder order;
+///     bytes signature;
+///     // Guard provided.
+///     uint256 gasActual;
+/// }
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
+pub struct LvrSettlement {
+    order:      SearcherOrder,
+    signature:  Bytes,
+    // guard provided
+    gas_actual: U256
+}
+/// struct PoolSwap {
+///     PoolKey pool;
+///     Currency currencyIn;
+///     uint256 amountIn;
+/// }
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
+pub struct PoolSwap {
+    pool:        PoolKey,
+    currency_in: Address,
+    amount_in:   U256
 }
 
 /// struct UserOrder {
@@ -121,11 +120,10 @@ pub struct UserSettlement {
 ///     uint128 amountIn;
 ///     uint128 amountOutMin;
 ///     uint256 deadline;
-///     uint256 gasBid;
+///     uint256 gasCap;
 ///     bytes preHook;
 ///     bytes postHook;
 /// }
-#[derive_arbitrary(rlp)]
 #[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct UserOrder {
     pub token_out:      Address,
@@ -133,7 +131,7 @@ pub struct UserOrder {
     pub amount_in:      u128,
     pub amount_out_min: u128,
     pub deadline:       U256,
-    pub gas_bid:        U256,
+    pub gas_cap:        U256,
     pub pre_hook:       Bytes,
     pub post_hook:      Bytes
 }
@@ -145,7 +143,6 @@ pub struct UserOrder {
 ///     int24 tickSpacing;
 ///     address hooks;
 /// }
-#[derive_arbitrary(rlp)]
 #[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct PoolKey {
     pub currency_0:   Address,
@@ -153,4 +150,45 @@ pub struct PoolKey {
     pub fee:          u32,
     pub tick_spacing: u32,
     pub hooks:        Address
+}
+
+/// struct PoolFees {
+///     PoolKey pool;
+///     uint256 fees0;
+///     uint256 fees1;
+/// }
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
+pub struct PoolFees {
+    pool:   PoolKey,
+    fees_0: U256,
+    fees_1: U256
+}
+
+/// struct CurrencySettlement {
+///     Currency currency;
+///     int256 amountNet;
+/// }
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CurrencySettlement {
+    currency:   Address,
+    amount_net: I256
+}
+
+impl Encodable for CurrencySettlement {
+    fn encode(&self, out: &mut dyn bytes::BufMut) {
+        self.currency.encode(out);
+        self.amount_net.into_raw().encode(out);
+    }
+
+    fn length(&self) -> usize {
+        self.amount_net.into_raw().length()
+    }
+}
+
+impl Decodable for CurrencySettlement {
+    fn decode(buf: &mut &[u8]) -> Result<Self, DecodeError> {
+        let currency = Address::decode(buf)?;
+        let amount_net = U256::decode(buf)?;
+        Ok(Self { currency, amount_net: I256::from_raw(amount_net) })
+    }
 }

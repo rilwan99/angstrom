@@ -1,64 +1,79 @@
 use std::{
-    ops::{Deref, DerefMut},
+    pin::Pin,
+    sync::Arc,
     task::{Context, Poll}
 };
 
-use ethers_core::types::transaction::{
-    eip2718::TypedTransaction,
-    eip712::{EIP712Domain, TypedData}
-};
+use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_flashbots::{
     BroadcasterMiddleware, BundleRequest, FlashbotsMiddlewareError, PendingBundle,
     PendingBundleError
 };
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::Middleware;
-use ethers_signers::{LocalWallet, Signer};
-use shared::Bundle;
-use sim::Simulator;
+use ethers_signers::LocalWallet;
+use futures::{Future, FutureExt};
+use reth_primitives::PeerId;
+use shared::{Batch, BatchSignature};
+use tracing::{debug, info};
 
 type StakedWallet = LocalWallet;
 type BundleKey = LocalWallet;
 
-#[derive(Debug)]
-pub struct LeaderSender<M: Middleware + 'static>(
-    pub SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>
-);
+pub type SubmissionFut = Pin<Box<dyn Future<Output = ()> + Send + Sync>>;
+
+pub struct LeaderSender<M: Middleware + 'static> {
+    signer: Arc<SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>>,
+    signatures:    Vec<BatchSignature>,
+    valid_stakers: Vec<PeerId>,
+    batch:         Option<Batch>,
+    future:        Option<SubmissionFut>
+}
 
 impl<M: Middleware + 'static> LeaderSender<M> {
-    // copied from ethers flashbots
-    pub async fn submit_bundle(&self, mut tx: TypedTransaction) -> anyhow::Result<()> {
-        let block_number = self.0.get_block_number().await?;
+    pub fn new(
+        signer: Arc<SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>>
+    ) -> Self {
+        Self {
+            signer,
+            signatures: Vec::new(),
+            valid_stakers: Vec::new(),
+            batch: None,
+            future: None
+        }
+    }
 
-        let tx = {
-            self.0.fill_transaction(&mut tx, None).await?;
-            tx
-        };
-        let signature = self.0.signer().sign_transaction(&tx).await?;
-        let bundle = BundleRequest::new()
-            .push_transaction(tx.rlp_signed(&signature))
-            .set_block(block_number + 1)
-            .set_simulation_block(block_number)
-            .set_simulation_timestamp(0);
+    pub fn set_selected_batch(&mut self, batch: Batch) {
+        self.batch = Some(batch);
+    }
 
-        let results: Vec<_> = self.0.inner().send_bundle(&bundle).await?;
+    pub fn on_new_block(&mut self) {
+        self.signatures.clear();
+        self.batch = None;
+    }
 
-        // You can also optionally wait to see if the bundle was included
-        for result in results {
-            match result {
-                Ok(pending_bundle) => match pending_bundle.await {
-                    Ok(bundle_hash) => {
-                        println!("Bundle with hash {:?} was included in target block", bundle_hash)
-                    }
-                    Err(PendingBundleError::BundleNotIncluded) => {
-                        println!("Bundle was not included in target block.")
-                    }
-                    Err(e) => println!("An error occured: {}", e)
-                },
-                Err(e) => println!("An error occured: {}", e)
-            }
+    /// keeps collecting new signatures for specified bundle request.
+    /// once the amount of signatures are met, we go ahead and send out
+    /// the bundle
+    pub fn new_signature(&mut self, sig: BatchSignature) {
+        if self.signatures.contains(&sig) {
+            debug!(?sig, "got a duplicate signature");
         }
 
-        Ok(())
+        if let Ok(key) = sig.recover_key() {
+            if self.valid_stakers.contains(&key) {
+                info!(?key, "got new signature for bundle");
+                self.signatures.push(sig);
+            }
+        }
+        //TODO: check if we reached threshold and then submit
+    }
+
+    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<()> {
+        if let Some(submit_fut) = self.future.as_mut() {
+            return submit_fut.poll_unpin(cx)
+        }
+
+        Poll::Pending
     }
 }

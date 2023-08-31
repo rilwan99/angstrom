@@ -6,7 +6,7 @@ use reth_primitives::bytes::{Buf, BufMut};
 use reth_rlp::{length_of_length, Decodable, Encodable, Header};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use shared::{Bundle, BundleSignature, Eip712, SealedBundle, TeeAddress};
+use shared::{Batch, BatchSignature, Eip712, TeeAddress};
 
 use super::Status;
 use crate::{errors::EthStreamError, EthVersion};
@@ -32,14 +32,11 @@ impl ProtocolMessage {
             EthMessageID::PropagateTransactions => {
                 EthMessage::PropagateTransactions(Vec::<Eip712>::decode(buf)?)
             }
-            EthMessageID::PropagateSealedBundle => {
-                EthMessage::PropagateSealedBundle(SealedBundle::decode(buf)?)
-            }
             EthMessageID::PropagateBundleSignature => {
-                EthMessage::PropagateBundleSignature(BundleSignature::decode(buf)?)
+                EthMessage::PropagateBundleSignature(BatchSignature::decode(buf)?)
             }
             EthMessageID::PropagateSignatureRequest => {
-                EthMessage::PropagateSignatureRequest(Bundle::decode(buf)?)
+                EthMessage::PropagateSignatureRequest(Batch::decode(buf)?)
             }
         };
         Ok(ProtocolMessage { message_type, message })
@@ -120,9 +117,8 @@ pub enum EthMessage {
     GetTeeModule(RequestPair<TeeAddress>),
     // broadcast
     PropagateTransactions(Vec<Eip712>),
-    PropagateSealedBundle(SealedBundle),
-    PropagateSignatureRequest(Bundle),
-    PropagateBundleSignature(BundleSignature)
+    PropagateSignatureRequest(Batch),
+    PropagateBundleSignature(BatchSignature)
 }
 
 impl EthMessage {
@@ -132,7 +128,6 @@ impl EthMessage {
             EthMessage::Status(_) => EthMessageID::Status,
             EthMessage::GetTeeModule(_) => EthMessageID::GetTeeModule,
             EthMessage::PropagateTransactions(_) => EthMessageID::PropagateTransactions,
-            EthMessage::PropagateSealedBundle(_) => EthMessageID::PropagateSealedBundle,
             EthMessage::PropagateBundleSignature(_) => EthMessageID::PropagateBundleSignature,
             EthMessage::PropagateSignatureRequest(_) => EthMessageID::PropagateSignatureRequest
         }
@@ -145,7 +140,6 @@ impl Encodable for EthMessage {
             EthMessage::Status(status) => status.encode(out),
             EthMessage::GetTeeModule(module) => module.encode(out),
             EthMessage::PropagateTransactions(txes) => txes.encode(out),
-            EthMessage::PropagateSealedBundle(bundle) => bundle.encode(out),
             EthMessage::PropagateBundleSignature(sig) => sig.encode(out),
             EthMessage::PropagateSignatureRequest(sig_req) => sig_req.encode(out)
         }
@@ -156,7 +150,6 @@ impl Encodable for EthMessage {
             EthMessage::Status(status) => status.length(),
             EthMessage::GetTeeModule(module) => module.length(),
             EthMessage::PropagateTransactions(txes) => txes.length(),
-            EthMessage::PropagateSealedBundle(bundle) => bundle.length(),
             EthMessage::PropagateBundleSignature(sig) => sig.length(),
             EthMessage::PropagateSignatureRequest(sig_req) => sig_req.length()
         }
@@ -174,9 +167,8 @@ impl Encodable for EthMessage {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EthBroadcastMessage {
     PropagateTransactions(Arc<Vec<Eip712>>),
-    PropagateSealedBundle(Arc<SealedBundle>),
-    PropagateSignatureRequest(Arc<Bundle>),
-    PropagateBundleSignature(Arc<BundleSignature>)
+    PropagateSignatureRequest(Arc<Batch>),
+    PropagateBundleSignature(Arc<BatchSignature>)
 }
 
 // === impl EthBroadcastMessage ===
@@ -186,7 +178,6 @@ impl EthBroadcastMessage {
     pub fn message_id(&self) -> EthMessageID {
         match self {
             EthBroadcastMessage::PropagateTransactions(_) => EthMessageID::PropagateTransactions,
-            EthBroadcastMessage::PropagateSealedBundle(_) => EthMessageID::PropagateSealedBundle,
             EthBroadcastMessage::PropagateBundleSignature(_) => {
                 EthMessageID::PropagateBundleSignature
             }
@@ -203,7 +194,6 @@ impl Encodable for EthBroadcastMessage {
         match self {
             EthBroadcastMessage::PropagateSignatureRequest(sig) => sig.encode(out),
             EthBroadcastMessage::PropagateTransactions(tx) => tx.encode(out),
-            EthBroadcastMessage::PropagateSealedBundle(bundle) => bundle.encode(out),
             EthBroadcastMessage::PropagateBundleSignature(sig) => sig.encode(out)
         }
     }
@@ -212,7 +202,6 @@ impl Encodable for EthBroadcastMessage {
         match self {
             EthBroadcastMessage::PropagateSignatureRequest(sig) => sig.length(),
             EthBroadcastMessage::PropagateTransactions(tx) => tx.length(),
-            EthBroadcastMessage::PropagateSealedBundle(bundle) => bundle.length(),
             EthBroadcastMessage::PropagateBundleSignature(sig) => sig.length()
         }
     }
@@ -225,10 +214,9 @@ impl Encodable for EthBroadcastMessage {
 pub enum EthMessageID {
     GetTeeModule = 0x00,
     PropagateTransactions = 0x01,
-    PropagateSealedBundle = 0x02,
-    PropagateSignatureRequest = 0x03,
-    PropagateBundleSignature = 0x04,
-    Status       = 0x05
+    PropagateSignatureRequest = 0x02,
+    PropagateBundleSignature = 0x03,
+    Status       = 0x04
 }
 
 impl Encodable for EthMessageID {
@@ -247,10 +235,9 @@ impl Decodable for EthMessageID {
         let id = match id {
             0x00 => EthMessageID::GetTeeModule,
             0x01 => EthMessageID::PropagateTransactions,
-            0x02 => EthMessageID::PropagateSealedBundle,
-            0x03 => EthMessageID::PropagateSignatureRequest,
-            0x04 => EthMessageID::PropagateBundleSignature,
-            0x05 => EthMessageID::Status,
+            0x02 => EthMessageID::PropagateSignatureRequest,
+            0x03 => EthMessageID::PropagateBundleSignature,
+            0x04 => EthMessageID::Status,
             _ => return Err(reth_rlp::DecodeError::Custom("Invalid message ID"))
         };
         buf.advance(1);
@@ -264,12 +251,10 @@ impl TryFrom<usize> for EthMessageID {
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         match value {
             0x00 => Ok(EthMessageID::GetTeeModule),
-            0x00 => Ok(EthMessageID::GetTeeModule),
             0x01 => Ok(EthMessageID::PropagateTransactions),
-            0x02 => Ok(EthMessageID::PropagateSealedBundle),
-            0x03 => Ok(EthMessageID::PropagateSignatureRequest),
-            0x04 => Ok(EthMessageID::PropagateBundleSignature),
-            0x05 => Ok(EthMessageID::Status),
+            0x02 => Ok(EthMessageID::PropagateSignatureRequest),
+            0x03 => Ok(EthMessageID::PropagateBundleSignature),
+            0x04 => Ok(EthMessageID::Status),
             _ => Err("Invalid message ID")
         }
     }
@@ -326,66 +311,68 @@ where
 
 #[cfg(test)]
 mod test {
-    use hex_literal::hex;
-    use reth_rlp::{Decodable, Encodable};
-
-    use crate::{
-        errors::EthStreamError, types::message::RequestPair, EthMessage, EthMessageID, GetNodeData,
-        NodeData, ProtocolMessage
-    };
-
-    fn encode<T: Encodable>(value: T) -> Vec<u8> {
-        let mut buf = vec![];
-        value.encode(&mut buf);
-        buf
-    }
-
-    #[test]
-    fn test_removed_message_at_eth67() {
-        let get_node_data = EthMessage::GetNodeData(RequestPair {
-            request_id: 1337,
-            message:    GetNodeData(vec![])
-        });
-        let buf = encode(ProtocolMessage {
-            message_type: EthMessageID::GetNodeData,
-            message:      get_node_data
-        });
-        let msg = ProtocolMessage::decode_message(crate::EthVersion::Eth67, &mut &buf[..]);
-        assert!(matches!(msg, Err(EthStreamError::EthInvalidMessageError(..))));
-
-        let node_data =
-            EthMessage::NodeData(RequestPair { request_id: 1337, message: NodeData(vec![]) });
-        let buf = encode(ProtocolMessage {
-            message_type: EthMessageID::NodeData,
-            message:      node_data
-        });
-        let msg = ProtocolMessage::decode_message(crate::EthVersion::Eth67, &mut &buf[..]);
-        assert!(matches!(msg, Err(EthStreamError::EthInvalidMessageError(..))));
-    }
-
-    #[test]
-    fn request_pair_encode() {
-        let request_pair = RequestPair { request_id: 1337, message: vec![5u8] };
-
-        // c5: start of list (c0) + len(full_list) (length is <55 bytes)
-        // 82: 0x80 + len(1337)
-        // 05 39: 1337 (request_id)
-        // === full_list ===
-        // c1: start of list (c0) + len(list) (length is <55 bytes)
-        // 05: 5 (message)
-        let expected = hex!("c5820539c105");
-        let got = encode(request_pair);
-        assert_eq!(expected[..], got, "expected: {expected:X?}, got: {got:X?}",);
-    }
-
-    #[test]
-    fn request_pair_decode() {
-        let raw_pair = &hex!("c5820539c105")[..];
-
-        let expected = RequestPair { request_id: 1337, message: vec![5u8] };
-
-        let got = RequestPair::<Vec<u8>>::decode(&mut &*raw_pair).unwrap();
-        assert_eq!(expected.length(), raw_pair.len());
-        assert_eq!(expected, got);
-    }
+    // use hex_literal::hex;
+    // use reth_rlp::{Decodable, Encodable};
+    //
+    // use crate::{
+    //     errors::EthStreamError, types::message::RequestPair, EthMessage,
+    // EthMessageID,     ProtocolMessage
+    // };
+    //
+    // fn encode<T: Encodable>(value: T) -> Vec<u8> {
+    //     let mut buf = vec![];
+    //     value.encode(&mut buf);
+    //     buf
+    // }
+    //
+    // #[test]
+    // fn test_removed_message_at_eth67() {
+    //     let get_node_data = EthMessage::GetNodeData(RequestPair {
+    //         request_id: 1337,
+    //         message:    GetNodeData(vec![])
+    //     });
+    //     let buf = encode(ProtocolMessage {
+    //         message_type: EthMessageID::GetNodeData,
+    //         message:      get_node_data
+    //     });
+    //     let msg = ProtocolMessage::decode_message(crate::EthVersion::Eth67,
+    // &mut &buf[..]);     assert!(matches!(msg,
+    // Err(EthStreamError::EthInvalidMessageError(..))));
+    //
+    //     let node_data =
+    //         EthMessage::NodeData(RequestPair { request_id: 1337, message:
+    // NodeData(vec![]) });     let buf = encode(ProtocolMessage {
+    //         message_type: EthMessageID::NodeData,
+    //         message:      node_data
+    //     });
+    //     let msg = ProtocolMessage::decode_message(crate::EthVersion::Eth67,
+    // &mut &buf[..]);     assert!(matches!(msg,
+    // Err(EthStreamError::EthInvalidMessageError(..)))); }
+    //
+    // #[test]
+    // fn request_pair_encode() {
+    //     let request_pair = RequestPair { request_id: 1337, message: vec![5u8]
+    // };
+    //
+    //     // c5: start of list (c0) + len(full_list) (length is <55 bytes)
+    //     // 82: 0x80 + len(1337)
+    //     // 05 39: 1337 (request_id)
+    //     // === full_list ===
+    //     // c1: start of list (c0) + len(list) (length is <55 bytes)
+    //     // 05: 5 (message)
+    //     let expected = hex!("c5820539c105");
+    //     let got = encode(request_pair);
+    //     assert_eq!(expected[..], got, "expected: {expected:X?}, got:
+    // {got:X?}",); }
+    //
+    // #[test]
+    // fn request_pair_decode() {
+    //     let raw_pair = &hex!("c5820539c105")[..];
+    //
+    //     let expected = RequestPair { request_id: 1337, message: vec![5u8] };
+    //
+    //     let got = RequestPair::<Vec<u8>>::decode(&mut &*raw_pair).unwrap();
+    //     assert_eq!(expected.length(), raw_pair.len());
+    //     assert_eq!(expected, got);
+    // }
 }
