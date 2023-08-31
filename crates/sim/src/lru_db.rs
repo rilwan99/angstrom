@@ -20,7 +20,6 @@ pub struct RevmLRU {
 impl RevmLRU {
     pub fn new(max_bytes: usize, db: Arc<reth_db::mdbx::Env<WriteMap>>) -> Self {
         let accounts = LruMap::new(ByMemoryUsage::new(max_bytes));
-
         Self { accounts, db }
     }
 

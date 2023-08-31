@@ -32,9 +32,9 @@ pub struct Args {
     #[arg(long, default_value = "false")]
     pub enable_subscriptions: bool,
     #[arg(long)]
-    pub full_node:            PathBuf,
+    pub full_node: PathBuf,
     #[arg(long)]
-    pub full_node_ws:         String
+    pub full_node_ws: String,
 }
 
 impl Args {
@@ -60,17 +60,17 @@ impl Args {
                 inner,
                 "046cfcdbef4955744de5f87e739883e7ffa5daa05945bda2b7f5d4b3123935de"
                     .parse()
-                    .unwrap()
+                    .unwrap(),
             )));
 
         let db_path = self.full_node.as_ref();
         let db = Arc::new(reth_db::mdbx::Env::<reth_db::mdbx::WriteMap>::open(
             db_path,
             reth_db::mdbx::EnvKind::RO,
-            None
+            None,
         )?);
 
-        let sim = spawn_revm_sim(db, 6942069);
+        let sim = spawn_revm_sim(db, 6942069)?;
 
         //let fake_pub_key: PeerId = fake_pub_key.into();
         let network_config = NetworkConfig::new(fake_key, fake_pub_key.into());
@@ -78,20 +78,20 @@ impl Args {
             simulator: sim,
             edsca_key: fake_edsca,
             bundle_key: fake_bundle,
-            middleware
+            middleware,
         };
 
         let fake_addr = "127.0.0.1:6969".parse()?;
 
         let server_config = SubmissionServerConfig {
-            addr:                fake_addr,
+            addr: fake_addr,
             // cors_domains:        "balls".into(),
-            allow_subscriptions: self.enable_subscriptions
+            allow_subscriptions: self.enable_subscriptions,
         };
         println!("spawning guard");
 
-        let guard = rt.block_on(Guard::new(network_config, leader_config, server_config));
-        rt.block_on(guard?);
+        let guard = rt.block_on(Guard::new(network_config, leader_config, server_config))?;
+        rt.block_on(guard);
 
         Ok(())
     }
