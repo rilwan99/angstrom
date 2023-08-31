@@ -1,6 +1,6 @@
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{sim::SimError, Simulator, TransactionType};
+use crate::{errors::SimError, Simulator, TransactionType};
 
 /// clone-able handle to the simulator
 #[derive(Clone)]
@@ -17,7 +17,7 @@ impl RevmClient {
 #[async_trait::async_trait]
 impl Simulator for RevmClient {
     fn run_sim(&self, transaction: TransactionType) -> Result<(), SimError> {
-        self.transaction_tx.send(transaction).unwrap();
+        self.transaction_tx.send(transaction)?;
         Ok(())
     }
 }
