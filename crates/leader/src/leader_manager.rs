@@ -62,7 +62,6 @@ impl From<CowMsg> for LeaderMessage {
 }
 
 pub const EIGHT_SECONDS: CriticalDurations = CriticalDurations::EightSeconds;
-
 pub const TEN_SECONDS: CriticalDurations = CriticalDurations::TenSeconds;
 
 pub enum CriticalDurations {
@@ -179,7 +178,7 @@ where
         CriticalDurations::get_mode(SystemTime::now().duration_since(self.last_block).unwrap())
     }
 
-    fn start_settlement(&mut self) {
+    fn start_settlement_if_leader(&mut self) {
         if self.is_leader()
             && !self.leader_sender.has_submitted()
             && !self.leader_sender.has_selected_bundle()
@@ -213,8 +212,7 @@ where
         }
 
         match self.get_duration() {
-            CriticalDurations::TenSeconds => self.start_settlement(),
-            CriticalDurations::EightSeconds => self.start_settlement(),
+            CriticalDurations::EightSeconds => self.start_settlement_if_leader(),
             _ => {}
         }
 
