@@ -1,0 +1,45 @@
+[package]
+name = "it-harness"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[dependencies]
+stale-guard = { path = "../", features = ["test_harness"] }
+guard-network = { path = "../crates/net/network/", features = ["test_harness"] }
+leader = { path = "../crates/leader/", features = ["test_harness"] }
+guard-eth-wire = { path = "../crates/net/eth-wire" }
+guard-discv4 = { path = "../crates/net/discv4" }
+
+sim.workspace = true
+tokio.workspace = true
+futures.workspace = true
+thiserror.workspace = true
+reth-network.workspace = true
+reth-primitives.workspace = true
+ethers-providers.workspace = true
+ethers-signers.workspace = true
+ethers-middleware.workspace = true
+ethers-core.workspace = true
+tracing.workspace = true
+reth-rpc-builder.workspace = true
+async-trait.workspace = true
+tokio-stream.workspace = true
+shared.workspace = true
+serde.workspace = true
+anyhow.workspace = true
+url.workspace = true
+reth-db.workspace = true
+reth-tracing.workspace = true
+
+pin-project = "1.0.12"
+
+secp256k1 = { version = "0.27.0", default-features = false, features = [
+  "global-context",
+  "rand-std",
+  "recovery",
+] }

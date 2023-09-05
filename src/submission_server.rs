@@ -10,11 +10,17 @@ use hyper::{http::HeaderValue, Method};
 use jsonrpsee::{
     proc_macros::rpc, server::ServerHandle, PendingSubscriptionSink, SubscriptionSink
 };
-use jsonrpsee_core::server::SubscriptionMessage;
+use jsonrpsee_core::{server::SubscriptionMessage, RpcResult};
 use serde::{Deserialize, Serialize};
-use shared::{Batch, Eip712};
+use shared::{
+    RawLvrSettlement, RawUserSettlement, SearcherOrder, Signature, SimmedBundle, UserOrder
+};
 use tokio::sync::mpsc::{channel, Sender};
 use tokio_stream::wrappers::ReceiverStream;
+use tower::{
+    layer::util::{Identity, Stack},
+    ServiceBuilder
+};
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tracing::info;
 
@@ -70,42 +76,49 @@ pub enum SubscriptionKind {
     CowTransactions
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum SubscriptionResult {
-    Bundle(Arc<Batch>),
-    CowTransaction(Arc<Vec<Eip712>>)
+    /// Simmed bundles
+    Bundle(Arc<SimmedBundle>),
+    /// Simmed User orders
+    CowTransaction(Arc<Vec<UserOrder>>)
 }
 
-#[rpc(server, namespace = "guard")]
+#[rpc(server, client, namespace = "guard")]
 #[async_trait::async_trait]
 pub trait GuardSubmitApi {
-    #[method(name = "SubmitTransaction")]
-    async fn submit_eip712(&self, meta_tx: TypedData) -> bool;
+    #[method(name = "SubmitUserTransaction")]
+    async fn submit_user_tx(&self, signature: Signature, meta_tx: TypedData) -> RpcResult<bool>;
+    #[method(name = "SubmitArbTransaction")]
+    async fn submit_arb_tx(&self, signature: Signature, meta_tx: TypedData) -> RpcResult<bool>;
 }
 
 #[rpc(server, namespace = "guard_sub")]
 #[async_trait::async_trait]
 pub trait GaurdSubscribeApi {
     /// Create an ethereum subscription for the given params
-    #[subscription(
-        name = "subscribe" => "subscription",
+    #[subscription( name = "subscribe" => "subscription",
         unsubscribe = "unsubscribe",
-        item = reth_rpc_types::pubsub::SubscriptionResult
+        item = SubscriptionResult
     )]
-    async fn subscribe(&self, kind: SubscriptionKind) -> jsonrpsee::core::SubscriptionResult;
+    async fn subscribe_to_data(
+        &self,
+        kind: SubscriptionKind
+    ) -> jsonrpsee::core::SubscriptionResult;
 }
 
 #[derive(Debug)]
 pub enum Submission {
-    Submission(Eip712),
+    ArbTx(RawLvrSettlement),
+    UserTx(RawUserSettlement),
     Subscription(SubscriptionKind, Sender<SubscriptionResult>)
 }
 
 pub struct SubmissionServerConfig {
     pub addr:                SocketAddr,
-    // pub cors_domains:        String,
+    pub cors_domains:        String,
     pub allow_subscriptions: bool
 }
 
@@ -135,15 +148,15 @@ pub struct SubmissionServerInner {
 
 impl SubmissionServerInner {
     pub async fn new(config: SubmissionServerConfig) -> anyhow::Result<SubmissionServer> {
-        let SubmissionServerConfig { addr, allow_subscriptions } = config;
+        let SubmissionServerConfig { cors_domains, addr, allow_subscriptions } = config;
 
         let (tx, rx) = channel(10);
 
-        // let middleware: ServiceBuilder<Stack<CorsLayer, Identity>> =
-        //     tower::ServiceBuilder::new().layer(create_cors_layer(&cors_domains)?);
+        let middleware: ServiceBuilder<Stack<CorsLayer, Identity>> =
+            tower::ServiceBuilder::new().layer(create_cors_layer(&cors_domains)?);
 
         let server = jsonrpsee::server::ServerBuilder::default()
-            // .set_middleware(middleware)
+            .set_middleware(middleware)
             .build(addr)
             .await?;
 
@@ -161,24 +174,52 @@ impl SubmissionServerInner {
 
 #[async_trait::async_trait]
 impl GuardSubmitApiServer for SubmissionServerInner {
-    async fn submit_eip712(&self, meta_tx: TypedData) -> bool {
-        info!(?meta_tx, "new submission");
+    async fn submit_user_tx(&self, signature: Signature, meta_tx: TypedData) -> RpcResult<bool> {
+        info!(?meta_tx, "new user submission");
+        let Ok(user_tx): Result<UserOrder, _> = serde_json::from_value(serde_json::Value::Object(
+            serde_json::Map::from_iter(meta_tx.message)
+        )) else {
+            return Ok(false)
+        };
+
         if self
             .sender
-            .send(Submission::Submission(Eip712(meta_tx)))
+            .send(Submission::UserTx(RawUserSettlement { order: user_tx, signature }))
             .await
             .is_err()
         {
             // just for testing
             panic!("failed to send a new eip712 tx");
         }
-        true
+        Ok(true)
+    }
+
+    async fn submit_arb_tx(&self, signature: Signature, meta_tx: TypedData) -> RpcResult<bool> {
+        info!(?meta_tx, "new arb submission");
+
+        let Ok(arb_tx): Result<SearcherOrder, _> = serde_json::from_value(
+            serde_json::Value::Object(serde_json::Map::from_iter(meta_tx.message))
+        ) else {
+            return Ok(false)
+        };
+
+        if self
+            .sender
+            .send(Submission::ArbTx(RawLvrSettlement { order: arb_tx, signature }))
+            .await
+            .is_err()
+        {
+            // just for testing
+            panic!("failed to send a new eip712 tx");
+        }
+
+        Ok(true)
     }
 }
 
 #[async_trait::async_trait]
 impl GaurdSubscribeApiServer for SubmissionServerInner {
-    async fn subscribe(
+    async fn subscribe_to_data(
         &self,
         pending: PendingSubscriptionSink,
         kind: SubscriptionKind
@@ -230,5 +271,183 @@ where
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+pub mod test {
+
+    use jsonrpsee::http_client::HttpClientBuilder;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn can_submit_data() -> anyhow::Result<()> {
+        let fake_addr = "127.0.0.1:6969".parse()?;
+
+        let server_config = SubmissionServerConfig {
+            addr:                fake_addr,
+            cors_domains:        "*".into(),
+            allow_subscriptions: false
+        };
+        let server = SubscriptionServerInner::new(server_config).await.unwrap();
+        let client = HttpClientBuilder::default()
+            .build("http://127.0.0.1:6969")
+            .unwrap();
+
+        let typed_data = get_typed_data();
+
+        let res = client.submit_arb_tx(meta_tx.clone()).await;
+
+        let Submssion::ArbTx(server_res) = server.next().await.unwrap() else {
+            panic!("wrong value received")
+        };
+
+        assert_eq!(meta_tx, server_res.0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_subscription() {
+        let fake_addr = "127.0.0.1:6970".parse()?;
+
+        let server_config = SubmissionServerConfig {
+            addr:                fake_addr,
+            cors_domains:        "*".into(),
+            allow_subscriptions: false
+        };
+        let server = SubscriptionServerInner::new(server_config).await.unwrap();
+        let client = HttpClientBuilder::default()
+            .build("http://127.0.0.1:6970")
+            .unwrap();
+
+        let sub_client = client
+            .subscribe(SubscriptionKind::CowTransactions)
+            .await
+            .unwrap();
+        let Some(Submission::Subscription(kind, sender)) = server.next().await else { panic!() };
+        let payload = SubscriptionResult::CowTransaction(Arc::new(vec![Eip712(get_typed_data())]));
+
+        sender.send(payload.clone()).unwrap();
+
+        let res = sub_client.next().await.unwrap().unwrap();
+        assert_eq!(payload, res);
+    }
+
+    fn get_typed_data() -> TypedData {
+        let json = serde_json::json!({
+          "types": {
+            "EIP712Domain": [
+              {
+                "name": "name",
+                "type": "string"
+              },
+              {
+                "name": "version",
+                "type": "string"
+              },
+              {
+                "name": "chainId",
+                "type": "uint256"
+              },
+              {
+                "name": "verifyingContract",
+                "type": "address"
+              }
+            ],
+            "OrderComponents": [
+              {
+                "name": "offerer",
+                "type": "address"
+              },
+              {
+                "name": "zone",
+                "type": "address"
+              },
+              {
+                "name": "offer",
+                "type": "OfferItem[]"
+              },
+              {
+                "name": "startTime",
+                "type": "uint256"
+              },
+              {
+                "name": "endTime",
+                "type": "uint256"
+              },
+              {
+                "name": "zoneHash",
+                "type": "bytes32"
+              },
+              {
+                "name": "salt",
+                "type": "uint256"
+              },
+              {
+                "name": "conduitKey",
+                "type": "bytes32"
+              },
+              {
+                "name": "counter",
+                "type": "uint256"
+              }
+            ],
+            "OfferItem": [
+              {
+                "name": "token",
+                "type": "address"
+              }
+            ],
+            "ConsiderationItem": [
+              {
+                "name": "token",
+                "type": "address"
+              },
+              {
+                "name": "identifierOrCriteria",
+                "type": "uint256"
+              },
+              {
+                "name": "startAmount",
+                "type": "uint256"
+              },
+              {
+                "name": "endAmount",
+                "type": "uint256"
+              },
+              {
+                "name": "recipient",
+                "type": "address"
+              }
+            ]
+          },
+          "primaryType": "OrderComponents",
+          "domain": {
+            "name": "Seaport",
+            "version": "1.1",
+            "chainId": "1",
+            "verifyingContract": "0x00000000006c3852cbEf3e08E8dF289169EdE581"
+          },
+          "message": {
+            "offerer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+            "offer": [
+              {
+                "token": "0xA604060890923Ff400e8c6f5290461A83AEDACec"
+              }
+            ],
+            "startTime": "1658645591",
+            "endTime": "1659250386",
+            "zone": "0x004C00500000aD104D7DBd00e3ae0A5C00560C00",
+            "zoneHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+            "salt": "16178208897136618",
+            "conduitKey": "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
+            "totalOriginalConsiderationItems": "2",
+            "counter": "0"
+          }
+        }
+                );
+
+        serde_json::from_value(json).unwrap()
     }
 }

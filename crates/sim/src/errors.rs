@@ -1,53 +1,75 @@
 use ethers_core::types::transaction::eip712::{Eip712Error, TypedData};
 use reth_primitives::Signature;
-use revm_primitives::{ExecutionResult, TxEnv};
-use shared::{Eip712, UserSettlement};
+use revm_primitives::{Account, HashMap, TxEnv, B160};
+use shared::RawUserSettlement;
+use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
 
-use crate::TransactionType;
+use crate::{BundleOrTransactionResult, SimEvent};
 
 #[derive(Debug)]
 pub enum SimResult {
     /// error running a sim on the evm
     SimError(SimError),
     /// execution result of the sim
-    ExecutionResult(ExecutionResult)
+    ExecutionResult(BundleOrTransactionResult),
+    /// the evm/caches were updated succesfully
+    SuccessfulRevmBlockUpdate
 }
 
-/// errors for sim
-#[derive(Debug)]
+impl SimResult {
+    pub fn is_success(&self) -> bool {
+        match self {
+            SimResult::ExecutionResult(_) => true,
+            _ => false
+        }
+    }
+}
+
+#[derive(Debug, Error)]
 pub enum SimError {
-    ///
-    //#[error("Unable to Send Transaction to Sim: {0:#?}")]
-    SendToSimError(SendError<TransactionType>),
-    //#[error("Unable to Create Runtime For ThreadPool")]
-    RuntimeCreationError(std::io::Error),
-    //#[error("Unable to Start libmdbx transaction")]
-    LibmdbxTransactionError(reth_db::mdbx::Error),
-    //#[error("Unable to read Revm-Reth StateProvider Database")]
+    #[error("Unable to read Revm-Reth StateProvider Database")]
     RevmDatabaseError(reth_interfaces::Error),
-    //#[error("No Transactions Decoded from EIP712 Tx: {0:#?}")]
-    NoTransactionsInEip712(Eip712),
-    //#[error("EVM Simulation Error: {0:#?}")]
-    RevmEVMTransactionError(TxEnv),
-    //#[error("Call instead of create transaction: {0:#?}")]
-    CallInsteadOfCreateError(TxEnv),
-    //#[error("Error Encoding EIP712 Transaction: {0:#?}")]
+    #[error("Unable to Send Transaction to Sim: {0:#?}")]
+    SendToSimError(SendError<SimEvent>),
+    #[error("Unable to Create Runtime For ThreadPool")]
+    RuntimeCreationError(std::io::Error),
+    #[error("Unable to Start libmdbx transaction")]
+    LibmdbxTransactionError(reth_db::mdbx::Error),
+    #[error("Error Encoding EIP712 Transaction: {0:#?}")]
     Eip712EncodingError(Eip712Error),
-    //#[error("Error Decoding EIP712 Transaction: {0:#?}")]
-    Eip712DecodingError(TypedData),
-    //#[error("Error Decoding EIP712 Transaction With Serde: {0:#?}")]
+    #[error("Error Decoding EIP712 Transaction With Serde: {0:#?}")]
     SerdeEip712DecodingError(serde_json::error::Error),
-    //#[error("No verifying contract on EIP712 transaction: {0:#?}")]
-    NoVerifyingContract(Eip712),
-    //#[error("Error decoding signature: {0:#?}")]
-    DecodingSignatureError(UserSettlement),
-    // #[error("Error decoding signature: {0:#?}")]
-    RecoveringSignerError(Signature)
+    #[error("Error decoding signature: {0:#?}")]
+    DecodingSignatureError(RawUserSettlement),
+    #[error("No Transactions Decoded from EIP712 Tx: {0:#?}")]
+    NoTransactionsInEip712(TxEnv),
+    #[error("EVM Simulation Error: {0:#?}")]
+    RevmEVMTransactionError(TxEnv),
+    #[error("Revm Cache Error: {0:#?}")]
+    RevmCacheError((TxEnv, HashMap<B160, Account>)),
+    #[error("Call instead of create transaction: {0:#?}")]
+    CallInsteadOfCreateError(TxEnv),
+    #[error("Error Decoding EIP712 Transaction: {0:#?}")]
+    Eip712DecodingError(TypedData),
+    #[error("No verifying contract on EIP712 transaction: {0:#?}")]
+    NoVerifyingContract(TxEnv),
+    #[error("Error decoding signature: {0:#?}")]
+    RecoveringSignerError(Signature),
+    #[error("Simulation reverted: {0:#?}")]
+    SimRevert(TxEnv),
+    #[error("Simulation halted: {0:#?}")]
+    SimHalt(TxEnv),
+    #[error("Invalid amount in after hook: expected: {0:#?} got: {1:#?}")]
+    InvalidAmountIn(u128, u128),
+    #[error("hook failed")]
+    HookFailed,
+    #[error("V4 reverted")]
+    V4Failed
 }
 
-impl From<SendError<TransactionType>> for SimError {
-    fn from(value: SendError<TransactionType>) -> Self {
+impl From<SendError<SimEvent>> for SimError {
+    fn from(value: SendError<SimEvent>) -> Self {
         SimError::SendToSimError(value)
     }
 }
@@ -76,15 +98,15 @@ impl From<Eip712Error> for SimError {
     }
 }
 
-impl From<TypedData> for SimError {
-    fn from(value: TypedData) -> Self {
-        SimError::Eip712DecodingError(value)
-    }
-}
-
 impl From<serde_json::error::Error> for SimError {
     fn from(value: serde_json::error::Error) -> Self {
         SimError::SerdeEip712DecodingError(value)
+    }
+}
+
+impl From<TypedData> for SimError {
+    fn from(value: TypedData) -> Self {
+        SimError::Eip712DecodingError(value)
     }
 }
 

@@ -12,14 +12,20 @@ exclude.workspace = true
 
 [dependencies]
 # ethers
+ethers = "2.0.9"
 ethers-middleware.workspace = true
+ethers-providers.workspace = true
 ethers-core = "2.0.9"
 ethers-signers = "2.0.9"
-
+auto_impl.workspace = true
+anvil.workspace = true
+anvil-core.workspace = true
+anyhow.workspace = true
+hex-literal.workspace = true
 
 # revm
-revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
-revm-primitives = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
+revm.workspace = true
+revm-primitives.workspace = true
 
 # reth
 reth-primitives.workspace = true
@@ -27,9 +33,10 @@ reth-provider.workspace = true
 reth-revm.workspace = true
 reth-db.workspace = true
 reth-interfaces.workspace = true
+reth-rlp.workspace = true
 
 # async/futures
-tokio = { version = "1.21", default-features = false }
+tokio.workspace = true
 futures = "0.3.26"
 pin-project = "1.0.12"
 futures-util = "0.3.25"
@@ -38,9 +45,14 @@ parking_lot = "0.12.1"
 
 # misc
 eyre = "0.6.8"
-hex-literal = "0.4.1"
-secp256k1 = { version = "0.27.0", default-features = false, features = ["global-context", "rand-std", "recovery"] }
-shared = { path = "../shared/"}
+secp256k1 = { version = "0.27.0", default-features = false, features = [
+  "global-context",
+  "rand-std",
+  "recovery",
+] }
+shared = { path = "../shared/" }
+serial_test = "2.0.0"
+byteorder = "1.4.3"
 
 # error
 thiserror = "1.0.44"
@@ -51,3 +63,4 @@ schnellru = "0.2"
 # serde
 serde.workspace = true
 serde_json = { workspace = true, features = ["arbitrary_precision"] }
+

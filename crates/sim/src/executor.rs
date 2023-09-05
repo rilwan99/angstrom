@@ -17,7 +17,21 @@ impl ThreadPool {
         Ok(Self { runtime })
     }
 
-    /// Spawns a regular task depending on the given [TaskKind]
+    /// Spawns a task with a return value
+    pub fn spawn_return_task_as<F, T>(&self, fut: F) -> JoinHandle<F::Output>
+    where
+        F: Future<Output = T> + Send + Sync + 'static,
+        T: IntoIterator + Send + Sync + 'static
+    {
+        let task = async move {
+            pin_mut!(fut);
+            fut.await
+        };
+
+        self.runtime.handle().spawn(task)
+    }
+
+    /// Spawns a task depending on the given [TaskKind]
     pub fn spawn_task_as<F>(&self, fut: F, task_kind: TaskKind) -> JoinHandle<()>
     where
         F: Future<Output = ()> + Send + Sync + 'static
@@ -40,6 +54,14 @@ impl ThreadPool {
             TaskKind::Default => handle.spawn(fut),
             TaskKind::Blocking => self.runtime.spawn_blocking(move || handle.block_on(fut))
         }
+    }
+
+    /// Spawns a future blocking tokio runtime
+    pub fn block_on_rt<F>(&self, fut: F) -> ()
+    where
+        F: Future<Output = ()> + Send + 'static
+    {
+        self.runtime.block_on(fut)
     }
 }
 

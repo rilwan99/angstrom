@@ -1,4 +1,3 @@
-use reth_codecs::derive_arbitrary;
 use reth_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 

@@ -1,316 +1,466 @@
-use std::sync::Arc;
+use std::{cmp::max, collections::HashMap, sync::Arc};
 
-use ethers_core::types::transaction::{eip2718::TypedTransaction, eip712::Eip712 as Ethers_Eip712};
+use byteorder::{ByteOrder, LittleEndian};
+use ethers_core::types::transaction::eip2718::TypedTransaction;
 use eyre::Result;
-use parking_lot::RwLock;
-use reth_db::mdbx::WriteMap;
-use reth_primitives::Signature;
-use revm::{
-    db::{CacheDB, DatabaseRef, DbAccount, EmptyDB},
-    DatabaseCommit, EVM
+use revm::EVM;
+use revm_primitives::{
+    db::DatabaseRef, Bytecode, ExecutionResult, Log, TransactTo, TxEnv, B160, U256
 };
-use revm_primitives::*;
-use shared::{Eip712, UserSettlement};
-use tokio::sync::oneshot::Sender;
+use shared::*;
 
 use crate::{
     errors::{SimError, SimResult},
-    lru_db::RevmLRU
+    lru_db::RevmLRU,
+    BundleOrTransactionResult
 };
+
+// /// Account info where None means it is not existing. Not existing state is
+// needed for Pre TANGERINE forks.   /// `code` is always `None`, and bytecode
+// can be found in `contracts`.   pub accounts: HashMap<B160, DbAccount>,
+//   /// Tracks all contracts by their code hash.
+//   pub contracts: HashMap<B256, Bytecode>,
+//   /// All logs that were committed via [DatabaseCommit::commit].
+//   pub logs: Vec<Log>,
+//   /// All cached block hashes from the [DatabaseRef].
+//   pub block_hashes: HashMap<U256, B256>,
+//   /// The underlying database ([DatabaseRef]) that is used to load data.
+//   ///
+//   /// Note: this is read-only, data is never written to this database.
+//   pub db: ExtDB,
+
+pub trait RevmBackend {
+    fn update_evm_state(&self, slot_changes: &AddressSlots) -> Result<(), SimError>;
+}
+
+pub type AddressSlots = HashMap<B160, HashMap<U256, U256>>;
 
 /// struct used to share the mutable state across threads
 pub struct RevmState {
-    /// touched slots in tx sim
-    slot_changes: HashMap<B160, HashMap<U256, U256>>,
-    /// cached database for bundle state differences
-    cache_db:     CacheDB<EmptyDB>,
-    /// evm -> holds state to sim on
-    evm:          EVM<RevmLRU>
+    /// holds state to sim on
+    db: RevmLRU
 }
 
 impl RevmState {
-    pub fn new(db: Arc<reth_db::mdbx::Env<WriteMap>>, max_bytes: usize) -> Self {
+    pub fn new(db: RevmLRU) -> Self {
+        Self { db }
+    }
+
+    // updates the evm state on a new block
+    pub fn update_evm_state(this: Arc<Self>, slot_changes: &AddressSlots) -> Result<(), SimError> {
+        RevmLRU::update_evm_state(&this.db, slot_changes)
+    }
+
+    pub fn simulate_hooks(
+        &self,
+        txes: HookSim,
+        caller_info: CallerInfo
+    ) -> Result<(SimResult, AddressSlots), SimError> {
+        todo!()
+    }
+
+    pub fn simulate_v4_tx(
+        &self,
+        tx: TypedTransaction,
+        contract_overrides: HashMap<B160, Bytecode>
+    ) -> Result<SimResult, SimError> {
+        todo!()
+    }
+
+    /// simulates a user tx
+    pub fn simulate_user_tx(
+        &self,
+        tx: RawUserSettlement,
+        caller_info: CallerInfo
+    ) -> Result<(SimResult, AddressSlots), SimError> {
+        let mut tx_env: TxEnv = tx.clone().into();
+        tx_env.caller = caller_info.address;
+        tx_env.nonce = Some(caller_info.nonce);
+
+        let (exec_result, storage_slots) =
+            self.simulate_single_tx(tx_env.clone(), caller_info.overrides)?;
+
+        let binding = exec_result
+            .logs()
+            .into_iter()
+            .filter(|log| log.address == ANGSTROM_CONTRACT_ADDR.into())
+            .collect::<Vec<Log>>();
+        let (gas_used, log) = match exec_result {
+            ExecutionResult::Success {
+                reason: _,
+                gas_used,
+                gas_refunded: _,
+                logs: _,
+                output: _
+            } => (gas_used, binding.first().unwrap()),
+            ExecutionResult::Revert { gas_used: _, output: _ } => {
+                return Err(SimError::SimRevert(tx_env))
+            }
+            ExecutionResult::Halt { reason: _, gas_used: _ } => {
+                return Err(SimError::SimHalt(tx_env))
+            }
+        };
+
+        let amount_out =
+            max(LittleEndian::read_i64(&log.topics[1].0), LittleEndian::read_i64(&log.topics[2].0))
+                as u64;
+
+        let result = SimResult::ExecutionResult(BundleOrTransactionResult::UserTransaction(
+            SimmedUserSettlement {
+                raw:               tx,
+                amount_out:        amount_out.into(),
+                amount_gas_actual: gas_used.into()
+            }
+        ));
+
+        let mut address_slots = HashMap::new();
+        address_slots.insert(caller_info.address, storage_slots);
+
+        Ok((result, address_slots))
+    }
+
+    /// simulates a searcher tx
+    pub fn simulate_searcher_tx(
+        &self,
+        tx: RawLvrSettlement,
+        caller_info: CallerInfo
+    ) -> Result<(SimResult, AddressSlots), SimError> {
+        let mut tx_env: TxEnv = tx.clone().into();
+        tx_env.caller = caller_info.address;
+        tx_env.nonce = Some(caller_info.nonce);
+
+        let (exec_result, storage_slots) =
+            self.simulate_single_tx(tx_env, caller_info.overrides)?;
+
+        let result = SimResult::ExecutionResult(BundleOrTransactionResult::SearcherTransaction(
+            SimmedLvrSettlement { raw: tx, gas_actual: exec_result.gas_used().into() }
+        ));
+
+        let mut address_slots = HashMap::new();
+        address_slots.insert(caller_info.address, storage_slots);
+
+        Ok((result, address_slots))
+    }
+
+    /// simulates a single tx
+    pub fn simulate_single_tx(
+        &self,
+        tx_env: TxEnv,
+        overrides: HashMap<B160, HashMap<U256, U256>>
+    ) -> Result<(ExecutionResult, HashMap<U256, U256>), SimError> {
+        let mut evm_db = self.db.clone();
+        evm_db.set_state_overrides(overrides);
+
         let mut evm = EVM::new();
-        evm.database(RevmLRU::new(max_bytes, db));
-        Self { evm, cache_db: CacheDB::new(EmptyDB {}), slot_changes: HashMap::new() }
-    }
+        evm.database(evm_db);
 
-    /// resets the cache of slot changes
-    pub fn reset_cache_slot_changes(state: Arc<RwLock<Self>>) {
-        let mut state = state.write();
-        state.slot_changes.clear();
-    }
+        evm.env.tx = tx_env.clone();
 
-    /// updates the evm state on a new block
-    /// overhead from pulling state from disk on new block??
-    /// CLEAN THIS FUNCTION UP
-    pub fn update_evm_state(state: Arc<RwLock<Self>>) -> Result<(), SimError> {
-        let slot_changes = {
-            let state = state.read();
-            state.slot_changes.clone()
-        };
-
-        let mut state = state.write();
-
-        for (addr, storage) in slot_changes.into_iter() {
-            let verified_storage = storage
-                .iter()
-                .map(|(idx, val)| {
-                    let new_state = state.evm.db.as_ref().unwrap().storage(addr, *idx).unwrap(); // verify the touched slots
-                    if new_state == *val {
-                        (*idx, *val)
-                    } else {
-                        (*idx, new_state)
-                    }
-                })
-                .collect::<Vec<(U256, U256)>>();
-
-            let evm_db = state.evm.db().unwrap();
-            let _ = verified_storage.into_iter().map(|(idx, key)| {
-                // update the touched slots that were correct
-                let acct = if let Some(a) = evm_db.accounts.get(&addr) {
-                    a
-                } else {
-                    let info = evm_db.basic(addr).unwrap().unwrap();
-                    evm_db
-                        .accounts
-                        .insert(addr, DbAccount { info, ..Default::default() });
-                    evm_db.accounts.get(&addr).unwrap()
-                };
-
-                acct.storage.insert(idx.clone(), key.clone());
-            });
-        }
-
-        state.slot_changes.clear(); // reset the cache
-        Ok(())
-    }
-
-    /*
-        fn update_single_slot(&mut self, addr: B160, slot_idx: U256, slot_val: U256) {
-
-        }
-    */
-    /// simulates a single transaction and caches touched slots
-    pub fn simulate_single_tx(state: Arc<RwLock<Self>>, tx: Eip712, client_tx: Sender<SimResult>) {
-        let eip_tx = match convert_eip712(tx.clone()) {
-            Ok(t) => t,
-            Err(e) => {
-                send_result(SimResult::SimError(e.into()), client_tx);
-                return
-            }
-        };
-
-        let tx_env = if let Some(tx) = eip_tx.last() {
-            tx
-        } else {
-            send_result(SimResult::SimError(SimError::NoTransactionsInEip712(tx)), client_tx);
-            return
-        };
-
-        let res = {
-            let mut state = state.write();
-            state.evm.env.tx = tx_env.clone();
-            state.set_touched_slots()
-        };
-
-        match res {
-            Ok(res) => send_result(SimResult::ExecutionResult(res), client_tx),
-            Err(err) => send_result(SimResult::SimError(err.into()), client_tx)
-        };
-    }
-
-    /// simulates a bundle of transactions
-    pub fn simulate_bundle(
-        state: Arc<RwLock<Self>>,
-        eip_txs: Eip712,
-        client_tx: Sender<SimResult>
-    ) {
-        let txs = match convert_eip712(eip_txs) {
-            Ok(txs) => txs,
-            Err(e) => {
-                send_result(SimResult::SimError(e.into()), client_tx);
-                return
-            }
-        };
-
-        let mut state = state.write();
-
-        state.cache_db = CacheDB::default(); // reset the cache db before new bundle sim
-
-        let mut exec_result = None;
-        for tx in txs {
-            state.evm.env.tx = tx.clone();
-            if let Ok(state_change) = state.evm.transact() {
-                exec_result = Some(state_change.result);
-                state.cache_db.commit(state_change.state);
-            } else {
-                send_result(SimResult::SimError(SimError::RevmEVMTransactionError(tx)), client_tx);
-                return
-            }
-        }
-
-        send_result(SimResult::ExecutionResult(exec_result.unwrap()), client_tx);
-    }
-
-    /// updates the slots touched by a transaction if they haven't already been
-    /// touched
-    fn set_touched_slots(&mut self) -> Result<ExecutionResult, SimError> {
-        let tx = self.evm.env.tx.clone();
+        let tx = evm.env.tx.clone();
         let contract_address = match tx.transact_to {
             TransactTo::Call(a) => a,
             TransactTo::Create(_) => return Err(SimError::CallInsteadOfCreateError(tx))
         };
-        let contract_slots = self
-            .slot_changes
-            .entry(contract_address)
-            .or_insert(HashMap::new());
 
-        let result = self
-            .evm
-            .transact()
-            .map_err(|_| SimError::RevmEVMTransactionError(tx))?;
-        let slots = &result.state.get(&contract_address).unwrap().storage;
+        let result = evm
+            .transact_ref()
+            .map_err(|_| SimError::RevmEVMTransactionError(tx.clone()))?;
 
+        let slots = &result
+            .state
+            .get(&contract_address)
+            .ok_or(SimError::RevmCacheError((tx.clone(), result.state.clone())))?
+            .storage;
+
+        let mut touched: HashMap<U256, U256> = HashMap::new();
         for (idx, slot) in slots.into_iter() {
             if slot.is_changed() {
-                contract_slots
-                    .entry(*idx)
-                    .or_insert_with(|| slot.present_value.clone());
+                touched.insert(*idx, slot.present_value);
             }
         }
 
-        Ok(result.result)
-    }
-}
-
-/// helper function to convert EIP712 Typed Data to TxEnv
-/// ADD FUNCTION DATA WHEN FINIALIZED
-pub fn convert_eip712(eip: Eip712) -> Result<Vec<TxEnv>, SimError> {
-    let eip_typed_data = eip.0.clone();
-    let hash = eip_typed_data.encode_eip712()?;
-
-    let user_txs: Vec<UserSettlement> = serde_json::from_value(
-        eip_typed_data
-            .message
-            .get("users")
-            .ok_or(SimError::Eip712DecodingError(eip_typed_data.clone()))?
-            .clone()
-    )?;
-
-    let address = eip_typed_data
-        .domain
-        .verifying_contract
-        .ok_or(SimError::NoVerifyingContract(eip.clone()))?;
-
-    let mut transactions = Vec::new();
-    for tx in user_txs {
-        let sig = Signature::decode(&mut &tx.signature[..])
-            .map_err(|_| SimError::DecodingSignatureError(tx.clone()))?;
-        let from = sig
-            .recover_signer(hash.into())
-            .ok_or(SimError::RecoveringSignerError(sig))?;
-        let gas_limit = tx.order.gas_cap;
-        let data = Bytes::default(); // add data
-
-        let tx_env = TxEnv {
-            caller: from,
-            gas_limit: gas_limit.as_u64(),
-            gas_price: U256::ZERO,
-            gas_priority_fee: None,
-            transact_to: TransactTo::Call(address.into()),
-            value: U256::ZERO,
-            data,
-            chain_id: eip_typed_data.domain.chain_id.map(|c| c.as_u64().into()),
-            nonce: None,
-            access_list: Vec::new()
-        };
-        transactions.push(tx_env)
+        Ok((result.result, touched))
     }
 
-    Ok(transactions)
+    /// simulates a bundle of transactions
+    pub fn simulate_bundle(
+        &self,
+        bundle: RawBundle,
+        caller_info: CallerInfo
+    ) -> Result<SimResult, SimError> {
+        let mut evm_db = self.db.clone();
+        evm_db.set_state_overrides(caller_info.overrides);
+
+        let mut evm = EVM::new();
+        evm.database(evm_db);
+
+        let mut tx_env: TxEnv = bundle.clone().into();
+        tx_env.caller = caller_info.address;
+        tx_env.nonce = Some(caller_info.nonce);
+
+        evm.env.tx = tx_env.clone();
+
+        let state_change = evm
+            .transact_ref()
+            .map_err(|_| SimError::RevmEVMTransactionError(tx_env.clone()))?;
+
+        let result = SimResult::ExecutionResult(BundleOrTransactionResult::Bundle(SimmedBundle {
+            raw:      bundle,
+            gas_used: state_change.result.gas_used().into()
+        }));
+
+        Ok(result)
+    }
 }
-
-// helper function to convert a TypedTransaction to TxEnv
-pub fn convert_type_tx(tx: &TypedTransaction) -> TxEnv {
-    let transact_to = match tx.to_addr() {
-        Some(to) => TransactTo::Call(B160::from(*to)),
-        None => TransactTo::Create(CreateScheme::Create)
-    };
-
-    let tx_env = TxEnv {
-        caller: Into::<B160>::into(*tx.from().unwrap()),
-        gas_limit: u64::MAX,
-        gas_price: U256::ZERO,
-        gas_priority_fee: None,
-        transact_to,
-        value: U256::ZERO,
-        data: tx
-            .data()
-            .unwrap_or(&ethers_core::types::Bytes::default())
-            .to_vec()
-            .into(),
-        chain_id: None,
-        nonce: None,
-        access_list: Vec::new()
-    };
-
-    tx_env
-}
-
-pub(crate) fn send_result(res: SimResult, sender: Sender<SimResult>) {
-    sender.send(res).unwrap();
-}
-
 /*
+
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use ethers_core::types::{transaction::eip712::Eip712, Bytes, H256};
+    use std::str::FromStr;
+
+    //use ethers::types::{AccessList, Address, Bytes, NameOrAddress, U256, U64};
+    use ethers_core::types::{
+        transaction::{eip2718::TypedTransaction, eip2930::AccessList, eip712::TypedData},
+        Eip1559TransactionRequest, NameOrAddress, H160
+    };
     use hex_literal::hex;
-    use shared::UserSettlement;
+    use serde_json::Value;
+    use serial_test::serial;
+
+    use super::*;
+
+    fn init_revm_state() -> RevmState {
+        let db = Arc::new(
+            reth_db::mdbx::Env::<reth_db::mdbx::WriteMap>::open(
+                "/home/data/reth/db".as_ref(),
+                reth_db::mdbx::EnvKind::RO,
+                None
+            )
+            .unwrap()
+        );
+
+        RevmState::new(db, 5000000000)
+    }
 
     #[test]
-    fn test_hash_custom_data_type() {
-        let json = serde_json::json!({
-            "domain": {
-                "name": "ExampleDApp",
-                "version": "1",
-                "chainId": 1,
-                "verifyingContract": "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"
-            },
-            "types": {
-                "EIP712Domain": [
-                    { "name": "name", "type": "string" },
-                    { "name": "version", "type": "string" },
-                    { "name": "chainId", "type": "uint256" },
-                    { "name": "verifyingContract", "type": "address" }
-                ],
-                "UserOrder": [
-                    { "name": "token_out", "type": "address" },
-                    { "name": "token_in", "type": "address" },
-                    { "name": "amount_in", "type": "uint128" },
-                    { "name": "amount_out_min", "type": "uint128" },
-                    { "name": "deadline", "type": "uint256" },
-                    { "name": "gas_bid", "type": "uint256" },
-                    { "name": "pre_hook", "type": "bytes" },
-                    { "name": "post_hook", "type": "bytes" }
-                ],
-                "UserSettlement": [
-                    { "name": "order", "type": "UserOrder" },
-                    { "name": "signature", "type": "bytes" },
-                    { "name": "amount_out", "type": "uint256" }
-                ],
-                "SealedBundle": [
-                    { "name": "arbs", "type": "SealedOrder[]" },
-                    { "name": "pools", "type": "PoolSettlement[]" },
-                    { "name": "users", "type": "UserSettlement[]" }
-                ]
-            },
-            "primaryType": "SealedBundle",
+    #[serial]
+    fn test_decode_eip712() {
+        let json = json_eip712();
+
+        let typed_data: TypedData = serde_json::from_value(json).unwrap();
+        let eip712 = Eip712(typed_data);
+
+        let decoded_txs = convert_eip712(eip712).unwrap();
+        assert_eq!(decoded_txs.len(), 2);
+
+        let tx1 = TxEnv {
+            caller:           H160(hex!("0b1e9cd778e3b2aa09beab0887650b8889cdf04b")).into(),
+            gas_limit:        1605411621,
+            gas_price:        U256::ZERO,
+            gas_priority_fee: None,
+            transact_to:      TransactTo::Call(
+                H160(hex!("CcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC")).into()
+            ),
+            value:            U256::ZERO,
+            data:             revm_primitives::Bytes::default(),
+            chain_id:         Some(1),
+            nonce:            None,
+            access_list:      vec![]
+        };
+
+        assert_eq!(
+            serde_json::to_value(tx1).unwrap(),
+            serde_json::to_value(decoded_txs[0].clone()).unwrap()
+        );
+
+        let tx2 = TxEnv {
+            caller:           H160(hex!("0b1e9cd778e3b2aa09beab0887650b8889cdf04b")).into(),
+            gas_limit:        1605411621,
+            gas_price:        U256::ZERO,
+            gas_priority_fee: None,
+            transact_to:      TransactTo::Call(
+                H160(hex!("CcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC")).into()
+            ),
+            value:            U256::ZERO,
+            data:             revm_primitives::Bytes::default(),
+            chain_id:         Some(1),
+            nonce:            None,
+            access_list:      vec![]
+        };
+
+        assert_eq!(
+            serde_json::to_value(tx2).unwrap(),
+            serde_json::to_value(decoded_txs[1].clone()).unwrap()
+        );
+    }
+
+    #[test]
+    #[serial]
+    fn test_simulate_single_tx() {
+        let state = Arc::new(RwLock::new(init_revm_state()));
+
+        let decoded_tx = convert_typed_tx(&contract_tx());
+        let mut state = state.write();
+        state.evm.env.tx = decoded_tx.clone();
+        state.evm.env.cfg.spec_id = SpecId::SHANGHAI;
+
+        let tx = state.evm.env.tx.clone();
+
+        let contract_address = match tx.transact_to {
+            TransactTo::Call(a) => a,
+            _ => return
+        };
+
+        println!("contract address: {:?}", contract_address);
+
+        assert_eq!(state.slot_changes.get(&contract_address), None);
+
+        /*
+                let contract_slots = state
+                    .slot_changes
+                    .entry(contract_address)
+                    .or_insert(HashMap::new());
+        */
+        //assert_eq!(state.slot_changes.get(&contract_address).unwrap(),
+        // &HashMap::new());
+
+        let result = state.evm.transact().unwrap();
+        println!("\nRESULT: {:?}\n", result);
+
+        let slots = &result.state.get(&contract_address).unwrap().storage;
+        println!("SLOTS: {:?}\n", slots);
+    }
+
+    fn convert_typed_tx(tx: &TypedTransaction) -> TxEnv {
+        let transact_to = match tx.to_addr() {
+            Some(to) => TransactTo::Call(B160::from(*to)),
+            None => TransactTo::Create(CreateScheme::Create)
+        };
+
+        let tx_env = TxEnv {
+            caller: Into::<B160>::into(*tx.from().unwrap()),
+            gas_limit: u64::MAX,
+            gas_price: U256::ZERO,
+            gas_priority_fee: None,
+            transact_to,
+            value: Into::<U256>::into(*tx.value().unwrap()),
+            data: tx
+                .data()
+                .unwrap_or(&ethers_core::types::Bytes::default())
+                .to_vec()
+                .into(),
+            chain_id: Some(tx.chain_id().unwrap().as_u64()),
+            nonce: Some(tx.nonce().unwrap().as_u64()),
+            access_list: Vec::new()
+        };
+
+        println!("{:?}", tx_env);
+
+        tx_env
+    }
+
+    fn contract_tx() -> TypedTransaction {
+        let tx_request = Eip1559TransactionRequest {
+            from: Some(H160(hex!("4e44b8436bc94c889fe16ecfe1d92036e1b7669b"))),
+            to: Some(NameOrAddress::Address(H160(hex!("e592427a0aece92de3edee1f18e0157c05861564")))),
+            gas: Some(U256::from_str("0x927c0").unwrap().into()),
+            value: Some(U256::from_str("0x38d7ea4c68000").unwrap().into()),
+            data: Some(ethers_core::types::Bytes(Bytes::from("0x414bf389000000000000000000000000c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2000000000000000000000000ebb82c932759b515b2efc1cfbb6bf2f6dbace40400000000000000000000000000000000000000000000000000000000000027100000000000000000000000004e44b8436bc94c889fe16ecfe1d92036e1b7669b0000000000000000000000000000000000000000000000000000000064FF617300000000000000000000000000000000000000000000000000038d7ea4c6800000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"))),
+            nonce: Some(U256::from_str("0x69").unwrap().into()),
+            access_list: AccessList::default(),
+            max_priority_fee_per_gas: Some(U256::from_str("0x2fd0013e7").unwrap().into()),
+            max_fee_per_gas: Some(U256::from_str("0x2fd0013e7").unwrap().into()),
+            chain_id: Some(ethers_core::types::U64::from_str("0x1").unwrap()),
+        };
+        tx_request.into()
+    }
+
+    fn json_eip712() -> Value {
+        serde_json::json!({
+        "domain": {
+            "name": "ExampleDApp",
+            "version": "1",
+            "chainId": 1,
+            "verifyingContract": "0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC"
+        },
+        "types": {
+            "EIP712Domain": [
+                { "name": "name", "type": "string" },
+                { "name": "version", "type": "string" },
+                { "name": "chainId", "type": "uint256" },
+                { "name": "verifyingContract", "type": "address" }
+            ],
+            "UserOrder": [
+                { "name": "token_out", "type": "address" },
+                { "name": "token_in", "type": "address" },
+                { "name": "amount_in", "type": "uint128" },
+                { "name": "amount_out_min", "type": "uint128" },
+                { "name": "deadline", "type": "uint256" },
+                { "name": "gas_cap", "type": "uint256" },
+                { "name": "pre_hook", "type": "bytes" },
+                { "name": "post_hook", "type": "bytes" }
+            ],
+            "UserSettlement": [
+                { "name": "order", "type": "UserOrder" },
+                { "name": "signature", "type": "bytes" },
+                { "name": "amount_out", "type": "uint256" },
+                { "name": "gas_actual", "type": "uint256" }
+            ],
+            "SearcherOrder": [
+                { "name": "pool", "type": "bytes32" },
+                { "name": "token_in", "type": "address" },
+                { "name": "token_out", "type": "address" },
+                { "name": "amount_in", "type": "uint128" },
+                { "name": "amount_out_min", "type": "uint128" },
+                { "name": "deadline", "type": "uint256" },
+                { "name": "gas_cap", "type": "uint256" },
+                { "name": "bribe", "type": "uint256" },
+                { "name": "pre_hook", "type": "bytes" },
+                { "name": "post_hock", "type": "bytes" }
+            ],
+            "PoolSettlement": [
+                { "name": "pool", "type": "PoolKey" },
+                { "name": "token_0_in", "type": "uint256" },
+                { "name": "token_1_in", "type": "uint256" }
+            ],
+            "PoolKey": [
+                { "name": "currency_0", "type": "address" },
+                { "name": "currency_1", "type": "address" },
+                { "name": "fee", "type": "uint32" },
+                { "name": "tick_spacing", "type": "uint32" },
+                { "name": "hooks", "type": "address" }
+            ],
+            "PoolFees": [
+                { "name": "pool", "type": "PoolKey" },
+                { "name": "fees_0", "type": "uint256" },
+                { "name": "fees_1", "type": "uint256" }
+            ],
+            "CurrencySettlement": [
+                { "name": "currency", "type": "address" },
+                { "name": "amount_net", "type": "int256" }
+            ],
+            "Bundle": [
+                { "name": "swaps", "type": "PoolSwap[]" },
+                { "name": "lvr", "type": "LvrSettlement[]" },
+                { "name": "users", "type": "UserSettlement[]" },
+                { "name": "currencies", "type": "CurrencySettlement[]" },
+                { "name": "pools", "type": "PoolFees[]" }
+            ],
+            "PoolSwap": [
+                { "name": "pool", "type": "PoolKey" },
+                { "name": "currency_in", "type": "address" },
+                { "name": "amount_in", "type": "uint256" }
+            ],
+            "LvrSettlement": [
+                { "name": "order", "type": "SearcherOrder" },
+                { "name": "signature", "type": "bytes" },
+                { "name": "gas_actual", "type": "uint256" }
+            ]
+        },
+        "primaryType": "Bundle",
             "message": {
-                "arbs": [],
-                "pools": [],
+                "swaps": [],
+                "lvr": [],
                 "users": [
                     {
                         "order": {
@@ -319,51 +469,34 @@ mod tests {
                             "amount_in": 100,
                             "amount_out_min": 50,
                             "deadline": "0x5FB0A325",
-                            "gas_bid": "0x5FB0A325",
+                            "gas_cap": "0x5FB0A325",
                             "pre_hook": "0x5FB0A325",
                             "post_hook": "0x5FB0A325"
                         },
-                        "signature": "0x3004f60be5a7d84e6fa12294c451faedf60d8701ccd85f0ae0c3149097a029827bf6494f51f079a214d4336437239592becb29ab6da61e89d3cb4eb38bd720da1b",
-                        "amount_out": "0x5FB0A325"
+                        "signature": "a8cf1db738b96b728ae230dc8df4c4c1c288beedf969fa8a3a54c142b48208c027b974e765557556e96dc80d6d63ddb44cac551c145de5b23df6e667875b4f7d1c",
+                        "amount_out": "0x5FB0A325",
+                        "gas_actual": "0x5FB0A325"
                     },
                     {
                         "order": {
                             "token_out": "0xaaadF7A763BB3706119671043526A52c3869e42F",
                             "token_in": "0xabadF7A763BB3706119671043526A52c3869e42F",
-                            "amount_in": 100,
+                            "amount_in": 10,
                             "amount_out_min": 50,
                             "deadline": "0x5FB0A325",
-                            "gas_bid": "0x5FB0A325",
+                            "gas_cap": "0x5FB0A325",
                             "pre_hook": "0x5FB0A325",
                             "post_hook": "0x5FB0A325"
                         },
-                        "signature": "0xaa04f60be5a7d84e6fa12294a451faedf60d8701ccd85f0ae0c3149097a029827bf6494f51f079a214d4336437239592becb29ab6da61e89d3cb4eb38bd720da1b",
-                        "amount_out": "0x5FB0A325"
+                        "signature": "a8cf1db738b96b728ae230dc8df4c4c1c288beedf969fa8a3a54c142b48208c027b974e765557556e96dc80d6d63ddb44cac551c145de5b23df6e667875b4f7d1c",
+                        "amount_out": "0x5FB0A325",
+                        "gas_actual": "0x5FB0A325"
                     }
-                ]
+                ],
+                "currencies": [],
+                "pools": []
             }
-        });
-
-        let typed_data: TypedData = serde_json::from_value(json).unwrap();
-        println!("TYPED DATA {:?}\n", typed_data);
-
-        let val: Vec<UserSettlement> =
-            serde_json::from_value(typed_data.message.get("users").unwrap().clone()).unwrap();
-        println!("{:?}", val);
-
-        //let val2 = serde_json::Value::Object(serde_json::Map::from_iter(typed_data.message.clone()));
-        //println!("{:?}", val2);
-
-        let address = H160(hex!("aeadF7A763BB3706119671043526A52c3869e42F"));
-        let secret_key =
-            H256(hex!("11aefec542ec498858d838ef322e6fccea3bf9c69ac54cbc8c86e4693b6879bb"));
-
-        let hash = typed_data.encode_eip712().unwrap();
-
-        let signer = sign_message(secret_key.0.into(), hash.into()).unwrap();
-        println!("{:?}", hex::encode(signer.to_bytes()));
-
-        assert_eq!(signer.recover_signer(revm_primitives::B256(hash)).unwrap(), address.into());
+        })
     }
 }
 */

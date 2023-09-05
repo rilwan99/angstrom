@@ -6,6 +6,7 @@ members = [
   "crates/leader",
   "crates/sim",
   "crates/bundler",
+  "it-harness",
 ]
 
 [workspace.package]
@@ -52,16 +53,17 @@ serde.workspace = true
 anyhow.workspace = true
 url.workspace = true
 sim.workspace = true
-ethers-reth.workspace = true
 reth-db.workspace = true
 reth-tracing.workspace = true
+serde_json.workspace = true
+hex-literal.workspace = true
 
-hex-literal = "0.4.1"
 rand = "0.8.5"
 jsonrpsee = { workspace = true, features = ["server"] }
 tower-http = { version = "0.4", features = ["full"] }
 tower = { version = "0.4", features = ["full"] }
 hyper = "0.14"
+
 
 parking_lot = "0.12"
 guard-network = { path = "./crates/net/network/" }
@@ -85,7 +87,9 @@ reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609"
 reth-interfaces = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
-reth-rlp = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609", features = ["alloc"]}
+reth-rlp = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609", features = [
+  "alloc",
+] }
 reth-codecs = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-ecies = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
@@ -102,15 +106,18 @@ reth-network = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-network-api = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 
-ethers-reth = { git = "https://github.com/SorellaLabs/ethers-reth" }
+hex-literal = "0.4.1"
 ethers-core = { version = "2.0", default-features = false }
-ethers-providers = { version = "2.0", default-features = false }
+ethers-providers = { version = "2.0", features = ["ws"] }
 ethers-signers = { version = "2.0", default-features = false }
 ethers-middleware = { version = "2.0", default-features = false }
 
 shared = { path = "./crates/shared/" }
 bundler = { path = "./crates/bundler/" }
 sim = { path = "./crates/sim/" }
+
+anvil = { git = "https://github.com/SorellaLabs/fastfoundry" }
+anvil-core = { git = "https://github.com/SorellaLabs/fastfoundry" }
 
 ## misc
 bytes = "1.4"
@@ -128,6 +135,7 @@ parking_lot = "0.12"
 metrics = "0.21.1"                                    # Needed for `metrics-macro` to resolve the crate using `::metrics` notation
 anyhow = "1.0.75"
 url = "2.4.1"
+auto_impl = "1.1.0"
 
 ### proc-macros
 proc-macro2 = "1.0"
@@ -162,3 +170,7 @@ c-kzg = { git = "https://github.com/ethereum/c-kzg-4844" }
 ### misc-testing
 proptest = "1.0"
 arbitrary = "1.1"
+
+
+[features]
+test_harness = ["leader/test_harness", "guard-network/test_harness"]

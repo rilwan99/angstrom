@@ -5,7 +5,7 @@ use std::{
     time::{Duration, SystemTime}
 };
 
-use bundler::{BundleSigner, BundleSigningError, CowMsg, CowSolver};
+use bundler::{BundleError, BundleSigner, CowMsg, CowSolver};
 use ethers_core::types::{Block, H256};
 use ethers_flashbots::BroadcasterMiddleware;
 use ethers_middleware::SignerMiddleware;
@@ -13,9 +13,9 @@ use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
 use ethers_signers::LocalWallet;
 use futures::stream::StreamExt;
 use reth_primitives::{Address, U64};
-use shared::{Batch, BatchSignature, Eip712};
+use shared::{BundleSignature, SafeTx, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement};
 use sim::Simulator;
-use tracing::info;
+use tracing::{error, info};
 use url::Url;
 
 use crate::leader_sender::LeaderSender;
@@ -47,16 +47,19 @@ pub struct LeaderConfig<M: Middleware + Unpin + 'static, S: Simulator + 'static>
 
 #[derive(Debug, Clone)]
 pub enum LeaderMessage {
-    NewBestBundle(Arc<Batch>),
-    NewValidTransactions(Arc<Vec<Eip712>>),
-    GetBundleSignatures(Arc<Batch>)
+    NewBestBundle(Arc<SimmedBundle>),
+    NewValidUserTransactions(Arc<Vec<SimmedUserSettlement>>),
+    NewValidSearcherTransactions(Arc<Vec<SimmedLvrSettlement>>),
+    GetBundleSignatures(Arc<SafeTx>),
+    PropagateSignature(Arc<BundleSignature>)
 }
 
 impl From<CowMsg> for LeaderMessage {
     fn from(value: CowMsg) -> Self {
         match value {
             CowMsg::NewBestBundle(b) => LeaderMessage::NewBestBundle(b),
-            CowMsg::NewTransactions(t) => LeaderMessage::NewValidTransactions(t)
+            CowMsg::NewUserTransactions(t) => LeaderMessage::NewValidUserTransactions(t),
+            CowMsg::NewSearcherTransactions(t) => LeaderMessage::NewValidSearcherTransactions(t)
         }
     }
 }
@@ -90,13 +93,13 @@ pub struct LeaderInfo {
 }
 
 /// handles tasks around dealing with a leader
-pub struct Leader<M: Middleware + Unpin + 'static, S: Simulator + 'static>
+pub struct Leader<M: Middleware + Unpin + 'static, S: Simulator + Unpin + 'static>
 where
     <M as Middleware>::Provider: PubsubClient
 {
     /// actively tells us who the selected leader is
     active_leader_config: Option<LeaderInfo>,
-    /// used for signautre collections and reaching consensus
+    /// used for signature collections and reaching consensus
     leader_sender:        LeaderSender<M>,
     /// used to sim and then sign bundles that are requested
     /// by leader
@@ -107,6 +110,7 @@ where
     block_stream:         SubscriptionStream<'static, M::Provider, Block<H256>>,
     /// timestamp of last block
     last_block:           SystemTime,
+    /// queue of messages
     outbound_buffer:      VecDeque<LeaderMessage>
 }
 
@@ -144,23 +148,23 @@ where
         })
     }
 
-    pub fn new_transactions(&mut self, txes: Vec<Eip712>) {
-        self.cow_solver.new_transactions(txes)
+    pub fn get_cow(&mut self) -> &mut CowSolver<S> {
+        &mut self.cow_solver
     }
 
-    pub fn on_new_bundle(&mut self, bundle: Batch) {
-        self.cow_solver.new_bundle(bundle);
+    pub fn on_new_sigs(&mut self, sig: BundleSignature) {
+        self.leader_sender.new_signature(sig);
     }
 
-    pub fn on_sign_batch(&mut self, batch: &Batch) -> Result<BatchSignature, BundleSigningError> {
+    pub fn on_sign_bundle(&mut self, bundle: Arc<SafeTx>) -> Result<(), BundleError> {
         if matches!(
             self.get_duration(),
             CriticalDurations::EightSeconds | CriticalDurations::TenSeconds
         ) {
-            return self.bundle_signer.verify_batch_for_inclusion(&batch)
+            return self.bundle_signer.verify_bundle_for_inclusion(bundle)
         }
 
-        return Err(BundleSigningError::NotDelegatedSigningTime)
+        return Err(BundleError::NotDelegatedSigningTime)
     }
 
     pub fn is_leader(&self) -> bool {
@@ -184,16 +188,16 @@ where
             && !self.leader_sender.has_selected_bundle()
         {
             if let Some(bundle) = self.cow_solver.best_bundle().cloned() {
-                self.leader_sender.set_selected_batch(bundle.clone());
+                self.leader_sender.set_selected_bundle(bundle.clone());
                 // we should never produce a invalid bundle signing
-                let local_res = self
-                    .bundle_signer
-                    .verify_batch_for_inclusion(&bundle)
-                    .unwrap();
-
-                self.leader_sender.new_signature(local_res);
-                self.outbound_buffer
-                    .push_back(LeaderMessage::GetBundleSignatures(bundle.into()))
+                // if let Err(sim_err) =
+                // self.bundle_signer.verify_bundle_for_inclusion(&bundle) {
+                //     error!(?sim_err, "failed to verify bundle for inclusion")
+                // }
+                //
+                // self.outbound_buffer
+                //     .push_back(LeaderMessage::GetBundleSignatures(bundle.
+                // into()))
             }
         }
     }
@@ -212,16 +216,31 @@ where
         }
 
         match self.get_duration() {
-            CriticalDurations::EightSeconds => self.start_settlement_if_leader(),
+            CriticalDurations::EightSeconds | CriticalDurations::TenSeconds => {
+                self.start_settlement_if_leader()
+            }
             _ => {}
+        }
+
+        if let Poll::Ready(signed_bundle) = self.bundle_signer.poll(cx) {
+            match signed_bundle {
+                Ok(signature) => {
+                    if self.is_leader() {
+                        self.leader_sender.new_signature(signature.clone());
+                    } else {
+                        res.push(LeaderMessage::PropagateSignature(signature.into()))
+                    }
+                }
+                Err(e) => error!(?e, "attempt to sign bundle failed")
+            }
         }
 
         if let Poll::Ready(_) = self.leader_sender.poll(cx) {
             info!("leader submitted bundle");
         }
 
-        while let Poll::Ready(Some(cow_solver_msg)) = self.cow_solver.poll_next_unpin(cx) {
-            res.push(cow_solver_msg.into());
+        if let Poll::Ready(Some(cow_solver_msg)) = self.cow_solver.poll_next_unpin(cx) {
+            res.extend(cow_solver_msg.into_iter().map(Into::into));
         }
 
         if !res.is_empty() {
@@ -229,5 +248,25 @@ where
         }
 
         Poll::Pending
+    }
+}
+
+#[cfg(feature = "test_harness")]
+pub mod test_harness {
+    use reth_primitives::{PeerId, H160};
+
+    use super::*;
+
+    impl<M: Middleware + Unpin, S: Simulator + Unpin> Leader<M, S>
+    where
+        <M as Middleware>::Provider: PubsubClient
+    {
+        pub fn make_leader(&mut self, id: PeerId, block: U64) {
+            // gotta take last 20 bytes as thats there address
+
+            let sized: &[u8; 20] = unsafe { &*(&id[44..] as *const _ as *mut _) };
+            self.active_leader_config =
+                Some(LeaderInfo { selected_leader: H160::from(sized), block_number: block });
+        }
     }
 }

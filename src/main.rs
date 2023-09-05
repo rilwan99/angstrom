@@ -5,10 +5,9 @@ use ethers_providers::{Provider, Ws};
 use ethers_signers::LocalWallet;
 use guard_network::{config::SecretKey, NetworkConfig};
 use hex_literal::hex;
-use jsonrpsee::client_transport::ws;
 use leader::leader_manager::LeaderConfig;
 use reth_primitives::{mainnet_nodes, NodeRecord, PeerId, H512};
-use sim::spawn_revm_sim;
+use sim::{lru_db::RevmLRU, spawn_revm_sim};
 use stale_guard::{Guard, SubmissionServerConfig};
 use tokio::runtime::Runtime;
 use url::Url;
@@ -58,8 +57,9 @@ impl Args {
             reth_db::mdbx::EnvKind::RO,
             None
         )?);
+        let revm_lru = RevmLRU::new(9999999, db);
 
-        let sim = spawn_revm_sim(db, 6942069).unwrap();
+        let sim = spawn_revm_sim(revm_lru).unwrap();
         let edsca_key = LocalWallet::from_str(
             "ad21c16051f74f24b3fbad57b0010d98bfef20441c84ee5a872133f19f807fc4"
         )?;
@@ -72,6 +72,7 @@ impl Args {
         let fake_addr = "127.0.0.1:6969".parse()?;
         let server_config = SubmissionServerConfig {
             addr:                fake_addr,
+            cors_domains:        "*".into(),
             allow_subscriptions: self.enable_subscriptions
         };
         println!("spawning guard");

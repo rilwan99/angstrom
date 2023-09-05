@@ -30,6 +30,8 @@ sim.workspace = true
 url.workspace = true
 
 
-
 # flashbots related
 ethers-flashbots = "0.14.0"
+
+[features]
+test_harness = ["bundler/test_harness"]
