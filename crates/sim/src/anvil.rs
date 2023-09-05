@@ -152,7 +152,7 @@ impl Simulator for AnvilSimulator {
     async fn simulate_hooks<T>(
         &self,
         hook_data: T,
-        caller_info: CallerInfo
+        _caller_info: CallerInfo
     ) -> Result<SimResult, SimError>
     where
         T: TryInto<HookSim> + Send,

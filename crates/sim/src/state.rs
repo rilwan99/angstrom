@@ -4,9 +4,7 @@ use byteorder::{ByteOrder, LittleEndian};
 use ethers_core::types::transaction::eip2718::TypedTransaction;
 use eyre::Result;
 use revm::EVM;
-use revm_primitives::{
-    db::DatabaseRef, Bytecode, ExecutionResult, Log, TransactTo, TxEnv, B160, U256
-};
+use revm_primitives::{Bytecode, ExecutionResult, Log, TransactTo, TxEnv, B160, U256};
 use shared::*;
 
 use crate::{
@@ -14,20 +12,6 @@ use crate::{
     lru_db::RevmLRU,
     BundleOrTransactionResult
 };
-
-// /// Account info where None means it is not existing. Not existing state is
-// needed for Pre TANGERINE forks.   /// `code` is always `None`, and bytecode
-// can be found in `contracts`.   pub accounts: HashMap<B160, DbAccount>,
-//   /// Tracks all contracts by their code hash.
-//   pub contracts: HashMap<B256, Bytecode>,
-//   /// All logs that were committed via [DatabaseCommit::commit].
-//   pub logs: Vec<Log>,
-//   /// All cached block hashes from the [DatabaseRef].
-//   pub block_hashes: HashMap<U256, B256>,
-//   /// The underlying database ([DatabaseRef]) that is used to load data.
-//   ///
-//   /// Note: this is read-only, data is never written to this database.
-//   pub db: ExtDB,
 
 pub trait RevmBackend {
     fn update_evm_state(&self, slot_changes: &AddressSlots) -> Result<(), SimError>;
@@ -54,7 +38,8 @@ impl RevmState {
     pub fn simulate_hooks(
         &self,
         txes: HookSim,
-        caller_info: CallerInfo
+        caller_info: CallerInfo,
+        overrides: HashMap<B160, U256>
     ) -> Result<(SimResult, AddressSlots), SimError> {
         todo!()
     }

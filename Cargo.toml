@@ -1,8 +1,8 @@
 [workspace]
 members = [
-  "crates/net/network",
-  "crates/net/eth-wire",
-  "crates/net/discv4",
+  "crates/guard-net/network",
+  "crates/guard-net/eth-wire",
+  "crates/guard-net/discv4",
   "crates/leader",
   "crates/sim",
   "crates/bundler",
@@ -66,7 +66,7 @@ hyper = "0.14"
 
 
 parking_lot = "0.12"
-guard-network = { path = "./crates/net/network/" }
+guard-network = { path = "./crates/guard-net/network/" }
 leader = { path = "./crates/leader/" }
 futures-util = "0.3.28"
 tokio-util = { version = "0.7.4", features = ["codec"] }

@@ -1,13 +1,19 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll}
+};
 
 use ethers_core::{
     abi::AbiEncode,
-    types::{spoof::State, Address, H256, U256 as EU256}
+    types::{Address, U256 as EU256}
 };
-use ethers_providers::{Ipc, JsonRpcClient, Middleware, ProviderError};
-use futures::future::join_all;
+use ethers_providers::{JsonRpcClient, Middleware, ProviderError};
+use futures::Future;
+use futures_util::FutureExt;
 use revm::EVM;
-use revm_primitives::{TransactTo, TxEnv, U256};
+use revm_primitives::{TransactTo, TxEnv, B160, U256};
 use shared::contract_bindings::ERC20;
 use tokio::{runtime::Handle, task::JoinHandle};
 
@@ -21,7 +27,7 @@ struct FakeClient;
 impl JsonRpcClient for FakeClient {
     type Error = ProviderError;
 
-    async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
+    async fn request<T, R>(&self, _method: &str, _params: T) -> Result<R, Self::Error>
     where
         T: std::fmt::Debug + serde::Serialize + Send + Sync,
         R: serde::de::DeserializeOwned + Send
@@ -44,10 +50,10 @@ impl Middleware for FakeClient {
 
 pub struct SlotKeeper {
     addresses: Vec<Address>,
-    slots:     HashMap<Address, U256>,
+    slots:     HashMap<B160, U256>,
     db:        RevmLRU,
     handle:    Handle,
-    fut:       Option<JoinHandle<HashMap<Address, U256>>>
+    fut:       Option<JoinHandle<HashMap<B160, U256>>>
 }
 
 impl SlotKeeper {
@@ -57,11 +63,23 @@ impl SlotKeeper {
         Self { addresses, db, slots, handle, fut: None }
     }
 
-    pub fn new_address(&mut self, address: Address) {
-        self.addresses.push(address);
+    pub fn get_current_slots(&self) -> &HashMap<B160, U256> {
+        &self.slots
     }
 
-    pub fn get_slots(addresses: Vec<Address>, db: RevmLRU) -> HashMap<Address, U256> {
+    pub fn new_addresses(&mut self, address: Vec<Address>) {
+        let clone_addr = address.clone();
+        let db = self.db.clone();
+
+        self.fut = Some(
+            self.handle
+                .spawn(async move { Self::get_slots(clone_addr, db) })
+        );
+
+        self.addresses.extend(address);
+    }
+
+    pub fn get_slots(addresses: Vec<Address>, db: RevmLRU) -> HashMap<B160, U256> {
         // this is pretty big. would be nice to breakup
         addresses
             .iter()
@@ -107,11 +125,26 @@ impl SlotKeeper {
                     });
 
                     if U256::MAX == result {
-                        return (*token_addr, U256::from(i))
+                        return ((*token_addr).into(), U256::from(i))
                     }
                 }
                 unreachable!()
             })
             .collect()
+    }
+}
+
+impl Future for SlotKeeper {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(fut) = self.fut.as_mut() {
+            if let Poll::Ready(res) = fut.poll_unpin(cx) {
+                let Ok(res) = res else { return Poll::Ready(()) };
+                self.slots.extend(res);
+            }
+        }
+
+        todo!()
     }
 }

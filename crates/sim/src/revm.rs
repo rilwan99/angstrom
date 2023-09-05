@@ -1,6 +1,12 @@
-use std::{collections::HashMap, sync::Arc, task::Poll};
+use std::{
+    collections::HashMap,
+    sync::Arc,
+    task::{Context, Poll}
+};
 
-use futures_util::{stream::FuturesUnordered, Future, StreamExt};
+use ethers_core::{abi::Bytes, types::Address};
+use futures_util::{stream::FuturesUnordered, Future, FutureExt, StreamExt};
+use revm_primitives::{Bytecode, B160};
 use tokio::{runtime::Handle, sync::mpsc::UnboundedReceiver, task::JoinHandle};
 
 use crate::{
@@ -11,6 +17,11 @@ use crate::{
     state::{AddressSlots, RevmState},
     SimEvent
 };
+
+///TODO: replace once settled
+const V4_BYTE_CODE: Bytes = vec![];
+///TODO: replace once settled
+const ANGSTROM_ADDRESS: B160 = B160::zero();
 
 /// revm state handler
 pub struct Revm {
@@ -56,8 +67,43 @@ impl Revm {
         let state = self.state.clone();
 
         match tx_type {
-            SimEvent::Hook(data, overrides, sender) => {}
-            SimEvent::UniswapV4(tx, sender) => {}
+            SimEvent::Hook(data, overrides, sender) => {
+                let slots = self.slot_keeper.get_current_slots().clone();
+                let fut = async move {
+                    let res = state.simulate_hooks(data, overrides, slots);
+
+                    match res {
+                        Ok((sim_res, slots)) => {
+                            let _ = sender.send(sim_res);
+                            Some(slots)
+                        }
+                        Err(e) => {
+                            let _ = sender.send(SimResult::SimError(e));
+                            None
+                        }
+                    }
+                };
+
+                self.futures.push(self.threadpool.spawn_return_task_as(fut));
+            }
+            SimEvent::UniswapV4(tx, sender) => {
+                let fut = async move {
+                    let mut map = HashMap::new();
+
+                    let bytecode = Bytecode {
+                        bytecode: Bytes::from(V4_BYTE_CODE).into(),
+                        ..Default::default()
+                    };
+
+                    map.insert(ANGSTROM_ADDRESS, bytecode);
+                    match state.simulate_v4_tx(tx, map) {
+                        Ok(res) => sender.send(res),
+                        Err(err) => sender.send(SimResult::SimError(err))
+                    };
+                };
+
+                let _ = self.threadpool.spawn_task_as(fut, TaskKind::Blocking);
+            }
             SimEvent::BundleTx(tx, caller_info, sender) => {
                 let fut = async move {
                     let res = state.simulate_bundle(tx, caller_info);
@@ -81,21 +127,15 @@ impl Revm {
                 };
                 let _ = self.threadpool.block_on_rt(fut);
                 self.slot_changes.clear();
-            } /* SimEvent::NewSearcherTx(tx, caller_info, sender) => {
-               *     let fut = async move {
-               *         let res = state.simulate_searcher_tx(tx, caller_info);
-               *         if let Err(e) = res {
-               *             let _ = sender.send(SimResult::SimError(e));
-               *             return None
-               *         } else {
-               *             let (result, slots) = res.unwrap();
-               *             let _ = sender.send(result);
-               *             return Some(slots)
-               *         };
-               *     };
-               *     self.futures.push(self.threadpool.spawn_return_task_as(fut));
-               * } */
+            }
         };
+    }
+
+    // this will be wired into new block
+    #[allow(unused)]
+    fn handle_new_pools(&mut self, pools: Vec<Address>, cx: &mut Context<'_>) {
+        self.slot_keeper.new_addresses(pools);
+        let _ = self.slot_keeper.poll_unpin(cx);
     }
 }
 
@@ -121,6 +161,7 @@ impl Future for Revm {
                 None => ()
             }
         }
+
         return Poll::Pending
     }
 }
