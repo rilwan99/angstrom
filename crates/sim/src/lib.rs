@@ -38,9 +38,6 @@ pub fn spawn_revm_sim(db: lru_db::RevmLRU) -> Result<RevmClient, SimError> {
 #[derive(Debug)]
 pub enum BundleOrTransactionResult {
     Bundle(SimmedBundle),
-    UserTransaction(SimmedUserSettlement),
-    SearcherTransaction(SimmedLvrSettlement),
-    SignRequest(SimmedSafeTx),
     HookSimResult { tx: SearcherOrUser, pre_hook_gas: U256, post_hook_gas: U256 },
     UniswapV4Results { delta: I256, gas: U256 }
 }

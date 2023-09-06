@@ -6,17 +6,18 @@ use std::{
     task::{Context, Poll}
 };
 
+use ethers_core::types::{Address, U256};
 use futures::{stream::FuturesUnordered, Stream, StreamExt};
 use revm::primitives::B160;
 use shared::{
-    CallerInfo, RawBundle, RawLvrSettlement, RawUserSettlement, SimmedBundle, SimmedLvrSettlement,
-    SimmedUserSettlement
+    CallerInfo, PoolKey, RawBundle, RawLvrSettlement, RawUserSettlement, SearcherOrUser,
+    SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement
 };
 use sim::{
     errors::{SimError, SimResult},
     Simulator
 };
-use tracing::info;
+use tracing::{info, trace};
 
 #[derive(Debug, Clone)]
 pub enum CowMsg {
@@ -30,9 +31,11 @@ pub type SimFut = Pin<Box<dyn Future<Output = Result<SimResult, SimError>> + Sen
 /// Handles what is the currently best bundle and tries
 /// to beat it
 pub struct CowSolver<S: Simulator + 'static> {
-    // don't care ab this for now, should be mapped to pool
-    _all_user_txes:    HashSet<SimmedUserSettlement>,
-    _best_searcher_tx: HashSet<SimmedLvrSettlement>,
+    all_user_txes:     HashSet<SimmedUserSettlement>,
+    // need to know this to properly route multihop transactions
+    all_valid_tokens:  HashSet<Address>,
+    best_searcher_tx:  HashMap<PoolKey, SimmedLvrSettlement>,
+    bytes_to_pool_key: HashMap<[u8; 32], PoolKey>,
 
     best_simed_bundle:   Option<SimmedBundle>,
     sim:                 S,
@@ -42,11 +45,17 @@ pub struct CowSolver<S: Simulator + 'static> {
 }
 
 impl<S: Simulator + 'static> CowSolver<S> {
-    pub fn new(sim: S) -> Self {
+    pub fn new(
+        sim: S,
+        valid_tokens: HashSet<Address>,
+        bytes_to_pool_key: HashMap<[u8; 32], PoolKey>
+    ) -> Self {
         Self {
             sim,
-            _best_searcher_tx: HashSet::default(),
-            _all_user_txes: HashSet::default(),
+            bytes_to_pool_key,
+            best_searcher_tx: HashMap::default(),
+            all_valid_tokens: valid_tokens,
+            all_user_txes: HashSet::default(),
             pending_simulations: FuturesUnordered::default(),
             best_simed_bundle: None,
             call_info: CallerInfo {
@@ -76,82 +85,96 @@ impl<S: Simulator + 'static> CowSolver<S> {
         tx.into_iter().for_each(|tx| {
             let handle = self.sim.clone();
             let call_info = self.call_info.clone();
-            // self.pending_simulations
-            //     .push(Box::pin(async move {
-            // handle.simulate_searcher_tx(call_info, tx).await }));
+
+            self.pending_simulations
+                .push(Box::pin(async move { handle.simulate_hooks(tx, call_info).await }));
         });
     }
 
     pub fn new_user_transactions(&mut self, transactions: Vec<RawUserSettlement>) {
-        // TODO: Pretty retarded but works for now
         transactions.into_iter().for_each(|tx| {
+            // only valid moves for in and out
+            if !(self.all_valid_tokens.contains(&tx.order.token_in)
+                && self.all_valid_tokens.contains(&tx.order.token_out))
+            {
+                return
+            }
+
             let handle = self.sim.clone();
             let call_info = self.call_info.clone();
-            // self.pending_simulations
-            //     .push(Box::pin(async move {
-            // handle.simulate_user_tx(call_info, tx).await }));
+
+            self.pending_simulations
+                .push(Box::pin(async move { handle.simulate_hooks(tx, call_info).await }));
         });
     }
 
     fn on_sim_res(&mut self, sim_results: Vec<Result<SimResult, SimError>>) -> Option<Vec<CowMsg>> {
         info!(?sim_results);
-        None
-        // let mut new_best = false;
-        // TODO: Ugly as shit. fix this
-        // let new_transaction = sim_results
-        //     .into_iter()
-        //     .filter_map(|sim_result| {
-        //         match sim_result {
-        //             Ok(res) => match res {
-        //                 SimResult::ExecutionResult(res) => match res {
-        //                     BundleOrTransactionResult::Bundle(bundle) => {
-        //                         debug!(?bundle, ?res, "simmed bundle res");
-        //                         if let Some(current_best) =
-        // self.best_simed_bundle.as_ref() {
-        // if bundle.is_more_profitable(current_best) {
-        // self.best_simed_bundle = Some(bundle.clone());
-        // new_best = true;                             }
-        //                         } else if bundle.result.is_success() {
-        //                             self.best_simed_bundle =
-        // Some(bundle.clone());                             new_best =
-        // true                         }
-        //                     }
-        //
-        //                     BundleOrTransactionResult::Transaction(tx) => {
-        //                         debug!(?tx, ?res, "simmed transaction res");
-        //                         if !self.all_valid_transactions.contains(&tx)
-        // {                             let inner =
-        // tx.transaction.clone();
-        // self.all_valid_transactions.insert(tx);
-        // return Some(inner)                         }
-        //                     }
-        //                 },
-        //                 SimResult::SuccessfulRevmBlockUpdate => {
-        //                     trace!("simulator updated");
-        //                 }
-        //                 _ => todo!("placeholder")
-        //             },
-        //             Err(e) => {
-        //                 error!(io_error=?e, "sim had a io error");
-        //                 panic!();
-        //             }
-        //         }
-        //         None
-        //     })
-        //     .collect::<Vec<_>>();
-        //
-        // // TODO: clean this up
-        // if !new_transaction.is_empty() && new_best {
-        //     return Some(vec![
-        //         CowMsg::NewTransactions(new_transaction.into()),
-        //         CowMsg::NewBestBundle(self.best_bundle().unwrap().clone().
-        // into()),     ])
-        // } else if !new_transaction.is_empty() && new_best {
-        //     return
-        // Some(vec![CowMsg::NewBestBundle(self.best_bundle().unwrap().clone().
-        // into())]) }
-        //
-        // None
+
+        let (new_simmed_users, new_simmed_searchers): (
+            Vec<Option<SimmedUserSettlement>>,
+            Vec<Option<SimmedLvrSettlement>>
+        ) = sim_results
+            .into_iter()
+            .filter_map(|sim| match sim {
+                Ok(s) => Some(s),
+                Err(e) => {
+                    trace!(?e, "attempted tx sim failed");
+                    None
+                }
+            })
+            .filter_map(|result| match result {
+                SimResult::ExecutionResult(data) => {
+                    let sim::BundleOrTransactionResult::HookSimResult {
+                        tx,
+                        pre_hook_gas,
+                        post_hook_gas
+                    } = data
+                    else {
+                        unreachable!()
+                    };
+                    convert_simmed_results(
+                        tx,
+                        pre_hook_gas,
+                        post_hook_gas,
+                        &self.bytes_to_pool_key,
+                        &mut self.best_searcher_tx,
+                        &mut self.all_user_txes
+                    )
+                }
+                SimResult::SimError(e) => {
+                    trace!(?e, "sim error");
+                    None
+                }
+                SimResult::SuccessfulRevmBlockUpdate => {
+                    info!("sim sucessfully update to new block");
+                    None
+                }
+            })
+            .unzip();
+
+        let unwraped_users = new_simmed_users
+            .into_iter()
+            .filter_map(|u| u)
+            .collect::<Vec<_>>();
+        let unwraped_searchers = new_simmed_searchers
+            .into_iter()
+            .filter_map(|u| u)
+            .collect::<Vec<_>>();
+
+        match (unwraped_users.is_empty(), unwraped_searchers.is_empty()) {
+            (true, true) => return None,
+            (true, false) => return Some(vec![CowMsg::NewUserTransactions(unwraped_users.into())]),
+            (false, true) => {
+                return Some(vec![CowMsg::NewSearcherTransactions(unwraped_searchers.into())])
+            }
+            (false, false) => {
+                return Some(vec![
+                    CowMsg::NewSearcherTransactions(unwraped_searchers.into()),
+                    CowMsg::NewUserTransactions(unwraped_users.into()),
+                ])
+            }
+        }
     }
 }
 
@@ -172,8 +195,56 @@ impl<S: Simulator + Unpin> Stream for CowSolver<S> {
     }
 }
 
+fn convert_simmed_results(
+    tx: SearcherOrUser,
+    pre_hook_gas: U256,
+    post_hook_gas: U256,
+    bytes_to_pool_key: &HashMap<[u8; 32], PoolKey>,
+    best_searcher_tx: &mut HashMap<PoolKey, SimmedLvrSettlement>,
+    all_user_tx: &mut HashSet<SimmedUserSettlement>
+) -> Option<(Option<SimmedUserSettlement>, Option<SimmedLvrSettlement>)> {
+    match tx {
+        shared::SearcherOrUser::User(user) => {
+            let simed_user = SimmedUserSettlement {
+                raw:               user,
+                amount_out:        U256::zero(),
+                amount_gas_actual: pre_hook_gas + post_hook_gas
+            };
+
+            if all_user_tx.contains(&simed_user) {
+                return None
+            }
+            all_user_tx.insert(simed_user.clone());
+
+            return Some((Some(simed_user), None))
+        }
+        shared::SearcherOrUser::Searcher(searcher) => {
+            let Some(pool) = bytes_to_pool_key.get(&searcher.order.pool) else { return None };
+
+            let simmed_searcher = SimmedLvrSettlement {
+                raw:        searcher,
+                gas_actual: pre_hook_gas + post_hook_gas
+            };
+            match best_searcher_tx.entry(pool.clone()) {
+                std::collections::hash_map::Entry::Vacant(v) => {
+                    v.insert(simmed_searcher.clone());
+                    return Some((None, Some(simmed_searcher)))
+                }
+                std::collections::hash_map::Entry::Occupied(mut o) => {
+                    if o.get().raw.order.bribe > simmed_searcher.raw.order.bribe {
+                        return None
+                    }
+                    o.insert(simmed_searcher.clone());
+                    return Some((None, Some(simmed_searcher)))
+                }
+            }
+        }
+    }
+}
+
 #[cfg(feature = "test_harness")]
 pub mod test_harness {
+    use ethers_core::types::H256;
     use shared::RawBundle;
 
     use super::*;
@@ -189,7 +260,7 @@ pub mod test_harness {
 
         pub fn propagate_user_transactions(&mut self) {
             let user_txes = self
-                ._all_user_txes
+                .all_user_txes
                 .drain()
                 .map(Into::into)
                 .collect::<Vec<_>>();
@@ -199,8 +270,9 @@ pub mod test_harness {
 
         pub fn propagate_searcher_transactions(&mut self) {
             let searcher_txes = self
-                ._best_searcher_tx
+                .best_searcher_tx
                 .drain()
+                .map(|(_, v)| v)
                 .map(Into::into)
                 .collect::<Vec<_>>();
 
@@ -216,14 +288,14 @@ pub mod test_harness {
         }
 
         pub fn check_for_user_tx(&self, hash: H256) -> bool {
-            self._all_user_txes.iter().any(|tx| {
+            self.all_user_txes.iter().any(|tx| {
                 let raw: RawUserSettlement = tx.clone().into();
                 hash == raw.into()
             })
         }
 
         pub fn check_for_searcher_tx(&self, hash: H256) -> bool {
-            self._best_searcher_tx.iter().any(|tx| {
+            self.best_searcher_tx.iter().any(|(_, tx)| {
                 let raw: RawLvrSettlement = tx.clone().into();
                 hash == raw.into()
             })

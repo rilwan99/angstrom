@@ -1,5 +1,8 @@
 use bytes::Bytes;
-use ethers_core::types::{Address, H160, I256, U256};
+use ethers_core::{
+    types::{Address, H160, I256, U256},
+    utils::keccak256
+};
 use hex_literal::hex;
 use reth_primitives::bytes;
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
@@ -100,6 +103,12 @@ pub struct PoolKey {
     pub fee:          u32,
     pub tick_spacing: u32,
     pub hooks:        Address
+}
+
+impl From<PoolKey> for [u8; 32] {
+    fn from(value: PoolKey) -> Self {
+        keccak256(ethers::abi::AbiEncode::encode(value))
+    }
 }
 
 /// struct PoolFees {
