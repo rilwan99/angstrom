@@ -138,13 +138,15 @@ impl Future for SlotKeeper {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(fut) = self.fut.as_mut() {
+        if let Some(mut fut) = self.fut.take() {
             if let Poll::Ready(res) = fut.poll_unpin(cx) {
                 let Ok(res) = res else { return Poll::Ready(()) };
                 self.slots.extend(res);
+            } else {
+                self.fut = Some(fut)
             }
         }
 
-        todo!()
+        Poll::Pending
     }
 }

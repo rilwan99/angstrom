@@ -1,10 +1,12 @@
-use std::{cmp::max, collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use byteorder::{ByteOrder, LittleEndian};
-use ethers_core::types::transaction::eip2718::TypedTransaction;
+use ethers_core::types::{transaction::eip2718::TypedTransaction, I256, U256 as EU256};
 use eyre::Result;
 use revm::EVM;
-use revm_primitives::{Bytecode, ExecutionResult, Log, TransactTo, TxEnv, B160, U256};
+use revm_primitives::{
+    db::DatabaseRef, Account, Bytecode, Bytes, ExecutionResult, Log, TransactTo, TxEnv, B160, U256
+};
 use shared::*;
 
 use crate::{
@@ -38,10 +40,54 @@ impl RevmState {
     pub fn simulate_hooks(
         &self,
         txes: HookSim,
-        caller_info: CallerInfo,
+        _caller_info: CallerInfo,
         overrides: HashMap<B160, U256>
     ) -> Result<(SimResult, AddressSlots), SimError> {
-        todo!()
+        let mut prehook_env = TxEnv::default();
+        let (prehook_addr, pre_hook_calldata) = txes.pre_hook();
+        prehook_env.data = pre_hook_calldata;
+        prehook_env.transact_to = TransactTo::Call(prehook_addr.into());
+
+        let (res, mut pre_slots) = self.simulate_single_tx(prehook_env, HashMap::default())?;
+        let pre_hook_gas = match res {
+            ExecutionResult::Success { gas_used, .. } => gas_used.into(),
+            _ => return Err(SimError::HookFailed)
+        };
+
+        let mut post_env = TxEnv::default();
+        let (posthook_addr, posthook_calldata) = txes.post_hook();
+        post_env.data = posthook_calldata;
+        post_env.transact_to = TransactTo::Call(posthook_addr.into());
+
+        let out_token_override = overrides.get(&txes.amount_out_token.into()).unwrap();
+
+        let db = self.db.clone();
+        let current_bal = db
+            .storage(posthook_addr.into(), *out_token_override)
+            .unwrap();
+
+        let mut overrides: HashMap<B160, HashMap<U256, U256>> = HashMap::default();
+
+        let mut slot_map = HashMap::default();
+        slot_map.insert(*out_token_override, current_bal + U256::from(txes.amount_out_lim));
+        overrides.insert(posthook_addr.into(), slot_map);
+
+        let (res, post_slots) = self.simulate_single_tx(post_env, overrides)?;
+
+        let post_hook_gas = match res {
+            ExecutionResult::Success { gas_used, .. } => gas_used.into(),
+            _ => return Err(SimError::HookFailed)
+        };
+        pre_slots.extend(post_slots);
+
+        return Ok((
+            SimResult::ExecutionResult(BundleOrTransactionResult::HookSimResult {
+                tx: txes.tx,
+                pre_hook_gas,
+                post_hook_gas
+            }),
+            pre_slots
+        ))
     }
 
     pub fn simulate_v4_tx(
@@ -49,82 +95,30 @@ impl RevmState {
         tx: TypedTransaction,
         contract_overrides: HashMap<B160, Bytecode>
     ) -> Result<SimResult, SimError> {
-        todo!()
-    }
+        let mut env = TxEnv::default();
+        env.data = Bytes::copy_from_slice(&*tx.data().cloned().unwrap());
+        env.transact_to = TransactTo::Call((*tx.to_addr().unwrap()).into());
+        let mut db = self.db.clone();
+        db.set_bytecode_overrides(contract_overrides);
+        let mut evm = EVM::default();
+        evm.database(db);
 
-    /// simulates a user tx
-    pub fn simulate_user_tx(
-        &self,
-        tx: RawUserSettlement,
-        caller_info: CallerInfo
-    ) -> Result<(SimResult, AddressSlots), SimError> {
-        let mut tx_env: TxEnv = tx.clone().into();
-        tx_env.caller = caller_info.address;
-        tx_env.nonce = Some(caller_info.nonce);
+        let res = evm
+            .transact_ref()
+            .map_err(|_| SimError::RevmEVMTransactionError(env.clone()))?;
 
-        let (exec_result, storage_slots) =
-            self.simulate_single_tx(tx_env.clone(), caller_info.overrides)?;
+        let (delta, gas) = match res.result {
+            ExecutionResult::Success { gas_used, output, .. } => {
+                let delta = I256::from_raw(EU256::from(unsafe {
+                    *(output.into_data().to_vec().as_slice() as *const _ as *mut [u8; 32])
+                }));
 
-        let binding = exec_result
-            .logs()
-            .into_iter()
-            .filter(|log| log.address == ANGSTROM_CONTRACT_ADDR.into())
-            .collect::<Vec<Log>>();
-        let (gas_used, log) = match exec_result {
-            ExecutionResult::Success {
-                reason: _,
-                gas_used,
-                gas_refunded: _,
-                logs: _,
-                output: _
-            } => (gas_used, binding.first().unwrap()),
-            ExecutionResult::Revert { gas_used: _, output: _ } => {
-                return Err(SimError::SimRevert(tx_env))
+                (delta, gas_used.into())
             }
-            ExecutionResult::Halt { reason: _, gas_used: _ } => {
-                return Err(SimError::SimHalt(tx_env))
-            }
+            _ => return Err(SimError::HookFailed)
         };
 
-        let amount_out =
-            max(LittleEndian::read_i64(&log.topics[1].0), LittleEndian::read_i64(&log.topics[2].0))
-                as u64;
-
-        let result = SimResult::ExecutionResult(BundleOrTransactionResult::UserTransaction(
-            SimmedUserSettlement {
-                raw:               tx,
-                amount_out:        amount_out.into(),
-                amount_gas_actual: gas_used.into()
-            }
-        ));
-
-        let mut address_slots = HashMap::new();
-        address_slots.insert(caller_info.address, storage_slots);
-
-        Ok((result, address_slots))
-    }
-
-    /// simulates a searcher tx
-    pub fn simulate_searcher_tx(
-        &self,
-        tx: RawLvrSettlement,
-        caller_info: CallerInfo
-    ) -> Result<(SimResult, AddressSlots), SimError> {
-        let mut tx_env: TxEnv = tx.clone().into();
-        tx_env.caller = caller_info.address;
-        tx_env.nonce = Some(caller_info.nonce);
-
-        let (exec_result, storage_slots) =
-            self.simulate_single_tx(tx_env, caller_info.overrides)?;
-
-        let result = SimResult::ExecutionResult(BundleOrTransactionResult::SearcherTransaction(
-            SimmedLvrSettlement { raw: tx, gas_actual: exec_result.gas_used().into() }
-        ));
-
-        let mut address_slots = HashMap::new();
-        address_slots.insert(caller_info.address, storage_slots);
-
-        Ok((result, address_slots))
+        Ok(SimResult::ExecutionResult(BundleOrTransactionResult::UniswapV4Results { delta, gas }))
     }
 
     /// simulates a single tx
@@ -132,17 +126,16 @@ impl RevmState {
         &self,
         tx_env: TxEnv,
         overrides: HashMap<B160, HashMap<U256, U256>>
-    ) -> Result<(ExecutionResult, HashMap<U256, U256>), SimError> {
+    ) -> Result<(ExecutionResult, HashMap<B160, HashMap<U256, U256>>), SimError> {
         let mut evm_db = self.db.clone();
         evm_db.set_state_overrides(overrides);
 
         let mut evm = EVM::new();
         evm.database(evm_db);
-
-        evm.env.tx = tx_env.clone();
+        evm.env.tx = tx_env;
 
         let tx = evm.env.tx.clone();
-        let contract_address = match tx.transact_to {
+        let _ = match tx.transact_to {
             TransactTo::Call(a) => a,
             TransactTo::Create(_) => return Err(SimError::CallInsteadOfCreateError(tx))
         };
@@ -151,20 +144,22 @@ impl RevmState {
             .transact_ref()
             .map_err(|_| SimError::RevmEVMTransactionError(tx.clone()))?;
 
-        let slots = &result
-            .state
-            .get(&contract_address)
-            .ok_or(SimError::RevmCacheError((tx.clone(), result.state.clone())))?
-            .storage;
+        let slots = result.state;
 
-        let mut touched: HashMap<U256, U256> = HashMap::new();
-        for (idx, slot) in slots.into_iter() {
-            if slot.is_changed() {
-                touched.insert(*idx, slot.present_value);
-            }
-        }
+        let slots = slots
+            .into_iter()
+            .map(|(addr, mut account)| {
+                account.storage.retain(|_, slot| slot.is_changed());
+                let account = account
+                    .storage
+                    .into_iter()
+                    .map(|(k, acc)| (k, acc.present_value()))
+                    .collect::<HashMap<_, _>>();
+                (addr, account)
+            })
+            .collect();
 
-        Ok((result.result, touched))
+        Ok((result.result, slots))
     }
 
     /// simulates a bundle of transactions

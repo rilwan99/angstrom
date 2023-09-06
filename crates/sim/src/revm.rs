@@ -96,7 +96,7 @@ impl Revm {
                     };
 
                     map.insert(ANGSTROM_ADDRESS, bytecode);
-                    match state.simulate_v4_tx(tx, map) {
+                    let _ = match state.simulate_v4_tx(tx, map) {
                         Ok(res) => sender.send(res),
                         Err(err) => sender.send(SimResult::SimError(err))
                     };
