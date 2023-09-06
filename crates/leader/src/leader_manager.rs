@@ -128,7 +128,7 @@ where
 
         Ok(Self {
             block_stream,
-            cow_solver: CowSolver::new(simulator.clone()),
+            cow_solver: CowSolver::new(simulator.clone(), vec![]),
             bundle_signer: BundleSigner::new(simulator, edsca_key.clone()),
             active_leader_config: None,
             leader_sender: LeaderSender::new(Arc::new(SignerMiddleware::new(

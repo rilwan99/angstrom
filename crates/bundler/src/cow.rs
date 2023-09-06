@@ -24,19 +24,18 @@ use sim::{errors::SimError, Simulator};
 pub async fn match_cow<S: Simulator>(
     sim: S,
     all_direct_users: HashMap<PoolKey, SimmedUserSettlement>,
-    all_undirect_users: Vec<SimmedUserSettlement>,
-    best_searcher_tx: HashMap<PoolKey, SimmedLvrSettlement>,
-    bytes_to_pool_key: HashMap<[u8; 32], PoolKey>
+    best_searcher_tx: HashMap<PoolKey, SimmedLvrSettlement> /* bytes_to_pool_key: HashMap<[u8;
+                                                             * 32], PoolKey> */
 ) -> Result<SimmedBundle, SimError> {
-    // first thing we need todo is sum up all the transactions that is a direct
-    // pool. this is because then we can optimize for the multi-hop routes
+    // yoink all the volume for these transactions
     let mut volumes = HashMap::new();
-    // let mut searcher_lim = HashMap::new();
     for (key, tx) in best_searcher_tx {
         if tx.raw.order.token_in == key.currency_0 {
-            volumes.insert(key, (tx.raw.order.amount_in, 0u128));
+            volumes
+                .insert(key, (tx.raw.order.amount_in as i128, tx.raw.order.amount_out_min as i128));
         } else {
-            volumes.insert(key, (0u128, tx.raw.order.amount_in));
+            volumes
+                .insert(key, (tx.raw.order.amount_out_min as i128, tx.raw.order.amount_in as i128));
         };
     }
 
@@ -44,76 +43,42 @@ pub async fn match_cow<S: Simulator>(
         if tx.raw.order.token_in == key.currency_0 {
             match volumes.entry(key) {
                 std::collections::hash_map::Entry::Occupied(mut o) => {
-                    o.get_mut().0 += tx.raw.order.amount_in;
+                    o.get_mut().0 += tx.raw.order.amount_in as i128;
+                    o.get_mut().1 -= tx.raw.order.amount_out_min as i128;
                 }
                 std::collections::hash_map::Entry::Vacant(v) => {
-                    v.insert((tx.raw.order.amount_in, 0u128));
+                    v.insert((tx.raw.order.amount_in as i128, tx.raw.order.amount_out_min as i128));
                 }
             }
         } else {
             match volumes.entry(key) {
                 std::collections::hash_map::Entry::Occupied(mut o) => {
-                    o.get_mut().1 += tx.raw.order.amount_in;
+                    o.get_mut().1 += tx.raw.order.amount_in as i128;
+                    o.get_mut().0 -= tx.raw.order.amount_out_min as i128;
                 }
                 std::collections::hash_map::Entry::Vacant(v) => {
-                    v.insert((0u128, tx.raw.order.amount_in));
+                    v.insert((tx.raw.order.amount_out_min as i128, tx.raw.order.amount_in as i128));
                 }
             }
         }
     }
 
-    // account for all of the direct pool swaps
-    // let unmatched = all_users.into_iter().filter_map(|tx| {
-    //     let token_in = tx.raw.order.token_in;
-    //     let token_out = tx.raw.order.token_out;
-    //
-    //     if let Some((key, _)) = best_searcher_tx.iter_mut().find(|(k, _)| {
-    //         k.currency_0 == token_in
-    //             || k.currency_0 == token_out && k.currency_1 == token_in
-    //             || k.currency_1 == token_out
-    //     }) {
-    //     } else {
-    //     };
-    // });
-
-    // let bundle = join_all(
-    //     data.into_iter()
-    //         .map(|(pool_key, best_searcher, users)| async move {
-    //             let token_in = pool_key.currency_0;
-    //
-    //             let mut token_in_vol = 0u128;
-    //             let mut token_out_vol = 0u128;
-    //
-    //             // add searcher vol
-    //             if best_searcher.raw.order.token_in == token_in {
-    //                 token_in_vol += best_searcher.raw.order.amount_in
-    //             } else {
-    //                 token_out_vol += best_searcher.raw.order.amount_in
-    //             }
-    //
-    //             // add user vol
-    //             users.iter().for_each(|u| {
-    //                 if u.raw.order.token_in == token_in {
-    //                     token_in_vol += u.raw.order.amount_in;
-    //                 } else {
-    //                     token_out_vol += u.raw.order.amount_in;
-    //                 }
-    //             });
-    //
-    //             let (zto, rem) = if token_in_vol > token_out_vol {
-    //                 (true, token_in_vol - token_out_vol)
-    //             } else {
-    //                 (false, token_out_vol - token_in_vol)
-    //             };
-    //
-    //             let mut call_data = pool_key.encode();
-    //         })
-    // )
-    // .await;
+    for (key, (zto_vol, otz_vol)) in volumes {
+        let limit_pice = zto_vol / otz_vol;
+    }
 
     todo!()
 }
 
-pub fn build_v4_transaction() -> TypedTransaction {
+// struct SwapParams {
+//         bool zeroForOne;
+//         int256 amountSpecified;
+//         uint160 sqrtPriceLimitX96;
+//     }
+// struct TestSettings {
+//     bool withdrawTokens;
+//     bool settleUsingTransfer;
+// }
+pub fn build_v4_transaction(pool_key: PoolKey, amount: i128, zto: bool) -> TypedTransaction {
     todo!()
 }

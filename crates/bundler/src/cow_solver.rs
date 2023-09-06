@@ -33,7 +33,6 @@ pub type SimFut = Pin<Box<dyn Future<Output = Result<SimResult, SimError>> + Sen
 pub struct CowSolver<S: Simulator + 'static> {
     all_user_txes:     HashSet<SimmedUserSettlement>,
     // need to know this to properly route multihop transactions
-    all_valid_tokens:  HashSet<Address>,
     best_searcher_tx:  HashMap<PoolKey, SimmedLvrSettlement>,
     bytes_to_pool_key: HashMap<[u8; 32], PoolKey>,
 
@@ -45,16 +44,14 @@ pub struct CowSolver<S: Simulator + 'static> {
 }
 
 impl<S: Simulator + 'static> CowSolver<S> {
-    pub fn new(
-        sim: S,
-        valid_tokens: HashSet<Address>,
-        bytes_to_pool_key: HashMap<[u8; 32], PoolKey>
-    ) -> Self {
+    pub fn new(sim: S, bytes_to_pool_key: Vec<PoolKey>) -> Self {
         Self {
             sim,
-            bytes_to_pool_key,
+            bytes_to_pool_key: bytes_to_pool_key
+                .into_iter()
+                .map(|key| (key.clone().into(), key))
+                .collect(),
             best_searcher_tx: HashMap::default(),
-            all_valid_tokens: valid_tokens,
             all_user_txes: HashSet::default(),
             pending_simulations: FuturesUnordered::default(),
             best_simed_bundle: None,
@@ -93,13 +90,6 @@ impl<S: Simulator + 'static> CowSolver<S> {
 
     pub fn new_user_transactions(&mut self, transactions: Vec<RawUserSettlement>) {
         transactions.into_iter().for_each(|tx| {
-            // only valid moves for in and out
-            if !(self.all_valid_tokens.contains(&tx.order.token_in)
-                && self.all_valid_tokens.contains(&tx.order.token_out))
-            {
-                return
-            }
-
             let handle = self.sim.clone();
             let call_info = self.call_info.clone();
 
