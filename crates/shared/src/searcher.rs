@@ -77,6 +77,44 @@ pub struct RawLvrSettlement {
     pub signature: Signature
 }
 
+/// struct LimitOrder {
+///     PoolId pool;
+///     Currency tokenIn;
+///     Currency tokenOut;
+///     uint128 Price;
+///     uint128 amount;
+///     uint128 amountOut;
+///     uint256 blockNumber;
+///     uint256 gasBid;
+///     uint256 bribe;
+///     bytes preHook;
+///     bytes postHook;
+/// }
+
+#[derive(
+    Debug,
+    Clone,
+    Serialize,
+    Deserialize,
+    RlpDecodable,
+    RlpEncodable,
+    PartialEq,
+    Eq,
+    Hash,
+    ethers_contract::EthAbiType,
+    ethers_contract::EthAbiCodec,
+)]
+pub struct LimitOrder {
+    pub pool:        [u8; 32],
+    pub token_in:    Address,
+    pub token_out:   Address,
+    pub amount_in:   u128,
+    pub price:       u128,
+    pub blockNumber: U256,
+    pub gas_cap:     U256,
+    pub bribe:       U256
+}
+
 impl TryInto<HookSim> for RawLvrSettlement {
     type Error = anyhow::Error;
 
