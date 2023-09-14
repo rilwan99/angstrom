@@ -12,9 +12,9 @@ use ethers_core::{
 use ethers_providers::{JsonRpcClient, Middleware, ProviderError};
 use futures::Future;
 use futures_util::FutureExt;
+use guard_types::contract_bindings::ERC20;
 use revm::EVM;
 use revm_primitives::{TransactTo, TxEnv, B160, U256};
-use shared::contract_bindings::ERC20;
 use tokio::{runtime::Handle, task::JoinHandle};
 
 use crate::lru_db::RevmLRU;

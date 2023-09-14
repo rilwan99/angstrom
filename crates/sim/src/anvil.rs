@@ -10,8 +10,8 @@ use ethers_core::{
     }
 };
 use ethers_providers::{Ipc, Provider};
+use guard_types::{contract_bindings::ERC20, on_chain::*};
 use hex_literal::hex;
-use shared::{contract_bindings::ERC20, *};
 use tokio::task::{JoinError, JoinHandle};
 
 use crate::{BundleOrTransactionResult, SimError, SimResult, Simulator};

@@ -3,11 +3,11 @@ use std::{collections::HashMap, sync::Arc};
 use byteorder::{ByteOrder, LittleEndian};
 use ethers_core::types::{transaction::eip2718::TypedTransaction, I256, U256 as EU256};
 use eyre::Result;
+use guard_types::on_chain::*;
 use revm::EVM;
 use revm_primitives::{
     db::DatabaseRef, Account, Bytecode, Bytes, ExecutionResult, Log, TransactTo, TxEnv, B160, U256
 };
-use shared::*;
 
 use crate::{
     errors::{SimError, SimResult},

@@ -5,12 +5,13 @@ use std::{
     task::{Context, Poll}
 };
 
+use action::action_core::{ActionConfig, ActionCore, ActionMessage};
+use consensus::core::ConsensusCore;
 use ethers_providers::{Middleware, PubsubClient};
 use futures::{Future, FutureExt};
 use futures_util::StreamExt;
 use guard_network::{GaurdStakingEvent, NetworkConfig, PeerMessages, Swarm, SwarmEvent};
-use leader::leader_manager::{Leader, LeaderConfig, LeaderMessage};
-use shared::{RawLvrSettlement, RawUserSettlement};
+use guard_types::on_chain::{RawLvrSettlement, RawUserSettlement};
 use sim::Simulator;
 use tokio::sync::mpsc::{Sender, UnboundedSender};
 use tracing::{debug, warn};
@@ -30,8 +31,10 @@ where
 {
     /// guard network connection
     network:              Swarm,
-    /// deals with leader related requests and actions including bundle building
-    leader:               Leader<M, S>,
+    consensus:            ConsensusCore<S>,
+    /// deals with all action related requests and actions including bundle
+    /// building
+    action:               ActionCore<M, S>,
     /// deals with new submissions through a rpc to the network
     server:               SubmissionServer,
     /// channel for sending updates to the set of stakers
@@ -46,17 +49,19 @@ where
 {
     pub async fn new(
         network_config: NetworkConfig,
-        leader_config: LeaderConfig<M, S>,
+        action_config: ActionConfig<M, S>,
         server_config: SubmissionServerConfig
     ) -> anyhow::Result<Self> {
         let (valid_stakers_tx, valid_stakers_rx) = tokio::sync::mpsc::unbounded_channel();
         let sub_server = SubmissionServerInner::new(server_config).await?;
         let swarm = Swarm::new(network_config, valid_stakers_rx).await?;
-        let leader = Leader::new(leader_config).await?;
+        let action = ActionCore::new(action_config).await?;
+        let consensus = ConsensusCore::new().await;
 
         Ok(Self {
-            leader,
+            action,
             server_subscriptions: HashMap::default(),
+            consensus,
             server: sub_server,
             valid_stakers_tx,
             network: swarm
@@ -82,11 +87,11 @@ where
                 })
                 .unzip();
 
-        self.leader
+        self.action
             .get_cow()
             .new_user_transactions(user_subs.into_iter().filter_map(|f| f).collect());
 
-        self.leader
+        self.action
             .get_cow()
             .new_searcher_transactions(arb_subs.into_iter().filter_map(|f| f).collect());
     }
@@ -97,7 +102,7 @@ where
                 debug!(?peer_id, ?request, "got data from peer");
                 match request {
                     PeerMessages::PropagateBundle(bundle) => {
-                        self.leader.get_cow().new_bundle((*bundle).clone().into())
+                        self.action.get_cow().new_bundle((*bundle).clone().into())
                     }
                     PeerMessages::PeerRequests(req) => match req {
                         guard_network::PeerRequests::GetTeeModule(_, _sender) => {
@@ -105,23 +110,17 @@ where
                         }
                     },
                     PeerMessages::PropagateSearcherTransactions(new_txes) => {
-                        self.leader.get_cow().new_searcher_transactions(
+                        self.action.get_cow().new_searcher_transactions(
                             (*new_txes).clone().into_iter().map(Into::into).collect()
                         );
                     }
                     PeerMessages::PropagateUserTransactions(new_txes) => {
-                        self.leader.get_cow().new_user_transactions(
+                        self.action.get_cow().new_user_transactions(
                             (*new_txes).clone().into_iter().map(Into::into).collect()
                         );
                     }
-                    PeerMessages::PropagateBundleSignature(new_sig) => {
-                        if self.leader.is_leader() {
-                            self.leader.on_new_sigs((*new_sig).clone())
-                        }
-                    }
-                    PeerMessages::PropagateSignatureRequest(bundle) => {
-                        let _ = self.leader.on_sign_bundle(bundle);
-                    }
+                    PeerMessages::PropagateBundleSignature(new_sig) => {}
+                    PeerMessages::PropagateSignatureRequest(bundle) => {}
                 }
             }
             res @ _ => {
@@ -130,18 +129,18 @@ where
         });
     }
 
-    fn handle_leader_messages(&mut self, leader_events: Vec<LeaderMessage>) {
-        debug!(?leader_events, "got actions from the leader");
-        leader_events.into_iter().for_each(|event| match event {
-            LeaderMessage::GetBundleSignatures(bundle) => {
+    fn handle_action_messages(&mut self, action_events: Vec<ActionMessage>) {
+        debug!(?action_events, "got actions");
+        action_events.into_iter().for_each(|event| match event {
+            ActionMessage::GetBundleSignatures(bundle) => {
                 self.network
                     .propagate_msg(PeerMessages::PropagateSignatureRequest(bundle));
             }
-            LeaderMessage::PropagateSignature(sig) => {
+            ActionMessage::PropagateSignature(sig) => {
                 self.network
                     .propagate_msg(PeerMessages::PropagateBundleSignature(sig));
             }
-            LeaderMessage::NewBestBundle(bundle) => {
+            ActionMessage::NewBestBundle(bundle) => {
                 self.network
                     .propagate_msg(PeerMessages::PropagateBundle(bundle.clone()));
                 // submit to subscribers
@@ -156,7 +155,7 @@ where
                     });
                 }
             }
-            LeaderMessage::NewValidUserTransactions(transactions) => {
+            ActionMessage::NewValidUserTransactions(transactions) => {
                 // prop to other peers
                 self.network
                     .propagate_msg(PeerMessages::PropagateUserTransactions(transactions.clone()));
@@ -178,7 +177,7 @@ where
                     });
                 }
             }
-            LeaderMessage::NewValidSearcherTransactions(transactions) => self
+            ActionMessage::NewValidSearcherTransactions(transactions) => self
                 .network
                 .propagate_msg(PeerMessages::PropagateSearcherTransactions(transactions))
         });
@@ -209,8 +208,8 @@ where
             }
             self.handle_network_events(swarm_msgs);
 
-            if let Poll::Ready(msg) = self.leader.poll(cx) {
-                self.handle_leader_messages(msg);
+            if let Poll::Ready(msg) = self.action.poll(cx) {
+                self.handle_action_messages(msg);
             }
 
             work -= 1;
@@ -227,6 +226,7 @@ pub mod test_harness {
     use std::net::SocketAddr;
 
     use ethers_core::types::{H256, U64};
+    use reth_primitives::PeerId;
     use tokio::{
         sync::{
             mpsc::{channel, Receiver},
@@ -264,7 +264,7 @@ pub mod test_harness {
     impl GuardHandle {
         pub async fn new<M, S>(
             network_config: NetworkConfig,
-            leader_config: LeaderConfig<M, S>,
+            leader_config: ActionConfig<M, S>,
             server_config: SubmissionServerConfig
         ) -> anyhow::Result<Self>
         where
@@ -372,27 +372,27 @@ pub mod test_harness {
                         let _ = sender.send(self.guard.network.local_addr());
                     }
                     GuardCheatCodes::MakeLeader(peer_id, block) => {
-                        self.guard.leader.make_leader(peer_id, block);
+                        todo!()
                     }
                     GuardCheatCodes::CheckForBundle(hash, sender) => {
-                        let _ = sender.send(self.guard.leader.get_cow().check_for_bundle(hash));
+                        let _ = sender.send(self.guard.action.get_cow().check_for_bundle(hash));
                     }
                     GuardCheatCodes::CheckForUserTx(hash, sender) => {
-                        let _ = sender.send(self.guard.leader.get_cow().check_for_user_tx(hash));
+                        let _ = sender.send(self.guard.action.get_cow().check_for_user_tx(hash));
                     }
                     GuardCheatCodes::CheckForSearcherTx(hash, sender) => {
                         let _ =
-                            sender.send(self.guard.leader.get_cow().check_for_searcher_tx(hash));
+                            sender.send(self.guard.action.get_cow().check_for_searcher_tx(hash));
                     }
                     GuardCheatCodes::PropagateBundle => {
-                        self.guard.leader.get_cow().propagate_bundle();
+                        self.guard.action.get_cow().propagate_bundle();
                     }
                     GuardCheatCodes::PropagateUserTransactions => {
-                        self.guard.leader.get_cow().propagate_user_transactions();
+                        self.guard.action.get_cow().propagate_user_transactions();
                     }
                     GuardCheatCodes::PropagateSearcherTransactions => {
                         self.guard
-                            .leader
+                            .action
                             .get_cow()
                             .propagate_searcher_transactions();
                     }

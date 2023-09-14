@@ -10,7 +10,7 @@ repository.workspace = true
 
 [dependencies]
 bytes.workspace = true
-shared.workspace = true
+guard-types.workspace = true
 thiserror.workspace = true
 serde = { workspace = true, optional = true }
 secp256k1.workspace = true

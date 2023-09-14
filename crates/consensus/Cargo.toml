@@ -1,5 +1,5 @@
 [package]
-name = "it-harness"
+name = "consensus"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,18 +8,9 @@ homepage.workspace = true
 repository.workspace = true
 exclude.workspace = true
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [dependencies]
-stale-guard = { path = "../", features = ["test_harness"] }
-guard-network = { path = "../crates/guard-net/network/", features = [
-  "test_harness",
-] }
-action = { path = "../crates/action/", features = ["test_harness"] }
-guard-eth-wire = { path = "../crates/guard-net/eth-wire" }
-guard-discv4 = { path = "../crates/guard-net/discv4" }
-
-guard-types.workspace = true
-
-sim.workspace = true
 tokio.workspace = true
 futures.workspace = true
 thiserror.workspace = true
@@ -38,12 +29,9 @@ anyhow.workspace = true
 url.workspace = true
 reth-db.workspace = true
 reth-tracing.workspace = true
+serde_json.workspace = true
+hex-literal.workspace = true
+revm-primitives.workspace = true
 
-
-pin-project = "1.0.12"
-
-secp256k1 = { version = "0.27.0", default-features = false, features = [
-  "global-context",
-  "rand-std",
-  "recovery",
-] }
+guard-types.workspace = true
+sim.workspace = true

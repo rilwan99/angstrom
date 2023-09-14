@@ -1,0 +1,36 @@
+[package]
+name = "action"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tracing.workspace = true
+tokio.workspace = true
+serde_json.workspace = true
+reth-primitives.workspace = true
+ethers-core.workspace = true
+ethers-signers.workspace = true
+futures.workspace = true
+thiserror.workspace = true
+revm.workspace = true
+revm-primitives.workspace = true
+ethers-providers.workspace = true
+ethers-middleware.workspace = true
+anyhow.workspace = true
+url.workspace = true
+
+guard-types.workspace = true
+sim.workspace = true
+
+# flashbots related
+ethers-flashbots = "0.14.0"
+
+[features]
+test_harness = []

@@ -6,15 +6,15 @@ use std::{
 
 use ethers_core::types::transaction::eip712::TypedData;
 use futures::{Stream, StreamExt};
+use guard_types::on_chain::{
+    RawLvrSettlement, RawUserSettlement, SearcherOrder, Signature, SimmedBundle, UserOrder
+};
 use hyper::{http::HeaderValue, Method};
 use jsonrpsee::{
     proc_macros::rpc, server::ServerHandle, PendingSubscriptionSink, SubscriptionSink
 };
 use jsonrpsee_core::{server::SubscriptionMessage, RpcResult};
 use serde::{Deserialize, Serialize};
-use shared::{
-    RawLvrSettlement, RawUserSettlement, SearcherOrder, Signature, SimmedBundle, UserOrder
-};
 use tokio::sync::mpsc::{channel, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 use tower::{
