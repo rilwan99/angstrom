@@ -1,13 +1,13 @@
 #![allow(missing_docs)]
 use std::{fmt::Debug, sync::Arc};
 
+use guard_types::on_chain::{
+    BundleSignature, SafeTx, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement, TeeAddress
+};
 use reth_primitives::bytes::{Buf, BufMut};
 use reth_rlp::{length_of_length, Decodable, Encodable, Header};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use shared::{
-    BundleSignature, SafeTx, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement, TeeAddress
-};
 
 use super::Status;
 use crate::{errors::EthStreamError, EthVersion};

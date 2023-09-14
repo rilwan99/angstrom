@@ -1,7 +1,7 @@
 use ethers_core::types::transaction::eip712::{Eip712Error, TypedData};
+use guard_types::on_chain::RawUserSettlement;
 use reth_primitives::Signature;
 use revm_primitives::{Account, HashMap, TxEnv, B160};
-use shared::RawUserSettlement;
 use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
 

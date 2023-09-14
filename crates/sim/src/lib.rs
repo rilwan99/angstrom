@@ -4,11 +4,11 @@ use client::RevmClient;
 use errors::{SimError, SimResult};
 use ethers_core::types::{transaction::eip2718::TypedTransaction, I256, U256};
 use executor::ThreadPool;
-use revm_primitives::db::DatabaseRef;
-use shared::{
+use guard_types::on_chain::{
     CallerInfo, HookSim, RawBundle, RawLvrSettlement, RawUserSettlement, SafeTx, SearcherOrUser,
     SimmedBundle, SimmedLvrSettlement, SimmedSafeTx, SimmedUserSettlement
 };
+use revm_primitives::db::DatabaseRef;
 use state::RevmBackend;
 use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
 
@@ -44,7 +44,7 @@ pub enum BundleOrTransactionResult {
 
 // the simulator is a handle that we use to simulate transactions.
 #[async_trait::async_trait]
-pub trait Simulator: Send + Sync + Clone {
+pub trait Simulator: Send + Sync + Clone + Unpin {
     /// executes the swap on the underlying v4 pool in order to see what the
     /// limit price for everyone will be
     async fn simulate_v4_tx(&self, tx: TypedTransaction) -> Result<SimResult, SimError>;

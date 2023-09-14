@@ -35,7 +35,7 @@ guard-eth-wire = { path = "../eth-wire" }
 reth-ecies = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-rlp-derive = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 
-shared.workspace = true
+guard-types.workspace = true
 
 # async/futures
 futures.workspace = true

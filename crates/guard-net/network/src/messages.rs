@@ -5,10 +5,10 @@ use std::{
 
 use futures::FutureExt;
 use guard_eth_wire::{message::RequestPair, EthMessage};
-use reth_interfaces::p2p::error::RequestResult;
-use shared::{
+use guard_types::on_chain::{
     BundleSignature, SafeTx, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement, TeeAddress
 };
+use reth_interfaces::p2p::error::RequestResult;
 use tokio::sync::{oneshot, oneshot::Sender as OneSender};
 
 /// General bi-directional messages sent to & from peers

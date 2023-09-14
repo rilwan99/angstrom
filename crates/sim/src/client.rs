@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use anvil_core::eth::transaction::EthTransactionRequest;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
-use shared::*;
+use guard_types::on_chain::*;
 use tokio::sync::{mpsc::UnboundedSender, oneshot::channel};
 
 use crate::{
