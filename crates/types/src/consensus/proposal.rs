@@ -1,14 +1,15 @@
 use crate::on_chain::Signature;
 
+use super::Time;
+
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Proposal {
-    proposal_type: ProposalType,
-    height:        u64,
-    round:         u64,
-    pol_round:     u64,
-    // TODO: move to type
-    timestamp:     u128,
-    signature:     Signature
+    pub proposal_type: ProposalType,
+    pub height:        u64,
+    pub round:         u64,
+    pub pol_round:     u64,
+    pub timestamp:     Time,
+    pub signature:     Signature
 }
 
 #[repr(u8)]

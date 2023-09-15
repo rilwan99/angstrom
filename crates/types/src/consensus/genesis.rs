@@ -1,19 +1,20 @@
 use secp256k1::PublicKey;
 use serde_json::Value;
 
+use super::Time;
+
 pub struct GenesisData {
-    // TODO: move over to internal lib
-    time:             u128,
-    chain_id:         u64,
-    initial_height:   u64,
+    pub time:             Time,
+    pub chain_id:         u64,
+    pub initial_height:   u64,
     // TODO: fix placeholder
-    consensus_params: u8,
-    validators:       Vec<GenesisValidator>,
-    app_hash:         Vec<u8>,
-    app_state:        Value
+    pub consensus_params: u8,
+    pub validators:       Vec<GenesisValidator>,
+    pub app_hash:         Vec<u8>,
+    pub app_state:        Value
 }
 
 pub struct GenesisValidator {
-    address: PublicKey,
-    power:   u64
+    pub address: PublicKey,
+    pub power:   u64
 }

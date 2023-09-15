@@ -18,7 +18,7 @@ use tracing::trace;
 use super::SafeTx;
 
 #[derive(
-    Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, ethers_contract::EthAbiCodec,
+    Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, ethers_contract::EthAbiCodec,
 )]
 #[repr(transparent)]
 pub struct Signature(pub ESignature);
