@@ -1,39 +1,40 @@
 use secp256k1::PublicKey;
+use serde::{Deserialize, Serialize};
 
-use super::Commit;
+use super::{Commit, Time};
 use crate::on_chain::SimmedBundle;
 
 pub struct Block {
-    header:        BlockHeader,
-    data:          SimmedBundle,
+    pub header:        BlockHeader,
+    pub data:          SimmedBundle,
     // TODO move struct
-    evidence_data: Vec<u8>,
-    last_commit:   Commit
+    pub evidence_data: Vec<u8>,
+    pub last_commit:   Commit
 }
 
 #[repr(transparent)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub struct BlockId(
     // merkle root of header
-    [u8; 32]
+    pub [u8; 32]
 );
 
 pub struct BlockHeader {
-    chain_id:      u64,
-    height:        u64,
-    // TODO
-    time:          u128,
-    last_block_id: BlockId,
+    pub chain_id:      u64,
+    pub height:        u64,
+    pub time:          Time,
+    pub last_block_id: BlockId,
 
     // hashes of stored data
-    last_commit_hash: Vec<u8>,
-    data_hash:        Vec<u8>,
+    pub last_commit_hash: Vec<u8>,
+    pub data_hash:        Vec<u8>,
 
-    guard_hashes:      Vec<u8>,
-    next_guard_hashes: Vec<u8>,
-    consensus_hash:    Vec<u8>,
-    app_hash:          Vec<u8>,
+    pub guard_hashes:      Vec<u8>,
+    pub next_guard_hashes: Vec<u8>,
+    pub consensus_hash:    Vec<u8>,
+    pub app_hash:          Vec<u8>,
 
-    last_result_hash: Vec<u8>,
-    evidence_hash:    Vec<u8>,
-    proposer_address: PublicKey
+    pub last_result_hash: Vec<u8>,
+    pub evidence_hash:    Vec<u8>,
+    pub proposer_address: PublicKey
 }
