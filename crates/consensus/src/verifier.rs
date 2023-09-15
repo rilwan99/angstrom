@@ -23,6 +23,7 @@ pub enum BundleError {
     #[error("The sign request was outside of the sign period")]
     NotDelegatedSigningTime
 }
+
 type PendingSims = Pin<Box<dyn Future<Output = Result<BundleSignature, BundleError>> + Send>>;
 /// verifies all signed data requests from the guard network
 pub struct DataVerifier<S: Simulator + 'static> {

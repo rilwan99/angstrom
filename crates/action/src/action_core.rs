@@ -12,12 +12,12 @@ use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
 use ethers_signers::LocalWallet;
 use futures::stream::StreamExt;
 use guard_types::{
-    consensus::GuardInfo,
+    guard_info::GuardInfo,
     on_chain::{BundleSignature, SafeTx, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement}
 };
 use reth_primitives::{Address, U64};
 use sim::Simulator;
-use tracing::{error, info};
+use tracing::info;
 use url::Url;
 
 use crate::{leader_sender::LeaderSender, CowMsg, CowSolver};
@@ -62,25 +62,6 @@ impl From<CowMsg> for ActionMessage {
             CowMsg::NewBestBundle(b) => ActionMessage::NewBestBundle(b),
             CowMsg::NewUserTransactions(t) => ActionMessage::NewValidUserTransactions(t),
             CowMsg::NewSearcherTransactions(t) => ActionMessage::NewValidSearcherTransactions(t)
-        }
-    }
-}
-
-pub const EIGHT_SECONDS: CriticalDurations = CriticalDurations::EightSeconds;
-pub const TEN_SECONDS: CriticalDurations = CriticalDurations::TenSeconds;
-
-pub enum CriticalDurations {
-    InitPhase,
-    EightSeconds,
-    TenSeconds
-}
-
-impl CriticalDurations {
-    pub fn get_mode(duration: Duration) -> CriticalDurations {
-        match duration.as_millis() {
-            0..=7999 => CriticalDurations::InitPhase,
-            8000..=9999 => CriticalDurations::EightSeconds,
-            _ => CriticalDurations::TenSeconds
         }
     }
 }
