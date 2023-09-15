@@ -1,6 +1,6 @@
 use thiserror::Error;
-use super::Time;
-use super::Vote;
+
+use super::{Time, Vote};
 
 #[derive(Debug, Error)]
 pub enum EvidenceError {
@@ -8,20 +8,20 @@ pub enum EvidenceError {
     InvalidEvidence
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Evidence {
     DuplicateVoteEvidence(DuplicateVoteEvidence)
 }
 
 /// Duplicate vote evidence
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DuplicateVoteEvidence {
     pub vote_a:             Vote,
     pub vote_b:             Vote,
     pub total_voting_power: u64,
     pub validator_power:    u64,
     // TODO:
-    pub timestamp:         Time, 
+    pub timestamp:          Time
 }
 
 impl DuplicateVoteEvidence {

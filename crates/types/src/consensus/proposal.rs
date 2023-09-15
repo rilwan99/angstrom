@@ -1,6 +1,5 @@
-use crate::on_chain::Signature;
-
 use super::Time;
+use crate::on_chain::Signature;
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Proposal {
