@@ -1,6 +1,36 @@
-use guard_types::consensus::Vote;
+use std::collections::HashSet;
+
+use guard_types::consensus::{Evidence, Vote};
 use thiserror::Error;
 
+#[derive(Debug, Error)]
+pub enum EvidenceCollectorError {
+    #[error("Evidence collector already has this evidence")]
+    AlreadyContainsEvidence,
+    #[error("Could not find requested evidence")]
+    NoEvidenceFound
+}
 
-pub struct EvidenceCollector {}
+pub struct EvidenceCollector {
+    pending_evidence: HashSet<Evidence>
+}
 
+impl EvidenceCollector {
+    pub fn add_evidence(&mut self, evidence: Evidence) -> Result<(), EvidenceCollectorError> {
+        if !self.pending_evidence.insert(evidence) {
+            return Err(EvidenceCollectorError::AlreadyContainsEvidence)
+        }
+
+        Ok(())
+    }
+
+    pub fn check_evidence(&mut self, evidence: &Evidence) -> Result<bool, EvidenceCollectorError> {
+        Ok(self.pending_evidence.contains(evidence)).and_then(|has| {
+            if !has {
+                Err(EvidenceCollectorError::NoEvidenceFound)
+            } else {
+                Ok(has)
+            }
+        })
+    }
+}

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::{BlockId, Time};
 use crate::on_chain::Signature;
 
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Vote {
     pub vote_type: VoteType,
     pub height:    u64,

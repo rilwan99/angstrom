@@ -1,6 +1,6 @@
 use sim::Simulator;
 
-use crate::{evidence::EvidenceCollector, verifier::DataVerifier};
+use crate::{evidence::EvidenceCollector, executor::Executor};
 
 /// The ConsensusCore module handles everything related to consensus.
 /// This includes but not limited to.
@@ -12,7 +12,7 @@ use crate::{evidence::EvidenceCollector, verifier::DataVerifier};
 /// 5) Signing Votes, Commitments & Proposals
 pub struct ConsensusCore<S: Simulator + 'static> {
     evidence_collector: EvidenceCollector,
-    data_verifier:      DataVerifier<S>
+    executor:           Executor<S>
 }
 
 impl<S: Simulator + 'static> ConsensusCore<S> {

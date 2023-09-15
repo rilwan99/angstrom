@@ -119,6 +119,7 @@ consensus = { path = "./crates/consensus/" }
 guard-types = { path = "./crates/types/" }
 action = { path = "./crates/action/" }
 sim = { path = "./crates/sim/" }
+db = { path = "./crates/db" }
 
 anvil = { git = "https://github.com/SorellaLabs/fastfoundry" }
 anvil-core = { git = "https://github.com/SorellaLabs/fastfoundry" }
