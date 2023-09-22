@@ -10,6 +10,7 @@ use secp256k1::{
 use super::{GuardSet, Time};
 use crate::on_chain::{RawBundle, RecoveryError, Signature};
 
+/// propagated when we hit more than 2/3 votes for a bundle
 #[derive(
     Debug,
     Clone,
@@ -23,7 +24,7 @@ use crate::on_chain::{RawBundle, RecoveryError, Signature};
     ethers_contract::EthAbiType,
     ethers_contract::EthAbiCodec,
 )]
-pub struct ValidBundle {
+pub struct Valid23Bundle {
     pub votes:  Bundle23Votes,
     pub bundle: SimmedBundle
 }
@@ -71,7 +72,6 @@ impl BundleVote {
     }
 }
 
-/// propagated when we hit more than 2/3 votes for a bundle
 #[derive(
     Debug,
     Clone,
