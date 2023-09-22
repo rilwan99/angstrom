@@ -11,42 +11,22 @@ use super::{GuardSet, Time};
 use crate::on_chain::{RawBundle, RecoveryError, Signature};
 
 /// propagated when we hit more than 2/3 votes for a bundle
-#[derive(
-    Debug,
-    Clone,
-    Serialize,
-    Deserialize,
-    RlpDecodable,
-    RlpEncodable,
-    PartialEq,
-    Eq,
-    Hash,
-    ethers_contract::EthAbiType,
-    ethers_contract::EthAbiCodec,
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
 pub struct Valid23Bundle {
     pub votes:  Bundle23Votes,
     pub bundle: SimmedBundle
 }
 
-#[derive(
-    Debug,
-    Clone,
-    Serialize,
-    Deserialize,
-    RlpDecodable,
-    RlpEncodable,
-    PartialEq,
-    Eq,
-    Hash,
-    ethers_contract::EthAbiType,
-    ethers_contract::EthAbiCodec,
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
 pub struct BundleVote {
-    pub hash:      H256,
+    /// keccak256((bundle_hash, height, round));
+    pub hash: H256,
+
+    // metadata
     pub height:    u64,
     pub round:     u64,
     pub timestamp: Time,
+
     pub signature: Signature
 }
 
@@ -72,24 +52,13 @@ impl BundleVote {
     }
 }
 
-#[derive(
-    Debug,
-    Clone,
-    Serialize,
-    Deserialize,
-    RlpDecodable,
-    RlpEncodable,
-    PartialEq,
-    Eq,
-    Hash,
-    ethers_contract::EthAbiType,
-    ethers_contract::EthAbiCodec,
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
 pub struct Bundle23Votes {
-    hash:       H256,
-    height:     u64,
-    round:      u64,
-    timestamp:  Time,
+    hash:      H256,
+    height:    u64,
+    round:     u64,
+    timestamp: Time,
+
     signatures: HashSet<Signature>
 }
 

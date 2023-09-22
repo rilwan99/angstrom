@@ -1,3 +1,4 @@
+//! Not sure we actually need this.
 use serde::{Deserialize, Serialize};
 
 use super::{BlockId, Time};

@@ -5,21 +5,21 @@ use std::collections::{
 
 use ethers_core::types::H256;
 use guard_types::{
-    consensus::{Bundle23Votes, BundleVote, GuardSet},
+    consensus::{Bundle23Votes, BundleVote, GuardSet, Valid23Bundle},
     on_chain::SimmedBundle
 };
 use tracing::{debug, warn};
 
 pub enum BundleVoteMessage {
     SignAndPropagate(H256),
-    NewBundle23Votes(ValidBundle)
+    NewBundle23Votes(Valid23Bundle)
 }
 
 /// The bundle vote manager is in-charge for tracking all bundle votes
 /// in order to make sure that we are able to reach consensus on the best
 /// bundle
 pub struct BundleVoteManager {
-    best_bundle:        Option<ValidBundle>,
+    best_bundle:        Option<Valid23Bundle>,
     known_bundles:      HashMap<H256, SimmedBundle>,
     known_bundle_votes: HashMap<H256, Vec<BundleVote>>,
     known_23_bundles:   HashSet<H256>,

@@ -1,44 +1,21 @@
 use secp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 
-use super::{Commit, Time, Valid23Bundle};
-use crate::on_chain::SimmedBundle;
+use super::{BlockCommit, Time, Valid23Bundle};
+use crate::on_chain::{SimmedBundle, SubmissionBundle};
 
-#[derive(
-    Debug,
-    Clone,
-    Serialize,
-    Deserialize,
-    RlpDecodable,
-    RlpEncodable,
-    PartialEq,
-    Eq,
-    Hash,
-    ethers_contract::EthAbiType,
-    ethers_contract::EthAbiCodec,
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
 pub struct Block {
     pub header:        BlockHeader,
-    pub data:          Valid23Bundle,
+    pub data:          SubmissionBundle,
     // TODO move struct
     pub evidence_data: Vec<u8>,
-    pub last_commit:   Commit
+    pub last_commit:   BlockCommit
 }
 
 #[repr(transparent)]
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    Serialize,
-    Deserialize,
-    RlpDecodable,
-    RlpEncodable,
-    PartialEq,
-    Eq,
-    Hash,
-    ethers_contract::EthAbiType,
-    ethers_contract::EthAbiCodec,
+    Debug, Clone, Copy, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash,
 )]
 pub struct BlockId(
     // merkle root of header
@@ -46,24 +23,15 @@ pub struct BlockId(
 );
 
 #[derive(
-    Debug,
-    Clone,
-    Copy,
-    Serialize,
-    Deserialize,
-    RlpDecodable,
-    RlpEncodable,
-    PartialEq,
-    Eq,
-    Hash,
-    ethers_contract::EthAbiType,
-    ethers_contract::EthAbiCodec,
+    Debug, Clone, Copy, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash,
 )]
 pub struct BlockHeader {
     pub chain_id:      u64,
     pub height:        u64,
     pub time:          Time,
     pub last_block_id: BlockId,
+
+    pub ethereum_height: u64,
 
     // hashes of stored data
     pub last_commit_hash: Vec<u8>,

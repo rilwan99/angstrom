@@ -9,14 +9,14 @@ use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
 mod bundle;
-mod safe_tx;
+mod submission;
 mod searcher;
 mod signature;
 mod tee_address;
 mod users;
 
+pub use submission::*;
 pub use bundle::*;
-pub use safe_tx::*;
 pub use searcher::*;
 pub use signature::*;
 pub use tee_address::*;
