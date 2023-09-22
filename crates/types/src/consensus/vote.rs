@@ -10,13 +10,6 @@ pub struct Vote {
     pub round:     u64,
     pub block_id:  Option<BlockId>,
     pub timestamp: Option<Time>,
-
-    // /// Validator address
-    // pub validator_address: account::Id,
-    //
-    // /// Validator index
-    // pub validator_index: ValidatorIndex,
-    /// Signature
     pub signature: Option<Signature>
 }
 
@@ -34,7 +27,6 @@ pub struct CanonicalVote {
 /// the sign bytes of that vote and the id of the validator who signed it.
 pub struct SignedVote {
     pub vote:      CanonicalVote,
-    // pub validator_address: account::Id,
     pub signature: Signature
 }
 

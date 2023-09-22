@@ -23,6 +23,24 @@ use crate::on_chain::{RawBundle, RecoveryError, Signature};
     ethers_contract::EthAbiType,
     ethers_contract::EthAbiCodec,
 )]
+pub struct ValidBundle {
+    pub votes:  Bundle23Votes,
+    pub bundle: SimmedBundle
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Serialize,
+    Deserialize,
+    RlpDecodable,
+    RlpEncodable,
+    PartialEq,
+    Eq,
+    Hash,
+    ethers_contract::EthAbiType,
+    ethers_contract::EthAbiCodec,
+)]
 pub struct BundleVote {
     pub hash:      H256,
     pub height:    u64,

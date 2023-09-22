@@ -12,12 +12,7 @@ use tracing::{debug, warn};
 
 pub enum BundleVoteMessage {
     SignAndPropagate(H256),
-    NewBundle23Votes(Bundle23Votes)
-}
-
-struct ValidBundle {
-    pub votes:  Bundle23Votes,
-    pub bundle: SimmedBundle
+    NewBundle23Votes(ValidBundle)
 }
 
 /// The bundle vote manager is in-charge for tracking all bundle votes
