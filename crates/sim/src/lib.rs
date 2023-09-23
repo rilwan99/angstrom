@@ -5,8 +5,8 @@ use errors::{SimError, SimResult};
 use ethers_core::types::{transaction::eip2718::TypedTransaction, I256, U256};
 use executor::ThreadPool;
 use guard_types::on_chain::{
-    CallerInfo, HookSim, RawBundle, RawLvrSettlement, RawUserSettlement, SafeTx, SearcherOrUser,
-    SimmedBundle, SimmedLvrSettlement, SimmedSafeTx, SimmedUserSettlement
+    CallerInfo, HookSim, RawBundle, RawLvrSettlement, RawUserSettlement, SearcherOrUser,
+    SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement
 };
 use revm_primitives::db::DatabaseRef;
 use state::RevmBackend;

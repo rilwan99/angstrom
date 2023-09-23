@@ -10,10 +10,7 @@ use guard_types::{
         Block, Bundle23Votes, BundleVote, GuardInfo, LeaderProposal, SignedLeaderProposal,
         Valid23Bundle
     },
-    on_chain::{
-        BundleSignature, SafeTx, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement,
-        TeeAddress
-    }
+    on_chain::{SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement}
 };
 use reth_interfaces::p2p::error::RequestResult;
 use tokio::sync::{oneshot, oneshot::Sender as OneSender};

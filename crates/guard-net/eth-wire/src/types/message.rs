@@ -6,7 +6,7 @@ use guard_types::{
     consensus::{
         Block, Bundle23Votes, BundleVote, LeaderProposal, SignedLeaderProposal, Valid23Bundle
     },
-    on_chain::{BundleSignature, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement}
+    on_chain::{SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement}
 };
 use reth_primitives::bytes::{Buf, BufMut};
 use reth_rlp::{length_of_length, Decodable, Encodable, Header};
