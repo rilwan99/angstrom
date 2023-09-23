@@ -1,3 +1,4 @@
+use reth_primitives::H512;
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use secp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
@@ -15,7 +16,9 @@ pub struct Block {
 }
 
 #[repr(transparent)]
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
+#[derive(
+    Debug, Clone, Copy, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash,
+)]
 pub struct BlockId(
     // merkle root of header
     pub [u8; 32]
@@ -41,5 +44,5 @@ pub struct BlockHeader {
 
     pub last_result_hash: Vec<u8>,
     pub evidence_hash:    Vec<u8>,
-    pub proposer_address: PublicKey
+    pub proposer_address: H512
 }

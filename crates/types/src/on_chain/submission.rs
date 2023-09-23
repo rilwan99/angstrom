@@ -1,5 +1,5 @@
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use super::{RawBundle, Signature};
 

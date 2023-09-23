@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use bytes::{Bytes, BytesMut};
 use ethers_core::{
-    abi::{AbiType, ParamType, Token, Tokenizable},
+    abi::{AbiArrayType, AbiType, ParamType, Token, Tokenizable, TokenizableItem},
     types::{Signature as ESignature, H256, U256}
 };
 use reth_primitives::{PeerId, H512};
@@ -32,6 +32,10 @@ impl AbiType for Signature {
         72
     }
 }
+
+impl TokenizableItem for Signature {}
+
+impl AbiArrayType for Signature {}
 
 impl Tokenizable for Signature {
     fn into_token(self) -> ethers_core::abi::Token {

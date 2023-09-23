@@ -1,19 +1,21 @@
 use std::collections::HashSet;
 
-use serde::{Serialize, Deserialize};
 use bytes::Bytes;
 use ethers_core::types::H256;
+use reth_primitives::H512;
+use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
     Message, SECP256K1
 };
-use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
+use serde::{Deserialize, Serialize};
+use tracing::trace;
 
 use super::{GuardSet, Time};
-use crate::on_chain::{RawBundle, RecoveryError, Signature};
+use crate::on_chain::{RawBundle, RecoveryError, Signature, SimmedBundle};
 
 /// propagated when we hit more than 2/3 votes for a bundle
-#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct Valid23Bundle {
     pub votes:  Bundle23Votes,
     pub bundle: SimmedBundle
@@ -33,10 +35,10 @@ pub struct BundleVote {
 }
 
 impl BundleVote {
-    pub fn recover_public_key(&self) -> Result<[u8; 32], RecoveryError> {
+    pub fn recover_public_key(&self) -> Result<H512, RecoveryError> {
         let sig = RecoverableSignature::from_compact(
             &self.signature.to_vec()[0..64],
-            RecoveryId::from_i32(self.sig.to_vec()[64] as i32)
+            RecoveryId::from_i32(self.signature.to_vec()[64] as i32)
                 .map_err(|e| RecoveryError::UnableToDecodeSignature(e.to_string()))?
         )
         .map_err(|err| RecoveryError::UnableToDecodeSignature(err.to_string()))?;
@@ -54,14 +56,14 @@ impl BundleVote {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct Bundle23Votes {
     hash:      H256,
     height:    u64,
     round:     u64,
     timestamp: Time,
 
-    signatures: HashSet<Signature>
+    signatures: Vec<Signature>
 }
 
 impl Bundle23Votes {
@@ -72,6 +74,11 @@ impl Bundle23Votes {
     pub fn verify_signatures(&self, guards: &GuardSet) -> bool {
         // TODO: This seems wrong
         if self.signatures.len() % guards.len() < 67 {
+            return false
+        }
+
+        // check for dups
+        if self.signatures.iter().collect::<HashSet<_>>().len() != self.signatures.len() {
             return false
         }
 
@@ -88,11 +95,11 @@ impl Bundle23Votes {
                 trace!(?sig, "Validating Signature -- RECOVERING PUBLIC KEY");
                 // secp256k1 public key
                 let key = SECP256K1
-                    .recover_ecdsa(&Message::from_slice(&self.hash[..32])?, &sig)
+                    .recover_ecdsa(&Message::from_slice(&self.hash[..32]).ok()?, &sig)
                     .map(|public_key| H512::from_slice(&public_key.serialize_uncompressed()[1..]))
                     .ok()?;
 
-                Some(guards.contains_key(&key))
+                Some(guards.contains_key(key))
             })
             .any(|y| y.is_none())
     }

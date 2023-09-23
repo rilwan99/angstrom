@@ -12,8 +12,12 @@ pub struct GuardSet {
 }
 
 impl GuardSet {
-    pub fn contains_key(&self, key: &H512) -> bool {
-        self.guards.contains(key)
+    pub fn contains_key(&self, key: H512) -> bool {
+        self.guards.contains(&GuardInfo {
+            pub_key:         key,
+            voting_power:    0,
+            leader_priority: 0
+        })
     }
 
     pub fn len(&self) -> usize {
