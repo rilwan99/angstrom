@@ -4,7 +4,7 @@ use std::collections::{
 };
 
 use guard_types::{
-    consensus::{Bundle23Votes, BundleVote, GuardSet, Valid23Bundle},
+    consensus::{Bundle23Votes, BundleVote, Valid23Bundle},
     on_chain::SimmedBundle
 };
 use reth_primitives::H256;
@@ -17,8 +17,7 @@ pub struct BundleVoteManager {
     best_bundle:        Option<Valid23Bundle>,
     known_bundles:      HashMap<H256, SimmedBundle>,
     known_bundle_votes: HashMap<H256, Vec<BundleVote>>,
-    known_23_bundles:   HashSet<H256>,
-    guards:             GuardSet
+    known_23_bundles:   HashSet<H256>
 }
 
 impl Default for BundleVoteManager {
@@ -41,9 +40,9 @@ impl BundleVoteManager {
         None
     }
 
-    pub fn new_bundle23(&mut self, bundle: &Cow<Valid23Bundle>) -> bool {
+    pub fn new_bundle23(&mut self, bundle: &Cow<Valid23Bundle>, guards: &GuardSet) -> bool {
         let bundle = bundle.to_owned();
-        if !bundle.votes.verify_signatures(&self.guards) {
+        if !bundle.votes.verify_signatures(&guards) {
             warn!(?bundle, "bundle was invalid 2/3");
             return
         }
@@ -65,15 +64,19 @@ impl BundleVoteManager {
         new
     }
 
-    pub fn new_bundle_vote(&mut self, vote: BundleVote) -> Option<Valid23Bundle> {
+    pub fn new_bundle_vote(
+        &mut self,
+        vote: BundleVote,
+        guards: &GuardSet
+    ) -> Option<Valid23Bundle> {
         let hash = vote.hash;
         if let Some(new_23) = match self.known_bundle_votes.entry(hash) {
             Entry::Vacant(v) => {
-                if !Self::verify_vote(&self.guards, &vote) {
+                if !Self::verify_vote(guards, &vote) {
                     return None
                 }
 
-                let mut entry = Vec::with_capacity(self.guards.len());
+                let mut entry = Vec::with_capacity(guards.len());
                 entry.push(vote);
                 v.insert(entry);
                 None
@@ -87,12 +90,12 @@ impl BundleVoteManager {
                     debug!("got dup vote");
                     return None
                 }
-                if !Self::verify_vote(&self.guards, &vote) {
+                if !Self::verify_vote(guards, &vote) {
                     return None
                 }
                 o.get_mut().push(vote);
 
-                Self::check_for_23(o, &self.guards)
+                Self::check_for_23(o, guards)
             }
         } {
             let hash = new_23.hash;
