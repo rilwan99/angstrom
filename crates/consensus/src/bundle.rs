@@ -72,7 +72,7 @@ impl BundleVoteManager {
         let hash = vote.hash;
         if let Some(new_23) = match self.known_bundle_votes.entry(hash) {
             Entry::Vacant(v) => {
-                if !Self::verify_vote(&self.guards, vote) {
+                if !Self::verify_vote(&self.guards, &vote) {
                     return None
                 }
 
@@ -95,10 +95,26 @@ impl BundleVoteManager {
                 }
                 o.get_mut().push(vote);
 
-                return Self::check_for_23(o, &self.guards)
+                Self::check_for_23(o, &self.guards)
             }
-        };
-        
+        } {
+            let hash = new_23.hash;
+            let _ = self.known_bundle_votes.remove(&hash);
+            let data = self.known_bundles.remove(&hash)?;
+            self.known_23_bundles.insert(hash);
+
+            let bribe = data.get_cumulative_lp_bribe();
+            let built = Valid23Bundle { bundle: data, votes: new_23 };
+
+            if let Some(cur_23) = self.best_bundle.take() {
+                if cur_23.bundle.get_cumulative_lp_bribe() < bribe {
+                    self.best_bundle = Some(built.clone());
+                }
+            }
+
+            return Some(BundleVoteMessage::NewBundle23Votes(built))
+        }
+
         None
     }
 
@@ -107,9 +123,8 @@ impl BundleVoteManager {
     }
 
     fn verify_vote(guards: &GuardSet, vote: &BundleVote) -> bool {
-        let Ok(id) = vote
-            .recover_public_key()
-            // .inspect_err(|e| error!(?e, "failed to recover vote"))
+        let Ok(id) = vote.recover_public_key()
+        // .inspect_err(|e| error!(?e, "failed to recover vote"))
         else {
             return false
         };
