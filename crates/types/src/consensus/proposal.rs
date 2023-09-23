@@ -1,3 +1,6 @@
+use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
+use serde::{Deserialize, Serialize};
+
 use super::{Block, BlockCommit, BlockHeader, Time};
 use crate::on_chain::{Signature, SimmedBundle};
 

@@ -3,12 +3,12 @@ use std::collections::{
     HashMap, HashSet
 };
 
-use ethers_core::types::H256;
 use guard_types::{
     consensus::{Bundle23Votes, BundleVote, GuardSet, Valid23Bundle},
     on_chain::SimmedBundle
 };
-use tracing::{debug, warn};
+use reth_primitives::H256;
+use tracing::{debug, error, warn};
 
 pub enum BundleVoteMessage {
     SignAndPropagate(H256),
@@ -35,7 +35,7 @@ impl Default for BundleVoteManager {
 impl BundleVoteManager {
     pub fn new_simmed_bundle(&mut self, bundle: SimmedBundle) -> Option<BundleVoteMessage> {
         let hash = bundle.raw.clone().into();
-        if self.known_23_bundles.contains(hash) {
+        if self.known_23_bundles.contains(&hash) {
             return None
         }
 
@@ -46,12 +46,12 @@ impl BundleVoteManager {
         None
     }
 
-    pub fn new_bundle23(&mut self, bundle: Bundle23Votes) {
-        if !bundle.verify_signatures(&self.guards) {
+    pub fn new_bundle23(&mut self, bundle: Valid23Bundle) {
+        if !bundle.votes.verify_signatures(&self.guards) {
             warn!(?bundle, "bundle was invalid 2/3");
             return
         }
-        let hash = vote.hash;
+        let hash = bundle.votes.hash;
         self.known_23_bundles.insert(hash);
 
         // TODO: need to handle case where we don't have bundle yet
@@ -61,24 +61,25 @@ impl BundleVoteManager {
             if underlying_bundle.get_cumulative_lp_bribe()
                 > best_bundle.bundle.get_cumulative_lp_bribe()
             {
-                self.best_bundle = Some(ValidBundle { votes: bundle, bundle: underlying_bundle });
+                self.best_bundle = Some(bundle);
             }
         } else {
-            self.best_bundle = Some(ValidBundle { votes: bundle, bundle: underlying_bundle });
+            self.best_bundle = Some(bundle);
         }
     }
 
     pub fn new_bundle_vote(&mut self, vote: BundleVote) -> Option<BundleVoteMessage> {
         let hash = vote.hash;
-        match self.known_bundle_votes.entry(hash) {
+        if let Some(new_23) = match self.known_bundle_votes.entry(hash) {
             Entry::Vacant(v) => {
-                if !self.verify_vote(vote) {
+                if !Self::verify_vote(&self.guards, vote) {
                     return None
                 }
 
                 let mut entry = Vec::with_capacity(self.guards.len());
                 entry.push(vote);
                 v.insert(entry);
+                None
             }
             Entry::Occupied(mut o) => {
                 if o.get()
@@ -89,14 +90,15 @@ impl BundleVoteManager {
                     debug!("got dup vote");
                     return None
                 }
-                if !self.verify_vote(vote) {
+                if !Self::verify_vote(&self.guards, &vote) {
                     return None
                 }
                 o.get_mut().push(vote);
 
-                return self.check_for_23(o)
+                return Self::check_for_23(o, &self.guards)
             }
-        }
+        };
+        
         None
     }
 
@@ -104,15 +106,15 @@ impl BundleVoteManager {
         self.known_bundle_votes.contains_key(bundle_hash)
     }
 
-    fn verify_vote(&self, vote: BundleVote) -> bool {
+    fn verify_vote(guards: &GuardSet, vote: &BundleVote) -> bool {
         let Ok(id) = vote
             .recover_public_key()
-            .inspect_err(|e| error!(?e, "failed to recover vote"))
+            // .inspect_err(|e| error!(?e, "failed to recover vote"))
         else {
             return false
         };
 
-        if !self.guards.contains_key(&id) {
+        if !guards.contains_key(id) {
             warn!(?vote, "no guard found for recovered signature");
             return false
         }
@@ -121,13 +123,13 @@ impl BundleVoteManager {
     }
 
     fn check_for_23(
-        &mut self,
-        mut entry: OccupiedEntry<'_, H256, Vec<BundleVote>>
-    ) -> Option<BundleVoteMessage> {
-        let total_guards = self.guards.len();
+        mut entry: OccupiedEntry<'_, H256, Vec<BundleVote>>,
+        guards: &GuardSet
+    ) -> Option<Bundle23Votes> {
+        let total_guards = guards.len();
         // check to see if we have less than 2/3rd
         if entry.get().len() % total_guards <= 66 {
-            None
+            return None
         }
 
         let votes = entry.remove();
@@ -141,14 +143,7 @@ impl BundleVoteManager {
             .collect::<Vec<_>>();
 
         let new_bundle_votes = Bundle23Votes::new(hash, height, round, signatures);
-        let bundle_data = self.known_bundles.remove(&hash)?;
 
-        self.known_23_bundles.insert(hash);
-
-        if self.best_bundle.is_none() {
-            self.best_bundle = Some(ValidBundle { votes: new_bundle_votes, bundle: bundle_data });
-        }
-
-        return Some(BundleVoteMessage::NewBundle23Votes(new_bundle_votes))
+        Some(new_bundle_votes)
     }
 }

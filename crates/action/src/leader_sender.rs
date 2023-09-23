@@ -10,7 +10,7 @@ use ethers_middleware::SignerMiddleware;
 use ethers_providers::Middleware;
 use ethers_signers::{LocalWallet, Signer};
 use futures::{Future, FutureExt};
-use guard_types::on_chain::{BundleSignature, SimmedBundle};
+use guard_types::on_chain::SimmedBundle;
 use reth_primitives::PeerId;
 use tracing::{debug, info};
 
@@ -21,23 +21,14 @@ pub type SubmissionFut = Pin<Box<dyn Future<Output = Result<(), PendingBundleErr
 
 pub struct LeaderSender<M: Middleware + 'static> {
     signer: Arc<SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>>,
-    signatures:    Vec<BundleSignature>,
-    valid_stakers: Vec<PeerId>,
-    bundle:        Option<SimmedBundle>,
-    future:        Option<SubmissionFut>
+    future: Option<SubmissionFut>
 }
 
 impl<M: Middleware + 'static> LeaderSender<M> {
     pub fn new(
         signer: Arc<SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>>
     ) -> Self {
-        Self {
-            signer,
-            signatures: Vec::new(),
-            valid_stakers: Vec::new(),
-            bundle: None,
-            future: None
-        }
+        Self { signer, future: None }
     }
 
     pub fn has_submitted(&self) -> bool {

@@ -1,6 +1,7 @@
 use std::{collections::HashSet, hash::Hash};
 
 use reth_primitives::H512;
+use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -11,8 +12,12 @@ pub struct GuardSet {
 }
 
 impl GuardSet {
-    pub fn contains_key(&self, key: &H512) -> bool {
-        self.guards.contains(key)
+    pub fn contains_key(&self, key: H512) -> bool {
+        self.guards.contains(&GuardInfo {
+            pub_key:         key,
+            voting_power:    0,
+            leader_priority: 0
+        })
     }
 
     pub fn len(&self) -> usize {
@@ -20,7 +25,7 @@ impl GuardSet {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable)]
 pub struct GuardInfo {
     pub pub_key:         H512,
     pub voting_power:    u64,

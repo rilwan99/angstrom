@@ -28,7 +28,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, info, trace};
 
 use crate::{
-    messages::{PeerMessages, PeerRequests, PeerResponse, PeerResponseResult},
+    messages::PeerMessages,
     session::{
         config::INITIAL_REQUEST_TIMEOUT,
         handle::{ActiveSessionMessage, SessionCommand},
@@ -76,12 +76,6 @@ pub(crate) struct ActiveSession {
     pub(crate) to_session_manager: MeteredSender<ActiveSessionMessage>,
     /// A message that needs to be delivered to the session manager
     pub(crate) pending_message_to_session: Option<ActiveSessionMessage>,
-    /// All requests sent to the remote peer we're waiting on a response
-    pub(crate) inflight_requests: FnvHashMap<u64, InflightRequest>,
-    /// All requests that were sent by the remote peer.
-    pub(crate) received_requests_from_remote: Vec<ReceivedRequest>,
-    /// Incoming request to send to delegate to the remote peer.
-    //pub(crate) internal_request_tx: Fuse<ReceiverStream<PeerRequests>>,
     /// Buffered messages that should be handled and sent to the peer.
     pub(crate) queued_outgoing: VecDeque<OutgoingMessage>,
     /// The maximum time we wait for a response from a peer.
@@ -110,7 +104,6 @@ impl ActiveSession {
 
     /// Shrinks the capacity of the internal buffers.
     pub fn shrink_to_fit(&mut self) {
-        self.received_requests_from_remote.shrink_to_fit();
         self.queued_outgoing.shrink_to_fit();
     }
 
@@ -180,12 +173,6 @@ impl ActiveSession {
         }
     }
 
-    ///
-    fn request_deadline(&self) -> Instant {
-        Instant::now()
-            + Duration::from_millis(self.internal_request_timeout.load(Ordering::Relaxed))
-    }
-
     /// Updates the request timeout with a request's timestamps
     fn update_request_timeout(&mut self, sent: Instant, received: Instant) {
         let elapsed = received.saturating_duration_since(sent);
@@ -198,59 +185,29 @@ impl ActiveSession {
     }
 
     fn on_peer_msg(&mut self, msg: PeerMessages) {
-        match msg {
-            PeerMessages::PropagateBundle(req) => self
-                .queued_outgoing
-                .push_back(OutgoingMessage::Broadcast(EthBroadcastMessage::PropagateBundle(req))),
-            PeerMessages::PeerRequests(req) => {
-                let deadline = self.request_deadline();
-                self.on_internal_peer_request(req, deadline);
-            }
-            PeerMessages::PropagateUserTransactions(txes) => {
-                self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
-                    EthBroadcastMessage::PropagateUserTransactions(txes)
-                ));
-            }
-            PeerMessages::PropagateSearcherTransactions(txes) => {
-                self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
-                    EthBroadcastMessage::PropagateSearcherTransaction(txes)
-                ));
-            }
-            PeerMessages::PropagateBundleSignature(sig) => {
-                self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
-                    EthBroadcastMessage::PropagateBundleSignature(sig)
-                ));
-            }
-            PeerMessages::PropagateSignatureRequest(bundle) => {
-                self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
-                    EthBroadcastMessage::PropagateSignatureRequest(bundle)
-                ));
-            }
-        }
-    }
+        macro_rules! broadcast {
+            ($($name:ident),*) => {
+                match msg {
+                    $(
+                        PeerMessages::$name(t) => self
+                            .queued_outgoing
+                            .push_back(OutgoingMessage::Broadcast(EthBroadcastMessage::$name(t))),
+                    )*
+                }
 
-    /// Handle an internal peer request that will be sent to the remote.
-    fn on_internal_peer_request(&mut self, request: PeerRequests, deadline: Instant) {
-        let request_id = self.next_id();
-        let msg = request.create_request_message(request_id);
-        self.queued_outgoing.push_back(OutgoingMessage::Eth(msg));
-        let req = InflightRequest {
-            request: RequestState::Waiting(request),
-            timestamp: Instant::now(),
-            deadline
-        };
-        self.inflight_requests.insert(request_id, req);
-    }
-
-    fn handle_outgoing_response(&mut self, id: u64, resp: PeerResponseResult) {
-        match resp.try_into_message(id) {
-            Ok(msg) => {
-                self.queued_outgoing.push_back(msg.into());
-            }
-            Err(err) => {
-                debug!(target : "net", ?err, "Failed to respond to received request");
-            }
+            };
         }
+
+        broadcast!(
+            NewBlock,
+            BundleVote,
+            Bundle23Vote,
+            LeaderProposal,
+            SignedLeaderProposal,
+            PropagateUserTransactions,
+            PropagateSearcherTransactions,
+            PropagateBundle
+        );
     }
 }
 
@@ -303,28 +260,20 @@ impl Future for ActiveSession {
                 }
             }
 
-            let _deadline = this.request_deadline();
-
-            /*
-                       while let Poll::Ready(Some(req)) = this.internal_request_tx.poll_next_unpin(cx) {
-                           progress = true;
-                           this.on_internal_peer_request(req, deadline);
-                       }
-            */
             // Advance all active requests.
             // We remove each request one by one and add them back.
-            for idx in (0..this.received_requests_from_remote.len()).rev() {
-                let mut req = this.received_requests_from_remote.swap_remove(idx);
-                match req.rx.poll(cx) {
-                    Poll::Pending => {
-                        // not ready yet
-                        this.received_requests_from_remote.push(req);
-                    }
-                    Poll::Ready(resp) => {
-                        this.handle_outgoing_response(req.request_id, resp);
-                    }
-                }
-            }
+            // for idx in (0..this.received_requests_from_remote.len()).rev() {
+            //     let mut req = this.received_requests_from_remote.swap_remove(idx);
+            //     match req.rx.poll(cx) {
+            //         Poll::Pending => {
+            //             // not ready yet
+            //             this.received_requests_from_remote.push(req);
+            //         }
+            //         Poll::Ready(resp) => {
+            //             this.handle_outgoing_response(req.request_id, resp);
+            //         }
+            //     }
+            // }
 
             // Send messages by advancing the sink and queuing in buffered messages
             while this.conn.poll_ready_unpin(cx).is_ready() {
@@ -387,38 +336,6 @@ impl Future for ActiveSession {
     }
 }
 
-/// Tracks a request received from the peer
-pub(crate) struct ReceivedRequest {
-    /// Protocol Identifier
-    request_id: u64,
-    /// Timestamp when we read this msg from the wire.
-    #[allow(unused)]
-    received:   Instant,
-    /// Receiver half of the channel that's supposed to receive the proper
-    /// response.
-    rx:         PeerResponse
-}
-
-/// A request that waits for a response from the peer
-pub(crate) struct InflightRequest {
-    /// Request we sent to peer and the internal response channel
-    request:   RequestState,
-    /// Instant when the request was sent
-    timestamp: Instant,
-    /// Time limit for the response
-    deadline:  Instant
-}
-
-// === impl InflightRequest ===
-
-impl InflightRequest {
-    /// Returns true if the request is timedout
-    #[inline]
-    fn is_timed_out(&self, now: Instant) -> bool {
-        now > self.deadline
-    }
-}
-
 /// All outcome variants when handling an incoming message
 enum OnIncomingMessageOutcome {
     /// Message successfully handled.
@@ -436,13 +353,6 @@ impl From<Result<(), ActiveSessionMessage>> for OnIncomingMessageOutcome {
             Err(msg) => OnIncomingMessageOutcome::NoCapacity(msg)
         }
     }
-}
-
-enum RequestState {
-    /// Waiting for the response
-    Waiting(PeerRequests),
-    /// Request already timed out
-    TimedOut
 }
 
 /// Outgoing messages that can be sent over the wire.

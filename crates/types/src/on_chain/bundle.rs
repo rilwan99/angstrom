@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
-use ethers_core::types::{H256, U256};
-use reth_primitives::bytes::BytesMut;
+use ethers_core::types::U256;
+use reth_primitives::{bytes::BytesMut, H256};
 use reth_rlp::Encodable;
 use revm::primitives::{TransactTo, TxEnv, B160, U256 as RU256};
 use serde::{Deserialize, Serialize};
 
 use super::{
     CurrencySettlement, PoolFees, PoolSwap, RawLvrSettlement, RawUserSettlement, RlpDecodable,
-    RlpEncodable, SafeTx, SimmedLvrSettlement, SimmedUserSettlement, ANGSTROM_CONTRACT_ADDR
+    RlpEncodable, SimmedLvrSettlement, SimmedUserSettlement, ANGSTROM_CONTRACT_ADDR
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
@@ -31,12 +31,6 @@ impl From<SimmedBundle> for H256 {
         value.raw.encode(&mut buf);
 
         H256(ethers_core::utils::keccak256(buf))
-    }
-}
-
-impl SimmedBundle {
-    pub fn into_call_data(&self) -> SafeTx {
-        todo!()
     }
 }
 
