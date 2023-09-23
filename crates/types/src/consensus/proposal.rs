@@ -1,8 +1,12 @@
+use reth_primitives::{keccak256, H256, H512};
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
 use super::{Block, BlockCommit, BlockHeader, Time};
-use crate::on_chain::{Signature, SimmedBundle};
+use crate::{
+    on_chain::{Signature, SimmedBundle},
+    validate_signature
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
 pub struct LeaderProposal {
@@ -16,8 +20,32 @@ pub struct LeaderProposal {
     pub last_commit:   BlockCommit,
 
     // bundle
-    pub bundle:           SimmedBundle,
-    pub leader_signature: Signature
+    pub bundle:                  SimmedBundle,
+    pub leader_bundle_signature: Signature,
+    pub leader_block_signature:  Signature
+}
+
+impl LeaderProposal {
+    pub fn bundle_hash(&self) -> H256 {
+        self.bundle.hash()
+    }
+
+    fn block_hash(&self) -> H256 {
+        keccak256((
+            self.height,
+            self.round,
+            self.timestamp,
+            self.header,
+            self.evidence_data,
+            self.last_commit,
+            self.bundle.hash()
+        ))
+    }
+
+    pub fn validate_signature(&self, leader_pub_key: H512) -> bool {
+        validate_signature(self.leader_bundle_signature, self.bundle_hash(), public_key)
+            && validate_signature(self.leader_block_signature, self.block_hash(), public_key)
+    }
 }
 
 /// only gets sent if we agree with both the bundle and block data proposed

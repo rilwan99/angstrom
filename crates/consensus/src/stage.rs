@@ -5,9 +5,8 @@ use guard_types::consensus::Time;
 pub enum ConsensusStage {
     DataPropagation     = 0,
     BundleSigningCutoff = 8,
-    LeaderProposeCutoff = 9,
-    PreVoteCutoff       = 10,
-    CommitCutoff        = 11
+    Bundle23PropCutoff  = 9,
+    LeaderProposeCutoff = 10
 }
 
 impl ConsensusStage {
@@ -21,4 +20,14 @@ pub struct Stage {
     pub round:  u64,
     pub time:   Time,
     pub stage:  ConsensusStage
+}
+
+impl Stage {
+    pub fn is_past_proposal_cutoff(&self) -> bool {
+        todo!()
+    }
+
+    pub fn is_past_vote_cutoff(&self) -> bool {
+        todo!()
+    }
 }

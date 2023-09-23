@@ -16,6 +16,7 @@ use guard_types::{
 use sim::Simulator;
 use thiserror::Error;
 use tokio::task::{JoinError, JoinHandle, JoinSet};
+use tracing::warn;
 
 use crate::{
     bundle::{BundleVoteManager, BundleVoteMessage},
@@ -54,10 +55,10 @@ pub enum ConsensusError {
 /// 5) Signing Votes, Commitments & Proposals
 pub struct ConsensusCore<S: Simulator + 'static> {
     evidence_collector: EvidenceCollector,
-    stage:              Stage,
     bundle_data:        BundleVoteManager,
-    guards:             GuardSet,
     proposal_manager:   ProposalManager,
+    stage:              Stage,
+    guards:             GuardSet,
     executor:           Executor<S>,
     outbound:           VecDeque<ConsensusMessage>
 }
@@ -67,12 +68,46 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
         todo!()
     }
 
-    pub fn new_proposal(&mut self, proposal: LeaderProposal) {
-        // verify proposal
-        if let Ok(proposal) = self.executor.sign_leader_proposal(proposal) {
-        } else {
-            error!("failed to sign the leader proposal");
+    pub fn new_proposal_vote(&mut self, vote: SignedLeaderProposal) {
+        if !self.stage.is_past_vote_cutoff() {
+            self.proposal_manager.new_proposal_vote(vote, &self.guards);
         }
+    }
+
+    pub fn new_proposal(&mut self, proposal: LeaderProposal) {
+        if self.proposal_manager.has_proposal() {
+            return
+        }
+
+        let Some(current_leader) = self.guards.get_current_leader() else { return };
+
+        if self.stage.is_past_proposal_cutoff() {
+            warn!(?proposal, "received proposal to late");
+            return
+        }
+
+        // validate signatures on proposal
+        if !proposal.validate_signature(current_leader.pub_key) {
+            warn!(?proposal, "failed to validate signatures");
+            return
+        }
+
+        let Ok(proposal_vote) = self.executor.sign_leader_proposal(&proposal) else {
+            error!("failed to sign the leader proposal");
+            return
+        };
+
+        self.proposal_manager.new_proposal(proposal.clone());
+        self.proposal_manager
+            .new_proposal_vote(proposal_vote.clone(), &self.guards);
+
+        self.outbound.extend(
+            vec![
+                ConsensusMessage::Proposal(proposal),
+                ConsensusMessage::SignedProposal(proposal_vote),
+            ]
+            .into_iter()
+        );
     }
 
     pub fn new_bundle(&mut self, bundle: SimmedBundle) {

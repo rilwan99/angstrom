@@ -56,7 +56,7 @@ impl<S: Simulator + 'static> Executor<S> {
 
     pub fn sign_leader_proposal(
         &self,
-        proposal: LeaderProposal
+        proposal: &LeaderProposal
     ) -> Result<SignedLeaderProposal, WalletError> {
         let hash = proposal.bundle.hash();
 
