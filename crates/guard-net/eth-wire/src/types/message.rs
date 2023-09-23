@@ -1,8 +1,12 @@
 #![allow(missing_docs)]
 use std::{fmt::Debug, sync::Arc};
 
-use guard_types::on_chain::{
-    BundleSignature, SafeTx, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement, TeeAddress
+use ethers_core::k256::elliptic_curve::rand_core::le;
+use guard_types::{
+    consensus::{
+        Block, Bundle23Votes, BundleVote, LeaderProposal, SignedLeaderProposal, Valid23Bundle
+    },
+    on_chain::{BundleSignature, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement}
 };
 use reth_primitives::bytes::{Buf, BufMut};
 use reth_rlp::{length_of_length, Decodable, Encodable, Header};
@@ -27,23 +31,23 @@ impl ProtocolMessage {
 
         let message = match message_type {
             EthMessageID::Status => EthMessage::Status(Status::decode(buf)?),
-            EthMessageID::GetTeeModule => {
-                EthMessage::GetTeeModule(RequestPair::<TeeAddress>::decode(buf)?)
-            }
             EthMessageID::PropagateUserTransactions => {
                 EthMessage::PropagateUserTransactions(Vec::<SimmedUserSettlement>::decode(buf)?)
-            }
-            EthMessageID::PropagateBundleSignature => {
-                EthMessage::PropagateBundleSignature(BundleSignature::decode(buf)?)
-            }
-            EthMessageID::PropagateSignatureRequest => {
-                EthMessage::PropagateSignatureRequest(SafeTx::decode(buf)?)
             }
             EthMessageID::PropagateBundle => {
                 EthMessage::PropagateBundle(SimmedBundle::decode(buf)?)
             }
             EthMessageID::PropagateSearcherTransaction => {
                 EthMessage::PropagateSearcherTransaction(Vec::<SimmedLvrSettlement>::decode(buf)?)
+            }
+            EthMessageID::NewBlock => EthMessage::NewBlock(Block::decode(buf)?),
+            EthMessageID::BundleVote => EthMessage::BundleVote(BundleVote::decode(buf)?),
+            EthMessageID::Bundle23Vote => EthMessage::Bundle23Vote(Bundle23Votes::decode(buf)?),
+            EthMessageID::LeaderProposal => {
+                EthMessage::LeaderProposal(LeaderProposal::decode(buf)?)
+            }
+            EthMessageID::SignedLeaderProposal => {
+                EthMessage::SignedLeaderProposal(SignedLeaderProposal::decode(buf)?)
             }
         };
         Ok(ProtocolMessage { message_type, message })
@@ -121,13 +125,15 @@ impl From<EthBroadcastMessage> for ProtocolBroadcastMessage {
 pub enum EthMessage {
     // init
     Status(Status),
-    GetTeeModule(RequestPair<TeeAddress>),
     // broadcast
     PropagateBundle(SimmedBundle),
     PropagateUserTransactions(Vec<SimmedUserSettlement>),
     PropagateSearcherTransaction(Vec<SimmedLvrSettlement>),
-    PropagateSignatureRequest(SafeTx),
-    PropagateBundleSignature(BundleSignature)
+    BundleVote(BundleVote),
+    Bundle23Vote(Bundle23Votes),
+    LeaderProposal(LeaderProposal),
+    SignedLeaderProposal(SignedLeaderProposal),
+    NewBlock(Block)
 }
 
 impl EthMessage {
@@ -135,11 +141,13 @@ impl EthMessage {
     pub fn message_id(&self) -> EthMessageID {
         match self {
             EthMessage::Status(_) => EthMessageID::Status,
-            EthMessage::GetTeeModule(_) => EthMessageID::GetTeeModule,
-            EthMessage::PropagateUserTransactions(_) => EthMessageID::PropagateUserTransactions,
-            EthMessage::PropagateBundleSignature(_) => EthMessageID::PropagateBundleSignature,
-            EthMessage::PropagateSignatureRequest(_) => EthMessageID::PropagateSignatureRequest,
+            EthMessage::SignedLeaderProposal(_) => EthMessageID::SignedLeaderProposal,
+            EthMessage::LeaderProposal(_) => EthMessageID::LeaderProposal,
+            EthMessage::Bundle23Vote(_) => EthMessageID::Bundle23Vote,
+            EthMessage::BundleVote(_) => EthMessageID::BundleVote,
+            EthMessage::NewBlock(_) => EthMessageID::NewBlock,
             EthMessage::PropagateBundle(_) => EthMessageID::PropagateBundle,
+            EthMessage::PropagateUserTransactions(_) => EthMessageID::PropagateUserTransactions,
             EthMessage::PropagateSearcherTransaction(_) => {
                 EthMessageID::PropagateSearcherTransaction
             }
@@ -151,24 +159,30 @@ impl Encodable for EthMessage {
     fn encode(&self, out: &mut dyn BufMut) {
         match self {
             EthMessage::Status(status) => status.encode(out),
-            EthMessage::GetTeeModule(module) => module.encode(out),
             EthMessage::PropagateUserTransactions(txes) => txes.encode(out),
-            EthMessage::PropagateBundleSignature(sig) => sig.encode(out),
-            EthMessage::PropagateSignatureRequest(sig_req) => sig_req.encode(out),
             EthMessage::PropagateBundle(bundle) => bundle.encode(out),
-            EthMessage::PropagateSearcherTransaction(txes) => txes.encode(out)
+            EthMessage::PropagateSearcherTransaction(txes) => txes.encode(out),
+            EthMessage::NewBlock(block) => block.encode(out),
+            EthMessage::PropagateBundle(bundle) => bundle.encode(out),
+            EthMessage::BundleVote(vote) => vote.encode(out),
+            EthMessage::Bundle23Vote(vote) => vote.encode(out),
+            EthMessage::LeaderProposal(prop) => prop.encode(out),
+            EthMessage::SignedLeaderProposal(prop) => prop.encode(out)
         }
     }
 
     fn length(&self) -> usize {
         match self {
             EthMessage::Status(status) => status.length(),
-            EthMessage::GetTeeModule(module) => module.length(),
             EthMessage::PropagateUserTransactions(txes) => txes.length(),
-            EthMessage::PropagateBundleSignature(sig) => sig.length(),
-            EthMessage::PropagateSignatureRequest(sig_req) => sig_req.length(),
             EthMessage::PropagateBundle(bundle) => bundle.length(),
-            EthMessage::PropagateSearcherTransaction(txes) => txes.length()
+            EthMessage::PropagateSearcherTransaction(txes) => txes.length(),
+            EthMessage::NewBlock(block) => block.length(),
+            EthMessage::PropagateBundle(bundle) => bundle.length(),
+            EthMessage::BundleVote(vote) => vote.length(),
+            EthMessage::Bundle23Vote(vote) => vote.length(),
+            EthMessage::LeaderProposal(prop) => prop.length(),
+            EthMessage::SignedLeaderProposal(prop) => prop.length()
         }
     }
 }
@@ -186,8 +200,11 @@ pub enum EthBroadcastMessage {
     PropagateBundle(Arc<SimmedBundle>),
     PropagateUserTransactions(Arc<Vec<SimmedUserSettlement>>),
     PropagateSearcherTransaction(Arc<Vec<SimmedLvrSettlement>>),
-    PropagateSignatureRequest(Arc<SafeTx>),
-    PropagateBundleSignature(Arc<BundleSignature>)
+    BundleVote(Arc<BundleVote>),
+    Bundle23Vote(Arc<Bundle23Votes>),
+    LeaderProposal(Arc<LeaderProposal>),
+    SignedLeaderProposal(Arc<SignedLeaderProposal>),
+    NewBlock(Arc<Block>)
 }
 
 // === impl EthBroadcastMessage ===
@@ -196,17 +213,15 @@ impl EthBroadcastMessage {
     /// Returns the message's ID.
     pub fn message_id(&self) -> EthMessageID {
         match self {
+            EthBroadcastMessage::SignedLeaderProposal(_) => EthMessageID::SignedLeaderProposal,
+            EthBroadcastMessage::LeaderProposal(_) => EthMessageID::LeaderProposal,
+            EthBroadcastMessage::Bundle23Vote(_) => EthMessageID::Bundle23Vote,
+            EthBroadcastMessage::BundleVote(_) => EthMessageID::BundleVote,
+            EthBroadcastMessage::NewBlock(_) => EthMessageID::NewBlock,
+            EthBroadcastMessage::PropagateBundle(_) => EthMessageID::PropagateBundle,
             EthBroadcastMessage::PropagateUserTransactions(_) => {
                 EthMessageID::PropagateUserTransactions
             }
-            EthBroadcastMessage::PropagateBundleSignature(_) => {
-                EthMessageID::PropagateBundleSignature
-            }
-
-            EthBroadcastMessage::PropagateSignatureRequest(_) => {
-                EthMessageID::PropagateSignatureRequest
-            }
-            EthBroadcastMessage::PropagateBundle(_) => EthMessageID::PropagateBundle,
             EthBroadcastMessage::PropagateSearcherTransaction(_) => {
                 EthMessageID::PropagateSearcherTransaction
             }
@@ -217,21 +232,29 @@ impl EthBroadcastMessage {
 impl Encodable for EthBroadcastMessage {
     fn encode(&self, out: &mut dyn BufMut) {
         match self {
-            EthBroadcastMessage::PropagateSignatureRequest(sig) => sig.encode(out),
-            EthBroadcastMessage::PropagateUserTransactions(tx) => tx.encode(out),
-            EthBroadcastMessage::PropagateBundleSignature(sig) => sig.encode(out),
+            EthBroadcastMessage::PropagateUserTransactions(txes) => txes.encode(out),
             EthBroadcastMessage::PropagateBundle(bundle) => bundle.encode(out),
-            EthBroadcastMessage::PropagateSearcherTransaction(txes) => txes.encode(out)
+            EthBroadcastMessage::PropagateSearcherTransaction(txes) => txes.encode(out),
+            EthBroadcastMessage::NewBlock(block) => block.encode(out),
+            EthBroadcastMessage::PropagateBundle(bundle) => bundle.encode(out),
+            EthBroadcastMessage::BundleVote(vote) => vote.encode(out),
+            EthBroadcastMessage::Bundle23Vote(vote) => vote.encode(out),
+            EthBroadcastMessage::LeaderProposal(prop) => prop.encode(out),
+            EthBroadcastMessage::SignedLeaderProposal(prop) => prop.encode(out)
         }
     }
 
     fn length(&self) -> usize {
         match self {
-            EthBroadcastMessage::PropagateSignatureRequest(sig) => sig.length(),
-            EthBroadcastMessage::PropagateUserTransactions(tx) => tx.length(),
-            EthBroadcastMessage::PropagateBundleSignature(sig) => sig.length(),
+            EthBroadcastMessage::PropagateUserTransactions(txes) => txes.length(),
             EthBroadcastMessage::PropagateBundle(bundle) => bundle.length(),
-            EthBroadcastMessage::PropagateSearcherTransaction(txes) => txes.length()
+            EthBroadcastMessage::PropagateSearcherTransaction(txes) => txes.length(),
+            EthBroadcastMessage::NewBlock(block) => block.length(),
+            EthBroadcastMessage::PropagateBundle(bundle) => bundle.length(),
+            EthBroadcastMessage::BundleVote(vote) => vote.length(),
+            EthBroadcastMessage::Bundle23Vote(vote) => vote.length(),
+            EthBroadcastMessage::LeaderProposal(prop) => prop.length(),
+            EthBroadcastMessage::SignedLeaderProposal(prop) => prop.length()
         }
     }
 }
@@ -241,13 +264,15 @@ impl Encodable for EthBroadcastMessage {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum EthMessageID {
-    GetTeeModule    = 0x00,
-    PropagateUserTransactions = 0x01,
-    PropagateSignatureRequest = 0x02,
-    PropagateBundleSignature = 0x03,
-    Status          = 0x04,
-    PropagateBundle = 0x05,
-    PropagateSearcherTransaction = 0x06
+    Status               = 0,
+    BundleVote           = 1,
+    PropagateBundle      = 2,
+    Bundle23Vote         = 3,
+    LeaderProposal       = 4,
+    SignedLeaderProposal = 5,
+    NewBlock             = 6,
+    PropagateUserTransactions = 7,
+    PropagateSearcherTransaction = 8
 }
 
 impl Encodable for EthMessageID {
@@ -264,13 +289,15 @@ impl Decodable for EthMessageID {
     fn decode(buf: &mut &[u8]) -> Result<Self, reth_rlp::DecodeError> {
         let id = buf.first().ok_or(reth_rlp::DecodeError::InputTooShort)?;
         let id = match id {
-            0x00 => EthMessageID::GetTeeModule,
-            0x01 => EthMessageID::PropagateUserTransactions,
-            0x02 => EthMessageID::PropagateSignatureRequest,
-            0x03 => EthMessageID::PropagateBundleSignature,
-            0x04 => EthMessageID::Status,
-            0x05 => EthMessageID::PropagateBundle,
-            0x06 => EthMessageID::PropagateSearcherTransaction,
+            0 => EthMessageID::Status,
+            1 => EthMessageID::BundleVote,
+            2 => EthMessageID::PropagateBundle,
+            3 => EthMessageID::Bundle23Vote,
+            4 => EthMessageID::LeaderProposal,
+            5 => EthMessageID::SignedLeaderProposal,
+            6 => EthMessageID::NewBlock,
+            7 => EthMessageID::PropagateUserTransactions,
+            8 => EthMessageID::PropagateSearcherTransaction,
             _ => return Err(reth_rlp::DecodeError::Custom("Invalid message ID"))
         };
         buf.advance(1);
@@ -283,13 +310,15 @@ impl TryFrom<usize> for EthMessageID {
 
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         match value {
-            0x00 => Ok(EthMessageID::GetTeeModule),
-            0x01 => Ok(EthMessageID::PropagateUserTransactions),
-            0x02 => Ok(EthMessageID::PropagateSignatureRequest),
-            0x03 => Ok(EthMessageID::PropagateBundleSignature),
-            0x04 => Ok(EthMessageID::Status),
-            0x05 => Ok(EthMessageID::PropagateBundle),
-            0x06 => Ok(EthMessageID::PropagateSearcherTransaction),
+            0 => Ok(EthMessageID::Status),
+            1 => Ok(EthMessageID::BundleVote),
+            2 => Ok(EthMessageID::PropagateBundle),
+            3 => Ok(EthMessageID::Bundle23Vote),
+            4 => Ok(EthMessageID::LeaderProposal),
+            5 => Ok(EthMessageID::SignedLeaderProposal),
+            6 => Ok(EthMessageID::NewBlock),
+            7 => Ok(EthMessageID::PropagateUserTransactions),
+            8 => Ok(EthMessageID::PropagateSearcherTransaction),
             _ => Err("Invalid message ID")
         }
     }

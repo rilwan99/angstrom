@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{
     CurrencySettlement, PoolFees, PoolSwap, RawLvrSettlement, RawUserSettlement, RlpDecodable,
-    RlpEncodable, SafeTx, SimmedLvrSettlement, SimmedUserSettlement, ANGSTROM_CONTRACT_ADDR
+    RlpEncodable, SimmedLvrSettlement, SimmedUserSettlement, ANGSTROM_CONTRACT_ADDR
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
@@ -31,12 +31,6 @@ impl From<SimmedBundle> for H256 {
         value.raw.encode(&mut buf);
 
         H256(ethers_core::utils::keccak256(buf))
-    }
-}
-
-impl SimmedBundle {
-    pub fn into_call_data(&self) -> SafeTx {
-        todo!()
     }
 }
 

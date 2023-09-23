@@ -15,8 +15,6 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::trace;
 
-use super::SafeTx;
-
 #[derive(
     Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, ethers_contract::EthAbiCodec,
 )]
@@ -102,48 +100,4 @@ pub enum RecoveryError {
     UnableToRecoverSigner(String),
     #[error("message doesn't match")]
     MessageDoesntMatch
-}
-
-#[derive(
-    Debug,
-    Clone,
-    Serialize,
-    Deserialize,
-    PartialEq,
-    Eq,
-    RlpDecodable,
-    RlpEncodable,
-    ethers_contract::EthAbiType,
-    ethers_contract::EthAbiCodec,
-)]
-pub struct BundleSignature {
-    /// the signature of the bundle
-    pub sig:  Signature,
-    // hash of signed safe tx
-    pub hash: H256
-}
-
-impl BundleSignature {
-    pub fn recover_key(&self, safe_tx: &SafeTx) -> Result<PeerId, RecoveryError> {
-        if self.hash != safe_tx.tx_hash() {
-            return Err(RecoveryError::MessageDoesntMatch)
-        }
-        let sig = RecoverableSignature::from_compact(
-            &self.sig.to_vec()[0..64],
-            RecoveryId::from_i32(self.sig.to_vec()[64] as i32)
-                .map_err(|e| RecoveryError::UnableToDecodeSignature(e.to_string()))?
-        )
-        .map_err(|err| RecoveryError::UnableToDecodeSignature(err.to_string()))?;
-
-        trace!(?sig, "Validating Signature -- RECOVERING PUBLIC KEY");
-        // secp256k1 public key
-        SECP256K1
-            .recover_ecdsa(
-                &Message::from_slice(&self.hash[..32])
-                    .map_err(|e| RecoveryError::UnableToRecoverSigner(e.to_string()))?,
-                &sig
-            )
-            .map(|public_key| H512::from_slice(&public_key.serialize_uncompressed()[1..]))
-            .map_err(|err| RecoveryError::UnableToRecoverSigner(err.to_string()))
-    }
 }
