@@ -4,14 +4,14 @@ use std::{
 };
 
 use futures::Stream;
-use guard_types::consensus::{Block, BlockId, EvidenceError, Proposal};
+use guard_types::consensus::{Block, BlockId, EvidenceError};
 use sim::Simulator;
 use thiserror::Error;
 
 use crate::{
-    bundle::{BundleVoteManager, ValidBundle},
+    bundle::BundleVoteManager,
     evidence::EvidenceCollector,
-    executor::Executor,
+    executor::{Executor, ExecutorMessage},
     stage::Stage
 };
 
@@ -20,7 +20,7 @@ pub enum ConsensusMessage {}
 
 #[derive(Debug, Error)]
 pub enum ConsensusError {
-    #[error("Evidence Module had an Error: {0#?}")]
+    #[error("Evidence Module had an Error: {0:#?}")]
     EvidenceError(#[from] EvidenceError)
 }
 

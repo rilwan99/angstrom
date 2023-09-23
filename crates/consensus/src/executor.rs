@@ -16,6 +16,8 @@ use revm_primitives::{Address, B160};
 use sim::{errors::SimError, Simulator};
 use thiserror::Error;
 
+pub enum ExecutorMessage {}
+
 #[derive(Debug, Error)]
 pub enum BundleError {
     #[error("Failed to simulate bundle: {0:#?}")]
@@ -28,7 +30,7 @@ pub enum BundleError {
     NotDelegatedSigningTime
 }
 
-type PendingSims = Pin<Box<dyn Future<Output = Result<BundleSignature, BundleError>> + Send>>;
+type PendingSims = Pin<Box<dyn Future<Output = Result<ExecutorMessage, BundleError>> + Send>>;
 /// verifies all signed data requests from the guard network
 pub struct Executor<S: Simulator + 'static> {
     sim:          S,
@@ -60,7 +62,7 @@ impl<S: Simulator + 'static> Executor<S> {
         &self,
         bundle: Arc<LeaderProposal>
     ) -> Result<(), BundleError> {
-        let hash: H256 = bundle.bundle.raw.clone().into();
+        let hash: B256 = bundle.bundle.raw.clone().into();
 
         let handle = self.sim.clone();
         // rip
@@ -90,7 +92,7 @@ impl<S: Simulator + 'static> Executor<S> {
         Ok(())
     }
 
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<BundleSignature, BundleError>> {
+    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<ExecutorMessage, BundleError>> {
         if let Poll::Ready(Some(res)) = self.pending_sims.poll_next_unpin(cx) {
             return Poll::Ready(res)
         }

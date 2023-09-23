@@ -1,8 +1,7 @@
 use std::collections::HashSet;
 
 use bytes::Bytes;
-use ethers_core::types::H256;
-use reth_primitives::H512;
+use reth_primitives::{H256, H512};
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},

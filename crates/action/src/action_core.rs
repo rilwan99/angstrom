@@ -12,8 +12,8 @@ use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
 use ethers_signers::LocalWallet;
 use futures::stream::StreamExt;
 use guard_types::{
-    guard_info::GuardInfo,
-    on_chain::{BundleSignature, SafeTx, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement}
+    consensus::GuardInfo,
+    on_chain::{SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement}
 };
 use reth_primitives::{Address, U64};
 use sim::Simulator;

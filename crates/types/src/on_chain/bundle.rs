@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
-use ethers_core::types::{H256, U256};
-use reth_primitives::bytes::BytesMut;
+use ethers_core::types::U256;
+use reth_primitives::{bytes::BytesMut, H256};
 use reth_rlp::Encodable;
 use revm::primitives::{TransactTo, TxEnv, B160, U256 as RU256};
 use serde::{Deserialize, Serialize};

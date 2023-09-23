@@ -3,11 +3,11 @@ use std::collections::{
     HashMap, HashSet
 };
 
-use ethers_core::types::H256;
 use guard_types::{
     consensus::{Bundle23Votes, BundleVote, GuardSet, Valid23Bundle},
     on_chain::SimmedBundle
 };
+use reth_primitives::H256;
 use tracing::{debug, error, warn};
 
 pub enum BundleVoteMessage {
