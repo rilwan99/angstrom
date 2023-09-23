@@ -17,8 +17,8 @@ impl ConsensusStage {
 }
 
 pub struct Stage {
-    height: u64,
-    round:  u64,
-    time:   Time,
-    stage:  ConsensusStage
+    pub height: u64,
+    pub round:  u64,
+    pub time:   Time,
+    pub stage:  ConsensusStage
 }

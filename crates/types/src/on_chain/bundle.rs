@@ -23,12 +23,10 @@ impl SimmedBundle {
     pub fn get_cumulative_lp_bribe(&self) -> u128 {
         self.raw.get_cumulative_lp_bribe()
     }
-}
 
-impl From<SimmedBundle> for H256 {
-    fn from(value: SimmedBundle) -> Self {
+    pub fn hash(&self) -> H256 {
         let mut buf = BytesMut::new();
-        value.raw.encode(&mut buf);
+        self.raw.encode(&mut buf);
 
         H256(ethers_core::utils::keccak256(buf))
     }
@@ -54,11 +52,10 @@ pub struct RawBundle {
     pub currencies: Vec<CurrencySettlement>,
     pub pools:      Vec<PoolFees>
 }
-
-impl From<RawBundle> for H256 {
-    fn from(value: RawBundle) -> Self {
+impl RawBundle {
+    pub fn hash(&self) -> H256 {
         let mut buf = BytesMut::new();
-        value.encode(&mut buf);
+        self.encode(&mut buf);
 
         H256(ethers_core::utils::keccak256(buf))
     }

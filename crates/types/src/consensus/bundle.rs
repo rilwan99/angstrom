@@ -25,9 +25,10 @@ pub struct BundleVote {
     pub hash: H256,
 
     // metadata
-    pub height:    u64,
-    pub round:     u64,
-    pub timestamp: Time,
+    pub bundle_hash: H256,
+    pub height:      u64,
+    pub round:       u64,
+    pub timestamp:   Time,
 
     pub signature: Signature
 }

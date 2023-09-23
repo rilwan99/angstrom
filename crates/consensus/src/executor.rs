@@ -5,13 +5,13 @@ use std::{
     task::{Context, Poll}
 };
 
-use ethers_signers::{LocalWallet, Signer};
+use ethers_signers::{LocalWallet, Signer, WalletError};
 use futures::{stream::FuturesUnordered, Future, StreamExt};
 use guard_types::{
-    consensus::LeaderProposal,
+    consensus::{BundleVote, LeaderProposal},
     on_chain::{CallerInfo, Signature}
 };
-use reth_primitives::H256;
+use reth_primitives::{keccak256, H256};
 use revm_primitives::{Address, B160};
 use sim::{errors::SimError, Simulator};
 use thiserror::Error;
@@ -52,6 +52,25 @@ impl<S: Simulator + 'static> Executor<S> {
                 overrides: HashMap::new()
             }
         }
+    }
+
+    pub fn sign_bundle_vote(
+        &self,
+        bundle_hash: H256,
+        block_height: u64,
+        round: u64
+    ) -> Result<BundleVote, WalletError> {
+        let hash = keccak256((bundle_hash, block_height, round));
+        let signature = self.key.sign_hash(hash)?;
+
+        Ok(BundleVote {
+            hash,
+            bundle_hash,
+            round,
+            height: block_height,
+            timestamp: Time::now(),
+            signature: Signature(signature)
+        })
     }
 
     pub fn get_key(&self) -> Address {

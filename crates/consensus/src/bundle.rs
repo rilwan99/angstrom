@@ -10,11 +10,6 @@ use guard_types::{
 use reth_primitives::H256;
 use tracing::{debug, error, warn};
 
-pub enum BundleVoteMessage {
-    SignAndPropagate(H256),
-    NewBundle23Votes(Valid23Bundle)
-}
-
 /// The bundle vote manager is in-charge for tracking all bundle votes
 /// in order to make sure that we are able to reach consensus on the best
 /// bundle
@@ -33,32 +28,32 @@ impl Default for BundleVoteManager {
 }
 
 impl BundleVoteManager {
-    pub fn new_simmed_bundle(&mut self, bundle: SimmedBundle) -> Option<BundleVoteMessage> {
-        let hash = bundle.raw.clone().into();
+    pub fn new_simmed_bundle(&mut self, bundle: SimmedBundle) -> Option<H256> {
+        let hash = bundle.hash();
         if self.known_23_bundles.contains(&hash) {
             return None
         }
 
         if self.known_bundles.insert(hash, bundle).is_none() {
-            return Some(BundleVoteMessage::SignAndPropagate(hash))
+            return Some(hash)
         }
 
         None
     }
 
-    pub fn new_bundle23(&mut self, bundle: Valid23Bundle) {
+    pub fn new_bundle23(&mut self, bundle: &Cow<Valid23Bundle>) -> bool {
+        let bundle = bundle.to_owned();
         if !bundle.votes.verify_signatures(&self.guards) {
             warn!(?bundle, "bundle was invalid 2/3");
             return
         }
         let hash = bundle.votes.hash;
-        self.known_23_bundles.insert(hash);
+        let new = !self.known_23_bundles.insert(hash);
 
-        // TODO: need to handle case where we don't have bundle yet
-        let underlying_bundle = self.known_bundles.remove(&hash).unwrap();
+        let _ = self.known_bundles.remove(&hash);
 
         if let Some(best_bundle) = self.best_bundle.take() {
-            if underlying_bundle.get_cumulative_lp_bribe()
+            if bundle.bundle.get_cumulative_lp_bribe()
                 > best_bundle.bundle.get_cumulative_lp_bribe()
             {
                 self.best_bundle = Some(bundle);
@@ -66,9 +61,11 @@ impl BundleVoteManager {
         } else {
             self.best_bundle = Some(bundle);
         }
+
+        new
     }
 
-    pub fn new_bundle_vote(&mut self, vote: BundleVote) -> Option<BundleVoteMessage> {
+    pub fn new_bundle_vote(&mut self, vote: BundleVote) -> Option<Valid23Bundle> {
         let hash = vote.hash;
         if let Some(new_23) = match self.known_bundle_votes.entry(hash) {
             Entry::Vacant(v) => {
@@ -112,10 +109,18 @@ impl BundleVoteManager {
                 }
             }
 
-            return Some(BundleVoteMessage::NewBundle23Votes(built))
+            return Some(built)
         }
 
         None
+    }
+
+    pub fn contains_vote(&self, vote: &BundleVote) -> bool {
+        self.known_bundle_votes
+            .get(&vote.bundle_hash)
+            .map(|votes| votes.contains(vote))
+            .filter(|f| f)
+            .is_some()
     }
 
     pub fn has_signed_bundle(&self, bundle_hash: &H256) -> bool {
