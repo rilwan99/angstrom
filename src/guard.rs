@@ -104,11 +104,6 @@ where
                     PeerMessages::PropagateBundle(bundle) => {
                         self.action.get_cow().new_bundle((*bundle).clone().into())
                     }
-                    PeerMessages::PeerRequests(req) => match req {
-                        guard_network::PeerRequests::GetTeeModule(_, _sender) => {
-                            warn!("got a tee module request");
-                        }
-                    },
                     PeerMessages::PropagateSearcherTransactions(new_txes) => {
                         self.action.get_cow().new_searcher_transactions(
                             (*new_txes).clone().into_iter().map(Into::into).collect()
@@ -119,8 +114,11 @@ where
                             (*new_txes).clone().into_iter().map(Into::into).collect()
                         );
                     }
-                    PeerMessages::PropagateBundleSignature(new_sig) => {}
-                    PeerMessages::PropagateSignatureRequest(bundle) => {}
+                    PeerMessages::NewBlock(b) => {}
+                    PeerMessages::BundleVote(vote) => {}
+                    PeerMessages::Bundle23Vote(vote) => {}
+                    PeerMessages::LeaderProposal(prop) => {}
+                    PeerMessages::SignedLeaderProposal(signed_prop) => {}
                 }
             }
             res @ _ => {
@@ -132,14 +130,6 @@ where
     fn handle_action_messages(&mut self, action_events: Vec<ActionMessage>) {
         debug!(?action_events, "got actions");
         action_events.into_iter().for_each(|event| match event {
-            ActionMessage::GetBundleSignatures(bundle) => {
-                self.network
-                    .propagate_msg(PeerMessages::PropagateSignatureRequest(bundle));
-            }
-            ActionMessage::PropagateSignature(sig) => {
-                self.network
-                    .propagate_msg(PeerMessages::PropagateBundleSignature(sig));
-            }
             ActionMessage::NewBestBundle(bundle) => {
                 self.network
                     .propagate_msg(PeerMessages::PropagateBundle(bundle.clone()));
