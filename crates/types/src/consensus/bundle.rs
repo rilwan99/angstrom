@@ -58,12 +58,12 @@ impl BundleVote {
 
 #[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct Bundle23Votes {
-    hash:      H256,
-    height:    u64,
-    round:     u64,
-    timestamp: Time,
+    pub hash:      H256,
+    pub height:    u64,
+    pub round:     u64,
+    pub timestamp: Time,
 
-    signatures: Vec<Signature>
+    pub signatures: Vec<Signature>
 }
 
 impl Bundle23Votes {

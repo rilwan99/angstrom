@@ -8,7 +8,7 @@ use guard_types::{
     consensus::{Bundle23Votes, BundleVote, GuardSet, Valid23Bundle},
     on_chain::SimmedBundle
 };
-use tracing::{debug, warn};
+use tracing::{debug, error, warn};
 
 pub enum BundleVoteMessage {
     SignAndPropagate(H256),
@@ -35,7 +35,7 @@ impl Default for BundleVoteManager {
 impl BundleVoteManager {
     pub fn new_simmed_bundle(&mut self, bundle: SimmedBundle) -> Option<BundleVoteMessage> {
         let hash = bundle.raw.clone().into();
-        if self.known_23_bundles.contains(hash) {
+        if self.known_23_bundles.contains(&hash) {
             return None
         }
 
@@ -46,12 +46,12 @@ impl BundleVoteManager {
         None
     }
 
-    pub fn new_bundle23(&mut self, bundle: Bundle23Votes) {
-        if !bundle.verify_signatures(&self.guards) {
+    pub fn new_bundle23(&mut self, bundle: Valid23Bundle) {
+        if !bundle.votes.verify_signatures(&self.guards) {
             warn!(?bundle, "bundle was invalid 2/3");
             return
         }
-        let hash = vote.hash;
+        let hash = bundle.votes.hash;
         self.known_23_bundles.insert(hash);
 
         // TODO: need to handle case where we don't have bundle yet
@@ -61,10 +61,10 @@ impl BundleVoteManager {
             if underlying_bundle.get_cumulative_lp_bribe()
                 > best_bundle.bundle.get_cumulative_lp_bribe()
             {
-                self.best_bundle = Some(ValidBundle { votes: bundle, bundle: underlying_bundle });
+                self.best_bundle = Some(bundle);
             }
         } else {
-            self.best_bundle = Some(ValidBundle { votes: bundle, bundle: underlying_bundle });
+            self.best_bundle = Some(bundle);
         }
     }
 
@@ -112,7 +112,7 @@ impl BundleVoteManager {
             return false
         };
 
-        if !self.guards.contains_key(&id) {
+        if !self.guards.contains_key(id) {
             warn!(?vote, "no guard found for recovered signature");
             return false
         }
@@ -127,7 +127,7 @@ impl BundleVoteManager {
         let total_guards = self.guards.len();
         // check to see if we have less than 2/3rd
         if entry.get().len() % total_guards <= 66 {
-            None
+            return None
         }
 
         let votes = entry.remove();
@@ -146,9 +146,13 @@ impl BundleVoteManager {
         self.known_23_bundles.insert(hash);
 
         if self.best_bundle.is_none() {
-            self.best_bundle = Some(ValidBundle { votes: new_bundle_votes, bundle: bundle_data });
+            self.best_bundle =
+                Some(Valid23Bundle { votes: new_bundle_votes, bundle: bundle_data });
         }
 
-        return Some(BundleVoteMessage::NewBundle23Votes(new_bundle_votes))
+        Some(BundleVoteMessage::NewBundle23Votes(Valid23Bundle {
+            votes:  new_bundle_votes,
+            bundle: bundle_data
+        }))
     }
 }

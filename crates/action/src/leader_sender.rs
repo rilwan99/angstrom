@@ -21,23 +21,15 @@ pub type SubmissionFut = Pin<Box<dyn Future<Output = Result<(), PendingBundleErr
 
 pub struct LeaderSender<M: Middleware + 'static> {
     signer: Arc<SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>>,
-    signatures:    Vec<BundleSignature>,
-    valid_stakers: Vec<PeerId>,
-    bundle:        Option<SimmedBundle>,
-    future:        Option<SubmissionFut>
+    bundle: Option<SimmedBundle>,
+    future: Option<SubmissionFut>
 }
 
 impl<M: Middleware + 'static> LeaderSender<M> {
     pub fn new(
         signer: Arc<SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>>
     ) -> Self {
-        Self {
-            signer,
-            signatures: Vec::new(),
-            valid_stakers: Vec::new(),
-            bundle: None,
-            future: None
-        }
+        Self { signer, bundle: None, future: None }
     }
 
     pub fn has_submitted(&self) -> bool {

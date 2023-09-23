@@ -120,24 +120,14 @@ where
         &mut self.cow_solver
     }
 
-    pub fn on_new_sigs(&mut self, sig: BundleSignature) {
-        self.leader_sender.new_signature(sig);
-    }
-
     pub fn current_leader(&self) -> Option<&GuardInfo> {
         self.current_leader.as_ref()
-    }
-
-    fn on_new_block(&mut self) {
-        self.leader_sender.on_new_block();
-        self.cow_solver.new_block();
     }
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Vec<ActionMessage>> {
         let mut res = self.outbound_buffer.drain(..).collect::<Vec<_>>();
 
         if let Poll::Ready(Some(_)) = self.block_stream.poll_next_unpin(cx) {
-            self.on_new_block();
             self.last_block = SystemTime::now();
         }
 

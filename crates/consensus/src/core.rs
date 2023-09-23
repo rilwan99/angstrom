@@ -1,6 +1,10 @@
-use std::task::Poll;
+use std::{
+    pin::Pin,
+    task::{Context, Poll}
+};
 
-use guard_types::consensus::{Block, BlockId, Commit, EvidenceError, Proposal, Vote};
+use futures::Stream;
+use guard_types::consensus::{Block, BlockId, EvidenceError, Proposal};
 use sim::Simulator;
 use thiserror::Error;
 
@@ -10,6 +14,15 @@ use crate::{
     executor::Executor,
     stage::Stage
 };
+
+#[derive(Debug)]
+pub enum ConsensusMessage {}
+
+#[derive(Debug, Error)]
+pub enum ConsensusError {
+    #[error("Evidence Module had an Error: {0#?}")]
+    EvidenceError(#[from] EvidenceError)
+}
 
 /// The ConsensusCore module handles everything related to consensus.
 /// This includes but not limited to.
@@ -24,12 +37,6 @@ pub struct ConsensusCore<S: Simulator + 'static> {
     stage:              Stage,
     bundle_data:        BundleVoteManager,
     executor:           Executor<S>
-}
-
-#[derive(Debug, Error)]
-pub enum ConsensusError {
-    #[error("Evidence Module had an Error: {0#?}")]
-    EvidenceError(#[from] EvidenceError)
 }
 
 impl<S: Simulator + 'static> ConsensusCore<S> {

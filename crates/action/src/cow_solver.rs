@@ -61,10 +61,6 @@ impl<S: Simulator + 'static> CowSolver<S> {
         }
     }
 
-    pub fn new_block(&mut self) {
-        self.best_simed_bundle = None;
-    }
-
     pub fn new_bundle(&mut self, bundle: RawBundle) {
         let handle = self.sim.clone();
         let call_info = self.call_info.clone();

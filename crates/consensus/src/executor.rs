@@ -7,7 +7,11 @@ use std::{
 
 use ethers_signers::{LocalWallet, Signer};
 use futures::{stream::FuturesUnordered, Future, StreamExt};
-use guard_types::on_chain::{BundleSignature, CallerInfo, SafeTx, Signature};
+use guard_types::{
+    consensus::LeaderProposal,
+    on_chain::{CallerInfo, Signature}
+};
+use reth_primitives::H256;
 use revm_primitives::{Address, B160};
 use sim::{errors::SimError, Simulator};
 use thiserror::Error;
@@ -52,8 +56,11 @@ impl<S: Simulator + 'static> Executor<S> {
         self.key.address().into()
     }
 
-    pub fn verify_bundle_for_inclusion(&self, bundle: Arc<SafeTx>) -> Result<(), BundleError> {
-        let hash = bundle.tx_hash();
+    pub fn verify_bundle_for_inclusion(
+        &self,
+        bundle: Arc<LeaderProposal>
+    ) -> Result<(), BundleError> {
+        let hash: H256 = bundle.bundle.raw.clone().into();
 
         let handle = self.sim.clone();
         // rip
