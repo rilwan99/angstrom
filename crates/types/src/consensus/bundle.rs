@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use bytes::Bytes;
 use reth_primitives::{H256, H512};
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use secp256k1::{

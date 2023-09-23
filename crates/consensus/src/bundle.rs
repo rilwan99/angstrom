@@ -70,15 +70,16 @@ impl BundleVoteManager {
 
     pub fn new_bundle_vote(&mut self, vote: BundleVote) -> Option<BundleVoteMessage> {
         let hash = vote.hash;
-        match self.known_bundle_votes.entry(hash) {
+        if let Some(new_23) = match self.known_bundle_votes.entry(hash) {
             Entry::Vacant(v) => {
-                if !Self::verify_vote(&self.guards, &vote) {
+                if !Self::verify_vote(&self.guards, vote) {
                     return None
                 }
 
                 let mut entry = Vec::with_capacity(self.guards.len());
                 entry.push(vote);
                 v.insert(entry);
+                None
             }
             Entry::Occupied(mut o) => {
                 if o.get()
@@ -94,9 +95,10 @@ impl BundleVoteManager {
                 }
                 o.get_mut().push(vote);
 
-                return self.check_for_23(o)
+                return Self::check_for_23(o, &self.guards)
             }
-        }
+        };
+        
         None
     }
 
@@ -121,10 +123,10 @@ impl BundleVoteManager {
     }
 
     fn check_for_23(
-        &mut self,
-        mut entry: OccupiedEntry<'_, H256, Vec<BundleVote>>
-    ) -> Option<BundleVoteMessage> {
-        let total_guards = self.guards.len();
+        mut entry: OccupiedEntry<'_, H256, Vec<BundleVote>>,
+        guards: &GuardSet
+    ) -> Option<Bundle23Votes> {
+        let total_guards = guards.len();
         // check to see if we have less than 2/3rd
         if entry.get().len() % total_guards <= 66 {
             return None
@@ -141,16 +143,7 @@ impl BundleVoteManager {
             .collect::<Vec<_>>();
 
         let new_bundle_votes = Bundle23Votes::new(hash, height, round, signatures);
-        let bundle_data = self.known_bundles.remove(&hash)?;
 
-        self.known_23_bundles.insert(hash);
-        let new_23 =Valid23Bundle { votes: new_bundle_votes.clone(), bundle: bundle_data};
-
-        if self.best_bundle.is_none() {
-            self.best_bundle =
-                Some(new_23.clone());
-        }
-
-        Some(BundleVoteMessage::NewBundle23Votes(new_23))
+        Some(new_bundle_votes)
     }
 }
