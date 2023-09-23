@@ -1,11 +1,13 @@
 use std::collections::HashSet;
 
+use serde::{Serialize, Deserialize};
 use bytes::Bytes;
 use ethers_core::types::H256;
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
     Message, SECP256K1
 };
+use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 
 use super::{GuardSet, Time};
 use crate::on_chain::{RawBundle, RecoveryError, Signature};

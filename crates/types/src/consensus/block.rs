@@ -1,3 +1,4 @@
+use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use secp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 
@@ -14,17 +15,13 @@ pub struct Block {
 }
 
 #[repr(transparent)]
-#[derive(
-    Debug, Clone, Copy, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash,
-)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
 pub struct BlockId(
     // merkle root of header
     pub [u8; 32]
 );
 
-#[derive(
-    Debug, Clone, Copy, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash,
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
 pub struct BlockHeader {
     pub chain_id:      u64,
     pub height:        u64,

@@ -1,3 +1,6 @@
+use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
+use serde::{Serialize, Deserialize};
+
 use super::{RawBundle, Signature};
 
 /// this is the underlying bundle that gets pushed on-chain

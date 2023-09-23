@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use super::{Time, Vote};
+use super::Time;
 
 #[derive(Debug, Error)]
 pub enum EvidenceError {
@@ -16,8 +16,8 @@ pub enum Evidence {
 /// Duplicate vote evidence
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DuplicateVoteEvidence {
-    pub vote_a:             Vote,
-    pub vote_b:             Vote,
+    // pub vote_a:             Vote,
+    // pub vote_b:             Vote,
     pub total_voting_power: u64,
     pub validator_power:    u64,
     // TODO:
@@ -26,7 +26,7 @@ pub struct DuplicateVoteEvidence {
 
 impl DuplicateVoteEvidence {
     /// constructor
-    pub fn new(vote_a: Vote, vote_b: Vote) -> Result<Self, EvidenceError> {
+    pub fn new() -> Result<Self, EvidenceError> {
         if vote_a.height != vote_b.height {
             return Err(EvidenceError::InvalidEvidence)
         }
@@ -34,16 +34,14 @@ impl DuplicateVoteEvidence {
         // Todo: make more assumptions about what is considered a valid evidence for
         // duplicate vote
         Ok(Self {
-            vote_a,
-            vote_b,
             total_voting_power: Default::default(),
-            validator_power: Default::default(),
-            timestamp: Time::unix_epoch()
+            validator_power:    Default::default(),
+            timestamp:          Time::unix_epoch()
         })
     }
 
-    /// Get votes
-    pub fn votes(&self) -> (&Vote, &Vote) {
-        (&self.vote_a, &self.vote_b)
-    }
+    // /// Get votes
+    // pub fn votes(&self) -> (&Vote, &Vote) {
+    //     (&self.vote_a, &self.vote_b)
+    // }
 }

@@ -1,6 +1,7 @@
 use std::{collections::HashSet, hash::Hash};
 
 use reth_primitives::H512;
+use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -20,7 +21,7 @@ impl GuardSet {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable)]
 pub struct GuardInfo {
     pub pub_key:         H512,
     pub voting_power:    u64,
