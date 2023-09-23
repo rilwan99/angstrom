@@ -36,7 +36,6 @@ pub struct CowSolver<S: Simulator + 'static> {
     best_searcher_tx:  HashMap<PoolKey, SimmedLvrSettlement>,
     bytes_to_pool_key: HashMap<[u8; 32], PoolKey>,
 
-    best_simed_bundle:   Option<SimmedBundle>,
     sim:                 S,
     // tmp
     call_info:           CallerInfo,
@@ -54,7 +53,6 @@ impl<S: Simulator + 'static> CowSolver<S> {
             best_searcher_tx: HashMap::default(),
             all_user_txes: HashSet::default(),
             pending_simulations: FuturesUnordered::default(),
-            best_simed_bundle: None,
             call_info: CallerInfo {
                 address:   B160::default(),
                 nonce:     69,
@@ -65,10 +63,6 @@ impl<S: Simulator + 'static> CowSolver<S> {
 
     pub fn new_block(&mut self) {
         self.best_simed_bundle = None;
-    }
-
-    pub fn best_bundle(&self) -> Option<&SimmedBundle> {
-        self.best_simed_bundle.as_ref()
     }
 
     pub fn new_bundle(&mut self, bundle: RawBundle) {
