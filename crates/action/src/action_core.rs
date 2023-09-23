@@ -51,9 +51,7 @@ pub struct ActionConfig<M: Middleware + Unpin + 'static, S: Simulator + 'static>
 pub enum ActionMessage {
     NewBestBundle(Arc<SimmedBundle>),
     NewValidUserTransactions(Arc<Vec<SimmedUserSettlement>>),
-    NewValidSearcherTransactions(Arc<Vec<SimmedLvrSettlement>>),
-    GetBundleSignatures(Arc<SafeTx>),
-    PropagateSignature(Arc<BundleSignature>)
+    NewValidSearcherTransactions(Arc<Vec<SimmedLvrSettlement>>)
 }
 
 impl From<CowMsg> for ActionMessage {

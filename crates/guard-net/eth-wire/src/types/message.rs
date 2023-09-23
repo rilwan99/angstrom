@@ -42,7 +42,7 @@ impl ProtocolMessage {
             }
             EthMessageID::NewBlock => EthMessage::NewBlock(Block::decode(buf)?),
             EthMessageID::BundleVote => EthMessage::BundleVote(BundleVote::decode(buf)?),
-            EthMessageID::Bundle23Vote => EthMessage::Bundle23Vote(Bundle23Votes::decode(buf)?),
+            EthMessageID::Bundle23Vote => EthMessage::Bundle23Vote(Valid23Bundle::decode(buf)?),
             EthMessageID::LeaderProposal => {
                 EthMessage::LeaderProposal(LeaderProposal::decode(buf)?)
             }
@@ -130,7 +130,7 @@ pub enum EthMessage {
     PropagateUserTransactions(Vec<SimmedUserSettlement>),
     PropagateSearcherTransactions(Vec<SimmedLvrSettlement>),
     BundleVote(BundleVote),
-    Bundle23Vote(Bundle23Votes),
+    Bundle23Vote(Valid23Bundle),
     LeaderProposal(LeaderProposal),
     SignedLeaderProposal(SignedLeaderProposal),
     NewBlock(Block)
@@ -201,7 +201,7 @@ pub enum EthBroadcastMessage {
     PropagateUserTransactions(Arc<Vec<SimmedUserSettlement>>),
     PropagateSearcherTransactions(Arc<Vec<SimmedLvrSettlement>>),
     BundleVote(Arc<BundleVote>),
-    Bundle23Vote(Arc<Bundle23Votes>),
+    Bundle23Vote(Arc<Valid23Bundle>),
     LeaderProposal(Arc<LeaderProposal>),
     SignedLeaderProposal(Arc<SignedLeaderProposal>),
     NewBlock(Arc<Block>)
