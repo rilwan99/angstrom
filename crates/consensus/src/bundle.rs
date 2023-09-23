@@ -5,26 +5,21 @@ use std::collections::{
 
 use ethers_core::types::H256;
 use guard_types::{
-    consensus::{Bundle23Votes, BundleVote, GuardSet},
+    consensus::{Bundle23Votes, BundleVote, GuardSet, Valid23Bundle},
     on_chain::SimmedBundle
 };
 use tracing::{debug, warn};
 
 pub enum BundleVoteMessage {
     SignAndPropagate(H256),
-    NewBundle23Votes(Bundle23Votes)
-}
-
-struct ValidBundle {
-    pub votes:  Bundle23Votes,
-    pub bundle: SimmedBundle
+    NewBundle23Votes(Valid23Bundle)
 }
 
 /// The bundle vote manager is in-charge for tracking all bundle votes
 /// in order to make sure that we are able to reach consensus on the best
 /// bundle
 pub struct BundleVoteManager {
-    best_bundle:        Option<ValidBundle>,
+    best_bundle:        Option<Valid23Bundle>,
     known_bundles:      HashMap<H256, SimmedBundle>,
     known_bundle_votes: HashMap<H256, Vec<BundleVote>>,
     known_23_bundles:   HashSet<H256>,
@@ -112,9 +107,10 @@ impl BundleVoteManager {
     fn verify_vote(&self, vote: BundleVote) -> bool {
         let Ok(id) = vote
             .recover_public_key()
-            .inspect_err(|e| error!(?e, "failed to recover vote")) else {
-                return false
-            };
+            .inspect_err(|e| error!(?e, "failed to recover vote"))
+        else {
+            return false
+        };
 
         if !self.guards.contains_key(&id) {
             warn!(?vote, "no guard found for recovered signature");

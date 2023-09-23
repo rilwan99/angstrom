@@ -11,22 +11,11 @@ use super::{
     RlpEncodable, SafeTx, SimmedLvrSettlement, SimmedUserSettlement, ANGSTROM_CONTRACT_ADDR
 };
 
-#[derive(
-    Debug,
-    Clone,
-    Serialize,
-    Deserialize,
-    RlpDecodable,
-    RlpEncodable,
-    PartialEq,
-    Eq,
-    Hash,
-    ethers_contract::EthAbiType,
-    ethers_contract::EthAbiCodec,
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
 pub struct SimmedBundle {
     // Univ4 swaps
     pub raw:      RawBundle,
+    // metadata that shouldn't be encoded or taken into account for hash
     pub gas_used: U256
 }
 
@@ -39,7 +28,7 @@ impl SimmedBundle {
 impl From<SimmedBundle> for H256 {
     fn from(value: SimmedBundle) -> Self {
         let mut buf = BytesMut::new();
-        value.encode(&mut buf);
+        value.raw.encode(&mut buf);
 
         H256(ethers_core::utils::keccak256(buf))
     }

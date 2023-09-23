@@ -1,18 +1,22 @@
-use super::Time;
-use crate::on_chain::Signature;
+use super::{Block, BlockCommit, BlockHeader, Time};
+use crate::on_chain::{Signature, SimmedBundle};
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub struct Proposal {
-    pub proposal_type: ProposalType,
-    pub height:        u64,
-    pub round:         u64,
-    pub pol_round:     u64,
-    pub timestamp:     Time,
-    pub signature:     Signature
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
+pub struct LeaderProposal {
+    pub height:    u64,
+    pub round:     u64,
+    pub timestamp: Time,
+
+    // block details
+    pub header:        BlockHeader,
+    pub evidence_data: Vec<u8>,
+    pub last_commit:   BlockCommit,
+
+    // bundle
+    pub bundle:           SimmedBundle,
+    pub leader_signature: Signature
 }
 
-#[repr(u8)]
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-pub enum ProposalType {
-    Proposal = 32
-}
+/// only gets sent if we agree with both the bundle and block data proposed
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
+pub struct SignedLeaderProposal(pub Signature);

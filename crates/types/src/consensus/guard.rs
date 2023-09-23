@@ -20,7 +20,7 @@ impl GuardSet {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
 pub struct GuardInfo {
     pub pub_key:         H512,
     pub voting_power:    u64,
