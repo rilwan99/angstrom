@@ -72,7 +72,7 @@ impl BundleVoteManager {
         let hash = vote.hash;
         match self.known_bundle_votes.entry(hash) {
             Entry::Vacant(v) => {
-                if !self.verify_vote(vote) {
+                if !Self::verify_vote(&self.guards, &vote) {
                     return None
                 }
 
@@ -89,7 +89,7 @@ impl BundleVoteManager {
                     debug!("got dup vote");
                     return None
                 }
-                if !self.verify_vote(vote) {
+                if !Self::verify_vote(&self.guards, &vote) {
                     return None
                 }
                 o.get_mut().push(vote);
@@ -104,15 +104,15 @@ impl BundleVoteManager {
         self.known_bundle_votes.contains_key(bundle_hash)
     }
 
-    fn verify_vote(&self, vote: BundleVote) -> bool {
+    fn verify_vote(guards: &GuardSet, vote: &BundleVote) -> bool {
         let Ok(id) = vote
             .recover_public_key()
-            .inspect_err(|e| error!(?e, "failed to recover vote"))
+            // .inspect_err(|e| error!(?e, "failed to recover vote"))
         else {
             return false
         };
 
-        if !self.guards.contains_key(id) {
+        if !guards.contains_key(id) {
             warn!(?vote, "no guard found for recovered signature");
             return false
         }
@@ -144,15 +144,13 @@ impl BundleVoteManager {
         let bundle_data = self.known_bundles.remove(&hash)?;
 
         self.known_23_bundles.insert(hash);
+        let new_23 =Valid23Bundle { votes: new_bundle_votes.clone(), bundle: bundle_data};
 
         if self.best_bundle.is_none() {
             self.best_bundle =
-                Some(Valid23Bundle { votes: new_bundle_votes, bundle: bundle_data });
+                Some(new_23.clone());
         }
 
-        Some(BundleVoteMessage::NewBundle23Votes(Valid23Bundle {
-            votes:  new_bundle_votes,
-            bundle: bundle_data
-        }))
+        Some(BundleVoteMessage::NewBundle23Votes(new_23))
     }
 }

@@ -62,7 +62,7 @@ impl<S: Simulator + 'static> Executor<S> {
         &self,
         bundle: Arc<LeaderProposal>
     ) -> Result<(), BundleError> {
-        let hash: B256 = bundle.bundle.raw.clone().into();
+        let hash: H256 = bundle.bundle.raw.clone().into();
 
         let handle = self.sim.clone();
         // rip
