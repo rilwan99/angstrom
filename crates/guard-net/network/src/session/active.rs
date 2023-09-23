@@ -28,7 +28,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, info, trace};
 
 use crate::{
-    messages::{PeerMessages, PeerRequests, PeerResponse, PeerResponseResult},
+    messages::PeerMessages,
     session::{
         config::INITIAL_REQUEST_TIMEOUT,
         handle::{ActiveSessionMessage, SessionCommand},
@@ -180,12 +180,6 @@ impl ActiveSession {
         }
     }
 
-    ///
-    fn request_deadline(&self) -> Instant {
-        Instant::now()
-            + Duration::from_millis(self.internal_request_timeout.load(Ordering::Relaxed))
-    }
-
     /// Updates the request timeout with a request's timestamps
     fn update_request_timeout(&mut self, sent: Instant, received: Instant) {
         let elapsed = received.saturating_duration_since(sent);
@@ -198,35 +192,29 @@ impl ActiveSession {
     }
 
     fn on_peer_msg(&mut self, msg: PeerMessages) {
-        match msg {
-            PeerMessages::PropagateBundle(req) => self
-                .queued_outgoing
-                .push_back(OutgoingMessage::Broadcast(EthBroadcastMessage::PropagateBundle(req))),
-            PeerMessages::PeerRequests(req) => {
-                let deadline = self.request_deadline();
-                self.on_internal_peer_request(req, deadline);
-            }
-            PeerMessages::PropagateUserTransactions(txes) => {
-                self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
-                    EthBroadcastMessage::PropagateUserTransactions(txes)
-                ));
-            }
-            PeerMessages::PropagateSearcherTransactions(txes) => {
-                self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
-                    EthBroadcastMessage::PropagateSearcherTransaction(txes)
-                ));
-            }
-            PeerMessages::PropagateBundleSignature(sig) => {
-                self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
-                    EthBroadcastMessage::PropagateBundleSignature(sig)
-                ));
-            }
-            PeerMessages::PropagateSignatureRequest(bundle) => {
-                self.queued_outgoing.push_back(OutgoingMessage::Broadcast(
-                    EthBroadcastMessage::PropagateSignatureRequest(bundle)
-                ));
-            }
+        macro_rules! broadcast {
+            ($($name:ident),*) => {
+                match msg {
+                    $(
+                        PeerMessages::$name(t) => self
+                            .queued_outgoing
+                            .push_back(OutgoingMessage::Broadcast(EthBroadcastMessage::$name(t))),
+                    )*
+                }
+
+            };
         }
+
+        broadcast!(
+            NewBlock,
+            BundleVote,
+            Bundle23Vote,
+            LeaderProposal,
+            SignedLeaderProposal,
+            PropagateUserTransactions,
+            PropagateSearcherTransactions,
+            PropagateBundle
+        );
     }
 
     /// Handle an internal peer request that will be sent to the remote.
@@ -436,13 +424,6 @@ impl From<Result<(), ActiveSessionMessage>> for OnIncomingMessageOutcome {
             Err(msg) => OnIncomingMessageOutcome::NoCapacity(msg)
         }
     }
-}
-
-enum RequestState {
-    /// Waiting for the response
-    Waiting(PeerRequests),
-    /// Request already timed out
-    TimedOut
 }
 
 /// Outgoing messages that can be sent over the wire.
