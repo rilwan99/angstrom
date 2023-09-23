@@ -12,14 +12,12 @@ mod bundle;
 mod searcher;
 mod signature;
 mod submission;
-mod tee_address;
 mod users;
 
 pub use bundle::*;
 pub use searcher::*;
 pub use signature::*;
 pub use submission::*;
-pub use tee_address::*;
 pub use users::*;
 
 /// 1234567890abcedf1234567890abcdef12345678
