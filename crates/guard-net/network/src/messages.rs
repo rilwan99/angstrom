@@ -7,7 +7,8 @@ use futures::FutureExt;
 use guard_eth_wire::{message::RequestPair, EthMessage};
 use guard_types::{
     consensus::{
-        Block, Bundle23Votes, BundleVote, LeaderProposal, SignedLeaderProposal, Valid23Bundle
+        Block, Bundle23Votes, BundleVote, GuardInfo, LeaderProposal, SignedLeaderProposal,
+        Valid23Bundle
     },
     on_chain::{
         BundleSignature, SafeTx, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement,

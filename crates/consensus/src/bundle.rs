@@ -107,9 +107,10 @@ impl BundleVoteManager {
     fn verify_vote(&self, vote: BundleVote) -> bool {
         let Ok(id) = vote
             .recover_public_key()
-            .inspect_err(|e| error!(?e, "failed to recover vote")) else {
-                return false
-            };
+            .inspect_err(|e| error!(?e, "failed to recover vote"))
+        else {
+            return false
+        };
 
         if !self.guards.contains_key(&id) {
             warn!(?vote, "no guard found for recovered signature");
