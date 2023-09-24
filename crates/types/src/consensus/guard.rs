@@ -23,6 +23,10 @@ impl GuardSet {
     pub fn len(&self) -> usize {
         self.guards.len()
     }
+
+    pub fn get_current_leader(&self) -> Option<&GuardInfo> {
+        self.leader.as_ref()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable)]

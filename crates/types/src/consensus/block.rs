@@ -1,3 +1,4 @@
+use bytes::BytesMut;
 use reth_primitives::H512;
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use secp256k1::PublicKey;

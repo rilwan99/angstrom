@@ -64,15 +64,14 @@ impl From<CowMsg> for ActionMessage {
     }
 }
 
-/// handles tasks around dealing with a leader
+/// handles action tasks such as bundle building, sending to relays, simulating
+/// external bundles, simulating external transactions.
 pub struct ActionCore<M: Middleware + Unpin + 'static, S: Simulator + 'static>
 where
     <M as Middleware>::Provider: PubsubClient
 {
     /// used for signature collections and reaching consensus
     leader_sender:   LeaderSender<M>,
-    /// current leader
-    current_leader:  Option<GuardInfo>,
     /// deals with our bundle state
     cow_solver:      CowSolver<S>,
     /// used to know the current blocks
@@ -98,7 +97,6 @@ where
         Ok(Self {
             block_stream,
             cow_solver: CowSolver::new(simulator.clone(), vec![]),
-            current_leader: None,
             leader_sender: LeaderSender::new(Arc::new(SignerMiddleware::new(
                 BroadcasterMiddleware::new(
                     middleware,
@@ -118,10 +116,6 @@ where
 
     pub fn get_cow(&mut self) -> &mut CowSolver<S> {
         &mut self.cow_solver
-    }
-
-    pub fn current_leader(&self) -> Option<&GuardInfo> {
-        self.current_leader.as_ref()
     }
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Vec<ActionMessage>> {

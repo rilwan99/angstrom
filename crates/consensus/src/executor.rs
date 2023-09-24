@@ -5,13 +5,13 @@ use std::{
     task::{Context, Poll}
 };
 
-use ethers_signers::{LocalWallet, Signer};
+use ethers_signers::{LocalWallet, Signer, WalletError};
 use futures::{stream::FuturesUnordered, Future, StreamExt};
 use guard_types::{
-    consensus::LeaderProposal,
+    consensus::{BundleVote, LeaderProposal, SignedLeaderProposal},
     on_chain::{CallerInfo, Signature}
 };
-use reth_primitives::H256;
+use reth_primitives::{keccak256, H256};
 use revm_primitives::{Address, B160};
 use sim::{errors::SimError, Simulator};
 use thiserror::Error;
@@ -54,42 +54,36 @@ impl<S: Simulator + 'static> Executor<S> {
         }
     }
 
-    pub fn get_key(&self) -> Address {
-        self.key.address().into()
+    pub fn sign_leader_proposal(
+        &self,
+        proposal: &LeaderProposal
+    ) -> Result<SignedLeaderProposal, WalletError> {
+        let hash = proposal.bundle.hash();
+
+        self.key
+            .sign_hash(hash)
+            .map(|signature| SignedLeaderProposal(signature))
     }
 
-    pub fn verify_bundle_for_inclusion(
+    pub fn sign_bundle_vote(
         &self,
-        bundle: Arc<LeaderProposal>
-    ) -> Result<(), BundleError> {
-        let hash: H256 = bundle.bundle.raw.clone().into();
+        bundle_hash: H256,
+        block_height: u64,
+        round: u64
+    ) -> Result<BundleVote, WalletError> {
+        let hash = keccak256((bundle_hash, block_height, round));
+        self.key.sign_hash(hash).map(|signature| BundleVote {
+            hash,
+            bundle_hash,
+            round,
+            height: block_height,
+            timestamp: Time::now(),
+            signature: Signature(signature)
+        })
+    }
 
-        let handle = self.sim.clone();
-        // rip
-        let cloned_bundle = (*bundle).clone();
-        let call_info = self.call_info.clone();
-        let key = self.key.clone();
-
-        self.pending_sims.push(Box::pin(async move {
-            let sig = key
-                .sign_message(hash)
-                .await
-                .map_err(|e| BundleError::SigningError(e.to_string()))?;
-
-            let sign_messaged = Signature(sig);
-
-            // if handle
-            //     .simulate_sign_request(call_info, cloned_bundle)
-            //     .await
-            //     .map(|res| res.is_success())?
-            // {
-            //     Ok(BundleSignature { sig: sign_messaged, hash })
-            // } else {
-            Err(BundleError::BundleRevert)
-            // }
-        }));
-
-        Ok(())
+    pub fn get_key(&self) -> Address {
+        self.key.address().into()
     }
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<ExecutorMessage, BundleError>> {
