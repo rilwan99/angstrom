@@ -69,8 +69,14 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
     }
 
     pub fn new_proposal_vote(&mut self, vote: SignedLeaderProposal) {
-        if !self.stage.is_past_vote_cutoff() {
-            self.proposal_manager.new_proposal_vote(vote, &self.guards);
+        // TODO: I wonder if this is overall cheaper or a silly micro op?
+        let vote = Cow::from(vote);
+
+        if !self.stage.is_past_vote_cutoff()
+            && self.proposal_manager.new_proposal_vote(&vote, &self.guards)
+        {
+            self.outbound
+                .push_back(ConsensusMessage::SignedProposal(vote.into_owned()))
         }
     }
 
@@ -97,6 +103,11 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
             return
         };
 
+        // verify the bundle is the best
+        if !self.bundle_data.is_best_bundle(&proposal.bundle) {
+            error!(?proposal, "the proposed bundle doesn't match our best bundle");
+        }
+
         self.proposal_manager.new_proposal(proposal.clone());
         self.proposal_manager
             .new_proposal_vote(proposal_vote.clone(), &self.guards);
@@ -115,7 +126,7 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
             // new bundle, lets sign and propagate our hash
             let Ok(signed_bundle) =
                 self.executor
-                    .sign_bundle_vote(hash, self.stage.height, self.stage.round)
+                    .sign_bundle_vote(hash, self.stage.height(), self.stage.round())
             else {
                 return
             };
@@ -165,6 +176,8 @@ impl<S: Simulator + 'static> Stream for ConsensusCore<S> {
     type Item = Result<ConsensusMessage, ConsensusError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.stage.update_current_stage();
+
         let stuff = self.executor.poll(cx);
 
         todo!()

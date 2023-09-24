@@ -27,6 +27,12 @@ impl Default for BundleVoteManager {
 }
 
 impl BundleVoteManager {
+    pub fn is_best_bundle(&self, bundle: &SimmedBundle) -> bool {
+        let Some(our_best) = self.best_bundle.as_ref()  else { return false };
+
+        return our_best.bundle.get_cumulative_lp_bribe() == bundle.get_cumulative_lp_bribe()
+    }
+
     pub fn new_simmed_bundle(&mut self, bundle: SimmedBundle) -> Option<H256> {
         let hash = bundle.hash();
         if self.known_23_bundles.contains(&hash) {
