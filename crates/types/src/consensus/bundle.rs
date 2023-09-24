@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use bytes::BytesMut;
 use reth_primitives::{keccak256, H256, H512};
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use secp256k1::{
@@ -38,7 +39,7 @@ pub struct BundleVote {
 
 impl BundleVote {
     pub fn recover_public_key(&self) -> Result<H512, RecoveryError> {
-        Ok(get_public_key(self.signature, self.hash))
+        Ok(get_public_key(&self.signature, self.hash))
     }
 }
 
@@ -57,11 +58,16 @@ pub struct Bundle23Votes {
 
 impl Bundle23Votes {
     pub fn new(bundle_hash: H256, height: u64, round: u64, signatures: Vec<Signature>) -> Self {
+        let mut buf = BytesMut::new();
+        bundle_hash.encode(&mut buf);
+        height.encode(&mut buf);
+        round.encode(&mut buf);
+
         Self {
             bundle_hash,
             height,
             round,
-            hash: keccak256((bundle_hash, height, round)),
+            hash: keccak256(&buf.freeze()[..]),
             signatures,
             timestamp: Time::now()
         }

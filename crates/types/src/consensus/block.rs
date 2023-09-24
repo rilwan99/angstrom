@@ -47,13 +47,3 @@ pub struct BlockHeader {
     pub evidence_hash:    Vec<u8>,
     pub proposer_address: H512
 }
-
-impl BlockHeader {
-    // this is rlp encoded to simplify
-    pub fn into_bytes(&self) -> &[u8] {
-        let mut buf = BytesMut::new();
-        self.encode(&mut buf);
-
-        buf.freeze().into()
-    }
-}

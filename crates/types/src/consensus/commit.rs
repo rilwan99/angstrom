@@ -15,15 +15,6 @@ pub struct BlockCommit {
     pub signatures: Vec<BlockCommitSignature>
 }
 
-impl BlockCommit {
-    pub fn to_bytes(&self) -> &[u8] {
-        let mut buf = BytesMut::new();
-        self.encode(&mut buf);
-
-        buf.into()
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
 pub struct BlockCommitSignature {
     pub leader_address: H512,

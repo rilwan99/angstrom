@@ -1,3 +1,4 @@
+use bytes::BytesMut;
 use reth_primitives::{keccak256, H256, H512};
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
@@ -31,20 +32,23 @@ impl LeaderProposal {
     }
 
     fn block_hash(&self) -> H256 {
-        keccak256(vec![
-            self.height.to_be_bytes(),
-            self.round.to_be_bytes(),
-            self.timestamp.into_bytes(),
-            self.header.into_bytes(),
-            self.evidence_data,
-            self.last_commit.to_bytes(),
-            self.bundle.hash(),
-        ])
+        let mut buf = BytesMut::new();
+
+        self.height.encode(&mut buf);
+        self.round.encode(&mut buf);
+        self.timestamp.encode(&mut buf);
+        self.header.encode(&mut buf);
+        self.evidence_data.encode(&mut buf);
+        self.last_commit.encode(&mut buf);
+        self.bundle.encode(&mut buf);
+        let freeze = buf.freeze();
+
+        keccak256(&freeze[..])
     }
 
-    pub fn validate_signature(&self, leader_pub_key: H512) -> bool {
-        validate_signature(self.leader_bundle_signature, self.bundle_hash(), public_key)
-            && validate_signature(self.leader_block_signature, self.block_hash(), public_key)
+    pub fn validate_signature(&self, public_key: H512) -> bool {
+        validate_signature(&self.leader_bundle_signature, self.bundle_hash(), public_key)
+            && validate_signature(&self.leader_block_signature, self.block_hash(), public_key)
     }
 }
 

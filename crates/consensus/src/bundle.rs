@@ -17,8 +17,7 @@ pub struct BundleVoteManager {
     best_bundle:        Option<Valid23Bundle>,
     known_bundles:      HashMap<H256, SimmedBundle>,
     known_bundle_votes: HashMap<H256, Vec<BundleVote>>,
-    known_23_bundles:   HashSet<H256>,
-
+    known_23_bundles:   HashSet<H256>
 }
 
 impl Default for BundleVoteManager {
