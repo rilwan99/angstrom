@@ -9,11 +9,14 @@ repository.workspace = true
 description = "Staged syncing primitives used in the guard network."
 
 [dependencies]
+guard-types.workspace = true
 # reth
 reth-primitives.workspace = true
 reth-interfaces.workspace = true
 reth-codecs = { path = "../codecs" }
-reth-libmdbx = { path = "../libmdbx-rs", optional = true, features = ["return-borrowed"] }
+reth-libmdbx = { path = "../libmdbx-rs", optional = true, features = [
+  "return-borrowed",
+] }
 
 # codecs
 serde = { workspace = true, default-features = false }
@@ -24,9 +27,9 @@ futures.workspace = true
 tokio-stream.workspace = true
 rand.workspace = true
 secp256k1 = { workspace = true, default-features = false, features = [
-    "alloc",
-    "recovery",
-    "rand",
+  "alloc",
+  "recovery",
+  "rand",
 ], optional = true }
 modular-bitfield = "0.11.2"
 
@@ -57,7 +60,11 @@ reth-interfaces.workspace = true
 tempfile = "3.3.0"
 test-fuzz = "4"
 
-pprof = { version = "0.12", features = ["flamegraph", "frame-pointer", "criterion"] }
+pprof = { version = "0.12", features = [
+  "flamegraph",
+  "frame-pointer",
+  "criterion",
+] }
 criterion = "0.5"
 iai = "0.1.1"
 tokio = { workspace = true, features = ["full"] }
@@ -88,11 +95,11 @@ bench-postcard = ["bench"]
 mdbx = ["reth-libmdbx"]
 bench = []
 arbitrary = [
-    "reth-primitives/arbitrary",
-    "reth-codecs/arbitrary",
-    "dep:arbitrary",
-    "dep:proptest",
-    "dep:proptest-derive",
+  "reth-primitives/arbitrary",
+  "reth-codecs/arbitrary",
+  "dep:arbitrary",
+  "dep:proptest",
+  "dep:proptest-derive",
 ]
 
 [[bench]]

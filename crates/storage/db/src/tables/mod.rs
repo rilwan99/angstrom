@@ -162,63 +162,7 @@ macro_rules! tables {
     };
 }
 
-// type Store interface {
-// 	// LoadFromDBOrGenesisFile loads the most recent state.
-// 	// If the chain is new it will use the genesis file from the provided genesis file path as the current state.
-// 	LoadFromDBOrGenesisFile(string) (State, error)
-// 	// LoadFromDBOrGenesisDoc loads the most recent state.
-// 	// If the chain is new it will use the genesis doc as the current state.
-// 	LoadFromDBOrGenesisDoc(*types.GenesisDoc) (State, error)
-// 	// Load loads the current state of the blockchain
-// 	Load() (State, error)
-// 	// LoadValidators loads the validator set at a given height
-// 	LoadValidators(int64) (*types.ValidatorSet, error)
-// 	// LoadABCIResponses loads the abciResponse for a given height
-// 	LoadABCIResponses(int64) (*tmstate.ABCIResponses, error)
-// 	// LoadLastABCIResponse loads the last abciResponse for a given height
-// 	LoadLastABCIResponse(int64) (*tmstate.ABCIResponses, error)
-// 	// LoadConsensusParams loads the consensus params for a given height
-// 	LoadConsensusParams(int64) (tmproto.ConsensusParams, error)
-// 	// Save overwrites the previous state with the updated one
-// 	Save(State) error
-// 	// SaveABCIResponses saves ABCIResponses for a given height
-// 	SaveABCIResponses(int64, *tmstate.ABCIResponses) error
-// 	// Bootstrap is used for bootstrapping state when not starting from a initial height.
-// 	Bootstrap(State) error
-// 	// PruneStates takes the height from which to start prning and which height stop at
-// 	PruneStates(int64, int64) error
-// 	// Close closes the connection with the database
-// 	Close() error
-// }
-
-tables!([
-    (CanonicalHeaders, TableType::Table),
-    (HeaderTD, TableType::Table),
-    (HeaderNumbers, TableType::Table),
-    (Headers, TableType::Table),
-    (BlockBodyIndices, TableType::Table),
-    (BlockOmmers, TableType::Table),
-    (BlockWithdrawals, TableType::Table),
-    (TransactionBlock, TableType::Table),
-    (Transactions, TableType::Table),
-    (TxHashNumber, TableType::Table),
-    (Receipts, TableType::Table),
-    (PlainAccountState, TableType::Table),
-    (PlainStorageState, TableType::DupSort),
-    (Bytecodes, TableType::Table),
-    (AccountHistory, TableType::Table),
-    (StorageHistory, TableType::Table),
-    (AccountChangeSet, TableType::DupSort),
-    (StorageChangeSet, TableType::DupSort),
-    (HashedAccount, TableType::Table),
-    (HashedStorage, TableType::DupSort),
-    (AccountsTrie, TableType::Table),
-    (StoragesTrie, TableType::DupSort),
-    (TxSenders, TableType::Table),
-    (SyncStage, TableType::Table),
-    (SyncStageProgress, TableType::Table),
-    (PruneCheckpoints, TableType::Table)
-]);
+tables!([(Blocks, TableType::Table), (State, TableType::Table), (GuardSet, TableType::Table)]);
 
 #[macro_export]
 /// Macro to declare key value table.
@@ -272,194 +216,19 @@ macro_rules! dupsort {
 //
 
 table!(
-    /// Stores the header hashes belonging to the canonical chain.
-    ( CanonicalHeaders ) BlockNumber | HeaderHash
+    /// Stores the block related to the block number
+    ( Blocks ) BlockNumber | Block
 );
 
 table!(
-    /// Stores the total difficulty from a block header.
-    ( HeaderTD ) BlockNumber | CompactU256
+    /// Stores the state related to blocknumber
+    ( State ) BlockNumber | State
 );
 
 table!(
     /// Stores the block number corresponding to a header.
-    ( HeaderNumbers ) BlockHash | BlockNumber
+    ( GuardSet ) BlockNumber | GuardSet
 );
-
-table!(
-    /// Stores header bodies.
-    ( Headers ) BlockNumber | Header
-);
-
-table!(
-    /// Stores block indices that contains indexes of transaction and the count of them.
-    ///
-    /// More information about stored indices can be found in the [`StoredBlockBodyIndices`] struct.
-    ( BlockBodyIndices ) BlockNumber | StoredBlockBodyIndices
-);
-
-table!(
-    /// Stores the uncles/ommers of the block.
-    ( BlockOmmers ) BlockNumber | StoredBlockOmmers
-);
-
-table!(
-    /// Stores the block withdrawals.
-    ( BlockWithdrawals ) BlockNumber | StoredBlockWithdrawals
-);
-
-table!(
-    /// (Canonical only) Stores the transaction body for canonical transactions.
-    ( Transactions ) TxNumber | TransactionSignedNoHash
-);
-
-table!(
-    /// Stores the mapping of the transaction hash to the transaction number.
-    ( TxHashNumber ) TxHash | TxNumber
-);
-
-table!(
-    /// Stores the mapping of transaction number to the blocks number.
-    ///
-    /// The key is the highest transaction ID in the block.
-    ( TransactionBlock ) TxNumber | BlockNumber
-);
-
-table!(
-    /// (Canonical only) Stores transaction receipts.
-    ( Receipts ) TxNumber | Receipt
-);
-
-table!(
-    /// Stores all smart contract bytecodes.
-    /// There will be multiple accounts that have same bytecode
-    /// So we would need to introduce reference counter.
-    /// This will be small optimization on state.
-    ( Bytecodes ) H256 | Bytecode
-);
-
-table!(
-    /// Stores the current state of an [`Account`].
-    ( PlainAccountState ) Address | Account
-);
-
-dupsort!(
-    /// Stores the current value of a storage key.
-    ( PlainStorageState ) Address | [H256] StorageEntry
-);
-
-table!(
-    /// Stores pointers to block changeset with changes for each account key.
-    ///
-    /// Last shard key of the storage will contain `u64::MAX` `BlockNumber`,
-    /// this would allows us small optimization on db access when change is in plain state.
-    ///
-    /// Imagine having shards as:
-    /// * `Address | 100`
-    /// * `Address | u64::MAX`
-    ///
-    /// What we need to find is number that is one greater than N. Db `seek` function allows us to fetch
-    /// the shard that equal or more than asked. For example:
-    /// * For N=50 we would get first shard.
-    /// * for N=150 we would get second shard.
-    /// * If max block number is 200 and we ask for N=250 we would fetch last shard and
-    ///     know that needed entry is in `AccountPlainState`.
-    /// * If there were no shard we would get `None` entry or entry of different storage key.
-    ///
-    /// Code example can be found in `reth_provider::HistoricalStateProviderRef`
-    ( AccountHistory ) ShardedKey<Address> | BlockNumberList
-);
-
-table!(
-    /// Stores pointers to block number changeset with changes for each storage key.
-    ///
-    /// Last shard key of the storage will contain `u64::MAX` `BlockNumber`,
-    /// this would allows us small optimization on db access when change is in plain state.
-    ///
-    /// Imagine having shards as:
-    /// * `Address | StorageKey | 100`
-    /// * `Address | StorageKey | u64::MAX`
-    ///
-    /// What we need to find is number that is one greater than N. Db `seek` function allows us to fetch
-    /// the shard that equal or more than asked. For example:
-    /// * For N=50 we would get first shard.
-    /// * for N=150 we would get second shard.
-    /// * If max block number is 200 and we ask for N=250 we would fetch last shard and
-    ///     know that needed entry is in `StoragePlainState`.
-    /// * If there were no shard we would get `None` entry or entry of different storage key.
-    ///
-    /// Code example can be found in `reth_provider::HistoricalStateProviderRef`
-    ( StorageHistory ) StorageShardedKey | BlockNumberList
-);
-
-dupsort!(
-    /// Stores the state of an account before a certain transaction changed it.
-    /// Change on state can be: account is created, selfdestructed, touched while empty
-    /// or changed (balance,nonce).
-    ( AccountChangeSet ) BlockNumber | [Address] AccountBeforeTx
-);
-
-dupsort!(
-    /// Stores the state of a storage key before a certain transaction changed it.
-    /// If [`StorageEntry::value`] is zero, this means storage was not existing
-    /// and needs to be removed.
-    ( StorageChangeSet ) BlockNumberAddress | [H256] StorageEntry
-);
-
-table!(
-    /// Stores the current state of an [`Account`] indexed with `keccak256(Address)`
-    /// This table is in preparation for merkelization and calculation of state root.
-    /// We are saving whole account data as it is needed for partial update when
-    /// part of storage is changed. Benefit for merkelization is that hashed addresses are sorted.
-    ( HashedAccount ) H256 | Account
-);
-
-dupsort!(
-    /// Stores the current storage values indexed with `keccak256(Address)` and
-    /// hash of storage key `keccak256(key)`.
-    /// This table is in preparation for merkelization and calculation of state root.
-    /// Benefit for merklization is that hashed addresses/keys are sorted.
-    ( HashedStorage ) H256 | [H256] StorageEntry
-);
-
-table!(
-    /// Stores the current state's Merkle Patricia Tree.
-    ( AccountsTrie ) StoredNibbles | BranchNodeCompact
-);
-
-dupsort!(
-    /// From HashedAddress => NibblesSubKey => Intermediate value
-    ( StoragesTrie ) H256 | [StoredNibblesSubKey] StorageTrieEntry
-);
-
-table!(
-    /// Stores the transaction sender for each canonical transaction.
-    /// It is needed to speed up execution stage and allows fetching signer without doing
-    /// transaction signed recovery
-    ( TxSenders ) TxNumber | Address
-);
-
-table!(
-    /// Stores the highest synced block number and stage-specific checkpoint of each stage.
-    ( SyncStage ) StageId | StageCheckpoint
-);
-
-table!(
-    /// Stores arbitrary data to keep track of a stage first-sync progress.
-    ( SyncStageProgress ) StageId | Vec<u8>
-);
-
-table!(
-    /// Stores the highest pruned block number and prune mode of each prune part.
-    ( PruneCheckpoints ) PrunePart | PruneCheckpoint
-);
-
-/// Alias Types
-
-/// List with transaction numbers.
-pub type BlockNumberList = IntegerList;
-/// Encoded stage id.
-pub type StageId = String;
 
 #[cfg(test)]
 mod tests {
