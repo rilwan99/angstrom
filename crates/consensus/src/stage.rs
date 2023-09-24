@@ -7,6 +7,8 @@ use guard_types::consensus::Time;
 pub enum ConsensusStage {
     DataPropagation     = 0,
     BundleSigningCutoff = 8,
+    /// TODO: not sure if we need this or not. we will leave it
+    /// in for now tho
     Bundle23PropCutoff  = 9,
     LeaderProposeCutoff = 10
 }
@@ -47,7 +49,15 @@ impl Stage {
         todo!()
     }
 
-    pub fn is_past_vote_cutoff(&self) -> bool {
+    pub fn is_past_proposal_vote_cutoff(&self) -> bool {
+        todo!()
+    }
+
+    pub fn is_past_bundle_signing_cutoff(&self) -> bool {
+        todo!()
+    }
+
+    pub fn is_past_bundle23_prop_cutoff(&self) -> bool {
         todo!()
     }
 

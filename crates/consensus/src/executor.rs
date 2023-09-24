@@ -86,40 +86,6 @@ impl<S: Simulator + 'static> Executor<S> {
         self.key.address().into()
     }
 
-    pub fn verify_bundle_for_inclusion(
-        &self,
-        bundle: Arc<LeaderProposal>
-    ) -> Result<(), BundleError> {
-        let hash: H256 = bundle.bundle.raw.clone().into();
-
-        let handle = self.sim.clone();
-        // rip
-        let cloned_bundle = (*bundle).clone();
-        let call_info = self.call_info.clone();
-        let key = self.key.clone();
-
-        self.pending_sims.push(Box::pin(async move {
-            let sig = key
-                .sign_message(hash)
-                .await
-                .map_err(|e| BundleError::SigningError(e.to_string()))?;
-
-            let sign_messaged = Signature(sig);
-
-            // if handle
-            //     .simulate_sign_request(call_info, cloned_bundle)
-            //     .await
-            //     .map(|res| res.is_success())?
-            // {
-            //     Ok(BundleSignature { sig: sign_messaged, hash })
-            // } else {
-            Err(BundleError::BundleRevert)
-            // }
-        }));
-
-        Ok(())
-    }
-
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<ExecutorMessage, BundleError>> {
         if let Poll::Ready(Some(res)) = self.pending_sims.poll_next_unpin(cx) {
             return Poll::Ready(res)

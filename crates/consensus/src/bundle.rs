@@ -17,7 +17,8 @@ pub struct BundleVoteManager {
     best_bundle:        Option<Valid23Bundle>,
     known_bundles:      HashMap<H256, SimmedBundle>,
     known_bundle_votes: HashMap<H256, Vec<BundleVote>>,
-    known_23_bundles:   HashSet<H256>
+    known_23_bundles:   HashSet<H256>,
+
 }
 
 impl Default for BundleVoteManager {
@@ -28,7 +29,7 @@ impl Default for BundleVoteManager {
 
 impl BundleVoteManager {
     pub fn is_best_bundle(&self, bundle: &SimmedBundle) -> bool {
-        let Some(our_best) = self.best_bundle.as_ref()  else { return false };
+        let Some(our_best) = self.best_bundle.as_ref() else { return false };
 
         return our_best.bundle.get_cumulative_lp_bribe() == bundle.get_cumulative_lp_bribe()
     }
@@ -46,8 +47,7 @@ impl BundleVoteManager {
         None
     }
 
-    pub fn new_bundle23(&mut self, bundle: &Cow<Valid23Bundle>, guards: &GuardSet) -> bool {
-        let bundle = bundle.to_owned();
+    pub fn new_bundle23(&mut self, bundle: Valid23Bundle, guards: &GuardSet) -> bool {
         if !bundle.votes.verify_signatures(&guards) {
             warn!(?bundle, "bundle was invalid 2/3");
             return

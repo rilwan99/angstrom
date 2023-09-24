@@ -69,28 +69,27 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
     }
 
     pub fn new_proposal_vote(&mut self, vote: SignedLeaderProposal) {
-        // TODO: I wonder if this is overall cheaper or a silly micro op?
-        let vote = Cow::from(vote);
-
         if !self.stage.is_past_vote_cutoff()
-            && self.proposal_manager.new_proposal_vote(&vote, &self.guards)
+            && self
+                .proposal_manager
+                .new_proposal_vote(vote.clone(), &self.guards)
         {
             self.outbound
-                .push_back(ConsensusMessage::SignedProposal(vote.into_owned()))
+                .push_back(ConsensusMessage::SignedProposal(vote))
         }
     }
 
     pub fn new_proposal(&mut self, proposal: LeaderProposal) {
+        if self.stage.is_past_proposal_cutoff() {
+            warn!(?proposal, "received proposal to late");
+            return
+        }
+
         if self.proposal_manager.has_proposal() {
             return
         }
 
         let Some(current_leader) = self.guards.get_current_leader() else { return };
-
-        if self.stage.is_past_proposal_cutoff() {
-            warn!(?proposal, "received proposal to late");
-            return
-        }
 
         // validate signatures on proposal
         if !proposal.validate_signature(current_leader.pub_key) {
@@ -122,6 +121,10 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
     }
 
     pub fn new_bundle(&mut self, bundle: SimmedBundle) {
+        if self.stage.is_past_bundle_signing_cutoff() {
+            return
+        }
+
         if let Some(hash) = self.bundle_data.new_simmed_bundle(bundle) {
             // new bundle, lets sign and propagate our hash
             let Ok(signed_bundle) =
@@ -144,6 +147,10 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
     }
 
     pub fn new_bundle_vote(&mut self, vote: BundleVote) {
+        if self.stage.is_past_bundle_signing_cutoff() {
+            return
+        }
+
         if !self.bundle_data.contains_vote(&vote) {
             if let Some(valid23) = self.bundle_data.new_bundle_vote(vote.clone(), &self.guards) {
                 self.outbound
@@ -155,11 +162,13 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
     }
 
     pub fn new_bundle_23(&mut self, bundle: Valid23Bundle) {
-        let mut bundle = Cow::from(bundle);
+        if self.stage.is_past_bundle23_prop_cutoff() {
+            return
+        }
 
-        if self.bundle_data.new_bundle23(&bundle, &self.guards) {
+        if self.bundle_data.new_bundle23(bundle.clone(), &self.guards) {
             self.outbound
-                .push_back(ConsensusMessage::NewBundle23(bundle.into_owned()))
+                .push_back(ConsensusMessage::NewBundle23(bundle.clone()))
         }
     }
 

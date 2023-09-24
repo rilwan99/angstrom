@@ -16,13 +16,7 @@ pub struct ProposalManager {
 impl ProposalManager {
     pub fn new_proposal(&mut self, proposal: LeaderProposal) {}
 
-    pub fn new_proposal_vote(
-        &mut self,
-        vote: Cow<SignedLeaderProposal>,
-        guards: &GuardSet
-    ) -> bool {
-        let vote = vote.into_owned();
-
+    pub fn new_proposal_vote(&mut self, vote: SignedLeaderProposal, guards: &GuardSet) -> bool {
         let Some(proposal) = self.current_proposal.as_ref() else { return };
         let message = proposal.bundle_hash();
         let public_key = get_public_key(vote, message);

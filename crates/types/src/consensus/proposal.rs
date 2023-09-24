@@ -31,15 +31,15 @@ impl LeaderProposal {
     }
 
     fn block_hash(&self) -> H256 {
-        keccak256((
-            self.height,
-            self.round,
-            self.timestamp,
-            self.header,
+        keccak256(vec![
+            self.height.to_be_bytes(),
+            self.round.to_be_bytes(),
+            self.timestamp.into_bytes(),
+            self.header.into_bytes(),
             self.evidence_data,
-            self.last_commit,
-            self.bundle.hash()
-        ))
+            self.last_commit.to_bytes(),
+            self.bundle.hash(),
+        ])
     }
 
     pub fn validate_signature(&self, leader_pub_key: H512) -> bool {
