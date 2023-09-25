@@ -4,6 +4,7 @@ members = [
   "crates/guard-net/eth-wire",
   "crates/guard-net/discv4",
   "crates/storage/provider",
+  "crates/storage/db",
   "crates/action",
   "crates/sync",
   "crates/consensus",

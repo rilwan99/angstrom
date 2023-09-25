@@ -8,11 +8,12 @@ use std::{
 use ethers_signers::{LocalWallet, Signer, WalletError};
 use futures::{stream::FuturesUnordered, Future, StreamExt};
 use guard_types::{
-    consensus::{BundleVote, LeaderProposal, SignedLeaderProposal},
+    consensus::{BundleVote, LeaderProposal, SignedLeaderProposal, Time},
     on_chain::{CallerInfo, Signature}
 };
 use reth_primitives::{keccak256, H256};
-use revm_primitives::{Address, B160};
+use reth_rlp::Encodable;
+use revm_primitives::{bytes::BytesMut, Address, B160};
 use sim::{errors::SimError, Simulator};
 use thiserror::Error;
 
@@ -61,8 +62,8 @@ impl<S: Simulator + 'static> Executor<S> {
         let hash = proposal.bundle.hash();
 
         self.key
-            .sign_hash(hash)
-            .map(|signature| SignedLeaderProposal(signature))
+            .sign_hash(hash.into())
+            .map(|signature| SignedLeaderProposal(Signature(signature)))
     }
 
     pub fn sign_bundle_vote(
@@ -71,8 +72,13 @@ impl<S: Simulator + 'static> Executor<S> {
         block_height: u64,
         round: u64
     ) -> Result<BundleVote, WalletError> {
-        let hash = keccak256((bundle_hash, block_height, round));
-        self.key.sign_hash(hash).map(|signature| BundleVote {
+        let mut buf = BytesMut::new();
+        bundle_hash.encode(&mut buf);
+        block_height.encode(&mut buf);
+        round.encode(&mut buf);
+
+        let hash = keccak256(&buf.freeze()[..]);
+        self.key.sign_hash(hash.into()).map(|signature| BundleVote {
             hash,
             bundle_hash,
             round,
