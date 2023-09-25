@@ -109,7 +109,7 @@ reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-network = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-network-api = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
-libmdbx-rs = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-libmdbx = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 
 
 hex-literal = "0.4.1"

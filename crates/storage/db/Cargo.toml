@@ -54,7 +54,7 @@ proptest-derive = { workspace = true, optional = true }
 [dev-dependencies]
 # reth libs with arbitrary
 reth-primitives = { workspace = true, features = ["arbitrary"] }
-reth-codecs = { path = "../codecs", features = ["arbitrary"] }
+reth-codecs = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609", features = ["arbitrary"]}
 reth-interfaces.workspace = true
 
 tempfile = "3.3.0"

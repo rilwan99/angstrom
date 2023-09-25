@@ -4,8 +4,8 @@ use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use secp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 
-use super::{BlockId, Time};
-use crate::on_chain::Signature;
+use super::header::BlockId;
+use crate::{consensus::Time, on_chain::Signature};
 
 #[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
 pub struct BlockCommit {
