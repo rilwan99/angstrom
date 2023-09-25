@@ -4,7 +4,7 @@ use std::collections::{
 };
 
 use guard_types::{
-    consensus::{Bundle23Votes, BundleVote, Valid23Bundle},
+    consensus::{Bundle23Votes, BundleVote, GuardSet, Valid23Bundle},
     on_chain::SimmedBundle
 };
 use reth_primitives::H256;
@@ -49,7 +49,7 @@ impl BundleVoteManager {
     pub fn new_bundle23(&mut self, bundle: Valid23Bundle, guards: &GuardSet) -> bool {
         if !bundle.votes.verify_signatures(&guards) {
             warn!(?bundle, "bundle was invalid 2/3");
-            return
+            return false
         }
         let hash = bundle.votes.hash;
         let new = !self.known_23_bundles.insert(hash);
@@ -127,7 +127,7 @@ impl BundleVoteManager {
         self.known_bundle_votes
             .get(&vote.bundle_hash)
             .map(|votes| votes.contains(vote))
-            .filter(|f| f)
+            .filter(|f| *f)
             .is_some()
     }
 

@@ -16,10 +16,10 @@ use guard_types::{
 use sim::Simulator;
 use thiserror::Error;
 use tokio::task::{JoinError, JoinHandle, JoinSet};
-use tracing::warn;
+use tracing::{error, warn};
 
 use crate::{
-    bundle::{BundleVoteManager, BundleVoteMessage},
+    bundle::BundleVoteManager,
     evidence::EvidenceCollector,
     executor::{Executor, ExecutorMessage},
     leader::ProposalManager,
@@ -70,7 +70,7 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
     }
 
     pub fn new_proposal_vote(&mut self, vote: SignedLeaderProposal) {
-        if !self.stage.is_past_vote_cutoff()
+        if !self.stage.is_past_proposal_vote_cutoff()
             && self
                 .proposal_manager
                 .new_proposal_vote(vote.clone(), &self.guards)
@@ -135,7 +135,8 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
                 return
             };
 
-            self.outbound.push_back(signed_bundle.clone());
+            self.outbound
+                .push_back(ConsensusMessage::NewBundleVote(signed_bundle.clone()));
 
             // add vote to underlying and if we hit 2/3 we fully propagate
             if let Some(msg) = self

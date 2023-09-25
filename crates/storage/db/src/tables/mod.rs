@@ -221,7 +221,7 @@ table!(
 );
 
 table!(
-    /// Stores the state related to blocknumber
+    /// Stores the State related to block number
     ( State ) BlockNumber | State
 );
 
