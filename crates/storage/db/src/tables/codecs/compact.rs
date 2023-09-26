@@ -1,3 +1,4 @@
+use guard_types::{consensus::GuardSet, database::State};
 use reth_codecs::{main_codec, Compact};
 use reth_primitives::{stage::StageCheckpoint, trie::*, *};
 
@@ -31,27 +32,7 @@ macro_rules! impl_compression_for_compact {
     };
 }
 
-impl_compression_for_compact!(
-    Header,
-    Account,
-    Log,
-    Receipt,
-    TxType,
-    StorageEntry,
-    StoredNibbles,
-    BranchNodeCompact,
-    StoredNibblesSubKey,
-    StorageTrieEntry,
-    StoredBlockBodyIndices,
-    StoredBlockOmmers,
-    StoredBlockWithdrawals,
-    Bytecode,
-    AccountBeforeTx,
-    TransactionSignedNoHash,
-    CompactU256,
-    StageCheckpoint,
-    PruneCheckpoint
-);
+impl_compression_for_compact!(GuardSet, State,);
 
 macro_rules! impl_compression_fixed_compact {
     ($($name:tt),+) => {

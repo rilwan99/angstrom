@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use super::BlockId;
 use crate::consensus::{GuardSet, Time};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct State {
     // basic info
     pub chain_id:          u64,
