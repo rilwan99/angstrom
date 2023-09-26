@@ -5,7 +5,7 @@ use ethers_core::{
     abi::{AbiArrayType, AbiType, ParamType, Token, Tokenizable, TokenizableItem},
     types::{Signature as ESignature, H256, U256}
 };
-use reth_codecs::main_codec;
+use reth_codecs::{main_codec, Compact};
 use reth_primitives::{PeerId, H512};
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use secp256k1::{
@@ -16,8 +16,9 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::trace;
 
-#[main_codec]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ethers_contract::EthAbiCodec)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ethers_contract::EthAbiCodec,
+)]
 #[repr(transparent)]
 pub struct Signature(pub ESignature);
 
@@ -53,7 +54,7 @@ impl Tokenizable for Signature {
         let Token::Bytes(bytes) = token else {
             return Err(ethers_core::abi::InvalidOutputType("not bytes".to_string()))
         };
-        let v = U256::from_big_endian(&bytes[0..31]).as_u64();
+        let v = U256::from_big_endian(&bytes[0..32]).as_u64();
         let r = U256::from_big_endian(&bytes[32..63]);
         let s = U256::from_big_endian(&bytes[64..95]);
 

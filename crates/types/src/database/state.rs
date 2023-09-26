@@ -1,11 +1,10 @@
 use bytes::Bytes;
-use reth_codecs::Compact;
+use reth_codecs::{main_codec, Compact};
 use serde::{Deserialize, Serialize};
 
 use super::BlockId;
 use crate::consensus::{GuardSet, Time};
 
-#[main_codec]
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct State {
     // basic info

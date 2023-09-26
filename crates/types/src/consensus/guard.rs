@@ -5,12 +5,33 @@ use reth_primitives::H512;
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-#[main_codec]
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(
+    Debug, Clone, RlpDecodable, RlpEncodable, PartialOrd, Ord, Default, Serialize, Deserialize,
+)]
+pub struct GuardInfo {
+    pub voting_power:    u64,
+    pub leader_priority: u64,
+    pub pub_key:         H512
+}
+
+impl PartialEq for GuardInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.pub_key == other.pub_key
+    }
+}
+impl Eq for GuardInfo {}
+
+impl Hash for GuardInfo {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.pub_key.hash(state);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GuardSet {
-    pub guards:             HashSet<GuardInfo>,
-    pub leader:             Option<GuardInfo>,
-    pub total_voting_power: u64
+    pub guards:             Vec<GuardInfo>,
+    pub total_voting_power: u64,
+    pub leader:             Option<GuardInfo>
 }
 
 impl Ord for GuardSet {
@@ -40,26 +61,5 @@ impl GuardSet {
 
     pub fn get_current_leader(&self) -> Option<&GuardInfo> {
         self.leader.as_ref()
-    }
-}
-
-#[main_codec]
-#[derive(Debug, Clone, RlpDecodable, RlpEncodable, PartialOrd, Ord)]
-pub struct GuardInfo {
-    pub pub_key:         H512,
-    pub voting_power:    u64,
-    pub leader_priority: u64
-}
-
-impl PartialEq for GuardInfo {
-    fn eq(&self, other: &Self) -> bool {
-        self.pub_key == other.pub_key
-    }
-}
-impl Eq for GuardInfo {}
-
-impl Hash for GuardInfo {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.pub_key.hash(state);
     }
 }

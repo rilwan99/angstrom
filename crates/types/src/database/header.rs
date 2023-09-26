@@ -1,6 +1,6 @@
 use bytes::BytesMut;
 use reth_codecs::{main_codec, Compact};
-use reth_primitives::H512;
+use reth_primitives::{H256, H512};
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use secp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
@@ -11,8 +11,19 @@ use crate::{
     on_chain::{SimmedBundle, SubmissionBundle}
 };
 
-#[main_codec]
-#[derive(Debug, Clone, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Debug,
+    Clone,
+    RlpDecodable,
+    RlpEncodable,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+)]
 pub struct BlockHeader {
     pub chain_id:      u64,
     pub height:        u64,
@@ -36,9 +47,8 @@ pub struct BlockHeader {
 }
 
 #[main_codec]
-#[repr(transparent)]
 #[derive(Debug, Clone, Copy, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct BlockId(
+pub struct BlockId {
     // merkle root of header
-    pub [u8; 32]
-);
+    pub id: H256
+}
