@@ -1,14 +1,28 @@
-use std::{collections::HashSet, hash::Hash};
+use std::{cmp::Ordering, collections::HashSet, hash::Hash};
 
+use reth_codecs::{main_codec, Compact};
 use reth_primitives::H512;
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[main_codec]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GuardSet {
     pub guards:             HashSet<GuardInfo>,
     pub leader:             Option<GuardInfo>,
     pub total_voting_power: u64
+}
+
+impl Ord for GuardSet {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialOrd for GuardSet {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(Ordering::Equal)
+    }
 }
 
 impl GuardSet {
@@ -29,7 +43,8 @@ impl GuardSet {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable)]
+#[main_codec]
+#[derive(Debug, Clone, RlpDecodable, RlpEncodable, PartialOrd, Ord)]
 pub struct GuardInfo {
     pub pub_key:         H512,
     pub voting_power:    u64,

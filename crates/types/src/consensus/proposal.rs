@@ -3,8 +3,10 @@ use reth_primitives::{keccak256, H256, H512};
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use super::{Block, BlockCommit, BlockHeader, Time};
+use super::Block;
 use crate::{
+    consensus::Time,
+    database::{BlockCommit, BlockHeader, BlockId},
     on_chain::{Signature, SimmedBundle},
     validate_signature
 };

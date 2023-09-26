@@ -21,6 +21,7 @@ pub(crate) mod utils;
 
 use std::{fmt::Display, str::FromStr};
 
+use guard_types::database::State;
 pub use raw::{RawDupSort, RawKey, RawTable, RawValue, TableRawRow};
 use reth_primitives::{
     stage::StageCheckpoint,
@@ -162,7 +163,11 @@ macro_rules! tables {
     };
 }
 
-tables!([(Blocks, TableType::Table), (State, TableType::Table), (GuardSet, TableType::Table)]);
+tables!([
+    (Blocks, TableType::Table),
+    (ConsensusState, TableType::Table),
+    (GuardSet, TableType::Table)
+]);
 
 #[macro_export]
 /// Macro to declare key value table.
@@ -215,14 +220,14 @@ macro_rules! dupsort {
 //  TABLE DEFINITIONS
 //
 
-table!(
-    /// Stores the block related to the block number
-    ( Blocks ) BlockNumber | Block
-);
+// table!(
+/// Stores the block related to the block number
+// ( Blocks ) BlockNumber | Block
+// );
 
 table!(
     /// Stores the State related to block number
-    ( State ) BlockNumber | State
+    ( ConsensusState ) BlockNumber | State
 );
 
 table!(

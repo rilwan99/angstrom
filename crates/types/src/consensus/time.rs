@@ -1,7 +1,9 @@
+use reth_codecs::{main_codec, Compact};
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
+#[main_codec]
+#[derive(Debug, Clone, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Time {}
 
 impl Time {

@@ -5,6 +5,7 @@ use ethers_core::{
     abi::{AbiArrayType, AbiType, ParamType, Token, Tokenizable, TokenizableItem},
     types::{Signature as ESignature, H256, U256}
 };
+use reth_codecs::main_codec;
 use reth_primitives::{PeerId, H512};
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use secp256k1::{
@@ -15,9 +16,8 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tracing::trace;
 
-#[derive(
-    Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash, ethers_contract::EthAbiCodec,
-)]
+#[main_codec]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, ethers_contract::EthAbiCodec)]
 #[repr(transparent)]
 pub struct Signature(pub ESignature);
 

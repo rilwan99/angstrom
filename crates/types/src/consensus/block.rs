@@ -4,9 +4,11 @@ use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use secp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 
-use super::{BlockCommit, Time, Valid23Bundle};
-use crate::on_chain::{SimmedBundle, SubmissionBundle};
-use crate::dtabase::BlockHeader,
+use super::{Time, Valid23Bundle};
+use crate::{
+    database::{BlockCommit, BlockHeader},
+    on_chain::{SimmedBundle, SubmissionBundle}
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
 pub struct Block {
@@ -16,4 +18,3 @@ pub struct Block {
     pub evidence_data: Vec<u8>,
     pub last_commit:   BlockCommit
 }
-

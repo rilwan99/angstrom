@@ -13,7 +13,17 @@ impl UnfinalizedBlockQueue {
         self.0.push_back(block);
     }
 
-    pub fn new_finalized_ethereum_block(&mut self, eth_block: ()) -> Option<Block> {
-        todo!()
+    pub fn new_finalized_ethereum_block(&mut self, eth_block: u64) -> Vec<Block> {
+        let mut res = Vec::new();
+        while self
+            .0
+            .front()
+            .filter(|b| b.header.ethereum_height <= eth_block)
+            .is_some()
+        {
+            res.push(self.0.pop_front().unwrap())
+        }
+
+        res
     }
 }

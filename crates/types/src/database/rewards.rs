@@ -1,7 +1,9 @@
 use bytes::Bytes;
+use reth_codecs::{main_codec, Compact};
 use reth_primitives::{H256, H512};
 use secp256k1::PublicKey;
 
+#[main_codec]
 #[derive(Debug)]
 pub struct Rewards {
     hash:      H256,
@@ -9,6 +11,7 @@ pub struct Rewards {
     last_root: Bytes
 }
 
+#[main_codec]
 #[derive(Debug)]
 pub struct RewardHeader {
     cumulative_lvr_bribe: u128,
