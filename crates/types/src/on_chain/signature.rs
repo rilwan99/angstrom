@@ -22,6 +22,33 @@ use tracing::trace;
 #[repr(transparent)]
 pub struct Signature(pub ESignature);
 
+impl Compact for Signature {
+    fn to_compact<B>(self, buf: &mut B) -> usize
+    where
+        B: bytes::BufMut + AsMut<[u8]>
+    {
+        self.encode(buf);
+        self.length()
+    }
+
+    fn from_compact(buf: &[u8], len: usize) -> (Self, &[u8])
+    where
+        Self: Sized
+    {
+        todo!()
+    }
+}
+
+impl Default for Signature {
+    fn default() -> Self {
+        Signature(ESignature {
+            r: Default::default(),
+            s: Default::default(),
+            v: Default::default()
+        })
+    }
+}
+
 impl AbiType for Signature {
     fn param_type() -> ethers_core::abi::ParamType {
         ParamType::Bytes

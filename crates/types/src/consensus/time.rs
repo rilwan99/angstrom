@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
     Ord,
     Serialize,
     Deserialize,
+    Default,
 )]
 pub struct Time {
     u: u128

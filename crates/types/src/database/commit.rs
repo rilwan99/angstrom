@@ -1,6 +1,6 @@
 use bytes::BytesMut;
 use reth_codecs::{main_codec, Compact};
-use reth_primitives::H512;
+use reth_primitives::{Bytes, H512};
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use secp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
@@ -18,9 +18,9 @@ pub struct BlockCommit {
 }
 
 #[main_codec]
-#[derive(Debug, Clone, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash, Default)]
 pub struct BlockCommitSignature {
     pub signature:      Signature,
-    pub leader_address: H512,
-    pub timestamp:      Time
+    pub timestamp:      u128,
+    pub leader_address: Bytes
 }
