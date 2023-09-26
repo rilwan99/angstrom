@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use super::header::BlockId;
 use crate::{consensus::Time, on_chain::Signature};
 
-#[derive(Debug, Clone, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[main_codec]
+#[derive(Debug, Clone, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
 pub struct BlockCommit {
     pub height:     u64,
     pub round:      u64,
@@ -16,7 +17,8 @@ pub struct BlockCommit {
     pub block_id:   BlockId
 }
 
-#[derive(Debug, Clone, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[main_codec]
+#[derive(Debug, Clone, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
 pub struct BlockCommitSignature {
     pub signature:      Signature,
     pub leader_address: H512,
