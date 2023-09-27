@@ -10,6 +10,7 @@ use guard_types::{
         Block, Bundle23Votes, BundleVote, GuardInfo, LeaderProposal, SignedLeaderProposal,
         Valid23Bundle
     },
+    database::State,
     on_chain::{SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement}
 };
 use reth_interfaces::p2p::error::RequestResult;
@@ -29,6 +30,8 @@ pub enum PeerMessages {
     SignedLeaderProposal(Arc<SignedLeaderProposal>),
     /// new block that the network finalized on
     NewBlock(Arc<Block>),
+    /// the state correlated to the underlying block
+    NewState(Arc<State>),
 
     // default propagation messages
     /// new simmed user txes

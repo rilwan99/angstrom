@@ -27,7 +27,8 @@ impl Hash for GuardInfo {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
+#[rlp(trailing)]
 pub struct GuardSet {
     pub guards:             Vec<GuardInfo>,
     pub total_voting_power: u64,
@@ -47,6 +48,12 @@ impl PartialOrd for GuardSet {
 }
 
 impl GuardSet {
+    pub fn new_guard(&mut self, guard: GuardInfo) {
+        if !self.contains_key(guard.pub_key) {
+            self.guards.push(guard);
+        }
+    }
+
     pub fn contains_key(&self, key: H512) -> bool {
         self.guards.contains(&GuardInfo {
             pub_key:         key,

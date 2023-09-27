@@ -9,8 +9,8 @@ use futures::{stream::FuturesUnordered, Stream, StreamExt};
 // use guard_provider::ProviderFactory;
 use guard_types::{
     consensus::{
-        Block, BundleVote, EvidenceError, GuardSet, LeaderProposal, SignedLeaderProposal,
-        Valid23Bundle
+        Block, BundleVote, EvidenceError, GuardInfo, GuardSet, LeaderProposal,
+        SignedLeaderProposal, Valid23Bundle
     },
     database::{BlockId, State},
     on_chain::SimmedBundle
@@ -72,6 +72,17 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
         todo!()
     }
 
+    // TODO: this should be when they officially join
+    pub fn new_guard(&mut self, guard: GuardInfo) {
+        self.state.next_guards.new_guard(guard);
+    }
+
+    pub fn new_block(&mut self, block: Block) {
+        if self.state.verify_block(&block) {
+            todo!()
+        }
+    }
+
     pub fn new_proposal_vote(&mut self, vote: SignedLeaderProposal) {
         if !self.round_state.stage().is_past_proposal_vote_cutoff()
             && self
@@ -112,8 +123,11 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
             error!(?proposal, "the proposed bundle doesn't match our best bundle");
         }
 
-        self.round_state.proposal_manager().new_proposal(proposal.clone());
-        self.round_state.proposal_manager()
+        self.round_state
+            .proposal_manager()
+            .new_proposal(proposal.clone());
+        self.round_state
+            .proposal_manager()
             .new_proposal_vote(proposal_vote.clone(), &self.state.guards);
 
         self.outbound.extend(
@@ -132,10 +146,11 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
 
         if let Some(hash) = self.round_state.bundle().new_simmed_bundle(bundle) {
             // new bundle, lets sign and propagate our hash
-            let Ok(signed_bundle) =
-                self.executor
-                    .sign_bundle_vote(hash, self.round_state.stage().height(), self.round_state.stage().round())
-            else {
+            let Ok(signed_bundle) = self.executor.sign_bundle_vote(
+                hash,
+                self.round_state.stage().height(),
+                self.round_state.stage().round()
+            ) else {
                 return
             };
 
@@ -143,8 +158,8 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
                 .push_back(ConsensusMessage::NewBundleVote(signed_bundle.clone()));
 
             // add vote to underlying and if we hit 2/3 we fully propagate
-            if let Some(msg) = self.
-                round_state
+            if let Some(msg) = self
+                .round_state
                 .bundle()
                 .new_bundle_vote(signed_bundle, &self.state.guards)
             {
@@ -159,7 +174,11 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
         }
 
         if !self.round_state.bundle().contains_vote(&vote) {
-            if let Some(valid23) = self.round_state.bundle().new_bundle_vote(vote.clone(), &self.state.guards) {
+            if let Some(valid23) = self
+                .round_state
+                .bundle()
+                .new_bundle_vote(vote.clone(), &self.state.guards)
+            {
                 self.outbound
                     .push_back(ConsensusMessage::NewBundle23(valid23));
             }
@@ -173,7 +192,11 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
             return
         }
 
-        if self.round_state.bundle().new_bundle23(bundle.clone(), &self.state.guards) {
+        if self
+            .round_state
+            .bundle()
+            .new_bundle23(bundle.clone(), &self.state.guards)
+        {
             self.outbound
                 .push_back(ConsensusMessage::NewBundle23(bundle.clone()))
         }
