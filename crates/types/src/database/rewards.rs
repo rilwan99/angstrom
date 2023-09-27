@@ -5,14 +5,9 @@ use secp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Rewards {
-    header:    RewardHeader,
-    hash:      H256,
-    last_root: Bytes
-}
-
-#[derive(Debug, Serialize, Deserialize)]
 pub struct RewardHeader {
+    hash: H256,
+
     cumulative_lvr_bribe: u128,
     block_number:         u64,
 
