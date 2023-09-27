@@ -5,9 +5,9 @@ use super::ConsensusStage;
 /// changed
 #[derive(Debug, Default)]
 pub struct RoundStep {
-    height:              u64,
-    round:               u64,
-    step:                ConsensusStage,
-    seconds_since_start: u128,
-    last_commit_round:   u64
+    pub height:              u64,
+    pub round:               u64,
+    pub step:                ConsensusStage,
+    pub seconds_since_start: u128,
+    pub last_commit_round:   u64
 }

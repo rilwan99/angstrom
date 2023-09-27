@@ -9,7 +9,18 @@ pub struct GuardStages {
 
 impl GuardStages {
     pub fn new_step(&mut self, guard: H512, step: RoundStep) {
-        self.stages.entry(guard).or_default().round_step = step;
+        let entry = self.stages.entry(guard).or_default();
+        if entry.round != step.round {
+            entry.round = step.round;
+            entry.proposal = false;
+        }
+
+        if entry.height != step.height {
+            entry.height = step.height;
+            entry.proposal = false;
+        }
+
+        entry.round_step = step;
     }
 
     pub fn new_round(&mut self, guard: H512, round: u64) {
