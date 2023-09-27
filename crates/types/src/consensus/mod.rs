@@ -13,3 +13,8 @@ pub use genesis::*;
 pub use guard::*;
 pub use proposal::*;
 pub use time::*;
+
+pub enum VoteType {
+    Nil,
+    Valid
+}

@@ -119,6 +119,7 @@ where
                     PeerMessages::Bundle23Vote(vote) => {}
                     PeerMessages::LeaderProposal(prop) => {}
                     PeerMessages::SignedLeaderProposal(signed_prop) => {}
+                    PeerMessages::NewState(state) => {}
                 }
             }
             res @ _ => {

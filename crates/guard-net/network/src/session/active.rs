@@ -206,7 +206,8 @@ impl ActiveSession {
             SignedLeaderProposal,
             PropagateUserTransactions,
             PropagateSearcherTransactions,
-            PropagateBundle
+            PropagateBundle,
+            NewState
         );
     }
 }

@@ -13,10 +13,7 @@ impl UnfinalizedQueue {
         self.0.push_back(rewards);
     }
 
-    pub fn new_finalized_ethereum_block(
-        &mut self,
-        eth_height: u64
-    ) -> Vec<(Block, RewardHeader)> {
+    pub fn new_finalized_ethereum_block(&mut self, eth_height: u64) -> Vec<(Block, RewardHeader)> {
         let mut res = Vec::new();
         while self
             .0

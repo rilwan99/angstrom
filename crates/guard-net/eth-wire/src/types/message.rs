@@ -6,6 +6,7 @@ use guard_types::{
     consensus::{
         Block, Bundle23Votes, BundleVote, LeaderProposal, SignedLeaderProposal, Valid23Bundle
     },
+    database::State,
     on_chain::{SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement}
 };
 use reth_primitives::bytes::{Buf, BufMut};
@@ -49,6 +50,7 @@ impl ProtocolMessage {
             EthMessageID::SignedLeaderProposal => {
                 EthMessage::SignedLeaderProposal(SignedLeaderProposal::decode(buf)?)
             }
+            EthMessageID::NewState => EthMessage::NewState(State::decode(buf)?)
         };
         Ok(ProtocolMessage { message_type, message })
     }
@@ -133,7 +135,8 @@ pub enum EthMessage {
     Bundle23Vote(Valid23Bundle),
     LeaderProposal(LeaderProposal),
     SignedLeaderProposal(SignedLeaderProposal),
-    NewBlock(Block)
+    NewBlock(Block),
+    NewState(State)
 }
 
 impl EthMessage {
@@ -151,6 +154,7 @@ impl EthMessage {
             EthMessage::PropagateSearcherTransactions(_) => {
                 EthMessageID::PropagateSearcherTransactions
             }
+            EthMessage::NewState(_) => EthMessageID::NewState
         }
     }
 }
@@ -167,7 +171,8 @@ impl Encodable for EthMessage {
             EthMessage::BundleVote(vote) => vote.encode(out),
             EthMessage::Bundle23Vote(vote) => vote.encode(out),
             EthMessage::LeaderProposal(prop) => prop.encode(out),
-            EthMessage::SignedLeaderProposal(prop) => prop.encode(out)
+            EthMessage::SignedLeaderProposal(prop) => prop.encode(out),
+            EthMessage::NewState(state) => state.encode(out)
         }
     }
 
@@ -182,7 +187,8 @@ impl Encodable for EthMessage {
             EthMessage::BundleVote(vote) => vote.length(),
             EthMessage::Bundle23Vote(vote) => vote.length(),
             EthMessage::LeaderProposal(prop) => prop.length(),
-            EthMessage::SignedLeaderProposal(prop) => prop.length()
+            EthMessage::SignedLeaderProposal(prop) => prop.length(),
+            EthMessage::NewState(state) => state.length()
         }
     }
 }
@@ -204,7 +210,8 @@ pub enum EthBroadcastMessage {
     Bundle23Vote(Arc<Valid23Bundle>),
     LeaderProposal(Arc<LeaderProposal>),
     SignedLeaderProposal(Arc<SignedLeaderProposal>),
-    NewBlock(Arc<Block>)
+    NewBlock(Arc<Block>),
+    NewState(Arc<State>)
 }
 
 // === impl EthBroadcastMessage ===
@@ -213,6 +220,7 @@ impl EthBroadcastMessage {
     /// Returns the message's ID.
     pub fn message_id(&self) -> EthMessageID {
         match self {
+            EthBroadcastMessage::NewState(_) => EthMessageID::NewState,
             EthBroadcastMessage::SignedLeaderProposal(_) => EthMessageID::SignedLeaderProposal,
             EthBroadcastMessage::LeaderProposal(_) => EthMessageID::LeaderProposal,
             EthBroadcastMessage::Bundle23Vote(_) => EthMessageID::Bundle23Vote,
@@ -240,7 +248,8 @@ impl Encodable for EthBroadcastMessage {
             EthBroadcastMessage::BundleVote(vote) => vote.encode(out),
             EthBroadcastMessage::Bundle23Vote(vote) => vote.encode(out),
             EthBroadcastMessage::LeaderProposal(prop) => prop.encode(out),
-            EthBroadcastMessage::SignedLeaderProposal(prop) => prop.encode(out)
+            EthBroadcastMessage::SignedLeaderProposal(prop) => prop.encode(out),
+            EthBroadcastMessage::NewState(state) => state.encode(out)
         }
     }
 
@@ -254,7 +263,8 @@ impl Encodable for EthBroadcastMessage {
             EthBroadcastMessage::BundleVote(vote) => vote.length(),
             EthBroadcastMessage::Bundle23Vote(vote) => vote.length(),
             EthBroadcastMessage::LeaderProposal(prop) => prop.length(),
-            EthBroadcastMessage::SignedLeaderProposal(prop) => prop.length()
+            EthBroadcastMessage::SignedLeaderProposal(prop) => prop.length(),
+            EthBroadcastMessage::NewState(state) => state.length()
         }
     }
 }
@@ -272,7 +282,8 @@ pub enum EthMessageID {
     SignedLeaderProposal = 5,
     NewBlock             = 6,
     PropagateUserTransactions = 7,
-    PropagateSearcherTransactions = 8
+    PropagateSearcherTransactions = 8,
+    NewState             = 9
 }
 
 impl Encodable for EthMessageID {
@@ -298,6 +309,7 @@ impl Decodable for EthMessageID {
             6 => EthMessageID::NewBlock,
             7 => EthMessageID::PropagateUserTransactions,
             8 => EthMessageID::PropagateSearcherTransactions,
+            9 => EthMessageID::NewState,
             _ => return Err(reth_rlp::DecodeError::Custom("Invalid message ID"))
         };
         buf.advance(1);
@@ -319,6 +331,7 @@ impl TryFrom<usize> for EthMessageID {
             6 => Ok(EthMessageID::NewBlock),
             7 => Ok(EthMessageID::PropagateUserTransactions),
             8 => Ok(EthMessageID::PropagateSearcherTransactions),
+            9 => Ok(EthMessageID::NewState),
             _ => Err("Invalid message ID")
         }
     }
