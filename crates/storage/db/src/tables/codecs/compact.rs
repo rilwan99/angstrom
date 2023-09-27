@@ -7,8 +7,7 @@ use reth_primitives::{stage::StageCheckpoint, trie::*, *};
 
 use crate::{
     table::{Compress, Decompress},
-    tables::models::*,
-    BlockHeader
+    tables::models::*
 };
 
 /// Implements compression for Compact type.
@@ -36,14 +35,14 @@ macro_rules! impl_compression_for_compact {
     };
 }
 
-impl_compression_for_compact!(
-    GuardSet,
-    State,
-    BlockCommit,
-    BlockCommitSignature,
-    RewardHeader,
-    BlockHeader
-);
+// impl_compression_for_compact!(
+// GuardSet,
+// State,
+// BlockCommit,
+// BlockCommitSignature,
+// RewardHeader,
+// BlockHeader
+// );
 
 macro_rules! impl_compression_fixed_compact {
     ($($name:tt),+) => {

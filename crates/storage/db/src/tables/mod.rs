@@ -167,7 +167,7 @@ tables!([
     (ConsensusState, TableType::Table),
     (Guards, TableType::Table),
     (Rewards, TableType::Table),
-    (BlockData, TableType::Table),
+    (BlockData, TableType::Table)
 ]);
 
 #[macro_export]
@@ -226,25 +226,25 @@ macro_rules! dupsort {
 // ( Blocks ) BlockNumber | Block
 // );
 
-table!(
-    /// Stores the State related to block number
-    ( ConsensusState ) BlockNumber | State
-);
-
-table!(
-    /// Stores the block number corresponding to a header.
-    ( Guards ) BlockNumber | GuardSet
-);
-
-table!(
-    /// stores reward header
-    ( Rewards ) BlockNumber | RewardsHeader
-);
-
-table!(
-    /// stores block header
-    ( BlockHeader) BlockNumber | BlockHeader
-);
+// table!(
+//     /// Stores the State related to block number
+//     ( ConsensusState ) BlockNumber | State
+// );
+//
+// table!(
+//     /// Stores the block number corresponding to a header.
+//     ( Guards ) BlockNumber | GuardSet
+// );
+//
+// table!(
+//     /// stores reward header
+//     ( Rewards ) BlockNumber | RewardsHeader
+// );
+//
+// table!(
+//     /// stores block header
+//     ( BlockHeader) BlockNumber | BlockHeader
+// );
 
 #[cfg(test)]
 mod tests {
