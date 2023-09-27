@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 
 use guard_types::consensus::Block;
 
-pub struct UnfinalizedBlockQueue(VecDeque<Block>);
+pub struct UnfinalizedBlockQueue(pub VecDeque<Block>);
 
 impl UnfinalizedBlockQueue {
     pub fn new() -> Self {

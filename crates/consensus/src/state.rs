@@ -10,6 +10,6 @@ where
     pub fn on_new_finalized_eth_block(&mut self, block: u64) {}
 
     pub fn on_new_height(&mut self, block: Block) {
-        self.unfinalized_queue.push_back(block);
+        self.0.unfinalized_queue.push_back(block);
     }
 }
