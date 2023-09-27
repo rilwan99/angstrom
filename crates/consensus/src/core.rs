@@ -24,6 +24,7 @@ use tracing::{error, warn};
 use crate::{
     evidence::EvidenceCollector,
     executor::{Executor, ExecutorMessage},
+    guard_stages::GuardStages,
     round::RoundState,
     state::ChainMaintainer
 };
@@ -56,15 +57,22 @@ pub enum ConsensusError {
 /// 4) Verifying Historical State
 /// 5) Signing Votes, Commitments & Proposals
 pub struct ConsensusCore<S: Simulator + 'static> {
+    /// collects + formulates evidence of byzantine guards
     evidence_collector: EvidenceCollector,
+    /// keeps track of the current round state
     round_state:        RoundState,
+    /// the current overlook of the network stage
     state:              State,
-
-    executor:         Executor<S>,
+    /// keeps track of what stage of consensus all guards are on
+    guard_stages:       GuardStages,
+    /// used to execute underlying state.
+    /// TODO: can prob remove this.
+    executor:           Executor<S>,
     /// u8 is a placeholder till we unblackbox db
-    chain_maintainer: ChainMaintainer<u8>,
-
-    outbound: VecDeque<ConsensusMessage>
+    /// Deals with our local chain state
+    chain_maintainer:   ChainMaintainer<u8>,
+    /// messages to share with others
+    outbound:           VecDeque<ConsensusMessage>
 }
 
 impl<S: Simulator + 'static> ConsensusCore<S> {
