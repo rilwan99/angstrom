@@ -36,21 +36,20 @@ impl State {
     pub fn transition(&mut self, block: Block) -> State {
         todo!()
     }
-    
+
     fn hash_guards(guards: &GuardSet) -> Bytes {
         let mut buf = BytesMut::new();
         guards.encode(&mut buf);
         buf.freeze()
     }
 
-
     // TODO: what other fields do we need to verify here.
     // rest seems trivial
     pub fn verify_block(&self, block: &Block) -> bool {
-
-        block.header.guard_hashes == Self::hash_guards(&self.guards) 
+        block.header.guard_hashes == Self::hash_guards(&self.guards)
             && block.header.next_guard_hashes == Self::hash_guards(&self.next_guards)
             && block.header.last_block_id == self.last_block_id
-            && block.header.consensus_hash == Bytes::from_static(&self.consensus_params.to_be_bytes())
+            && block.header.consensus_hash
+                == Bytes::from(self.consensus_params.to_be_bytes().to_vec())
     }
 }

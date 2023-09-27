@@ -3,7 +3,7 @@ use reth_primitives::{keccak256, H256, H512};
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use super::{VoteType, Block};
+use super::Block;
 use crate::{
     consensus::Time,
     database::{BlockCommit, BlockHeader, BlockId},
@@ -56,8 +56,4 @@ impl LeaderProposal {
 
 /// only gets sent if we agree with both the bundle and block data proposed
 #[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
-pub struct SignedLeaderProposal
-{
-    pub vote_type: VoteType,
-    pub sig: Signature
-}
+pub struct SignedLeaderProposal(pub Signature);
