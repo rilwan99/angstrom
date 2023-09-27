@@ -35,5 +35,5 @@ revm-primitives.workspace = true
 reth-rlp.workspace = true
 
 guard-types.workspace = true
-guard-provider.workspace = true
+# guard-provider.workspace = true
 sim.workspace = true

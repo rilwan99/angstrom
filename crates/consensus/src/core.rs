@@ -6,12 +6,13 @@ use std::{
 };
 
 use futures::{stream::FuturesUnordered, Stream, StreamExt};
-use guard_provider::ProviderFactory;
+// use guard_provider::ProviderFactory;
 use guard_types::{
     consensus::{
-        Block, BlockId, BundleVote, EvidenceError, GuardSet, LeaderProposal, SignedLeaderProposal,
+        Block, BundleVote, EvidenceError, GuardSet, LeaderProposal, SignedLeaderProposal,
         Valid23Bundle
     },
+    database::BlockId,
     on_chain::SimmedBundle
 };
 use reth_db::{mdbx::Env, DatabaseEnv};
@@ -63,7 +64,8 @@ pub struct ConsensusCore<S: Simulator + 'static> {
     stage:              Stage,
     guards:             GuardSet,
     executor:           Executor<S>,
-    chain_maintainer:   ChainMaintainer<ProviderFactory<DatabaseEnv>>,
+    /// u8 is a placeholder till we unblackbox db
+    chain_maintainer:   ChainMaintainer<u8>,
 
     outbound: VecDeque<ConsensusMessage>
 }
