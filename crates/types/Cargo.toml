@@ -20,3 +20,4 @@ secp256k1.workspace = true
 open-fastrlp = "0.1.4"
 hex-literal = "0.4.1"
 anyhow.workspace = true
+modular-bitfield = "0.11.2"

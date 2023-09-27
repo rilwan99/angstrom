@@ -29,10 +29,6 @@ pub use providers::{
     HistoricalStateProviderRef, LatestStateProvider, LatestStateProviderRef, ProviderFactory
 };
 
-/// Execution result
-pub mod post_state;
-pub use post_state::PostState;
-
 #[cfg(any(test, feature = "test-utils"))]
 /// Common test helpers for mocking the Provider.
 pub mod test_utils;

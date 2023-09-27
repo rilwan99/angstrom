@@ -13,7 +13,10 @@ use reth_revm_primitives::primitives::{BlockEnv, CfgEnv};
 use tracing::trace;
 
 use crate::{
+    guard_set::{GuardSetReader, GuardSetWriter},
     providers::state::{historical::HistoricalStateProvider, latest::LatestStateProvider},
+    rewards::{RewardsReader, RewardsWriter},
+    state::StateReader,
     traits::{BlockSource, ReceiptProvider},
     BlockHashReader, BlockNumReader, BlockReader, ChainSpecProvider, EvmEnvProvider,
     HeaderProvider, ProviderError, PruneCheckpointReader, StageCheckpointReader, StateProviderBox,
@@ -157,47 +160,60 @@ impl<DB: Database> ProviderFactory<DB> {
     }
 }
 
-impl<DB: Database> BlockReader for ProviderFactory<DB> {
-    fn find_block_by_hash(&self, hash: H256, source: BlockSource) -> Result<Option<Block>> {
-        self.provider()?.find_block_by_hash(hash, source)
-    }
-
-    fn block(&self, id: BlockHashOrNumber) -> Result<Option<Block>> {
-        self.provider()?.block(id)
-    }
-
-    fn pending_block(&self) -> Result<Option<SealedBlock>> {
-        self.provider()?.pending_block()
-    }
-
-    fn pending_block_and_receipts(&self) -> Result<Option<(SealedBlock, Vec<Receipt>)>> {
-        self.provider()?.pending_block_and_receipts()
-    }
-
-    fn ommers(&self, id: BlockHashOrNumber) -> Result<Option<Vec<Header>>> {
-        self.provider()?.ommers(id)
-    }
-
-    fn block_body_indices(&self, number: BlockNumber) -> Result<Option<StoredBlockBodyIndices>> {
-        self.provider()?.block_body_indices(number)
-    }
-
-    fn block_with_senders(&self, number: BlockNumber) -> Result<Option<BlockWithSenders>> {
-        self.provider()?.block_with_senders(number)
+impl<DB: Database> GuardSetReader for ProviderFactory<DB> {
+    fn get_set_for_block(
+        &self,
+        block: u64
+    ) -> std::result::Result<guard_types::consensus::GuardSet, crate::DatabaseError> {
+        self.provider()?.get_set_for_block(block)
     }
 }
 
-impl<DB: Database> WithdrawalsProvider for ProviderFactory<DB> {
-    fn withdrawals_by_block(
+impl<DB: Database> StateReader for ProviderFactory<DB> {
+    fn get_state_for_block(
         &self,
-        id: BlockHashOrNumber,
-        timestamp: u64
-    ) -> Result<Option<Vec<Withdrawal>>> {
-        self.provider()?.withdrawals_by_block(id, timestamp)
+        block: u64
+    ) -> std::result::Result<Option<guard_types::database::State>, crate::DatabaseError> {
+        self.provider()?.get_state_for_block(block)
     }
 
-    fn latest_withdrawal(&self) -> Result<Option<Withdrawal>> {
-        self.provider()?.latest_withdrawal()
+    fn get_newest_state(
+        &self
+    ) -> std::result::Result<guard_types::database::State, crate::DatabaseError> {
+        self.provider()?.get_newest_state()
+    }
+
+    fn get_state_range(
+        &self,
+        range: impl RangeBounds<u64>
+    ) -> std::result::Result<Vec<guard_types::database::State>, crate::DatabaseError> {
+        self.provider()?.get_state_range(range)
+    }
+}
+
+impl<DB: Database> RewardsReader for ProviderFactory<DB> {
+    fn rewards_from_range(
+        &self,
+        range: impl RangeBounds<u64>
+    ) -> std::result::Result<Vec<RewardsHeader>, crate::DatabaseError> {
+        self.provider()?.rewards_from_range(range)
+    }
+
+    fn rewards_for_block(
+        &self,
+        block: u64
+    ) -> std::result::Result<Option<RewardsHeader>, crate::DatabaseError> {
+        self.provider()?.rewards_for_block(block)
+    }
+}
+
+impl<DB: Database> RewardsWriter for ProviderFactory<DB> {
+    fn new_reward(
+        &self,
+        block: u64,
+        reward: RewardsHeader
+    ) -> std::result::Result<(), crate::DatabaseError> {
+        self.provider_rw()?.0.new_reward(block, reward)
     }
 }
 

@@ -1,15 +1,29 @@
 use bytes::BytesMut;
-use reth_primitives::H512;
+use reth_codecs::{main_codec, Compact};
+use reth_primitives::{H256, H512};
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use secp256k1::PublicKey;
 use serde::{Deserialize, Serialize};
 
+use super::BlockCommit;
 use crate::{
-    consensus::{BlockCommit, Time, Valid23Bundle},
+    consensus::{Time, Valid23Bundle},
     on_chain::{SimmedBundle, SubmissionBundle}
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash)]
+#[derive(
+    Debug,
+    Clone,
+    RlpDecodable,
+    RlpEncodable,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    Serialize,
+    Deserialize,
+)]
 pub struct BlockHeader {
     pub chain_id:      u64,
     pub height:        u64,
@@ -32,11 +46,9 @@ pub struct BlockHeader {
     pub proposer_address: H512
 }
 
-#[repr(transparent)]
-#[derive(
-    Debug, Clone, Copy, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash,
-)]
-pub struct BlockId(
+#[main_codec]
+#[derive(Debug, Clone, Copy, RlpDecodable, RlpEncodable, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct BlockId {
     // merkle root of header
-    pub [u8; 32]
-);
+    pub id: H256
+}

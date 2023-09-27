@@ -1,3 +1,7 @@
+use guard_types::{
+    consensus::GuardSet,
+    database::{BlockCommit, BlockCommitSignature, RewardHeader, State}
+};
 use reth_codecs::{main_codec, Compact};
 use reth_primitives::{stage::StageCheckpoint, trie::*, *};
 
@@ -31,27 +35,14 @@ macro_rules! impl_compression_for_compact {
     };
 }
 
-impl_compression_for_compact!(
-    Header,
-    Account,
-    Log,
-    Receipt,
-    TxType,
-    StorageEntry,
-    StoredNibbles,
-    BranchNodeCompact,
-    StoredNibblesSubKey,
-    StorageTrieEntry,
-    StoredBlockBodyIndices,
-    StoredBlockOmmers,
-    StoredBlockWithdrawals,
-    Bytecode,
-    AccountBeforeTx,
-    TransactionSignedNoHash,
-    CompactU256,
-    StageCheckpoint,
-    PruneCheckpoint
-);
+// impl_compression_for_compact!(
+// GuardSet,
+// State,
+// BlockCommit,
+// BlockCommitSignature,
+// RewardHeader,
+// BlockHeader
+// );
 
 macro_rules! impl_compression_fixed_compact {
     ($($name:tt),+) => {
@@ -82,7 +73,7 @@ macro_rules! impl_compression_fixed_compact {
     };
 }
 
-impl_compression_fixed_compact!(H256, H160);
+impl_compression_fixed_compact!(H512, H256, H160);
 
 /// Adds wrapper structs for some primitive types so they can use StructFlags
 /// from Compact, when used as pure table values.

@@ -21,6 +21,7 @@ pub(crate) mod utils;
 
 use std::{fmt::Display, str::FromStr};
 
+use guard_types::{consensus::GuardSet, database::State};
 pub use raw::{RawDupSort, RawKey, RawTable, RawValue, TableRawRow};
 use reth_primitives::{
     stage::StageCheckpoint,
@@ -54,7 +55,7 @@ pub enum TableType {
 }
 
 /// Number of tables that should be present inside database.
-pub const NUM_TABLES: usize = 26;
+pub const NUM_TABLES: usize = 4;
 
 /// The general purpose of this is to use with a combination of Tables enum,
 /// by implementing a `TableViewer` trait you can operate on db tables in an
@@ -162,7 +163,12 @@ macro_rules! tables {
     };
 }
 
-tables!([(Blocks, TableType::Table), (State, TableType::Table), (GuardSet, TableType::Table)]);
+tables!([
+    (ConsensusState, TableType::Table),
+    (Guards, TableType::Table),
+    (Rewards, TableType::Table),
+    (BlockData, TableType::Table)
+]);
 
 #[macro_export]
 /// Macro to declare key value table.
@@ -215,20 +221,30 @@ macro_rules! dupsort {
 //  TABLE DEFINITIONS
 //
 
-table!(
-    /// Stores the block related to the block number
-    ( Blocks ) BlockNumber | Block
-);
+// table!(
+/// Stores the block related to the block number
+// ( Blocks ) BlockNumber | Block
+// );
 
-table!(
-    /// Stores the State related to block number
-    ( State ) BlockNumber | State
-);
-
-table!(
-    /// Stores the block number corresponding to a header.
-    ( GuardSet ) BlockNumber | GuardSet
-);
+// table!(
+//     /// Stores the State related to block number
+//     ( ConsensusState ) BlockNumber | State
+// );
+//
+// table!(
+//     /// Stores the block number corresponding to a header.
+//     ( Guards ) BlockNumber | GuardSet
+// );
+//
+// table!(
+//     /// stores reward header
+//     ( Rewards ) BlockNumber | RewardsHeader
+// );
+//
+// table!(
+//     /// stores block header
+//     ( BlockHeader) BlockNumber | BlockHeader
+// );
 
 #[cfg(test)]
 mod tests {

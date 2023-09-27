@@ -41,7 +41,10 @@ use reth_revm_primitives::{
 use reth_trie::{prefix_set::PrefixSetMut, StateRoot};
 
 use crate::{
+    guard_set::{GuardSetReader, GuardSetWriter},
     post_state::StorageChangeset,
+    rewards::{RewardsReader, RewardsWriter},
+    state::{StateReader, StateWriter},
     traits::{
         AccountExtReader, BlockSource, ChangeSetReader, ReceiptProvider, StageCheckpointWriter
     },
@@ -853,313 +856,85 @@ impl<'this, TX: DbTxMut<'this> + DbTx<'this>> DatabaseProvider<'this, TX> {
     }
 }
 
-impl<'this, TX: DbTx<'this>> BlockReader for DatabaseProvider<'this, TX> {
-    fn find_block_by_hash(&self, hash: H256, source: BlockSource) -> Result<Option<Block>> {
-        if source.is_database() {
-            self.block(hash.into())
-        } else {
-            Ok(None)
-        }
+impl<'this, TX: DbTx<'this>> GuardSetReader for DatabaseProvider<'this, TX> {
+    fn get_head(
+        &self
+    ) -> std::result::Result<guard_types::consensus::GuardSet, crate::DatabaseError> {
+        todo!()
     }
 
-    /// Returns the block with matching number from database.
-    ///
-    /// If the header for this block is not found, this returns `None`.
-    /// If the header is found, but the transactions either do not exist, or are
-    /// not indexed, this will return None.
-    fn block(&self, id: BlockHashOrNumber) -> Result<Option<Block>> {
-        if let Some(number) = self.convert_hash_or_number(id)? {
-            if let Some(header) = self.header_by_number(number)? {
-                let withdrawals = self.withdrawals_by_block(number.into(), header.timestamp)?;
-                let ommers = self.ommers(number.into())?.unwrap_or_default();
-                // If the body indices are not found, this means that the transactions either do
-                // not exist in the database yet, or they do exit but are not
-                // indexed. If they exist but are not indexed, we don't have
-                // enough information to return the block anyways, so we return
-                // `None`.
-                let transactions = match self.transactions_by_block(number.into())? {
-                    Some(transactions) => transactions,
-                    None => return Ok(None)
-                };
-
-                return Ok(Some(Block { header, body: transactions, ommers, withdrawals }))
-            }
-        }
-
-        Ok(None)
-    }
-
-    fn pending_block(&self) -> Result<Option<SealedBlock>> {
-        Ok(None)
-    }
-
-    fn pending_block_and_receipts(&self) -> Result<Option<(SealedBlock, Vec<Receipt>)>> {
-        Ok(None)
-    }
-
-    fn ommers(&self, id: BlockHashOrNumber) -> Result<Option<Vec<Header>>> {
-        if let Some(number) = self.convert_hash_or_number(id)? {
-            // If the Paris (Merge) hardfork block is known and block is after it, return
-            // empty ommers.
-            if self
-                .chain_spec
-                .final_paris_total_difficulty(number)
-                .is_some()
-            {
-                return Ok(Some(Vec::new()))
-            }
-
-            let ommers = self
-                .tx
-                .get::<tables::BlockOmmers>(number)?
-                .map(|o| o.ommers);
-            return Ok(ommers)
-        }
-
-        Ok(None)
-    }
-
-    fn block_body_indices(&self, num: u64) -> Result<Option<StoredBlockBodyIndices>> {
-        Ok(self.tx.get::<tables::BlockBodyIndices>(num)?)
-    }
-
-    /// Returns the block with senders with matching number from database.
-    ///
-    /// **NOTE: The transactions have invalid hashes, since they would need to
-    /// be calculated on the spot, and we want fast querying.**
-    ///
-    /// If the header for this block is not found, this returns `None`.
-    /// If the header is found, but the transactions either do not exist, or are
-    /// not indexed, this will return None.
-    fn block_with_senders(&self, block_number: BlockNumber) -> Result<Option<BlockWithSenders>> {
-        let header = self
-            .header_by_number(block_number)?
-            .ok_or_else(|| ProviderError::HeaderNotFound(block_number.into()))?;
-
-        let ommers = self.ommers(block_number.into())?.unwrap_or_default();
-        let withdrawals = self.withdrawals_by_block(block_number.into(), header.timestamp)?;
-
-        // Get the block body
-        //
-        // If the body indices are not found, this means that the transactions either do
-        // not exist in the database yet, or they do exit but are not indexed.
-        // If they exist but are not indexed, we don't have enough information
-        // to return the block anyways, so we return `None`.
-        let body = match self.block_body_indices(block_number)? {
-            Some(body) => body,
-            None => return Ok(None)
-        };
-
-        let tx_range = body.tx_num_range();
-
-        let (transactions, senders) = if tx_range.is_empty() {
-            (vec![], vec![])
-        } else {
-            (self.transactions_by_tx_range(tx_range.clone())?, self.senders_by_tx_range(tx_range)?)
-        };
-
-        let body = transactions
-            .into_iter()
-            .map(|tx| {
-                TransactionSigned {
-                    // TODO: This is the fastest way right now to make everything just work with
-                    // a dummy transaction hash.
-                    hash:        Default::default(),
-                    signature:   tx.signature,
-                    transaction: tx.transaction
-                }
-            })
-            .collect();
-
-        Ok(Some(Block { header, body, ommers, withdrawals }.with_senders(senders)))
+    fn get_set_for_block(
+        &self,
+        block: u64
+    ) -> std::result::Result<guard_types::consensus::GuardSet, crate::DatabaseError> {
+        todo!()
     }
 }
 
-impl<'this, TX: DbTx<'this>> WithdrawalsProvider for DatabaseProvider<'this, TX> {
-    fn withdrawals_by_block(
+impl<'this, TX: DbTx<'this>> GuardSetWriter for DatabaseProvider<'this, TX> {
+    fn new_guard_set(
         &self,
-        id: BlockHashOrNumber,
-        timestamp: u64
-    ) -> Result<Option<Vec<Withdrawal>>> {
-        if self
-            .chain_spec
-            .is_shanghai_activated_at_timestamp(timestamp)
-        {
-            if let Some(number) = self.convert_hash_or_number(id)? {
-                // If we are past shanghai, then all blocks should have a withdrawal list, even
-                // if empty
-                let withdrawals = self
-                    .tx
-                    .get::<tables::BlockWithdrawals>(number)
-                    .map(|w| w.map(|w| w.withdrawals))?
-                    .unwrap_or_default();
-                return Ok(Some(withdrawals))
-            }
-        }
-        Ok(None)
-    }
-
-    fn latest_withdrawal(&self) -> Result<Option<Withdrawal>> {
-        let latest_block_withdrawal = self.tx.cursor_read::<tables::BlockWithdrawals>()?.last()?;
-        Ok(latest_block_withdrawal
-            .and_then(|(_, mut block_withdrawal)| block_withdrawal.withdrawals.pop()))
+        block: u64,
+        set: guard_types::consensus::GuardSet
+    ) -> std::result::Result<(), crate::DatabaseError> {
+        todo!()
     }
 }
 
-impl<'this, TX: DbTx<'this>> StageCheckpointReader for DatabaseProvider<'this, TX> {
-    fn get_stage_checkpoint(&self, id: StageId) -> Result<Option<StageCheckpoint>> {
-        Ok(self.tx.get::<tables::SyncStage>(id.to_string())?)
+impl<'this, TX: DbTx<'this>> StateReader for DatabaseProvider<'this, TX> {
+    fn get_state_range(
+        &self,
+        range: impl RangeBounds<u64>
+    ) -> std::result::Result<Vec<guard_types::database::State>, crate::DatabaseError> {
+        todo!()
     }
 
-    /// Get stage checkpoint progress.
-    fn get_stage_checkpoint_progress(&self, id: StageId) -> Result<Option<Vec<u8>>> {
-        Ok(self.tx.get::<tables::SyncStageProgress>(id.to_string())?)
+    fn get_newest_state(
+        &self
+    ) -> std::result::Result<guard_types::database::State, crate::DatabaseError> {
+        todo!()
+    }
+
+    fn get_state_for_block(
+        &self,
+        block: u64
+    ) -> std::result::Result<Option<guard_types::database::State>, crate::DatabaseError> {
+        todo!()
     }
 }
 
-impl<'this, TX: DbTxMut<'this> + DbTx<'this>> BlockWriter for DatabaseProvider<'this, TX> {
-    fn insert_block(
+impl<'this, TX: DbTx<'this>> StateWriter for DatabaseProvider<'this, TX> {
+    fn write_state(
         &self,
-        block: SealedBlock,
-        senders: Option<Vec<Address>>,
-        prune_modes: Option<&PruneModes>
-    ) -> Result<StoredBlockBodyIndices> {
-        let block_number = block.number;
-        self.tx
-            .put::<tables::CanonicalHeaders>(block.number, block.hash())?;
-        // Put header with canonical hashes.
-        self.tx
-            .put::<tables::Headers>(block.number, block.header.as_ref().clone())?;
-        self.tx
-            .put::<tables::HeaderNumbers>(block.hash(), block.number)?;
+        block: u64,
+        state: guard_types::database::State
+    ) -> std::result::Result<(), crate::DatabaseError> {
+        todo!()
+    }
+}
 
-        // total difficulty
-        let ttd = if block.number == 0 {
-            block.difficulty
-        } else {
-            let parent_block_number = block.number - 1;
-            let parent_ttd = self
-                .header_td_by_number(parent_block_number)?
-                .unwrap_or_default();
-            parent_ttd + block.difficulty
-        };
-
-        self.tx.put::<tables::HeaderTD>(block.number, ttd.into())?;
-
-        // insert body ommers data
-        if !block.ommers.is_empty() {
-            self.tx.put::<tables::BlockOmmers>(
-                block.number,
-                StoredBlockOmmers { ommers: block.ommers }
-            )?;
-        }
-
-        let mut next_tx_num = self
-            .tx
-            .cursor_read::<tables::Transactions>()?
-            .last()?
-            .map(|(n, _)| n + 1)
-            .unwrap_or_default();
-        let first_tx_num = next_tx_num;
-
-        let tx_count = block.body.len() as u64;
-
-        let senders_len = senders.as_ref().map(|s| s.len());
-        let tx_iter = if Some(block.body.len()) == senders_len {
-            block
-                .body
-                .into_iter()
-                .zip(senders.unwrap())
-                .collect::<Vec<(_, _)>>()
-        } else {
-            let senders = TransactionSigned::recover_signers(&block.body, block.body.len()).ok_or(
-                BlockExecutionError::Validation(BlockValidationError::SenderRecoveryError)
-            )?;
-            debug_assert_eq!(senders.len(), block.body.len(), "missing one or more senders");
-            block.body.into_iter().zip(senders).collect()
-        };
-
-        for (transaction, sender) in tx_iter {
-            let hash = transaction.hash();
-
-            if prune_modes
-                .and_then(|modes| modes.sender_recovery)
-                .filter(|prune_mode| prune_mode.is_full())
-                .is_none()
-            {
-                self.tx.put::<tables::TxSenders>(next_tx_num, sender)?;
-            }
-
-            self.tx
-                .put::<tables::Transactions>(next_tx_num, transaction.into())?;
-
-            if prune_modes
-                .and_then(|modes| modes.transaction_lookup)
-                .filter(|prune_mode| prune_mode.is_full())
-                .is_none()
-            {
-                self.tx.put::<tables::TxHashNumber>(hash, next_tx_num)?;
-            }
-            next_tx_num += 1;
-        }
-
-        if let Some(withdrawals) = block.withdrawals {
-            if !withdrawals.is_empty() {
-                self.tx.put::<tables::BlockWithdrawals>(
-                    block_number,
-                    StoredBlockWithdrawals { withdrawals }
-                )?;
-            }
-        }
-
-        let block_indices = StoredBlockBodyIndices { first_tx_num, tx_count };
-        self.tx
-            .put::<tables::BlockBodyIndices>(block_number, block_indices.clone())?;
-
-        if !block_indices.is_empty() {
-            self.tx
-                .put::<tables::TransactionBlock>(block_indices.last_tx_num(), block_number)?;
-        }
-
-        Ok(block_indices)
+impl<'this, TX: DbTx<'this>> RewardsReader for DatabaseProvider<'this, TX> {
+    fn rewards_for_block(
+        &self,
+        block: u64
+    ) -> std::result::Result<Option<RewardsHeader>, crate::DatabaseError> {
+        todo!()
     }
 
-    fn append_blocks_with_post_state(
+    fn rewards_from_range(
         &self,
-        blocks: Vec<SealedBlockWithSenders>,
-        state: PostState,
-        prune_modes: Option<&PruneModes>
-    ) -> Result<()> {
-        if blocks.is_empty() {
-            return Ok(())
-        }
-        let new_tip = blocks.last().unwrap();
-        let new_tip_number = new_tip.number;
+        range: impl RangeBounds<u64>
+    ) -> std::result::Result<Vec<RewardsHeader>, crate::DatabaseError> {
+        todo!()
+    }
+}
 
-        let first_number = blocks.first().unwrap().number;
-
-        let last = blocks.last().unwrap();
-        let last_block_number = last.number;
-        let last_block_hash = last.hash();
-        let expected_state_root = last.state_root;
-
-        // Insert the blocks
-        for block in blocks {
-            let (block, senders) = block.into_components();
-            self.insert_block(block, Some(senders), prune_modes)?;
-        }
-
-        // Write state and changesets to the database.
-        // Must be written after blocks because of the receipt lookup.
-        state.write_to_db(self.tx_ref(), new_tip_number)?;
-
-        self.insert_hashes(first_number..=last_block_number, last_block_hash, expected_state_root)?;
-
-        self.calculate_history_indices(first_number..=last_block_number)?;
-
-        // Update pipeline progress
-        self.update_pipeline_stages(new_tip_number, false)?;
-
-        Ok(())
+impl<'this, TX: DbTx<'this>> RewardsWriter for DatabaseProvider<'this, TX> {
+    fn new_reward(
+        &self,
+        block: u64,
+        reward: RewardsHeader
+    ) -> std::result::Result<(), crate::DatabaseError> {
+        todo!()
     }
 }
