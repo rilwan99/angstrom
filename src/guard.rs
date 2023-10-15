@@ -37,7 +37,7 @@ where
     action:               ActionCore<M, S>,
     /// deals with new submissions through a rpc to the network
     server:               SubmissionServer,
-    /// channel for sending updates to the set of stakers
+    /// TODO: remove this terrorism joe added
     valid_stakers_tx:     UnboundedSender<GaurdStakingEvent>,
     /// make sure we keep subscribers upto date
     server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>
