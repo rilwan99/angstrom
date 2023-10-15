@@ -64,8 +64,14 @@ impl From<CowMsg> for ActionMessage {
     }
 }
 
-/// handles action tasks such as bundle building, sending to relays, simulating
-/// external bundles, simulating external transactions.
+/// The Action Modules design is the counterpart to the consensus design. That
+/// being that we handle all unknowns, building and comparisons here. This
+/// mostly refers to building new bundles, comparing other bundles as-well as
+/// dealing with supplying our consensus module with Events everytime we
+/// calculate something that is strictly more optimal than what our current
+/// Consensus is looking at. Most external functions such as adding
+/// quotability, or storage slot pricing for composable bundle occurs in this
+/// module.
 pub struct ActionCore<M: Middleware + Unpin + 'static, S: Simulator + 'static>
 where
     <M as Middleware>::Provider: PubsubClient

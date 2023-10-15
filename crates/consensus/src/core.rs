@@ -49,13 +49,20 @@ pub enum ConsensusError {
 }
 
 /// The ConsensusCore module handles everything related to consensus.
-/// This includes but not limited to.
-///
-/// 1) Collecting Evidence against misbehavior
-/// 2) Verifying Block and bundle data
-/// 3) Leader Selection
-/// 4) Verifying Historical State
-/// 5) Signing Votes, Commitments & Proposals
+/// This includes tracking slashable events, other guards commits and votes
+/// and submitting to consensus.
+/// # Design Principles
+/// The main interfacing idea for the ConsensusCore is that this module
+/// only operates on truths. What this means is this module avoids doing
+/// any comparison, building or evaluation in order to keep it as simple as
+/// possible (Of course we cannot rid all of this, however there is always a
+/// focus to minimize this). all values that are handed to this module are true.
+/// for example, this means that the consensus module doesn't know of any other
+/// bundles that this guard has built except for the most profitable one. Nor
+/// does it know what the proper pricing for a given storage slot is. We
+/// abstract all of this out in order to keep this module as clean as possible
+/// as proper functionality is critical here to ensure that Angstrom works
+/// properly.
 pub struct ConsensusCore<S: Simulator + 'static> {
     /// collects + formulates evidence of byzantine guards
     evidence_collector: EvidenceCollector,
