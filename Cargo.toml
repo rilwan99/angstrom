@@ -3,10 +3,7 @@ members = [
   "crates/guard-net/network",
   "crates/guard-net/eth-wire",
   "crates/guard-net/discv4",
-  "crates/storage/provider",
-  "crates/storage/db",
   "crates/action",
-  "crates/sync",
   "crates/consensus",
   "crates/types",
   "it-harness",
@@ -122,7 +119,6 @@ consensus = { path = "./crates/consensus/" }
 guard-types = { path = "./crates/types/" }
 action = { path = "./crates/action/" }
 sim = { path = "./crates/sim/" }
-guard-provider = { path = "./crates/storage/provider/" }
 
 anvil = { git = "https://github.com/SorellaLabs/fastfoundry" }
 anvil-core = { git = "https://github.com/SorellaLabs/fastfoundry" }

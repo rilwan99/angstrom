@@ -223,7 +223,9 @@ impl<S: Simulator + 'static> Stream for ConsensusCore<S> {
     type Item = Result<ConsensusMessage, ConsensusError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.round_state.stage().update_current_stage();
+        if let Some(new_round_step) = self.round_state.stage().update_current_stage() {
+            todo!()
+        }
 
         let stuff = self.executor.poll(cx);
 
