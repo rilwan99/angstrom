@@ -1,23 +1,6 @@
 use std::task::Context;
 
-use guard_types::consensus::Time;
-
-/// the representation of these represents time in seconds
-/// for the current cutoff period
-pub enum ConsensusStage {
-    DataPropagation     = 0,
-    BundleSigningCutoff = 8,
-    /// TODO: not sure if we need this or not. we will leave it
-    /// in for now tho
-    Bundle23PropCutoff  = 9,
-    LeaderProposeCutoff = 10
-}
-
-impl ConsensusStage {
-    pub fn get_current_period(time: Time) -> Self {
-        todo!()
-    }
-}
+use guard_types::consensus::{ConsensusStage, Time};
 
 pub struct Stage {
     height: u64,
@@ -61,5 +44,5 @@ impl Stage {
         todo!()
     }
 
-    pub fn update_current_stage(&mut self) {}
+    pub fn update_current_stage(&mut self) -> bool {}
 }

@@ -4,6 +4,8 @@ pub mod evidence;
 pub mod genesis;
 pub mod guard;
 pub mod proposal;
+pub mod round_step;
+pub mod step;
 pub mod time;
 
 pub use block::*;
@@ -12,4 +14,6 @@ pub use evidence::*;
 pub use genesis::*;
 pub use guard::*;
 pub use proposal::*;
+pub use round_step::*;
+pub use step::*;
 pub use time::*;

@@ -2,7 +2,10 @@ pub mod bundle;
 pub mod leader;
 pub mod stage;
 
+use std::task::Context;
+
 pub use bundle::*;
+use guard_types::consensus::RoundStep;
 pub use leader::*;
 pub use stage::*;
 
@@ -23,5 +26,9 @@ impl RoundState {
 
     pub fn proposal_manager(&mut self) -> &mut ProposalManager {
         &mut self.proposal_manager
+    }
+
+    fn poll_stage(&mut self, cx: &mut Context<'_>) -> Option<RoundStep> {
+        self.stage.update_current_stage()
     }
 }
