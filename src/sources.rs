@@ -1,5 +1,6 @@
 use std::{
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll}
 };
 
@@ -90,6 +91,10 @@ where
             return Poll::Ready(Some(SourceMessages::NewEthereumBlock(eth_block)))
         }
 
-        if let Poll::Ready(poll) = self.relay_sender.poll(cx) {}
+        if let Poll::Ready(relay_result) = self.relay_sender.poll(cx) {
+            return Poll::Ready(Some(SourceMessages::RelaySubmission(relay_result)))
+        }
+
+        Poll::Pending
     }
 }

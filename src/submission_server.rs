@@ -2,7 +2,9 @@ use std::{
     collections::HashMap,
     net::SocketAddr,
     ops::{Deref, DerefMut},
-    sync::Arc
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll}
 };
 
 use ethers_core::types::transaction::eip712::TypedData;
@@ -24,6 +26,34 @@ use tower::{
 };
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tracing::info;
+
+/// COPY from internal sorella tooling
+pub trait PollExt<T> {
+    fn filter(self, predicate: impl FnMut(&T) -> bool) -> Poll<T>;
+    fn filter_map<U>(self, predicate: impl FnMut(T) -> Option<U>) -> Poll<U>;
+}
+
+impl<T> PollExt<T> for Poll<T> {
+    fn filter(self, mut predicate: impl FnMut(&T) -> bool) -> Poll<T> {
+        let Poll::Ready(val) = self else { return Poll::Pending };
+
+        if predicate(&val) {
+            Poll::Ready(val)
+        } else {
+            Poll::Pending
+        }
+    }
+
+    fn filter_map<U>(self, mut predicate: impl FnMut(T) -> Option<U>) -> Poll<U> {
+        let Poll::Ready(val) = self else { return Poll::Pending };
+
+        if let Some(map) = predicate(val) {
+            Poll::Ready(map)
+        } else {
+            Poll::Pending
+        }
+    }
+}
 
 /// Error thrown when parsing cors domains went wrong
 #[derive(Debug, thiserror::Error)]
@@ -129,17 +159,21 @@ pub struct SubmissionServer {
     server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>
 }
 
-impl Deref for SubmissionServer {
-    type Target = ReceiverStream<Submission>;
+impl Stream for SubmissionServer {
+    type Item = Submission;
 
-    fn deref(&self) -> &Self::Target {
-        &self.receiver
-    }
-}
-
-impl DerefMut for SubmissionServer {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.receiver
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.receiver.poll_next_unpin(cx).filter_map(|f| {
+            if let Submission::Subscription(sk, sender) = f? {
+                self.server_subscriptions
+                    .entry(sk)
+                    .or_default()
+                    .push(sender);
+                None
+            } else {
+                Some(f)
+            }
+        })
     }
 }
 
