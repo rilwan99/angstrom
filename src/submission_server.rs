@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     net::SocketAddr,
     ops::{Deref, DerefMut},
     sync::Arc
@@ -169,7 +170,11 @@ impl SubmissionServerInner {
         }
 
         let handle = server.start(methods);
-        Ok(SubmissionServer { receiver: ReceiverStream::new(rx), handle })
+        Ok(SubmissionServer {
+            receiver: ReceiverStream::new(rx),
+            handle,
+            server_subscriptions: HashMap::default()
+        })
     }
 }
 

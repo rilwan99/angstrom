@@ -17,16 +17,18 @@ pub struct Sources<M: Middleware + 'static> {
     guard_net:         Swarm,
     /// deals with new submissions through a rpc to the network
     submission_server: SubmissionServer,
-    relay_sender:      RelaySender<M>
+    relay_sender:      RelaySender<M>,
+    block_stream:      SubscriptionStream<'static, M::Provider, Block<H256>>
 }
 
 impl<M: Middleware + 'static> Sources<M> {
-    pub fn new(
+    pub async fn new(
         guard_net: Swarm,
         submission_server: SubmissionServer,
         relay_sender: RelaySender<M>
     ) -> Self {
-        Self { relay_sender, guard_net, submission_server }
+        let block_stream = middleware.subscribe_blocks().await?;
+        Self { relay_sender, guard_net, submission_server, block_stream }
     }
 
     /// grabs the guard network handle

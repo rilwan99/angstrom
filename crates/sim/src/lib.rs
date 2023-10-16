@@ -8,8 +8,6 @@ use guard_types::on_chain::{
     CallerInfo, HookSim, RawBundle, RawLvrSettlement, RawUserSettlement, SearcherOrUser,
     SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement
 };
-use revm_primitives::db::DatabaseRef;
-use state::RevmBackend;
 use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
 
 use crate::revm::Revm;

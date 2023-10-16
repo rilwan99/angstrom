@@ -40,7 +40,7 @@ where
     consensus:        ConsensusCore<S>,
     /// deals with all action related requests and actions including bundle
     /// building
-    action:           ActionCore<M, S>,
+    action:           ActionCore<S>,
     /// TODO: remove this terrorism joe added
     valid_stakers_tx: UnboundedSender<GaurdStakingEvent>
 }
@@ -50,8 +50,9 @@ where
     <M as Middleware>::Provider: PubsubClient
 {
     pub async fn new(
+        middleware: &'static M,
         network_config: NetworkConfig,
-        action_config: ActionConfig<M, S>,
+        action_config: ActionConfig<S>,
         server_config: SubmissionServerConfig
     ) -> anyhow::Result<Self> {
         let (valid_stakers_tx, valid_stakers_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -262,8 +263,9 @@ pub mod test_harness {
 
     impl GuardHandle {
         pub async fn new<M, S>(
+            middleware: &'static M,
             network_config: NetworkConfig,
-            leader_config: ActionConfig<M, S>,
+            leader_config: ActionConfig<S>,
             server_config: SubmissionServerConfig
         ) -> anyhow::Result<Self>
         where
@@ -272,7 +274,8 @@ pub mod test_harness {
             <M as Middleware>::Provider: PubsubClient
         {
             let (tx, rx) = channel(10);
-            let guard = Guard::new(network_config, leader_config, server_config).await?;
+            let guard =
+                Guard::new(middleware, network_config, leader_config, server_config).await?;
             let guard_wrapper = GuardWrapper { guard, receiver: rx };
             let handle = tokio::spawn(guard_wrapper);
 
