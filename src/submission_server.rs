@@ -191,15 +191,16 @@ impl Stream for SubmissionServer {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         self.receiver.poll_next_unpin(cx).filter_map(|f| {
-            if let Submission::Subscription(sk, sender) = f? {
-                self.server_subscriptions
-                    .entry(sk)
-                    .or_default()
-                    .push(sender);
-                None
-            } else {
-                Some(f)
-            }
+            f.map(|f| match f {
+                Submission::Subscription(sk, sender) => {
+                    self.server_subscriptions
+                        .entry(sk)
+                        .or_default()
+                        .push(sender);
+                    None
+                }
+                rest @ _ => Some(rest)
+            })
         })
     }
 }

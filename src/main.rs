@@ -66,8 +66,7 @@ impl Args {
 
         let fake_bundle = LocalWallet::new(&mut rand::thread_rng());
         let network_config = NetworkConfig::new(fake_key, fake_pub_key.into());
-        let action_config =
-            ActionConfig { simulator: sim, edsca_key, bundle_key: fake_bundle, middleware };
+        let action_config = ActionConfig { simulator: sim, edsca_key, bundle_key: fake_bundle };
 
         let fake_addr = "127.0.0.1:6969".parse()?;
         let server_config = SubmissionServerConfig {
@@ -77,7 +76,8 @@ impl Args {
         };
         println!("spawning guard");
 
-        let guard = rt.block_on(Guard::new(network_config, action_config, server_config))?;
+        let guard =
+            rt.block_on(Guard::new(middleware, network_config, action_config, server_config))?;
         rt.block_on(guard);
 
         Ok(())
