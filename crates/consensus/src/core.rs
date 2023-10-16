@@ -13,15 +13,11 @@ use guard_types::{
     database::State,
     on_chain::SimmedBundle
 };
-use sim::Simulator;
 use thiserror::Error;
 use tracing::{error, warn};
 
 use crate::{
-    evidence::EvidenceCollector,
-    executor::{Executor, ExecutorMessage},
-    guard_stages::GuardStages,
-    round::RoundState
+    evidence::EvidenceCollector, guard_stages::GuardStages, round::RoundState, signer::Signer
 };
 
 #[derive(Debug)]
@@ -58,7 +54,7 @@ pub enum ConsensusError {
 /// abstract all of this out in order to keep this module as clean as possible
 /// as proper functionality is critical here to ensure that Angstrom works
 /// properly.
-pub struct ConsensusCore<S: Simulator + 'static> {
+pub struct ConsensusCore {
     /// collects + formulates evidence of byzantine guards
     evidence_collector: EvidenceCollector,
     /// keeps track of the current round state
@@ -67,14 +63,13 @@ pub struct ConsensusCore<S: Simulator + 'static> {
     state:              State,
     /// keeps track of what stage of consensus all guards are on
     guard_stages:       GuardStages,
-    /// used to execute underlying state.
-    /// TODO: can prob remove this.
-    executor:           Executor<S>,
+    /// deals with all signing and signature verification
+    signer:             Signer,
     /// messages to share with others
     outbound:           VecDeque<ConsensusMessage>
 }
 
-impl<S: Simulator + 'static> ConsensusCore<S> {
+impl ConsensusCore {
     pub async fn new() -> Self {
         todo!()
     }
@@ -120,7 +115,7 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
             return
         }
 
-        let Ok(proposal_vote) = self.executor.sign_leader_proposal(&proposal) else {
+        let Ok(proposal_vote) = self.signer.sign_leader_proposal(&proposal) else {
             error!("failed to sign the leader proposal");
             return
         };
@@ -153,7 +148,7 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
 
         if let Some(hash) = self.round_state.bundle().new_simmed_bundle(bundle) {
             // new bundle, lets sign and propagate our hash
-            let Ok(signed_bundle) = self.executor.sign_bundle_vote(
+            let Ok(signed_bundle) = self.signer.sign_bundle_vote(
                 hash,
                 self.round_state.stage().height(),
                 self.round_state.stage().round()
@@ -208,25 +203,15 @@ impl<S: Simulator + 'static> ConsensusCore<S> {
                 .push_back(ConsensusMessage::NewBundle23(bundle.clone()))
         }
     }
-
-    fn on_executor(
-        &mut self,
-        executor_msg: Option<ExecutorMessage>
-    ) -> Option<Result<ConsensusMessage, ConsensusError>> {
-        let message = executor_msg?;
-        None
-    }
 }
 
-impl<S: Simulator + 'static> Stream for ConsensusCore<S> {
+impl Stream for ConsensusCore {
     type Item = Result<ConsensusMessage, ConsensusError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if self.round_state.stage().update_current_stage() {
             todo!()
         }
-
-        let stuff = self.executor.poll(cx);
 
         todo!()
     }
