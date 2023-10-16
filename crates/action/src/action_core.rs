@@ -1,5 +1,4 @@
 use std::{
-    collections::VecDeque,
     sync::Arc,
     task::{Context, Poll},
     time::SystemTime
@@ -39,16 +38,16 @@ pub struct ActionConfig<S: Simulator + 'static> {
 #[derive(Debug, Clone)]
 pub enum ActionMessage {
     NewBestBundle(Arc<SimmedBundle>),
-    NewValidUserTransactions(Arc<Vec<SimmedUserSettlement>>),
-    NewValidSearcherTransactions(Arc<Vec<SimmedLvrSettlement>>)
+    NewValidUserTransaction(Arc<SimmedUserSettlement>),
+    NewValidSearcherTransaction(Arc<SimmedLvrSettlement>)
 }
 
 impl From<CowMsg> for ActionMessage {
     fn from(value: CowMsg) -> Self {
         match value {
             CowMsg::NewBestBundle(b) => ActionMessage::NewBestBundle(b),
-            CowMsg::NewUserTransactions(t) => ActionMessage::NewValidUserTransactions(t),
-            CowMsg::NewSearcherTransactions(t) => ActionMessage::NewValidSearcherTransactions(t)
+            CowMsg::NewUserTransaction(t) => ActionMessage::NewValidUserTransaction(t),
+            CowMsg::NewSearcherTransaction(t) => ActionMessage::NewValidSearcherTransaction(t)
         }
     }
 }
@@ -63,9 +62,9 @@ impl From<CowMsg> for ActionMessage {
 /// module.
 pub struct ActionCore<S: Simulator + 'static> {
     /// deals with our bundle state
-    cow_solver:      CowSolver<S>,
+    cow_solver: CowSolver<S>,
     /// used to know the current blocks
-    last_block:      SystemTime,
+    last_block: SystemTime
 }
 
 impl<S: Simulator + Unpin> ActionCore<S> {
@@ -74,10 +73,7 @@ impl<S: Simulator + Unpin> ActionCore<S> {
 
         let last_block = SystemTime::now();
 
-        Ok(Self {
-            cow_solver: CowSolver::new(simulator.clone(), vec![]),
-            last_block,
-        })
+        Ok(Self { cow_solver: CowSolver::new(simulator.clone(), vec![]), last_block })
     }
 
     pub fn get_cow(&mut self) -> &mut CowSolver<S> {
@@ -85,17 +81,8 @@ impl<S: Simulator + Unpin> ActionCore<S> {
     }
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Option<ActionMessage>> {
-        if let Poll::Ready(Some(cow_solver_msg)) = self.cow_solver.poll_next_unpin(cx) {
-            self.outbound_buffer.extend(cow_solver_msg.into_iter().map(Into::into));
-        }
-
-
-
-        if self.outbound_buffer.pop_front()
-        if !res.is_empty() {
-            return Poll::Ready(res)
-        }
-
-        Poll::Pending
+        self.cow_solver
+            .poll_next_unpin(cx)
+            .map(|op| op.map(Into::into))
     }
 }

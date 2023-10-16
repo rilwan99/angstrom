@@ -22,8 +22,8 @@ use tracing::{debug, info, trace};
 #[derive(Debug, Clone)]
 pub enum CowMsg {
     NewBestBundle(Arc<SimmedBundle>),
-    NewUserTransactions(Arc<SimmedUserSettlement>),
-    NewSearcherTransactions(Arc<SimmedLvrSettlement>)
+    NewUserTransaction(Arc<SimmedUserSettlement>),
+    NewSearcherTransaction(Arc<SimmedLvrSettlement>)
 }
 
 pub type SimFut = Pin<Box<dyn Future<Output = Result<SimResult, SimError>> + Send + 'static>>;
@@ -156,7 +156,7 @@ fn convert_simmed_results(
             }
             all_user_tx.insert(simed_user.clone());
 
-            return Some(CowMsg::NewUserTransactions(simed_user.into()))
+            return Some(CowMsg::NewUserTransaction(simed_user.into()))
         }
         guard_types::on_chain::SearcherOrUser::Searcher(searcher) => {
             let Some(pool) = bytes_to_pool_key.get(&searcher.order.pool) else { return None };
@@ -168,14 +168,14 @@ fn convert_simmed_results(
             match best_searcher_tx.entry(pool.clone()) {
                 std::collections::hash_map::Entry::Vacant(v) => {
                     v.insert(simmed_searcher.clone());
-                    return Some(CowMsg::NewSearcherTransactions(simmed_searcher.into()))
+                    return Some(CowMsg::NewSearcherTransaction(simmed_searcher.into()))
                 }
                 std::collections::hash_map::Entry::Occupied(mut o) => {
                     if o.get().raw.order.bribe > simmed_searcher.raw.order.bribe {
                         return None
                     }
                     o.insert(simmed_searcher.clone());
-                    return Some(CowMsg::NewSearcherTransactions(simmed_searcher.into()))
+                    return Some(CowMsg::NewSearcherTransaction(simmed_searcher.into()))
                 }
             }
         }
