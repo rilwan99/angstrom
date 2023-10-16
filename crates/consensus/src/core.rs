@@ -26,7 +26,6 @@ use crate::{
     executor::{Executor, ExecutorMessage},
     guard_stages::GuardStages,
     round::RoundState,
-    state::ChainMaintainer
 };
 
 #[derive(Debug)]
@@ -75,9 +74,6 @@ pub struct ConsensusCore<S: Simulator + 'static> {
     /// used to execute underlying state.
     /// TODO: can prob remove this.
     executor:           Executor<S>,
-    /// u8 is a placeholder till we unblackbox db
-    /// Deals with our local chain state
-    chain_maintainer:   ChainMaintainer<u8>,
     /// messages to share with others
     outbound:           VecDeque<ConsensusMessage>
 }

@@ -1,8 +1,6 @@
 [workspace]
 members = [
-  "crates/guard-net/network",
-  "crates/guard-net/eth-wire",
-  "crates/guard-net/discv4",
+  "crates/guard-net/*",
   "crates/action",
   "crates/consensus",
   "crates/types",

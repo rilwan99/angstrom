@@ -1,12 +1,11 @@
 use bytes::BytesMut;
 use reth_primitives::{keccak256, H256, H512};
-use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
+use reth_rlp::{Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use super::Block;
 use crate::{
     consensus::Time,
-    database::{BlockCommit, BlockHeader, BlockId},
+    database::{BlockCommit, BlockHeader},
     on_chain::{Signature, SimmedBundle},
     validate_signature
 };
