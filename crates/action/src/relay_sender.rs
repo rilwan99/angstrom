@@ -11,7 +11,6 @@ use ethers_providers::Middleware;
 use ethers_signers::{LocalWallet, Signer};
 use futures::{Future, FutureExt};
 use guard_types::on_chain::SimmedBundle;
-use reth_primitives::PeerId;
 
 type StakedWallet = LocalWallet;
 type BundleKey = LocalWallet;

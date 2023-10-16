@@ -68,24 +68,20 @@ impl<S: Simulator + 'static> CowSolver<S> {
             .push(Box::pin(async move { handle.simulate_bundle(call_info, bundle).await }));
     }
 
-    pub fn new_searcher_transactions(&mut self, tx: Vec<RawLvrSettlement>) {
-        tx.into_iter().for_each(|tx| {
-            let handle = self.sim.clone();
-            let call_info = self.call_info.clone();
+    pub fn new_searcher_transaction(&mut self, tx: RawLvrSettlement) {
+        let handle = self.sim.clone();
+        let call_info = self.call_info.clone();
 
-            self.pending_simulations
-                .push(Box::pin(async move { handle.simulate_hooks(tx, call_info).await }));
-        });
+        self.pending_simulations
+            .push(Box::pin(async move { handle.simulate_hooks(tx, call_info).await }));
     }
 
-    pub fn new_user_transactions(&mut self, transactions: Vec<RawUserSettlement>) {
-        transactions.into_iter().for_each(|tx| {
-            let handle = self.sim.clone();
-            let call_info = self.call_info.clone();
+    pub fn new_user_transaction(&mut self, tx: RawUserSettlement) {
+        let handle = self.sim.clone();
+        let call_info = self.call_info.clone();
 
-            self.pending_simulations
-                .push(Box::pin(async move { handle.simulate_hooks(tx, call_info).await }));
-        });
+        self.pending_simulations
+            .push(Box::pin(async move { handle.simulate_hooks(tx, call_info).await }));
     }
 
     fn on_sim_res(&mut self, sim_results: Result<SimResult, SimError>) -> Option<CowMsg> {

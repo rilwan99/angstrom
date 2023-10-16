@@ -43,6 +43,7 @@ where
     <M as Middleware>::Provider: PubsubClient
 {
     pub async fn new(
+        middleware: &'static M,
         guard_net: Swarm,
         submission_server: SubmissionServer,
         relay_sender: RelaySender<M>
@@ -63,8 +64,8 @@ where
     }
 
     /// used to share new txes with externally subscribed users
-    pub fn on_new_user_txes(&mut self, txes: Arc<Vec<UserOrder>>) {
-        self.submission_server.on_new_user_txes(txes);
+    pub fn on_new_user_txes(&mut self, tx: Arc<UserOrder>) {
+        self.submission_server.on_new_user_tx(tx);
     }
 
     /// used to share new bundles with externally subscribed users

@@ -115,7 +115,7 @@ pub enum SubscriptionResult {
     /// Simmed bundles
     Bundle(Arc<SimmedBundle>),
     /// Simmed User orders
-    CowTransaction(Arc<Vec<UserOrder>>)
+    CowTransaction(Arc<UserOrder>)
 }
 
 #[rpc(server, client, namespace = "guard")]
@@ -162,13 +162,13 @@ pub struct SubmissionServer {
 
 impl SubmissionServer {
     /// used to share new txes with externally subscribed users
-    pub fn on_new_user_txes(&mut self, txes: Arc<Vec<UserOrder>>) {
+    pub fn on_new_user_tx(&mut self, tx: Arc<UserOrder>) {
         self.server_subscriptions
             .entry(SubscriptionKind::CowTransactions)
             .or_default()
             .retain(|sender| {
                 sender
-                    .try_send(SubscriptionResult::CowTransaction(txes.clone()))
+                    .try_send(SubscriptionResult::CowTransaction(tx.clone()))
                     .is_ok()
             });
     }
