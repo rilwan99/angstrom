@@ -22,7 +22,7 @@ pub struct Sources<M: Middleware + 'static> {
 
 impl<M: Middleware + 'static> Sources<M> {
     pub fn new(
-        guard_net: Swarn,
+        guard_net: Swarm,
         submission_server: SubmissionServer,
         relay_sender: RelaySender<M>
     ) -> Self {
