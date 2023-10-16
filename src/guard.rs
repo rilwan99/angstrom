@@ -194,18 +194,8 @@ where
         let mut work = 4096;
         loop {
             let mut sub_server_msg = Vec::with_capacity(3);
-            while let Poll::Ready(new_msg) = self.server.poll_next_unpin(cx) {
-                let Some(new_msg) = new_msg else { return Poll::Ready(()) };
 
-                sub_server_msg.push(new_msg)
-            }
             self.handle_submissions(sub_server_msg);
-
-            let mut swarm_msgs = Vec::with_capacity(3);
-            while let Poll::Ready(new_msg) = self.network.poll_next_unpin(cx) {
-                let Some(new_msg) = new_msg else { return Poll::Ready(()) };
-                swarm_msgs.push(new_msg);
-            }
             self.handle_network_events(swarm_msgs);
 
             if let Poll::Ready(msg) = self.action.poll(cx) {

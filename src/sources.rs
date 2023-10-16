@@ -4,24 +4,43 @@ use std::{
 };
 
 use action::RelaySender;
-use ethers_providers::Middleware;
+use ethers_core::types::{Block, H256};
+use ethers_flashbots::PendingBundleError;
+use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
 use futures::Stream;
-use guard_network::Swarm;
+use futures_util::StreamExt;
+use guard_network::{Swarm, SwarmEvent};
 use guard_types::on_chain::{SimmedBundle, UserOrder};
 
-use crate::submission_server::SubmissionServer;
+use crate::submission_server::{Submission, SubmissionServer};
+
+pub enum SourceMessages {
+    Swarm(SwarmEvent),
+    SubmissionServer(Submission),
+    NewEthereumBlock(Block<H256>),
+    RelaySubmission(Result<(), PendingBundleError>)
+}
 
 /// Holds all of our message sources
-pub struct Sources<M: Middleware + 'static> {
+pub struct Sources<M: Middleware + 'static>
+where
+    <M as Middleware>::Provider: PubsubClient
+{
     /// guard network connection
     guard_net:         Swarm,
     /// deals with new submissions through a rpc to the network
     submission_server: SubmissionServer,
+    /// for the leader to submit to relays
     relay_sender:      RelaySender<M>,
+    /// general new block stream. Will be updated when our local optimized
+    /// mem-pool is built
     block_stream:      SubscriptionStream<'static, M::Provider, Block<H256>>
 }
 
-impl<M: Middleware + 'static> Sources<M> {
+impl<M: Middleware + 'static> Sources<M>
+where
+    <M as Middleware>::Provider: PubsubClient
+{
     pub async fn new(
         guard_net: Swarm,
         submission_server: SubmissionServer,
@@ -52,10 +71,25 @@ impl<M: Middleware + 'static> Sources<M> {
     }
 }
 
-impl<M: Middleware + 'static> Stream for Sources<M> {
-    type Item = ();
+impl<M: Middleware + 'static> Stream for Sources<M>
+where
+    <M as Middleware>::Provider: PubsubClient
+{
+    type Item = SourceMessages;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        todo!()
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        while let Poll::Ready(Some(swarm_event)) = self.guard_net.poll_next_unpin(cx) {
+            return Poll::Ready(Some(SourceMessages::Swarm(swarm_event)))
+        }
+
+        while let Poll::Ready(Some(sub_server)) = self.submission_server.poll_next_unpin(cx) {
+            return Poll::Ready(Some(SourceMessages::SubmissionServer(sub_server)))
+        }
+
+        while let Poll::Ready(Some(eth_block)) = self.block_stream.poll_next_unpin(cx) {
+            return Poll::Ready(Some(SourceMessages::NewEthereumBlock(eth_block)))
+        }
+
+        if let Poll::Ready(poll) = self.relay_sender.poll(cx) {}
     }
 }

@@ -74,6 +74,7 @@ jsonrpsee-core = { version = "0.20" }
 jsonrpsee-types = { version = "0.20" }
 clap = { version = "4", features = ["derive"] }
 fdlimit = "0.2.1"
+ethers-flashbots = "0.14.0"
 
 [patch.crates-io]
 revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
