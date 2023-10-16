@@ -2,25 +2,17 @@ use std::{
     collections::VecDeque,
     sync::Arc,
     task::{Context, Poll},
-    time::{Duration, SystemTime}
+    time::SystemTime
 };
 
 use ethers_core::types::{Block, H256};
-use ethers_flashbots::BroadcasterMiddleware;
-use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
 use ethers_signers::LocalWallet;
 use futures::stream::StreamExt;
-use guard_types::{
-    consensus::GuardInfo,
-    on_chain::{SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement}
-};
-use reth_primitives::{Address, U64};
+use guard_types::on_chain::{SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement};
 use sim::Simulator;
-use tracing::info;
-use url::Url;
 
-use crate::{leader_sender::LeaderSender, CowMsg, CowSolver};
+use crate::{CowMsg, CowSolver};
 
 const SIMULATION_RELAY: &str = "https://relay.flashbots.net";
 
@@ -67,7 +59,7 @@ impl From<CowMsg> for ActionMessage {
 /// The Action Modules design is the counterpart to the consensus design. That
 /// being that we handle all unknowns, building and comparisons here. This
 /// mostly refers to building new bundles, comparing other bundles as-well as
-/// dealing with supplying our consensus module with Events everytime we
+/// dealing with supplying our consensus module with Events every time we
 /// calculate something that is strictly more optimal than what our current
 /// Consensus is looking at. Most external functions such as adding
 /// quotability, or storage slot pricing for composable bundle occurs in this
@@ -76,8 +68,6 @@ pub struct ActionCore<M: Middleware + Unpin + 'static, S: Simulator + 'static>
 where
     <M as Middleware>::Provider: PubsubClient
 {
-    /// used for signature collections and reaching consensus
-    leader_sender:   LeaderSender<M>,
     /// deals with our bundle state
     cow_solver:      CowSolver<S>,
     /// used to know the current blocks
@@ -93,7 +83,7 @@ where
     <M as Middleware>::Provider: PubsubClient
 {
     pub async fn new(config: ActionConfig<M, S>) -> anyhow::Result<Self> {
-        let ActionConfig { middleware, simulator, edsca_key, bundle_key } = config;
+        let ActionConfig { middleware, simulator, .. } = config;
         let mut block_stream = middleware.subscribe_blocks().await?;
 
         // we do this to make sure we are in sync from the start
@@ -103,18 +93,6 @@ where
         Ok(Self {
             block_stream,
             cow_solver: CowSolver::new(simulator.clone(), vec![]),
-            leader_sender: LeaderSender::new(Arc::new(SignerMiddleware::new(
-                BroadcasterMiddleware::new(
-                    middleware,
-                    BUILDER_URLS
-                        .into_iter()
-                        .map(|u| Url::parse(u).unwrap())
-                        .collect(),
-                    Url::parse(SIMULATION_RELAY)?,
-                    bundle_key
-                ),
-                edsca_key
-            ))),
             last_block,
             outbound_buffer: VecDeque::default()
         })
@@ -129,10 +107,6 @@ where
 
         if let Poll::Ready(Some(_)) = self.block_stream.poll_next_unpin(cx) {
             self.last_block = SystemTime::now();
-        }
-
-        if let Poll::Ready(_) = self.leader_sender.poll(cx) {
-            info!("leader submitted bundle");
         }
 
         if let Poll::Ready(Some(cow_solver_msg)) = self.cow_solver.poll_next_unpin(cx) {

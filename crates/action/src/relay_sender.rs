@@ -12,19 +12,18 @@ use ethers_signers::{LocalWallet, Signer};
 use futures::{Future, FutureExt};
 use guard_types::on_chain::SimmedBundle;
 use reth_primitives::PeerId;
-use tracing::{debug, info};
 
 type StakedWallet = LocalWallet;
 type BundleKey = LocalWallet;
 
 pub type SubmissionFut = Pin<Box<dyn Future<Output = Result<(), PendingBundleError>> + Send>>;
 
-pub struct LeaderSender<M: Middleware + 'static> {
+pub struct RelaySender<M: Middleware + 'static> {
     signer: Arc<SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>>,
     future: Option<SubmissionFut>
 }
 
-impl<M: Middleware + 'static> LeaderSender<M> {
+impl<M: Middleware + 'static> RelaySender<M> {
     pub fn new(
         signer: Arc<SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>>
     ) -> Self {

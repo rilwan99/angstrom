@@ -6,7 +6,7 @@ use std::{
     task::{Context, Poll}
 };
 
-use ethers_core::types::{Address, U256};
+use ethers_core::types::U256;
 use futures::{stream::FuturesUnordered, Stream, StreamExt};
 use guard_types::on_chain::{
     CallerInfo, PoolKey, RawBundle, RawLvrSettlement, RawUserSettlement, SearcherOrUser,

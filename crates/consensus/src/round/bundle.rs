@@ -13,17 +13,12 @@ use tracing::{debug, error, warn};
 /// The bundle vote manager is in-charge for tracking all bundle votes
 /// in order to make sure that we are able to reach consensus on the best
 /// bundle
+#[derive(Debug, Default)]
 pub struct BundleVoteManager {
     best_bundle:        Option<Valid23Bundle>,
     known_bundles:      HashMap<H256, SimmedBundle>,
     known_bundle_votes: HashMap<H256, Vec<BundleVote>>,
     known_23_bundles:   HashSet<H256>
-}
-
-impl Default for BundleVoteManager {
-    fn default() -> Self {
-        Self { ..Default::default() }
-    }
 }
 
 impl BundleVoteManager {

@@ -5,7 +5,10 @@ use std::{
     task::{Context, Poll}
 };
 
-use action::action_core::{ActionConfig, ActionCore, ActionMessage};
+use action::{
+    action_core::{ActionConfig, ActionCore, ActionMessage},
+    LeaderSender
+};
 use consensus::core::ConsensusCore;
 use ethers_providers::{Middleware, PubsubClient};
 use futures::{Future, FutureExt};
@@ -16,31 +19,30 @@ use sim::Simulator;
 use tokio::sync::mpsc::{Sender, UnboundedSender};
 use tracing::{debug, warn};
 
-use crate::submission_server::{
-    Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner, SubscriptionKind,
-    SubscriptionResult
+use crate::{
+    submission_server::{
+        Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner,
+        SubscriptionKind, SubscriptionResult
+    },
+    Sources
 };
 
-/// This is the control unit of the guard that delegates
-/// all of our signing and messages.
+/// The control unit of the Guard
 pub struct Guard<M, S>
 where
     M: Middleware + Unpin + 'static,
     S: Simulator + Unpin + 'static,
     <M as Middleware>::Provider: PubsubClient
 {
+    /// All of the sources that we read and write to
+    sources:          Sources<M>,
     /// guard network connection
-    network:              Swarm,
-    consensus:            ConsensusCore<S>,
+    consensus:        ConsensusCore<S>,
     /// deals with all action related requests and actions including bundle
     /// building
-    action:               ActionCore<M, S>,
-    /// deals with new submissions through a rpc to the network
-    server:               SubmissionServer,
+    action:           ActionCore<M, S>,
     /// TODO: remove this terrorism joe added
-    valid_stakers_tx:     UnboundedSender<GaurdStakingEvent>,
-    /// make sure we keep subscribers upto date
-    server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>
+    valid_stakers_tx: UnboundedSender<GaurdStakingEvent>
 }
 
 impl<M: Middleware + Unpin, S: Simulator + Unpin> Guard<M, S>
@@ -55,17 +57,23 @@ where
         let (valid_stakers_tx, valid_stakers_rx) = tokio::sync::mpsc::unbounded_channel();
         let sub_server = SubmissionServerInner::new(server_config).await?;
         let swarm = Swarm::new(network_config, valid_stakers_rx).await?;
+        let relay_sender = LeaderSender::new(Arc::new(SignerMiddleware::new(
+            BroadcasterMiddleware::new(
+                action_config.middleware,
+                BUILDER_URLS
+                    .into_iter()
+                    .map(|u| Url::parse(u).unwrap())
+                    .collect(),
+                Url::parse(SIMULATION_RELAY)?,
+                action_config.bundle_key
+            ),
+            action_config.edsca_key
+        )));
+        let sources = Sources::new(swarm, sub_server, relay_sender);
         let action = ActionCore::new(action_config).await?;
         let consensus = ConsensusCore::new().await;
 
-        Ok(Self {
-            action,
-            server_subscriptions: HashMap::default(),
-            consensus,
-            server: sub_server,
-            valid_stakers_tx,
-            network: swarm
-        })
+        Ok(Self { action, consensus, valid_stakers_tx, sources })
     }
 
     fn handle_submissions(&mut self, msgs: Vec<Submission>) {

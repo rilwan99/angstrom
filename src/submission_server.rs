@@ -124,7 +124,8 @@ pub struct SubmissionServerConfig {
 
 pub struct SubmissionServer {
     handle:   ServerHandle,
-    receiver: ReceiverStream<Submission>
+    receiver: ReceiverStream<Submission>,
+    server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>
 }
 
 impl Deref for SubmissionServer {
