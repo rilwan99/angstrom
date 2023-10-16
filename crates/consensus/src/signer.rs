@@ -48,8 +48,4 @@ impl Signer {
             signature: Signature(signature)
         })
     }
-
-    pub fn get_key(&self) -> Address {
-        self.0.address().into()
-    }
 }
