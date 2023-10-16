@@ -9,7 +9,7 @@ use action::{
     action_core::{ActionConfig, ActionCore, ActionMessage},
     LeaderSender
 };
-use consensus::core::ConsensusCore;
+use consensus::core::{ConsensusCore, ConsensusMessage};
 use ethers_providers::{Middleware, PubsubClient};
 use futures::{Future, FutureExt};
 use futures_util::StreamExt;
@@ -24,7 +24,7 @@ use crate::{
         Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner,
         SubscriptionKind, SubscriptionResult
     },
-    Sources
+    SourceMessages, Sources
 };
 
 /// The control unit of the Guard
@@ -77,36 +77,26 @@ where
         Ok(Self { action, consensus, valid_stakers_tx, sources })
     }
 
-    fn handle_submissions(&mut self, msgs: Vec<Submission>) {
-        debug!(amount = msgs.len(), "handling new submissions");
+    fn on_submission(&mut self, msgs: Submission) {
+        debug!("handling new submission");
 
-        let (user_subs, arb_subs): (Vec<Option<RawUserSettlement>>, Vec<Option<RawLvrSettlement>>) =
-            msgs.into_iter()
-                .filter_map(|msg| match msg {
-                    Submission::Subscription(kind, sender) => {
-                        self.server_subscriptions
-                            .entry(kind)
-                            .or_default()
-                            .push(sender);
-                        None
-                    }
-
-                    Submission::UserTx(data) => Some((Some(data), None)),
-                    Submission::ArbTx(data) => Some((None, Some(data)))
-                })
-                .unzip();
-
-        self.action
-            .get_cow()
-            .new_user_transactions(user_subs.into_iter().filter_map(|f| f).collect());
-
-        self.action
-            .get_cow()
-            .new_searcher_transactions(arb_subs.into_iter().filter_map(|f| f).collect());
+        match msgs {
+            Submission::ArbTx(arb_tx) => {
+                self.action.get_cow().new_searcher_transactions(arb_tx);
+            }
+            Submission::UserTx(user) => {
+                self.action.get_cow().new_user_transactions(arb_tx);
+            }
+            Submission::Subscription(..) => {
+                unreachable!("this is handled in the subscription server")
+            }
+        }
     }
 
-    fn handle_network_events(&mut self, network_events: Vec<SwarmEvent>) {
-        network_events.into_iter().for_each(|event| match event {
+    fn on_guard_net(&mut self, network_events: SwarmEvent) {
+        debug!(?network_events, "handling network event");
+
+        match event {
             SwarmEvent::ValidMessage { peer_id, request } => {
                 debug!(?peer_id, ?request, "got data from peer");
                 match request {
@@ -134,53 +124,36 @@ where
             res @ _ => {
                 debug!(?res, "got swarm event");
             }
-        });
+        }
     }
 
-    fn handle_action_messages(&mut self, action_events: Vec<ActionMessage>) {
+    fn on_action(&mut self, action_events: ActionMessage) {
         debug!(?action_events, "got actions");
-        action_events.into_iter().for_each(|event| match event {
+
+        match event {
             ActionMessage::NewBestBundle(bundle) => {
-                self.network
+                self.sources
+                    .guard_net_mut()
                     .propagate_msg(PeerMessages::PropagateBundle(bundle.clone()));
-                // submit to subscribers
-                if let Some(senders) = self
-                    .server_subscriptions
-                    .get_mut(&SubscriptionKind::BestBundles)
-                {
-                    senders.retain(|sender| {
-                        sender
-                            .try_send(SubscriptionResult::Bundle(bundle.clone()))
-                            .is_ok()
-                    });
-                }
+
+                self.sources.on_new_best_bundle(bundle);
             }
             ActionMessage::NewValidUserTransactions(transactions) => {
-                // prop to other peers
-                self.network
+                self.sources
+                    .guard_net_mut()
                     .propagate_msg(PeerMessages::PropagateUserTransactions(transactions.clone()));
-                // submit to subscribers
-                if let Some(senders) = self
-                    .server_subscriptions
-                    .get_mut(&SubscriptionKind::CowTransactions)
-                {
-                    senders.retain(|sender| {
-                        sender
-                            .try_send(SubscriptionResult::CowTransaction(Arc::new(
-                                (*transactions)
-                                    .clone()
-                                    .into_iter()
-                                    .map(|tx| tx.raw.order)
-                                    .collect()
-                            )))
-                            .is_ok()
-                    });
-                }
+
+                self.sources.on_new_user_txes(txes);
             }
             ActionMessage::NewValidSearcherTransactions(transactions) => self
                 .network
                 .propagate_msg(PeerMessages::PropagateSearcherTransactions(transactions))
-        });
+        }
+    }
+
+    fn on_consensus(&mut self, consensus: ConsensusMessage) {
+        debug!(?consensus_msg, "handling consensus event");
+        todo!()
     }
 }
 
@@ -193,13 +166,29 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut work = 4096;
         loop {
-            let mut sub_server_msg = Vec::with_capacity(3);
+            // poll all sources
+            if let Poll::Ready(Some(sources)) = self.sources.poll_next_unpin(cx) {
+                match sources {
+                    SourceMessages::Swarm(swarm_event) => self.on_guard_net(swarm_event),
+                    SourceMessages::RelaySubmission(relay_submission) => {
+                        todo!()
+                    }
+                    SourceMessages::SubmissionServer(msg) => self.on_submission(msgs),
 
-            self.handle_submissions(sub_server_msg);
-            self.handle_network_events(swarm_msgs);
+                    SourceMessages::NewEthereumBlock(block) => {}
+                }
+            }
 
+            // poll actions
             if let Poll::Ready(msg) = self.action.poll(cx) {
-                self.handle_action_messages(msg);
+                self.on_action(msg);
+            }
+
+            // poll consensus
+            if let Poll::Ready(Some(consensus_msg)) = self.consensus.poll_next_unpin(cx) {
+                if let Ok(consensus_msg) = consensus_msg {
+                    self.on_consensus(consensus_msg);
+                }
             }
 
             work -= 1;

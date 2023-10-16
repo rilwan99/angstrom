@@ -63,12 +63,12 @@ where
 
     /// used to share new txes with externally subscribed users
     pub fn on_new_user_txes(&mut self, txes: Arc<Vec<UserOrder>>) {
-        todo!()
+        self.submission_server.on_new_user_txes(txes);
     }
 
     /// used to share new bundles with externally subscribed users
     pub fn on_new_best_bundle(&mut self, bundle: Arc<SimmedBundle>) {
-        todo!()
+        self.submission_server.on_new_best_bundle(bundle)
     }
 }
 

@@ -66,8 +66,6 @@ pub struct ActionCore<S: Simulator + 'static> {
     cow_solver:      CowSolver<S>,
     /// used to know the current blocks
     last_block:      SystemTime,
-    /// queue of messages
-    outbound_buffer: VecDeque<ActionMessage>
 }
 
 impl<S: Simulator + Unpin> ActionCore<S> {
@@ -79,7 +77,6 @@ impl<S: Simulator + Unpin> ActionCore<S> {
         Ok(Self {
             cow_solver: CowSolver::new(simulator.clone(), vec![]),
             last_block,
-            outbound_buffer: VecDeque::default()
         })
     }
 
@@ -87,13 +84,14 @@ impl<S: Simulator + Unpin> ActionCore<S> {
         &mut self.cow_solver
     }
 
-    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Vec<ActionMessage>> {
-        let mut res = self.outbound_buffer.drain(..).collect::<Vec<_>>();
-
+    pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Option<ActionMessage>> {
         if let Poll::Ready(Some(cow_solver_msg)) = self.cow_solver.poll_next_unpin(cx) {
-            res.extend(cow_solver_msg.into_iter().map(Into::into));
+            self.outbound_buffer.extend(cow_solver_msg.into_iter().map(Into::into));
         }
 
+
+
+        if self.outbound_buffer.pop_front()
         if !res.is_empty() {
             return Poll::Ready(res)
         }

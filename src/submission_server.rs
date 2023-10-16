@@ -33,6 +33,7 @@ pub trait PollExt<T> {
     fn filter_map<U>(self, predicate: impl FnMut(T) -> Option<U>) -> Poll<U>;
 }
 
+/// COPY from internal sorella tooling
 impl<T> PollExt<T> for Poll<T> {
     fn filter(self, mut predicate: impl FnMut(&T) -> bool) -> Poll<T> {
         let Poll::Ready(val) = self else { return Poll::Pending };
@@ -157,6 +158,32 @@ pub struct SubmissionServer {
     handle:               ServerHandle,
     receiver:             ReceiverStream<Submission>,
     server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>
+}
+
+impl SubmissionServer {
+    /// used to share new txes with externally subscribed users
+    pub fn on_new_user_txes(&mut self, txes: Arc<Vec<UserOrder>>) {
+        self.server_subscriptions
+            .entry(SubscriptionKind::CowTransactions)
+            .or_default()
+            .retain(|sender| {
+                sender
+                    .try_send(SubscriptionResult::CowTransaction(txes.clone()))
+                    .is_ok()
+            });
+    }
+
+    /// used to share new bundles with externally subscribed users
+    pub fn on_new_best_bundle(&mut self, bundle: Arc<SimmedBundle>) {
+        self.server_subscriptions
+            .entry(SubscriptionKind::BestBundles)
+            .or_default()
+            .retain(|sender| {
+                sender
+                    .try_send(SubscriptionResult::Bundle(bundle.clone()))
+                    .is_ok()
+            });
+    }
 }
 
 impl Stream for SubmissionServer {

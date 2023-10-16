@@ -17,13 +17,13 @@ use sim::{
     errors::{SimError, SimResult},
     Simulator
 };
-use tracing::{info, trace};
+use tracing::{debug, info, trace};
 
 #[derive(Debug, Clone)]
 pub enum CowMsg {
     NewBestBundle(Arc<SimmedBundle>),
-    NewUserTransactions(Arc<Vec<SimmedUserSettlement>>),
-    NewSearcherTransactions(Arc<Vec<SimmedLvrSettlement>>)
+    NewUserTransactions(Arc<SimmedUserSettlement>),
+    NewSearcherTransactions(Arc<SimmedLvrSettlement>)
 }
 
 pub type SimFut = Pin<Box<dyn Future<Output = Result<SimResult, SimError>> + Send + 'static>>;
@@ -88,22 +88,12 @@ impl<S: Simulator + 'static> CowSolver<S> {
         });
     }
 
-    fn on_sim_res(&mut self, sim_results: Vec<Result<SimResult, SimError>>) -> Option<Vec<CowMsg>> {
-        info!(?sim_results);
+    fn on_sim_res(&mut self, sim_results: Result<SimResult, SimError>) -> Option<CowMsg> {
+        debug!(?sim_results);
 
-        let (new_simmed_users, new_simmed_searchers): (
-            Vec<Option<SimmedUserSettlement>>,
-            Vec<Option<SimmedLvrSettlement>>
-        ) = sim_results
-            .into_iter()
-            .filter_map(|sim| match sim {
-                Ok(s) => Some(s),
-                Err(e) => {
-                    trace!(?e, "attempted tx sim failed");
-                    None
-                }
-            })
-            .filter_map(|result| match result {
+        sim_results
+            .ok()
+            .map(|result| match result {
                 SimResult::ExecutionResult(data) => {
                     let sim::BundleOrTransactionResult::HookSimResult {
                         tx,
@@ -131,47 +121,17 @@ impl<S: Simulator + 'static> CowSolver<S> {
                     None
                 }
             })
-            .unzip();
-
-        let unwraped_users = new_simmed_users
-            .into_iter()
-            .filter_map(|u| u)
-            .collect::<Vec<_>>();
-        let unwraped_searchers = new_simmed_searchers
-            .into_iter()
-            .filter_map(|u| u)
-            .collect::<Vec<_>>();
-
-        match (unwraped_users.is_empty(), unwraped_searchers.is_empty()) {
-            (true, true) => return None,
-            (true, false) => return Some(vec![CowMsg::NewUserTransactions(unwraped_users.into())]),
-            (false, true) => {
-                return Some(vec![CowMsg::NewSearcherTransactions(unwraped_searchers.into())])
-            }
-            (false, false) => {
-                return Some(vec![
-                    CowMsg::NewSearcherTransactions(unwraped_searchers.into()),
-                    CowMsg::NewUserTransactions(unwraped_users.into()),
-                ])
-            }
-        }
+            .flatten()
     }
 }
 
 impl<S: Simulator + Unpin> Stream for CowSolver<S> {
-    type Item = Vec<CowMsg>;
+    type Item = CowMsg;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut resolved_sims = Vec::new();
-        while let Poll::Ready(Some(sim_res)) = self.pending_simulations.poll_next_unpin(cx) {
-            resolved_sims.push(sim_res);
-        }
-
-        if let Some(res) = self.on_sim_res(resolved_sims) {
-            return Poll::Ready(Some(res))
-        }
-
-        Poll::Pending
+        self.pending_simulations
+            .poll_next_unpin(cx)
+            .map(|possible_sim| self.on_sim_res(possible_sim?))
     }
 }
 
@@ -182,7 +142,7 @@ fn convert_simmed_results(
     bytes_to_pool_key: &HashMap<[u8; 32], PoolKey>,
     best_searcher_tx: &mut HashMap<PoolKey, SimmedLvrSettlement>,
     all_user_tx: &mut HashSet<SimmedUserSettlement>
-) -> Option<(Option<SimmedUserSettlement>, Option<SimmedLvrSettlement>)> {
+) -> Option<CowMsg> {
     match tx {
         guard_types::on_chain::SearcherOrUser::User(user) => {
             let simed_user = SimmedUserSettlement {
@@ -196,7 +156,7 @@ fn convert_simmed_results(
             }
             all_user_tx.insert(simed_user.clone());
 
-            return Some((Some(simed_user), None))
+            return Some(CowMsg::NewUserTransactions(simed_user.into()))
         }
         guard_types::on_chain::SearcherOrUser::Searcher(searcher) => {
             let Some(pool) = bytes_to_pool_key.get(&searcher.order.pool) else { return None };
@@ -208,14 +168,14 @@ fn convert_simmed_results(
             match best_searcher_tx.entry(pool.clone()) {
                 std::collections::hash_map::Entry::Vacant(v) => {
                     v.insert(simmed_searcher.clone());
-                    return Some((None, Some(simmed_searcher)))
+                    return Some(CowMsg::NewSearcherTransactions(simmed_searcher.into()))
                 }
                 std::collections::hash_map::Entry::Occupied(mut o) => {
                     if o.get().raw.order.bribe > simmed_searcher.raw.order.bribe {
                         return None
                     }
                     o.insert(simmed_searcher.clone());
-                    return Some((None, Some(simmed_searcher)))
+                    return Some(CowMsg::NewSearcherTransactions(simmed_searcher.into()))
                 }
             }
         }
