@@ -11,24 +11,6 @@ use sim::Simulator;
 
 use crate::{CowMsg, CowSolver};
 
-const SIMULATION_RELAY: &str = "https://relay.flashbots.net";
-
-static BUILDER_URLS: &[&str] = &[
-    "https://builder0x69.io",
-    "https://rpc.beaverbuild.org",
-    "https://relay.flashbots.net",
-    "https://rsync-builder.xyz",
-    "https://rpc.titanbuilder.xyz",
-    "https://api.blocknative.com/v1/auction",
-    "https://mev.api.blxrbdn.com",
-    "https://eth-builder.com",
-    "https://builder.gmbit.co/rpc",
-    "https://buildai.net",
-    "https://rpc.payload.de",
-    "https://rpc.lightspeedbuilder.info",
-    "https://rpc.nfactorial.xyz"
-];
-
 pub struct ActionConfig<S: Simulator + 'static> {
     pub simulator:  S,
     pub edsca_key:  LocalWallet,
