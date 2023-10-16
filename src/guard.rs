@@ -9,7 +9,7 @@ use action::{
     action_core::{ActionConfig, ActionCore, ActionMessage},
     RelaySender
 };
-use consensus::core::{ConsensusCore, ConsensusMessage};
+use consensus::{ConsensusCore, ConsensusMessage};
 use ethers_flashbots::BroadcasterMiddleware;
 use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Middleware, PubsubClient};
@@ -58,7 +58,7 @@ where
     /// All of the sources that we read and write to
     sources:   Sources<M>,
     /// guard network connection
-    consensus: ConsensusCore<S>,
+    consensus: ConsensusCore,
     /// deals with all action related requests and actions including bundle
     /// building
     action:    ActionCore<S>
