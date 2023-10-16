@@ -60,7 +60,7 @@ where
         let swarm = Swarm::new(network_config, valid_stakers_rx).await?;
         let relay_sender = LeaderSender::new(Arc::new(SignerMiddleware::new(
             BroadcasterMiddleware::new(
-                action_config.middleware,
+                middleware,
                 BUILDER_URLS
                     .into_iter()
                     .map(|u| Url::parse(u).unwrap())
@@ -70,7 +70,7 @@ where
             ),
             action_config.edsca_key
         )));
-        let sources = Sources::new(swarm, sub_server, relay_sender);
+        let sources = Sources::new(swarm, sub_server, relay_sender).await?;
         let action = ActionCore::new(action_config).await?;
         let consensus = ConsensusCore::new().await;
 
@@ -138,7 +138,7 @@ where
 
                 self.sources.on_new_best_bundle(bundle);
             }
-            ActionMessage::NewValidUserTransactions(transactions) => {
+            ActionMessage::NewValidUserTransaction(transactions) => {
                 self.sources
                     .guard_net_mut()
                     .propagate_msg(PeerMessages::PropagateUserTransactions(transactions.clone()));
@@ -146,13 +146,14 @@ where
                 self.sources.on_new_user_txes(txes);
             }
             ActionMessage::NewValidSearcherTransactions(transactions) => self
-                .network
-                .propagate_msg(PeerMessages::PropagateSearcherTransactions(transactions))
+                .sources
+                .guard_net_mut()
+                .propagate_msg(PeerMessages::PropagateSearcherTransaction(transactions))
         }
     }
 
     fn on_consensus(&mut self, consensus: ConsensusMessage) {
-        debug!(?consensus_msg, "handling consensus event");
+        debug!(?consensus, "handling consensus event");
         todo!()
     }
 }
@@ -180,7 +181,7 @@ where
             }
 
             // poll actions
-            if let Poll::Ready(msg) = self.action.poll(cx) {
+            if let Poll::Ready(Some(msg)) = self.action.poll(cx) {
                 self.on_action(msg);
             }
 

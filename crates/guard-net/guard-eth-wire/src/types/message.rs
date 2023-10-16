@@ -1,7 +1,6 @@
 #![allow(missing_docs)]
 use std::{fmt::Debug, sync::Arc};
 
-use ethers_core::k256::elliptic_curve::rand_core::le;
 use guard_types::{
     consensus::{
         Block, Bundle23Votes, BundleVote, LeaderProposal, SignedLeaderProposal, Valid23Bundle
@@ -32,14 +31,14 @@ impl ProtocolMessage {
 
         let message = match message_type {
             EthMessageID::Status => EthMessage::Status(Status::decode(buf)?),
-            EthMessageID::PropagateUserTransactions => {
-                EthMessage::PropagateUserTransactions(Vec::<SimmedUserSettlement>::decode(buf)?)
+            EthMessageID::PropagateUserTransaction => {
+                EthMessage::PropagateUserTransaction(SimmedUserSettlement::decode(buf)?)
             }
             EthMessageID::PropagateBundle => {
                 EthMessage::PropagateBundle(SimmedBundle::decode(buf)?)
             }
-            EthMessageID::PropagateSearcherTransactions => {
-                EthMessage::PropagateSearcherTransactions(Vec::<SimmedLvrSettlement>::decode(buf)?)
+            EthMessageID::PropagateSearcherTransaction => {
+                EthMessage::PropagateSearcherTransaction(SimmedLvrSettlement::decode(buf)?)
             }
             EthMessageID::NewBlock => EthMessage::NewBlock(Block::decode(buf)?),
             EthMessageID::BundleVote => EthMessage::BundleVote(BundleVote::decode(buf)?),
@@ -129,8 +128,8 @@ pub enum EthMessage {
     Status(Status),
     // broadcast
     PropagateBundle(SimmedBundle),
-    PropagateUserTransactions(Vec<SimmedUserSettlement>),
-    PropagateSearcherTransactions(Vec<SimmedLvrSettlement>),
+    PropagateUserTransaction(SimmedUserSettlement),
+    PropagateSearcherTransaction(SimmedLvrSettlement),
     BundleVote(BundleVote),
     Bundle23Vote(Valid23Bundle),
     LeaderProposal(LeaderProposal),
@@ -150,9 +149,9 @@ impl EthMessage {
             EthMessage::BundleVote(_) => EthMessageID::BundleVote,
             EthMessage::NewBlock(_) => EthMessageID::NewBlock,
             EthMessage::PropagateBundle(_) => EthMessageID::PropagateBundle,
-            EthMessage::PropagateUserTransactions(_) => EthMessageID::PropagateUserTransactions,
-            EthMessage::PropagateSearcherTransactions(_) => {
-                EthMessageID::PropagateSearcherTransactions
+            EthMessage::PropagateUserTransaction(_) => EthMessageID::PropagateUserTransaction,
+            EthMessage::PropagateSearcherTransaction(_) => {
+                EthMessageID::PropagateSearcherTransaction
             }
             EthMessage::NewState(_) => EthMessageID::NewState
         }
@@ -163,9 +162,9 @@ impl Encodable for EthMessage {
     fn encode(&self, out: &mut dyn BufMut) {
         match self {
             EthMessage::Status(status) => status.encode(out),
-            EthMessage::PropagateUserTransactions(txes) => txes.encode(out),
+            EthMessage::PropagateUserTransaction(txes) => txes.encode(out),
             EthMessage::PropagateBundle(bundle) => bundle.encode(out),
-            EthMessage::PropagateSearcherTransactions(txes) => txes.encode(out),
+            EthMessage::PropagateSearcherTransaction(txes) => txes.encode(out),
             EthMessage::NewBlock(block) => block.encode(out),
             EthMessage::PropagateBundle(bundle) => bundle.encode(out),
             EthMessage::BundleVote(vote) => vote.encode(out),
@@ -179,9 +178,9 @@ impl Encodable for EthMessage {
     fn length(&self) -> usize {
         match self {
             EthMessage::Status(status) => status.length(),
-            EthMessage::PropagateUserTransactions(txes) => txes.length(),
+            EthMessage::PropagateUserTransaction(txes) => txes.length(),
             EthMessage::PropagateBundle(bundle) => bundle.length(),
-            EthMessage::PropagateSearcherTransactions(txes) => txes.length(),
+            EthMessage::PropagateSearcherTransaction(txes) => txes.length(),
             EthMessage::NewBlock(block) => block.length(),
             EthMessage::PropagateBundle(bundle) => bundle.length(),
             EthMessage::BundleVote(vote) => vote.length(),
@@ -204,8 +203,8 @@ impl Encodable for EthMessage {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EthBroadcastMessage {
     PropagateBundle(Arc<SimmedBundle>),
-    PropagateUserTransactions(Arc<Vec<SimmedUserSettlement>>),
-    PropagateSearcherTransactions(Arc<Vec<SimmedLvrSettlement>>),
+    PropagateUserTransaction(Arc<SimmedUserSettlement>),
+    PropagateSearcherTransaction(Arc<SimmedLvrSettlement>),
     BundleVote(Arc<BundleVote>),
     Bundle23Vote(Arc<Valid23Bundle>),
     LeaderProposal(Arc<LeaderProposal>),
@@ -227,11 +226,11 @@ impl EthBroadcastMessage {
             EthBroadcastMessage::BundleVote(_) => EthMessageID::BundleVote,
             EthBroadcastMessage::NewBlock(_) => EthMessageID::NewBlock,
             EthBroadcastMessage::PropagateBundle(_) => EthMessageID::PropagateBundle,
-            EthBroadcastMessage::PropagateUserTransactions(_) => {
-                EthMessageID::PropagateUserTransactions
+            EthBroadcastMessage::PropagateUserTransaction(_) => {
+                EthMessageID::PropagateUserTransaction
             }
-            EthBroadcastMessage::PropagateSearcherTransactions(_) => {
-                EthMessageID::PropagateSearcherTransactions
+            EthBroadcastMessage::PropagateSearcherTransaction(_) => {
+                EthMessageID::PropagateSearcherTransaction
             }
         }
     }
@@ -240,9 +239,9 @@ impl EthBroadcastMessage {
 impl Encodable for EthBroadcastMessage {
     fn encode(&self, out: &mut dyn BufMut) {
         match self {
-            EthBroadcastMessage::PropagateUserTransactions(txes) => txes.encode(out),
+            EthBroadcastMessage::PropagateUserTransaction(txes) => txes.encode(out),
             EthBroadcastMessage::PropagateBundle(bundle) => bundle.encode(out),
-            EthBroadcastMessage::PropagateSearcherTransactions(txes) => txes.encode(out),
+            EthBroadcastMessage::PropagateSearcherTransaction(txes) => txes.encode(out),
             EthBroadcastMessage::NewBlock(block) => block.encode(out),
             EthBroadcastMessage::PropagateBundle(bundle) => bundle.encode(out),
             EthBroadcastMessage::BundleVote(vote) => vote.encode(out),
@@ -255,9 +254,9 @@ impl Encodable for EthBroadcastMessage {
 
     fn length(&self) -> usize {
         match self {
-            EthBroadcastMessage::PropagateUserTransactions(txes) => txes.length(),
+            EthBroadcastMessage::PropagateUserTransaction(txes) => txes.length(),
             EthBroadcastMessage::PropagateBundle(bundle) => bundle.length(),
-            EthBroadcastMessage::PropagateSearcherTransactions(txes) => txes.length(),
+            EthBroadcastMessage::PropagateSearcherTransaction(txes) => txes.length(),
             EthBroadcastMessage::NewBlock(block) => block.length(),
             EthBroadcastMessage::PropagateBundle(bundle) => bundle.length(),
             EthBroadcastMessage::BundleVote(vote) => vote.length(),
@@ -281,8 +280,8 @@ pub enum EthMessageID {
     LeaderProposal       = 4,
     SignedLeaderProposal = 5,
     NewBlock             = 6,
-    PropagateUserTransactions = 7,
-    PropagateSearcherTransactions = 8,
+    PropagateUserTransaction = 7,
+    PropagateSearcherTransaction = 8,
     NewState             = 9
 }
 
@@ -307,8 +306,8 @@ impl Decodable for EthMessageID {
             4 => EthMessageID::LeaderProposal,
             5 => EthMessageID::SignedLeaderProposal,
             6 => EthMessageID::NewBlock,
-            7 => EthMessageID::PropagateUserTransactions,
-            8 => EthMessageID::PropagateSearcherTransactions,
+            7 => EthMessageID::PropagateUserTransaction,
+            8 => EthMessageID::PropagateSearcherTransaction,
             9 => EthMessageID::NewState,
             _ => return Err(reth_rlp::DecodeError::Custom("Invalid message ID"))
         };
@@ -329,8 +328,8 @@ impl TryFrom<usize> for EthMessageID {
             4 => Ok(EthMessageID::LeaderProposal),
             5 => Ok(EthMessageID::SignedLeaderProposal),
             6 => Ok(EthMessageID::NewBlock),
-            7 => Ok(EthMessageID::PropagateUserTransactions),
-            8 => Ok(EthMessageID::PropagateSearcherTransactions),
+            7 => Ok(EthMessageID::PropagateUserTransaction),
+            8 => Ok(EthMessageID::PropagateSearcherTransaction),
             9 => Ok(EthMessageID::NewState),
             _ => Err("Invalid message ID")
         }

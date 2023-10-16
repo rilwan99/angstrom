@@ -46,9 +46,10 @@ where
         guard_net: Swarm,
         submission_server: SubmissionServer,
         relay_sender: RelaySender<M>
-    ) -> Self {
+    ) -> anyhow::Result<Self> {
         let block_stream = middleware.subscribe_blocks().await?;
-        Self { relay_sender, guard_net, submission_server, block_stream }
+
+        Ok(Self { relay_sender, guard_net, submission_server, block_stream })
     }
 
     /// grabs the guard network handle
