@@ -36,7 +36,7 @@ impl GuardStages {
     }
 
     pub fn new_start_time(&mut self, guard: H512, time: Time) {
-        self.stages.entry(guard).or_default().time = time;
+        self.stages.entry(guard).or_default().start_time = time;
     }
 }
 

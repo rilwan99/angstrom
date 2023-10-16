@@ -1,14 +1,11 @@
 use bytes::{Bytes, BytesMut};
-use reth_codecs::{main_codec, Compact};
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
 use super::BlockId;
 use crate::consensus::{Block, GuardSet, Time};
 
-#[derive(
-    Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, RlpDecodable, RlpEncodable,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, RlpDecodable, RlpEncodable)]
 pub struct State {
     // basic info
     pub chain_id:          u64,

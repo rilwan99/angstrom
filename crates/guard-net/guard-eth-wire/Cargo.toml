@@ -20,7 +20,7 @@ reth-codecs.workspace = true
 reth-primitives.workspace = true
 reth-ecies.workspace = true
 reth-rlp.workspace = true
-guard-discv4 = {path = "../discv4" }
+guard-discv4 = {path = "../guard-discv4" }
 
 # metrics
 reth-metrics.workspace = true
