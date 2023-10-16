@@ -5,8 +5,13 @@ use std::{
     task::{Context, Poll}
 };
 
-use action::action_core::{ActionConfig, ActionCore, ActionMessage};
-use consensus::core::ConsensusCore;
+use action::{
+    action_core::{ActionConfig, ActionCore, ActionMessage},
+    RelaySender
+};
+use consensus::core::{ConsensusCore, ConsensusMessage};
+use ethers_flashbots::BroadcasterMiddleware;
+use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Middleware, PubsubClient};
 use futures::{Future, FutureExt};
 use futures_util::StreamExt;
@@ -15,32 +20,50 @@ use guard_types::on_chain::{RawLvrSettlement, RawUserSettlement};
 use sim::Simulator;
 use tokio::sync::mpsc::{Sender, UnboundedSender};
 use tracing::{debug, warn};
+use url::Url;
 
-use crate::submission_server::{
-    Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner, SubscriptionKind,
-    SubscriptionResult
+use crate::{
+    submission_server::{
+        Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner,
+        SubscriptionKind, SubscriptionResult
+    },
+    SourceMessages, Sources
 };
 
-/// This is the control unit of the guard that delegates
-/// all of our signing and messages.
+// TODO: these values should be moved somewhere else bc there ugly
+static SIMULATION_RELAY: &str = "https://relay.flashbots.net";
+static BUILDER_URLS: &[&str] = &[
+    "https://builder0x69.io",
+    "https://rpc.beaverbuild.org",
+    "https://relay.flashbots.net",
+    "https://rsync-builder.xyz",
+    "https://rpc.titanbuilder.xyz",
+    "https://api.blocknative.com/v1/auction",
+    "https://mev.api.blxrbdn.com",
+    "https://eth-builder.com",
+    "https://builder.gmbit.co/rpc",
+    "https://buildai.net",
+    "https://rpc.payload.de",
+    "https://rpc.lightspeedbuilder.info",
+    "https://rpc.nfactorial.xyz"
+];
+
+/// The control head of the Guard
 pub struct Guard<M, S>
 where
     M: Middleware + Unpin + 'static,
     S: Simulator + Unpin + 'static,
     <M as Middleware>::Provider: PubsubClient
 {
+    /// All of the sources that we read and write to
+    sources:          Sources<M>,
     /// guard network connection
-    network:              Swarm,
-    consensus:            ConsensusCore<S>,
+    consensus:        ConsensusCore<S>,
     /// deals with all action related requests and actions including bundle
     /// building
-    action:               ActionCore<M, S>,
-    /// deals with new submissions through a rpc to the network
-    server:               SubmissionServer,
+    action:           ActionCore<S>,
     /// TODO: remove this terrorism joe added
-    valid_stakers_tx:     UnboundedSender<GaurdStakingEvent>,
-    /// make sure we keep subscribers upto date
-    server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>
+    valid_stakers_tx: UnboundedSender<GaurdStakingEvent>
 }
 
 impl<M: Middleware + Unpin, S: Simulator + Unpin> Guard<M, S>
@@ -48,71 +71,70 @@ where
     <M as Middleware>::Provider: PubsubClient
 {
     pub async fn new(
+        middleware: &'static M,
         network_config: NetworkConfig,
-        action_config: ActionConfig<M, S>,
+        action_config: ActionConfig<S>,
         server_config: SubmissionServerConfig
     ) -> anyhow::Result<Self> {
         let (valid_stakers_tx, valid_stakers_rx) = tokio::sync::mpsc::unbounded_channel();
         let sub_server = SubmissionServerInner::new(server_config).await?;
         let swarm = Swarm::new(network_config, valid_stakers_rx).await?;
+        let relay_sender = RelaySender::new(Arc::new(SignerMiddleware::new(
+            BroadcasterMiddleware::new(
+                middleware,
+                BUILDER_URLS
+                    .into_iter()
+                    .map(|u| Url::parse(u).unwrap())
+                    .collect(),
+                Url::parse(SIMULATION_RELAY)?,
+                // TODO: move into own config from action
+                action_config.bundle_key.clone()
+            ),
+            // TODO: move into on config from action
+            action_config.edsca_key.clone()
+        )));
+        let sources = Sources::new(middleware, swarm, sub_server, relay_sender).await?;
         let action = ActionCore::new(action_config).await?;
         let consensus = ConsensusCore::new().await;
 
-        Ok(Self {
-            action,
-            server_subscriptions: HashMap::default(),
-            consensus,
-            server: sub_server,
-            valid_stakers_tx,
-            network: swarm
-        })
+        Ok(Self { action, consensus, valid_stakers_tx, sources })
     }
 
-    fn handle_submissions(&mut self, msgs: Vec<Submission>) {
-        debug!(amount = msgs.len(), "handling new submissions");
+    fn on_submission(&mut self, msg: Submission) {
+        debug!(?msg, "handling new submission");
 
-        let (user_subs, arb_subs): (Vec<Option<RawUserSettlement>>, Vec<Option<RawLvrSettlement>>) =
-            msgs.into_iter()
-                .filter_map(|msg| match msg {
-                    Submission::Subscription(kind, sender) => {
-                        self.server_subscriptions
-                            .entry(kind)
-                            .or_default()
-                            .push(sender);
-                        None
-                    }
-
-                    Submission::UserTx(data) => Some((Some(data), None)),
-                    Submission::ArbTx(data) => Some((None, Some(data)))
-                })
-                .unzip();
-
-        self.action
-            .get_cow()
-            .new_user_transactions(user_subs.into_iter().filter_map(|f| f).collect());
-
-        self.action
-            .get_cow()
-            .new_searcher_transactions(arb_subs.into_iter().filter_map(|f| f).collect());
+        match msg {
+            Submission::ArbTx(arb_tx) => {
+                self.action.get_cow().new_searcher_transaction(arb_tx);
+            }
+            Submission::UserTx(user) => {
+                self.action.get_cow().new_user_transaction(user);
+            }
+            Submission::Subscription(..) => {
+                unreachable!("this is handled in the subscription server")
+            }
+        }
     }
 
-    fn handle_network_events(&mut self, network_events: Vec<SwarmEvent>) {
-        network_events.into_iter().for_each(|event| match event {
+    fn on_guard_net(&mut self, event: SwarmEvent) {
+        debug!(?event, "handling network event");
+
+        match event {
             SwarmEvent::ValidMessage { peer_id, request } => {
                 debug!(?peer_id, ?request, "got data from peer");
                 match request {
                     PeerMessages::PropagateBundle(bundle) => {
                         self.action.get_cow().new_bundle((*bundle).clone().into())
                     }
-                    PeerMessages::PropagateSearcherTransactions(new_txes) => {
-                        self.action.get_cow().new_searcher_transactions(
-                            (*new_txes).clone().into_iter().map(Into::into).collect()
-                        );
+                    PeerMessages::PropagateSearcherTransaction(tx) => {
+                        self.action
+                            .get_cow()
+                            .new_searcher_transaction((*tx).clone().into());
                     }
-                    PeerMessages::PropagateUserTransactions(new_txes) => {
-                        self.action.get_cow().new_user_transactions(
-                            (*new_txes).clone().into_iter().map(Into::into).collect()
-                        );
+                    PeerMessages::PropagateUserTransaction(tx) => {
+                        self.action
+                            .get_cow()
+                            .new_user_transaction((*tx).clone().into());
                     }
                     PeerMessages::NewBlock(b) => {}
                     PeerMessages::BundleVote(vote) => {}
@@ -125,53 +147,38 @@ where
             res @ _ => {
                 debug!(?res, "got swarm event");
             }
-        });
+        }
     }
 
-    fn handle_action_messages(&mut self, action_events: Vec<ActionMessage>) {
-        debug!(?action_events, "got actions");
-        action_events.into_iter().for_each(|event| match event {
+    fn on_action(&mut self, event: ActionMessage) {
+        debug!(?event, "got actions");
+
+        match event {
             ActionMessage::NewBestBundle(bundle) => {
-                self.network
+                self.sources
+                    .guard_net_mut()
                     .propagate_msg(PeerMessages::PropagateBundle(bundle.clone()));
-                // submit to subscribers
-                if let Some(senders) = self
-                    .server_subscriptions
-                    .get_mut(&SubscriptionKind::BestBundles)
-                {
-                    senders.retain(|sender| {
-                        sender
-                            .try_send(SubscriptionResult::Bundle(bundle.clone()))
-                            .is_ok()
-                    });
-                }
+
+                self.sources.on_new_best_bundle(bundle);
             }
-            ActionMessage::NewValidUserTransactions(transactions) => {
-                // prop to other peers
-                self.network
-                    .propagate_msg(PeerMessages::PropagateUserTransactions(transactions.clone()));
-                // submit to subscribers
-                if let Some(senders) = self
-                    .server_subscriptions
-                    .get_mut(&SubscriptionKind::CowTransactions)
-                {
-                    senders.retain(|sender| {
-                        sender
-                            .try_send(SubscriptionResult::CowTransaction(Arc::new(
-                                (*transactions)
-                                    .clone()
-                                    .into_iter()
-                                    .map(|tx| tx.raw.order)
-                                    .collect()
-                            )))
-                            .is_ok()
-                    });
-                }
+            ActionMessage::NewValidUserTransaction(transaction) => {
+                self.sources
+                    .guard_net_mut()
+                    .propagate_msg(PeerMessages::PropagateUserTransaction(transaction.clone()));
+
+                self.sources
+                    .on_new_user_txes(transaction.raw.order.clone().into());
             }
-            ActionMessage::NewValidSearcherTransactions(transactions) => self
-                .network
-                .propagate_msg(PeerMessages::PropagateSearcherTransactions(transactions))
-        });
+            ActionMessage::NewValidSearcherTransaction(transaction) => self
+                .sources
+                .guard_net_mut()
+                .propagate_msg(PeerMessages::PropagateSearcherTransaction(transaction))
+        }
+    }
+
+    fn on_consensus(&mut self, consensus: ConsensusMessage) {
+        debug!(?consensus, "handling consensus event");
+        todo!()
     }
 }
 
@@ -184,23 +191,29 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut work = 4096;
         loop {
-            let mut sub_server_msg = Vec::with_capacity(3);
-            while let Poll::Ready(new_msg) = self.server.poll_next_unpin(cx) {
-                let Some(new_msg) = new_msg else { return Poll::Ready(()) };
+            // poll all sources
+            if let Poll::Ready(Some(sources)) = self.sources.poll_next_unpin(cx) {
+                match sources {
+                    SourceMessages::Swarm(swarm_event) => self.on_guard_net(swarm_event),
+                    SourceMessages::RelaySubmission(relay_submission) => {
+                        todo!()
+                    }
+                    SourceMessages::SubmissionServer(msg) => self.on_submission(msg),
 
-                sub_server_msg.push(new_msg)
+                    SourceMessages::NewEthereumBlock(block) => {}
+                }
             }
-            self.handle_submissions(sub_server_msg);
 
-            let mut swarm_msgs = Vec::with_capacity(3);
-            while let Poll::Ready(new_msg) = self.network.poll_next_unpin(cx) {
-                let Some(new_msg) = new_msg else { return Poll::Ready(()) };
-                swarm_msgs.push(new_msg);
+            // poll actions
+            if let Poll::Ready(Some(msg)) = self.action.poll(cx) {
+                self.on_action(msg);
             }
-            self.handle_network_events(swarm_msgs);
 
-            if let Poll::Ready(msg) = self.action.poll(cx) {
-                self.handle_action_messages(msg);
+            // poll consensus
+            if let Poll::Ready(Some(consensus_msg)) = self.consensus.poll_next_unpin(cx) {
+                if let Ok(consensus_msg) = consensus_msg {
+                    self.on_consensus(consensus_msg);
+                }
             }
 
             work -= 1;
@@ -254,8 +267,9 @@ pub mod test_harness {
 
     impl GuardHandle {
         pub async fn new<M, S>(
+            middleware: &'static M,
             network_config: NetworkConfig,
-            leader_config: ActionConfig<M, S>,
+            leader_config: ActionConfig<S>,
             server_config: SubmissionServerConfig
         ) -> anyhow::Result<Self>
         where
@@ -264,7 +278,8 @@ pub mod test_harness {
             <M as Middleware>::Provider: PubsubClient
         {
             let (tx, rx) = channel(10);
-            let guard = Guard::new(network_config, leader_config, server_config).await?;
+            let guard =
+                Guard::new(middleware, network_config, leader_config, server_config).await?;
             let guard_wrapper = GuardWrapper { guard, receiver: rx };
             let handle = tokio::spawn(guard_wrapper);
 

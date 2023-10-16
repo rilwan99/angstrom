@@ -1,3 +1,5 @@
+use crate::consensus::Time;
+
 /// the representation of these represents time in seconds
 /// for the current cutoff period
 #[derive(Debug, Default)]

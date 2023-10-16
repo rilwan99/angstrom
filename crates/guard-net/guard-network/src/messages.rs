@@ -35,9 +35,9 @@ pub enum PeerMessages {
 
     // default propagation messages
     /// new simmed user txes
-    PropagateUserTransactions(Arc<Vec<SimmedUserSettlement>>),
+    PropagateUserTransaction(Arc<SimmedUserSettlement>),
     /// new simmed searcher txes
-    PropagateSearcherTransactions(Arc<Vec<SimmedLvrSettlement>>),
+    PropagateSearcherTransaction(Arc<SimmedLvrSettlement>),
     /// propagates a new bundle
     PropagateBundle(Arc<SimmedBundle>)
 }

@@ -1,7 +1,10 @@
 use std::{
+    collections::HashMap,
     net::SocketAddr,
     ops::{Deref, DerefMut},
-    sync::Arc
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll}
 };
 
 use ethers_core::types::transaction::eip712::TypedData;
@@ -23,6 +26,35 @@ use tower::{
 };
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tracing::info;
+
+/// COPY from internal sorella tooling
+pub trait PollExt<T> {
+    fn filter(self, predicate: impl FnMut(&T) -> bool) -> Poll<T>;
+    fn filter_map<U>(self, predicate: impl FnMut(T) -> Option<U>) -> Poll<U>;
+}
+
+/// COPY from internal sorella tooling
+impl<T> PollExt<T> for Poll<T> {
+    fn filter(self, mut predicate: impl FnMut(&T) -> bool) -> Poll<T> {
+        let Poll::Ready(val) = self else { return Poll::Pending };
+
+        if predicate(&val) {
+            Poll::Ready(val)
+        } else {
+            Poll::Pending
+        }
+    }
+
+    fn filter_map<U>(self, mut predicate: impl FnMut(T) -> Option<U>) -> Poll<U> {
+        let Poll::Ready(val) = self else { return Poll::Pending };
+
+        if let Some(map) = predicate(val) {
+            Poll::Ready(map)
+        } else {
+            Poll::Pending
+        }
+    }
+}
 
 /// Error thrown when parsing cors domains went wrong
 #[derive(Debug, thiserror::Error)]
@@ -83,7 +115,7 @@ pub enum SubscriptionResult {
     /// Simmed bundles
     Bundle(Arc<SimmedBundle>),
     /// Simmed User orders
-    CowTransaction(Arc<Vec<UserOrder>>)
+    CowTransaction(Arc<UserOrder>)
 }
 
 #[rpc(server, client, namespace = "guard")]
@@ -123,21 +155,53 @@ pub struct SubmissionServerConfig {
 }
 
 pub struct SubmissionServer {
-    handle:   ServerHandle,
-    receiver: ReceiverStream<Submission>
+    handle:               ServerHandle,
+    receiver:             ReceiverStream<Submission>,
+    server_subscriptions: HashMap<SubscriptionKind, Vec<Sender<SubscriptionResult>>>
 }
 
-impl Deref for SubmissionServer {
-    type Target = ReceiverStream<Submission>;
+impl SubmissionServer {
+    /// used to share new txes with externally subscribed users
+    pub fn on_new_user_tx(&mut self, tx: Arc<UserOrder>) {
+        self.server_subscriptions
+            .entry(SubscriptionKind::CowTransactions)
+            .or_default()
+            .retain(|sender| {
+                sender
+                    .try_send(SubscriptionResult::CowTransaction(tx.clone()))
+                    .is_ok()
+            });
+    }
 
-    fn deref(&self) -> &Self::Target {
-        &self.receiver
+    /// used to share new bundles with externally subscribed users
+    pub fn on_new_best_bundle(&mut self, bundle: Arc<SimmedBundle>) {
+        self.server_subscriptions
+            .entry(SubscriptionKind::BestBundles)
+            .or_default()
+            .retain(|sender| {
+                sender
+                    .try_send(SubscriptionResult::Bundle(bundle.clone()))
+                    .is_ok()
+            });
     }
 }
 
-impl DerefMut for SubmissionServer {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.receiver
+impl Stream for SubmissionServer {
+    type Item = Submission;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        self.receiver.poll_next_unpin(cx).filter_map(|f| {
+            f.map(|f| match f {
+                Submission::Subscription(sk, sender) => {
+                    self.server_subscriptions
+                        .entry(sk)
+                        .or_default()
+                        .push(sender);
+                    None
+                }
+                rest @ _ => Some(rest)
+            })
+        })
     }
 }
 
@@ -168,7 +232,11 @@ impl SubmissionServerInner {
         }
 
         let handle = server.start(methods);
-        Ok(SubmissionServer { receiver: ReceiverStream::new(rx), handle })
+        Ok(SubmissionServer {
+            receiver: ReceiverStream::new(rx),
+            handle,
+            server_subscriptions: HashMap::default()
+        })
     }
 }
 

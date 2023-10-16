@@ -1,32 +1,27 @@
 use std::{
-    borrow::Cow,
     collections::VecDeque,
     pin::Pin,
-    task::{Context, Poll, Waker}
+    task::{Context, Poll}
 };
 
-use futures::{stream::FuturesUnordered, Stream, StreamExt};
-// use guard_provider::ProviderFactory;
+use futures::Stream;
 use guard_types::{
     consensus::{
-        Block, BundleVote, EvidenceError, GuardInfo, GuardSet, LeaderProposal,
-        SignedLeaderProposal, Valid23Bundle
+        Block, BundleVote, EvidenceError, GuardInfo, LeaderProposal, SignedLeaderProposal,
+        Valid23Bundle
     },
-    database::{BlockId, State},
+    database::State,
     on_chain::SimmedBundle
 };
-use reth_db::{mdbx::Env, DatabaseEnv};
 use sim::Simulator;
 use thiserror::Error;
-use tokio::task::{JoinError, JoinHandle, JoinSet};
 use tracing::{error, warn};
 
 use crate::{
     evidence::EvidenceCollector,
     executor::{Executor, ExecutorMessage},
     guard_stages::GuardStages,
-    round::RoundState,
-    state::ChainMaintainer
+    round::RoundState
 };
 
 #[derive(Debug)]
@@ -75,9 +70,6 @@ pub struct ConsensusCore<S: Simulator + 'static> {
     /// used to execute underlying state.
     /// TODO: can prob remove this.
     executor:           Executor<S>,
-    /// u8 is a placeholder till we unblackbox db
-    /// Deals with our local chain state
-    chain_maintainer:   ChainMaintainer<u8>,
     /// messages to share with others
     outbound:           VecDeque<ConsensusMessage>
 }
@@ -230,7 +222,7 @@ impl<S: Simulator + 'static> Stream for ConsensusCore<S> {
     type Item = Result<ConsensusMessage, ConsensusError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Some(new_round_step) = self.round_state.stage().update_current_stage() {
+        if self.round_state.stage().update_current_stage() {
             todo!()
         }
 

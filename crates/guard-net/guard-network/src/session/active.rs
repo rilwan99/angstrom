@@ -204,8 +204,8 @@ impl ActiveSession {
             Bundle23Vote,
             LeaderProposal,
             SignedLeaderProposal,
-            PropagateUserTransactions,
-            PropagateSearcherTransactions,
+            PropagateUserTransaction,
+            PropagateSearcherTransaction,
             PropagateBundle,
             NewState
         );

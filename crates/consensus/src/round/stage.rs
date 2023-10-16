@@ -44,5 +44,7 @@ impl Stage {
         todo!()
     }
 
-    pub fn update_current_stage(&mut self) -> bool {}
+    pub fn update_current_stage(&mut self) -> bool {
+        todo!()
+    }
 }

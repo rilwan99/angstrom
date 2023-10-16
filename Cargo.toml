@@ -1,8 +1,6 @@
 [workspace]
 members = [
-  "crates/guard-net/network",
-  "crates/guard-net/eth-wire",
-  "crates/guard-net/discv4",
+  "crates/guard-net/*",
   "crates/action",
   "crates/consensus",
   "crates/types",
@@ -68,7 +66,7 @@ tower = { version = "0.4", features = ["full"] }
 hyper = "0.14"
 
 parking_lot = "0.12"
-guard-network = { path = "./crates/guard-net/network/" }
+guard-network = { path = "./crates/guard-net/guard-network/" }
 futures-util = "0.3.28"
 tokio-util = { version = "0.7.4", features = ["codec"] }
 soketto = "0.7.1"
@@ -76,6 +74,7 @@ jsonrpsee-core = { version = "0.20" }
 jsonrpsee-types = { version = "0.20" }
 clap = { version = "4", features = ["derive"] }
 fdlimit = "0.2.1"
+ethers-flashbots = "0.14.0"
 
 [patch.crates-io]
 revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
