@@ -1,3 +1,1 @@
-pub struct ProposeState {
-    is_leader: bool
-}
+pub struct ProposeState {}

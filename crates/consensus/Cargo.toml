@@ -37,5 +37,6 @@ reth-rlp.workspace = true
 rayon.workspace = true
 
 guard-types.workspace = true
+common.workspace = true
 # guard-provider.workspace = true
 sim.workspace = true

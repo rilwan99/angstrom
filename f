@@ -65,12 +65,7 @@ pub struct RoundState {
 
 impl RoundState {
     pub fn new(current_height: u64, is_leader: bool) -> Self {
-        Self {
-            is_leader: IsLeader::default(),
-            consensus: AtomicConsensus::default(),
-            current_height,
-            current_state: RoundAction::new()
-        }
+        Self { is_leader, current_height, current_state: RoundAction::new(is_leader) }
     }
 }
 
@@ -84,9 +79,9 @@ pub enum RoundAction {
 }
 
 impl RoundAction {
-    pub fn new() -> Self {
+    pub fn new(is_leader: bool) -> Self {
         // placeholder timeout
-        Self::PrePropose(PreProposeState::new(Timeout::new(Duration::from_secs(10))))
+        Self::PrePropose(PreProposeState::new(timeout::new(Duration::from_secs(10))))
     }
 }
 
@@ -94,13 +89,10 @@ impl Stream for RoundAction {
     type Item = ();
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Poll::Ready(transition) = match *self {
+        let transition = match *self {
             RoundAction::PrePropose(p) => pin!(p).should_transition(cx),
             _ => panic!()
-        } {
-        } else {
-            return Poll::Pending
-        }
+        };
 
         todo!()
     }

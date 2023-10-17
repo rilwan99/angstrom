@@ -4,6 +4,7 @@ use std::{
     time::SystemTime
 };
 
+use common::{AtomicConsensus, IsLeader};
 use ethers_signers::LocalWallet;
 use futures::stream::StreamExt;
 use guard_types::on_chain::{SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement};
@@ -45,8 +46,10 @@ impl From<CowMsg> for ActionMessage {
 pub struct ActionCore<S: Simulator + 'static> {
     /// deals with our bundle state
     cow_solver: CowSolver<S>,
-    /// used to know the current blocks
-    last_block: SystemTime
+    /// current consensus lifecycle
+    lifecycle:  AtomicConsensus,
+    /// if we are leader
+    is_leader:  IsLeader
 }
 
 impl<S: Simulator + Unpin> ActionCore<S> {

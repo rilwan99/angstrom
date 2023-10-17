@@ -1,5 +1,5 @@
 use std::sync::{
-    atomic::{AtomicU8, Ordering},
+    atomic::{AtomicBool, AtomicU8, Ordering},
     Arc
 };
 
@@ -30,6 +30,20 @@ impl AtomicConsensus {
         // this is safe due to the bound on the underlying atomic to the enum
         self.0
             .store(unsafe { std::mem::transmute(state) }, Ordering::SeqCst)
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+#[repr(transparent)]
+pub struct IsLeader(Arc<AtomicBool>);
+
+impl IsLeader {
+    pub fn is_leader(&self) -> bool {
+        self.0.load(Ordering::SeqCst)
+    }
+
+    pub fn set_leader(&self, is_leader: bool) {
+        self.0.store(is_leader, Ordering::SeqCst)
     }
 }
 

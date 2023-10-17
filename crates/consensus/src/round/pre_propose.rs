@@ -7,17 +7,16 @@ use std::{
 use futures::FutureExt;
 use guard_types::on_chain::{PoolKey, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement};
 
-use super::{StateTransition, Timeout};
+use super::{propose::ProposeState, RoundAction, StateTransition, Timeout};
 
 pub struct PreProposeState {
-    is_leader:   bool,
     timeout:     Timeout,
     best_bundle: Option<SimmedBundle>
 }
 
 impl PreProposeState {
-    pub fn new(is_leader: bool, timeout: Timeout) -> Self {
-        Self { is_leader, timeout, best_bundle: None }
+    pub fn new(timeout: Timeout) -> Self {
+        Self { timeout, best_bundle: None }
     }
 
     // TODO: this will change to all the fields we are voting on
@@ -34,6 +33,8 @@ impl PreProposeState {
 
 impl StateTransition for PreProposeState {
     fn should_transition(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<bool> {
-        self.timeout.poll_unpin(cx).map(|_| self.is_leader)
+        self.timeout
+            .poll_unpin(cx)
+            .map(|best_bundle| RoundAction::Propose(ProposeState {}))
     }
 }
