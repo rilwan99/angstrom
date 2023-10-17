@@ -1,2 +1,1 @@
-pub struct SubmitState {
-}
+pub struct SubmitState {}

@@ -1,2 +1,1 @@
-pub struct ProposeState {
-}
+pub struct ProposeState {}

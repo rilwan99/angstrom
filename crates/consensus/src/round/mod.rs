@@ -1,14 +1,14 @@
 use self::{
-    bundle::BundleVoteManager, pre_commit::PreCommitState, propose::ProposeState,
-    submit::SubmitState, vote::VoteState
+    bundle::BundleVoteManager, commit::CommitState, pre_propose::PreProposeState,
+    propose::ProposeState, submit::SubmitState
 };
 
 pub mod bundle;
+pub mod commit;
 pub mod leader;
-pub mod pre_commit;
+pub mod pre_propose;
 pub mod propose;
 pub mod submit;
-pub mod vote;
 
 /// The current state and subsequent actions that should be taken
 /// for such state in a given round. All state that this contains
@@ -28,9 +28,9 @@ impl RoundState {}
 /// Representation of a finite-state machine
 pub enum RoundAction {
     /// The precommit state actions we
-    PreCommit(PreCommitState),
+    PrePropose(PreProposeState),
     Propose(ProposeState),
-    Vote(VoteState),
+    Commit(CommitState),
     Submit(SubmitState)
 }
 
