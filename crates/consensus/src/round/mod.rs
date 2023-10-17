@@ -1,34 +1,37 @@
+use self::{
+    bundle::BundleVoteManager, pre_commit::PreCommitState, propose::ProposeState,
+    submit::SubmitState, vote::VoteState
+};
+
 pub mod bundle;
 pub mod leader;
-pub mod stage;
+pub mod pre_commit;
+pub mod propose;
+pub mod submit;
+pub mod vote;
 
-use std::task::Context;
-
-pub use bundle::*;
-use guard_types::consensus::RoundStep;
-pub use leader::*;
-pub use stage::*;
-
+/// The current state and subsequent actions that should be taken
+/// for such state in a given round. All state that this contains
+/// is transient to the given ethereum block height
 pub struct RoundState {
-    stage:            Stage,
-    bundle:           BundleVoteManager,
-    proposal_manager: ProposalManager
+    /// The current ethereum height
+    current_height: u64,
+    /// the currrent action we should be taking at the moment of
+    /// time for this height
+    current_state:  RoundAction,
+    /// all votes for the given height
+    vote_collector: BundleVoteManager
 }
 
-impl RoundState {
-    pub fn stage(&mut self) -> &mut Stage {
-        &mut self.stage
-    }
+impl RoundState {}
 
-    pub fn bundle(&mut self) -> &mut BundleVoteManager {
-        &mut self.bundle
-    }
-
-    pub fn proposal_manager(&mut self) -> &mut ProposalManager {
-        &mut self.proposal_manager
-    }
-
-    fn poll_stage(&mut self, cx: &mut Context<'_>) -> Option<RoundStep> {
-        todo!()
-    }
+/// Representation of a finite-state machine
+pub enum RoundAction {
+    /// The precommit state actions we
+    PreCommit(PreCommitState),
+    Propose(ProposeState),
+    Vote(VoteState),
+    Submit(SubmitState)
 }
+
+impl RoundAction {}
