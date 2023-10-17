@@ -7,6 +7,7 @@ use std::{
     task::{Context, Poll}
 };
 
+use common::PollExt;
 use ethers_core::types::transaction::eip712::TypedData;
 use futures::{Stream, StreamExt};
 use guard_types::on_chain::{
@@ -26,8 +27,6 @@ use tower::{
 };
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tracing::info;
-
-use crate::PollExt;
 
 /// Error thrown when parsing cors domains went wrong
 #[derive(Debug, thiserror::Error)]

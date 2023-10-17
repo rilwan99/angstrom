@@ -9,6 +9,7 @@ use action::{
     action_core::{ActionConfig, ActionCore, ActionMessage},
     RelaySender
 };
+use common::PollExt;
 use consensus::{ConsensusCore, ConsensusMessage};
 use ethers_flashbots::BroadcasterMiddleware;
 use ethers_middleware::SignerMiddleware;
@@ -27,7 +28,7 @@ use crate::{
         Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner,
         SubscriptionKind, SubscriptionResult
     },
-    PollExt, SourceMessages, Sources
+    SourceMessages, Sources
 };
 
 // TODO: these values should be moved somewhere else bc there ugly

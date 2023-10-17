@@ -5,6 +5,7 @@ use std::{
 };
 
 use action::RelaySender;
+use common::{return_if, PollExt};
 use ethers_core::types::{Block, H256};
 use ethers_flashbots::PendingBundleError;
 use ethers_providers::{Middleware, PubsubClient, RpcError, SubscriptionStream};
@@ -13,10 +14,7 @@ use futures_util::StreamExt;
 use guard_network::{Swarm, SwarmEvent};
 use guard_types::on_chain::{SimmedBundle, UserOrder};
 
-use crate::{
-    submission_server::{Submission, SubmissionServer},
-    PollExt
-};
+use crate::submission_server::{Submission, SubmissionServer};
 
 pub enum SourceMessages {
     Swarm(SwarmEvent),
