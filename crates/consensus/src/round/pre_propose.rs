@@ -7,7 +7,7 @@ use common::{ConsensusState, IsLeader, PROPOSE};
 use futures::FutureExt;
 use guard_types::on_chain::{PoolKey, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement};
 
-use super::{propose::ProposeState, RoundAction, StateTransition, Timeout};
+use super::{propose::ProposeState, RoundAction, RoundStateMessage, StateTransition, Timeout};
 
 pub struct PreProposeState {
     timeout:         Timeout,
@@ -29,9 +29,9 @@ impl StateTransition for PreProposeState {
     fn should_transition(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>
-    ) -> Poll<(RoundAction, ConsensusState)> {
+    ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)> {
         self.timeout
             .poll_unpin(cx)
-            .map(|best_bundle| (RoundAction::Propose(ProposeState {}), PROPOSE))
+            .map(|best_bundle| (RoundAction::Propose(ProposeState {}), PROPOSE, None))
     }
 }

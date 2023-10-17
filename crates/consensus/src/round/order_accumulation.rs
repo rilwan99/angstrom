@@ -1,13 +1,16 @@
 use std::{
     pin::Pin,
-    task::{Context, Poll}
+    task::{Context, Poll},
+    time::Duration
 };
 
 use common::{ConsensusState, IsLeader, PRE_PROPOSE};
 use futures::FutureExt;
 use guard_types::on_chain::SimmedBundle;
 
-use super::{pre_propose::PreProposeState, RoundAction, StateTransition, Timeout};
+use super::{
+    pre_propose::PreProposeState, RoundAction, RoundStateMessage, StateTransition, Timeout
+};
 
 pub struct OrderAccumulationState {
     timeout:     Timeout,
@@ -24,15 +27,17 @@ impl StateTransition for OrderAccumulationState {
     fn should_transition(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>
-    ) -> Poll<(RoundAction, ConsensusState)> {
+    ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)> {
         self.timeout.poll_unpin(cx).map(|best_bundle| {
             (
                 RoundAction::PrePropose(PreProposeState::new(
-                    self.timeout,
+                    // TODO: placeholder
+                    Timeout::new(Duration::from_secs(6)),
                     self.best_bundle.take(),
                     self.is_leader.clone()
                 )),
-                PRE_PROPOSE
+                PRE_PROPOSE,
+                None
             )
         })
     }

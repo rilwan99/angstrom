@@ -56,9 +56,12 @@ impl<S: Simulator + Unpin> ActionCore<S> {
     pub async fn new(config: ActionConfig<S>) -> anyhow::Result<Self> {
         let ActionConfig { simulator, .. } = config;
 
-        let last_block = SystemTime::now();
-
-        Ok(Self { cow_solver: CowSolver::new(simulator.clone(), vec![]), last_block })
+        Ok(Self {
+            cow_solver: CowSolver::new(simulator.clone(), vec![]),
+            // placeholders
+            lifecycle:  AtomicConsensus::default(),
+            is_leader:  IsLeader::default()
+        })
     }
 
     pub fn get_cow(&mut self) -> &mut CowSolver<S> {

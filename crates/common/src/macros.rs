@@ -26,7 +26,13 @@
 /// ```
 #[macro_export]
 macro_rules! return_if {
-    ($value:expr => $($value_expr:tt)*) => {
+    ($value:expr => {$($value_expr:tt)*} map($map_fn:path)) => {
+        let res = $value;
+        if res.$($value_expr)* {
+            return $map_fn(res)
+        }
+    };
+    ($value:expr => {$($value_expr:tt)*}) => {
         let res = $value;
         if res.$($value_expr)* {
             return res

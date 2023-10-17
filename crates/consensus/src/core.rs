@@ -4,7 +4,7 @@ use std::{
     task::{Context, Poll}
 };
 
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use guard_types::{
     consensus::{
         Block, BundleVote, EvidenceError, GuardInfo, LeaderProposal, SignedLeaderProposal,
@@ -80,9 +80,8 @@ impl ConsensusCore {
     }
 
     pub fn new_block(&mut self, block: Block) {
-        if self.state.verify_block(&block) {
-            todo!()
-        }
+        // TODO: wire in guard selection stuff
+        self.round_state.new_height(block.header.height, false)
     }
 
     pub fn new_proposal_vote(&mut self, vote: SignedLeaderProposal) {}
@@ -100,6 +99,7 @@ impl Stream for ConsensusCore {
     type Item = Result<ConsensusMessage, ConsensusError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let _ = self.round_state.poll_next_unpin(cx);
         todo!()
     }
 }
