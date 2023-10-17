@@ -22,10 +22,12 @@ impl AtomicConsensus {
     }
 
     pub fn get_current_state(&self) -> ConsensusState {
+        // this is safe due to the bound on the underlying atomic to the enum
         unsafe { std::mem::transmute(self.0.load(Ordering::SeqCst)) }
     }
 
     pub fn update_state(&self, state: ConsensusState) {
+        // this is safe due to the bound on the underlying atomic to the enum
         self.0
             .store(unsafe { std::mem::transmute(state) }, Ordering::SeqCst)
     }
