@@ -27,7 +27,7 @@ use crate::{
         Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner,
         SubscriptionKind, SubscriptionResult
     },
-    SourceMessages, Sources
+    PollExt, SourceMessages, Sources
 };
 
 // TODO: these values should be moved somewhere else bc there ugly
@@ -201,14 +201,16 @@ where
             }
 
             // poll actions
-            if let Poll::Ready(Some(msg)) = self.action.poll(cx) {
-                self.on_action(msg);
-            }
+            let _ = self
+                .action
+                .poll(cx)
+                .filter_map(|f| f)
+                .map(|msg| self.on_action(msg));
 
             // poll consensus
-            if let Poll::Ready(Some(Ok(consensus_msg))) = self.consensus.poll_next_unpin(cx) {
-                self.on_consensus(consensus_msg);
-            }
+            self.consensus
+                .poll_next_unpin(cx)
+                .map_ok(|consensus_msg| self.on_consensus(consensus_msg));
 
             work -= 1;
             if work == 0 {

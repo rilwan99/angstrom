@@ -7,7 +7,7 @@ use std::{
 use action::RelaySender;
 use ethers_core::types::{Block, H256};
 use ethers_flashbots::PendingBundleError;
-use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
+use ethers_providers::{Middleware, PubsubClient, RpcError, SubscriptionStream};
 use futures::Stream;
 use futures_util::StreamExt;
 use guard_network::{Swarm, SwarmEvent};
@@ -84,40 +84,36 @@ where
     type Item = SourceMessages;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Poll::Ready(swarm_event) = self
+        return_if!(
+        self
             .guard_net
             .poll_next_unpin(cx)
             .filter_map(|poll| poll)
-            .map(|event| Some(SourceMessages::Swarm(event)))
-        {
-            return Poll::Ready(swarm_event)
-        }
+            .map(|event| Some(SourceMessages::Swarm(event))) => is_ready()
+        );
 
-        if let Poll::Ready(sub_server) = self
+        return_if!(
+        self
             .submission_server
             .poll_next_unpin(cx)
             .filter_map(|poll| poll)
-            .map(|event| Some(SourceMessages::SubmissionServer(event)))
-        {
-            return Poll::Ready(sub_server)
-        }
+            .map(|event| Some(SourceMessages::SubmissionServer(event))) => is_ready()
+        );
 
-        if let Poll::Ready(eth_block) = self
+        return_if!(
+        self
             .block_stream
             .poll_next_unpin(cx)
             .filter_map(|poll| poll)
-            .map(|event| Some(SourceMessages::NewEthereumBlock(event)))
-        {
-            return Poll::Ready(eth_block)
-        }
+            .map(|event| Some(SourceMessages::NewEthereumBlock(event))) => is_ready()
+        );
 
-        if let Poll::Ready(relay_result) = self
+        return_if!(
+        self
             .relay_sender
             .poll(cx)
-            .map(|event| Some(SourceMessages::RelaySubmission(event)))
-        {
-            return Poll::Ready(relay_result)
-        }
+            .map(|event| Some(SourceMessages::RelaySubmission(event))) => is_ready()
+        );
 
         Poll::Pending
     }
