@@ -1,2 +1,4 @@
 #[derive(Debug, Default)]
-pub struct CommitState {}
+pub struct CommitState {
+    is_leader: bool
+}

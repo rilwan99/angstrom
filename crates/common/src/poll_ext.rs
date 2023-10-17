@@ -2,7 +2,7 @@ use std::task::Poll;
 
 pub trait PollExt<T> {
     /// Analogous to filter on [`Option`].
-    /// ```rust
+    /// ```ignore
     /// if Poll::Ready(T) && predicate(&T) { return Poll::Ready(T) };
     /// if Poll::Ready(T) && !predicate(&T) { return Poll::Pending };
     /// if Poll::Pending { return Poll::Pending };

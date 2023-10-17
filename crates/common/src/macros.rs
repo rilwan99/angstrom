@@ -1,7 +1,7 @@
 /// useful for when dealing with [`std::task::Poll`]. This
 /// generates the simple return based on a function on a value.
 /// This Macro
-/// ```rust
+/// ```ignore
 /// return_if!(
 ///     self
 ///         .guard_net
@@ -13,7 +13,7 @@
 ///
 /// Gets transformed into this
 ///
-/// ```rust
+/// ```ignore
 /// let res = self
 ///     .guard_net
 ///     .poll_next_unpin(cx)
