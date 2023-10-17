@@ -1,40 +1,37 @@
 use std::{
-    collections::HashMap,
     pin::Pin,
     task::{Context, Poll}
 };
 
+use common::{ConsensusState, IsLeader, PROPOSE};
 use futures::FutureExt;
 use guard_types::on_chain::{PoolKey, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement};
 
 use super::{propose::ProposeState, RoundAction, StateTransition, Timeout};
 
 pub struct PreProposeState {
-    timeout:     Timeout,
-    best_bundle: Option<SimmedBundle>
+    timeout:         Timeout,
+    commited_bundle: Option<SimmedBundle>,
+    is_leader:       IsLeader
 }
 
 impl PreProposeState {
-    pub fn new(timeout: Timeout) -> Self {
-        Self { timeout, best_bundle: None }
-    }
-
-    // TODO: this will change to all the fields we are voting on
-    pub fn new_best_bundle(&mut self, bundle: SimmedBundle) {
-        self.best_bundle = self.best_bundle.take().map(|cur_bundle| {
-            if bundle.get_cumulative_lp_bribe() > cur_bundle.get_cumulative_lp_bribe() {
-                bundle
-            } else {
-                cur_bundle
-            }
-        });
+    pub fn new(
+        timeout: Timeout,
+        commited_bundle: Option<SimmedBundle>,
+        is_leader: IsLeader
+    ) -> Self {
+        Self { timeout, commited_bundle, is_leader }
     }
 }
 
 impl StateTransition for PreProposeState {
-    fn should_transition(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<bool> {
+    fn should_transition(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>
+    ) -> Poll<(RoundAction, ConsensusState)> {
         self.timeout
             .poll_unpin(cx)
-            .map(|best_bundle| RoundAction::Propose(ProposeState {}))
+            .map(|best_bundle| (RoundAction::Propose(ProposeState {}), PROPOSE))
     }
 }

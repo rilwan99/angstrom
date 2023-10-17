@@ -6,11 +6,18 @@ use std::sync::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum ConsensusState {
-    PrePropose = 0,
-    Propose    = 1,
-    Commit     = 2,
-    Submit     = 3
+    OrderAccumulation = 0,
+    PrePropose        = 1,
+    Propose           = 2,
+    Commit            = 3,
+    Submit            = 4
 }
+
+pub const ORDER_ACCUMULATION: ConsensusState = ConsensusState::OrderAccumulation;
+pub const PRE_PROPOSE: ConsensusState = ConsensusState::PrePropose;
+pub const PROPOSE: ConsensusState = ConsensusState::Propose;
+pub const COMMIT: ConsensusState = ConsensusState::Commit;
+pub const SUBMIT: ConsensusState = ConsensusState::Submit;
 
 #[derive(Debug, Clone, Default)]
 #[repr(transparent)]
@@ -54,10 +61,10 @@ mod test {
     #[test]
     fn test_atomic_consensus_state() {
         let atomic = AtomicConsensus::default();
-        assert_eq!(atomic.get_current_state(), ConsensusState::PrePropose);
+        assert_eq!(atomic.get_current_state(), ConsensusState::OrderAccumulation);
         atomic.update_state(ConsensusState::Submit);
         assert_eq!(atomic.get_current_state(), ConsensusState::Submit);
         atomic.reset();
-        assert_eq!(atomic.get_current_state(), ConsensusState::PrePropose);
+        assert_eq!(atomic.get_current_state(), ConsensusState::OrderAccumulation);
     }
 }

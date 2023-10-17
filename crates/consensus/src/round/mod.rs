@@ -5,23 +5,28 @@ use std::{
     time::Duration
 };
 
-use common::{AtomicConsensus, IsLeader};
+use common::{AtomicConsensus, ConsensusState, IsLeader};
 use futures::{Future, Stream};
 
 use self::{
-    bundle::BundleVoteManager, commit::CommitState, pre_propose::PreProposeState,
+    commit::CommitState, order_accumulation::OrderAccumulationState, pre_propose::PreProposeState,
     propose::ProposeState, submit::SubmitState
 };
 
-pub mod bundle;
 pub mod commit;
-pub mod leader;
+pub mod order_accumulation;
 pub mod pre_propose;
 pub mod propose;
 pub mod submit;
 
+/// Should be on all different states of consensus. These trigger the moves
 trait StateTransition {
-    fn should_transition(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<RoundAction>;
+    /// needs to pass context for timeout related tasks. returns the new round
+    /// state with the updater for global consensus
+    fn should_transition(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>
+    ) -> Poll<(RoundAction, ConsensusState)>;
 }
 
 #[repr(transparent)]
@@ -64,12 +69,12 @@ pub struct RoundState {
 }
 
 impl RoundState {
-    pub fn new(current_height: u64, is_leader: bool) -> Self {
+    pub fn new(current_height: u64, is_leader: IsLeader, consensus: AtomicConsensus) -> Self {
         Self {
-            is_leader: IsLeader::default(),
-            consensus: AtomicConsensus::default(),
+            is_leader: is_leader.clone(),
+            consensus,
             current_height,
-            current_state: RoundAction::new()
+            current_state: RoundAction::new(is_leader)
         }
     }
 }
@@ -77,6 +82,7 @@ impl RoundState {
 /// Representation of a finite-state machine
 pub enum RoundAction {
     /// The precommit state actions we
+    OrderAccumulation(OrderAccumulationState),
     PrePropose(PreProposeState),
     Propose(ProposeState),
     Commit(CommitState),
@@ -84,24 +90,22 @@ pub enum RoundAction {
 }
 
 impl RoundAction {
-    pub fn new() -> Self {
-        // placeholder timeout
-        Self::PrePropose(PreProposeState::new(Timeout::new(Duration::from_secs(10))))
+    pub fn new(is_leader: IsLeader) -> Self {
+        Self::OrderAccumulation(OrderAccumulationState::new(
+            // placeholder timeout
+            Timeout::new(Duration::from_secs(6)),
+            is_leader
+        ))
     }
 }
 
 impl Stream for RoundAction {
-    type Item = ();
+    type Item = (RoundAction, ConsensusState);
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Poll::Ready(transition) = match *self {
-            RoundAction::PrePropose(p) => pin!(p).should_transition(cx),
+        match &mut *self {
+            RoundAction::PrePropose(p) => Pin::new(p).should_transition(cx).map(|p| Some(p)),
             _ => panic!()
-        } {
-        } else {
-            return Poll::Pending
         }
-
-        todo!()
     }
 }
