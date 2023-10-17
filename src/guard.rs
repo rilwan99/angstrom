@@ -209,7 +209,8 @@ where
                 .map(|msg| self.on_action(msg));
 
             // poll consensus
-            self.consensus
+            let _ = self
+                .consensus
                 .poll_next_unpin(cx)
                 .map_ok(|consensus_msg| self.on_consensus(consensus_msg));
 

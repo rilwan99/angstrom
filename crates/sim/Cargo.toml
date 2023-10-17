@@ -11,6 +11,7 @@ exclude.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+common.workspace = true
 # ethers
 ethers = "2.0.9"
 ethers-middleware.workspace = true
@@ -63,4 +64,3 @@ schnellru = "0.2"
 # serde
 serde.workspace = true
 serde_json = { workspace = true, features = ["arbitrary_precision"] }
-

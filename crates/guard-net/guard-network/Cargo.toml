@@ -36,6 +36,7 @@ reth-ecies = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-rlp-derive = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 
 guard-types.workspace = true
+common.workspace = true
 
 # async/futures
 futures.workspace = true

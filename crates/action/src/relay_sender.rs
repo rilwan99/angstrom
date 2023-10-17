@@ -81,10 +81,9 @@ impl<M: Middleware + 'static> RelaySender<M> {
     }
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), PendingBundleError>> {
-        if let Some(submit_fut) = self.future.as_mut() {
-            return submit_fut.poll_unpin(cx)
-        }
-
-        Poll::Pending
+        self.future
+            .as_mut()
+            .map(|fut| fut.poll_unpin(cx))
+            .unwrap_or(Poll::Pending)
     }
 }
