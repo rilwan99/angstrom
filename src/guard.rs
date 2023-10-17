@@ -202,17 +202,16 @@ where
             }
 
             // poll actions
-            let _ = self
-                .action
+            self.action
                 .poll(cx)
                 .filter_map(|f| f)
-                .map(|msg| self.on_action(msg));
+                .apply(|msg| self.on_action(msg));
 
             // poll consensus
-            let _ = self
-                .consensus
+            self.consensus
                 .poll_next_unpin(cx)
-                .map_ok(|consensus_msg| self.on_consensus(consensus_msg));
+                .filter_map(|f| f.transpose().ok().flatten())
+                .apply(|msg| self.on_consensus(msg));
 
             work -= 1;
             if work == 0 {

@@ -4,6 +4,7 @@ use std::{
     task::{Context, Poll}
 };
 
+use common::PollExt;
 use ethers_core::{abi::Bytes, types::Address};
 use futures_util::{stream::FuturesUnordered, Future, FutureExt, StreamExt};
 use revm_primitives::{Bytecode, B160};
@@ -155,10 +156,11 @@ impl Future for Revm {
             }
         }
 
-        while let Poll::Ready(Some(_)) = self
+        while self
             .futures
             .poll_next_unpin(cx)
-            .map_ok(|slot| slot.map(|slot| self.update_slots(slot)))
+            .filter_map(|f| f.transpose().ok().flatten().flatten())
+            .apply(|slot| self.update_slots(slot))
         {}
 
         self.slot_keeper.poll_unpin(cx)

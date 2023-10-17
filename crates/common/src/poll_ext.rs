@@ -1,5 +1,5 @@
 use std::task::Poll;
-/// COPY from internal sorella tooling
+
 pub trait PollExt<T> {
     /// Analogous to filter on [`Option`].
     /// ```rust
@@ -12,9 +12,12 @@ pub trait PollExt<T> {
     /// Application of a filter plus a map. Acts exactly like filter_map on a
     /// iterator.
     fn filter_map<U>(self, predicate: impl FnMut(T) -> Option<U>) -> Poll<U>;
+
+    /// Applies the given function as a end of this functional branch and
+    /// returns true if the function was called
+    fn apply(self, predicate: impl FnMut(T)) -> bool;
 }
 
-/// COPY from internal sorella tooling
 impl<T> PollExt<T> for Poll<T> {
     fn filter(self, mut predicate: impl FnMut(&T) -> bool) -> Poll<T> {
         let Poll::Ready(val) = self else { return Poll::Pending };
@@ -34,5 +37,12 @@ impl<T> PollExt<T> for Poll<T> {
         } else {
             Poll::Pending
         }
+    }
+
+    fn apply(self, mut predicate: impl FnMut(T)) -> bool {
+        let Poll::Ready(value) = self else { return false };
+        predicate(value);
+
+        return true
     }
 }
