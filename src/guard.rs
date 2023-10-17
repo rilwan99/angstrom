@@ -59,8 +59,7 @@ where
     sources:   Sources<M>,
     /// guard network connection
     consensus: ConsensusCore,
-    /// deals with all action related requests and actions including bundle
-    /// building
+    /// deals with everything surrounding bundle building
     action:    ActionCore<S>
 }
 
@@ -207,10 +206,8 @@ where
             }
 
             // poll consensus
-            if let Poll::Ready(Some(consensus_msg)) = self.consensus.poll_next_unpin(cx) {
-                if let Ok(consensus_msg) = consensus_msg {
-                    self.on_consensus(consensus_msg);
-                }
+            if let Poll::Ready(Some(Ok(consensus_msg))) = self.consensus.poll_next_unpin(cx) {
+                self.on_consensus(consensus_msg);
             }
 
             work -= 1;

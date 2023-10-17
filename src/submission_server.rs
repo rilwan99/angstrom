@@ -27,34 +27,7 @@ use tower::{
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tracing::info;
 
-/// COPY from internal sorella tooling
-pub trait PollExt<T> {
-    fn filter(self, predicate: impl FnMut(&T) -> bool) -> Poll<T>;
-    fn filter_map<U>(self, predicate: impl FnMut(T) -> Option<U>) -> Poll<U>;
-}
-
-/// COPY from internal sorella tooling
-impl<T> PollExt<T> for Poll<T> {
-    fn filter(self, mut predicate: impl FnMut(&T) -> bool) -> Poll<T> {
-        let Poll::Ready(val) = self else { return Poll::Pending };
-
-        if predicate(&val) {
-            Poll::Ready(val)
-        } else {
-            Poll::Pending
-        }
-    }
-
-    fn filter_map<U>(self, mut predicate: impl FnMut(T) -> Option<U>) -> Poll<U> {
-        let Poll::Ready(val) = self else { return Poll::Pending };
-
-        if let Some(map) = predicate(val) {
-            Poll::Ready(map)
-        } else {
-            Poll::Pending
-        }
-    }
-}
+use crate::PollExt;
 
 /// Error thrown when parsing cors domains went wrong
 #[derive(Debug, thiserror::Error)]
