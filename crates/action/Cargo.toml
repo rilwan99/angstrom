@@ -28,6 +28,7 @@ url.workspace = true
 
 guard-types.workspace = true
 sim.workspace = true
+common.workspace = true
 
 # flashbots related
 ethers-flashbots = "0.14.0"

@@ -4,7 +4,7 @@ use std::{
     task::{Context, Poll}
 };
 
-use futures::Stream;
+use futures::{Stream, StreamExt};
 use guard_types::{
     consensus::{
         Block, BundleVote, EvidenceError, GuardInfo, LeaderProposal, SignedLeaderProposal,
@@ -80,139 +80,26 @@ impl ConsensusCore {
     }
 
     pub fn new_block(&mut self, block: Block) {
-        if self.state.verify_block(&block) {
-            todo!()
-        }
+        // TODO: wire in guard selection stuff
+        self.round_state.new_height(block.header.height, false)
     }
 
-    pub fn new_proposal_vote(&mut self, vote: SignedLeaderProposal) {
-        if !self.round_state.stage().is_past_proposal_vote_cutoff()
-            && self
-                .round_state
-                .proposal_manager()
-                .new_proposal_vote(vote.clone(), &self.state.guards)
-        {
-            self.outbound
-                .push_back(ConsensusMessage::SignedProposal(vote))
-        }
-    }
+    pub fn new_proposal_vote(&mut self, vote: SignedLeaderProposal) {}
 
-    pub fn new_proposal(&mut self, proposal: LeaderProposal) {
-        if self.round_state.stage().is_past_proposal_cutoff() {
-            warn!(?proposal, "received proposal to late");
-            return
-        }
+    pub fn new_proposal(&mut self, proposal: LeaderProposal) {}
 
-        if self.round_state.proposal_manager().has_proposal() {
-            return
-        }
+    pub fn new_bundle(&mut self, bundle: SimmedBundle) {}
 
-        let Some(current_leader) = self.state.guards.get_current_leader() else { return };
+    pub fn new_bundle_vote(&mut self, vote: BundleVote) {}
 
-        // validate signatures on proposal
-        if !proposal.validate_signature(current_leader.pub_key) {
-            warn!(?proposal, "failed to validate signatures");
-            return
-        }
-
-        let Ok(proposal_vote) = self.signer.sign_leader_proposal(&proposal) else {
-            error!("failed to sign the leader proposal");
-            return
-        };
-
-        // verify the bundle is the best
-        if !self.round_state.bundle().is_best_bundle(&proposal.bundle) {
-            error!(?proposal, "the proposed bundle doesn't match our best bundle");
-        }
-
-        self.round_state
-            .proposal_manager()
-            .new_proposal(proposal.clone());
-        self.round_state
-            .proposal_manager()
-            .new_proposal_vote(proposal_vote.clone(), &self.state.guards);
-
-        self.outbound.extend(
-            vec![
-                ConsensusMessage::Proposal(proposal),
-                ConsensusMessage::SignedProposal(proposal_vote),
-            ]
-            .into_iter()
-        );
-    }
-
-    pub fn new_bundle(&mut self, bundle: SimmedBundle) {
-        if self.round_state.stage().is_past_bundle_signing_cutoff() {
-            return
-        }
-
-        if let Some(hash) = self.round_state.bundle().new_simmed_bundle(bundle) {
-            // new bundle, lets sign and propagate our hash
-            let Ok(signed_bundle) = self.signer.sign_bundle_vote(
-                hash,
-                self.round_state.stage().height(),
-                self.round_state.stage().round()
-            ) else {
-                return
-            };
-
-            self.outbound
-                .push_back(ConsensusMessage::NewBundleVote(signed_bundle.clone()));
-
-            // add vote to underlying and if we hit 2/3 we fully propagate
-            if let Some(msg) = self
-                .round_state
-                .bundle()
-                .new_bundle_vote(signed_bundle, &self.state.guards)
-            {
-                self.outbound.push_back(ConsensusMessage::NewBundle23(msg));
-            }
-        }
-    }
-
-    pub fn new_bundle_vote(&mut self, vote: BundleVote) {
-        if self.round_state.stage().is_past_bundle_signing_cutoff() {
-            return
-        }
-
-        if !self.round_state.bundle().contains_vote(&vote) {
-            if let Some(valid23) = self
-                .round_state
-                .bundle()
-                .new_bundle_vote(vote.clone(), &self.state.guards)
-            {
-                self.outbound
-                    .push_back(ConsensusMessage::NewBundle23(valid23));
-            }
-            self.outbound
-                .push_back(ConsensusMessage::NewBundleVote(vote));
-        }
-    }
-
-    pub fn new_bundle_23(&mut self, bundle: Valid23Bundle) {
-        if self.round_state.stage().is_past_bundle23_prop_cutoff() {
-            return
-        }
-
-        if self
-            .round_state
-            .bundle()
-            .new_bundle23(bundle.clone(), &self.state.guards)
-        {
-            self.outbound
-                .push_back(ConsensusMessage::NewBundle23(bundle.clone()))
-        }
-    }
+    pub fn new_bundle_23(&mut self, bundle: Valid23Bundle) {}
 }
 
 impl Stream for ConsensusCore {
     type Item = Result<ConsensusMessage, ConsensusError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if self.round_state.stage().update_current_stage() {
-            todo!()
-        }
-
+        let _ = self.round_state.poll_next_unpin(cx);
         todo!()
     }
 }

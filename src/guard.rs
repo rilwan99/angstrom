@@ -9,6 +9,7 @@ use action::{
     action_core::{ActionConfig, ActionCore, ActionMessage},
     RelaySender
 };
+use common::PollExt;
 use consensus::{ConsensusCore, ConsensusMessage};
 use ethers_flashbots::BroadcasterMiddleware;
 use ethers_middleware::SignerMiddleware;
@@ -59,8 +60,7 @@ where
     sources:   Sources<M>,
     /// guard network connection
     consensus: ConsensusCore,
-    /// deals with all action related requests and actions including bundle
-    /// building
+    /// deals with everything surrounding bundle building
     action:    ActionCore<S>
 }
 
@@ -202,16 +202,16 @@ where
             }
 
             // poll actions
-            if let Poll::Ready(Some(msg)) = self.action.poll(cx) {
-                self.on_action(msg);
-            }
+            self.action
+                .poll(cx)
+                .filter_map(|f| f)
+                .apply(|msg| self.on_action(msg));
 
             // poll consensus
-            if let Poll::Ready(Some(consensus_msg)) = self.consensus.poll_next_unpin(cx) {
-                if let Ok(consensus_msg) = consensus_msg {
-                    self.on_consensus(consensus_msg);
-                }
-            }
+            self.consensus
+                .poll_next_unpin(cx)
+                .filter_map(|f| f.transpose().ok().flatten())
+                .apply(|msg| self.on_consensus(msg));
 
             work -= 1;
             if work == 0 {

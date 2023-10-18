@@ -4,6 +4,7 @@ use std::{
     task::{Context, Poll}
 };
 
+use common::PollExt;
 use ethers_core::{abi::Bytes, types::Address};
 use futures_util::{stream::FuturesUnordered, Future, FutureExt, StreamExt};
 use revm_primitives::{Bytecode, B160};
@@ -133,9 +134,8 @@ impl Revm {
 
     // this will be wired into new block
     #[allow(unused)]
-    fn handle_new_pools(&mut self, pools: Vec<Address>, cx: &mut Context<'_>) {
+    fn handle_new_pools(&mut self, pools: Vec<Address>) {
         self.slot_keeper.new_addresses(pools);
-        let _ = self.slot_keeper.poll_unpin(cx);
     }
 }
 
@@ -143,25 +143,26 @@ impl Future for Revm {
     type Output = ();
 
     fn poll(
-        self: std::pin::Pin<&mut Self>,
+        mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>
     ) -> std::task::Poll<Self::Output> {
-        let this = self.get_mut();
-
-        while let Poll::Ready(poll_tx) = this.transaction_rx.poll_recv(cx) {
-            match poll_tx {
-                Some(tx) => this.handle_incoming_event(tx),
-                None => return Poll::Ready(())
+        while let Poll::Ready(poll_tx) = self
+            .transaction_rx
+            .poll_recv(cx)
+            .map(|t| t.map(|tx| self.handle_incoming_event(tx)))
+        {
+            if poll_tx.is_none() {
+                return Poll::Ready(())
             }
         }
 
-        while let Poll::Ready(Some(Ok(poll_slot))) = this.futures.poll_next_unpin(cx) {
-            match poll_slot {
-                Some(slot) => this.update_slots(slot),
-                None => ()
-            }
-        }
+        while self
+            .futures
+            .poll_next_unpin(cx)
+            .filter_map(|f| f.transpose().ok().flatten().flatten())
+            .apply(|slot| self.update_slots(slot))
+        {}
 
-        return Poll::Pending
+        self.slot_keeper.poll_unpin(cx)
     }
 }

@@ -4,6 +4,7 @@ members = [
   "crates/action",
   "crates/consensus",
   "crates/types",
+  "crates/common",
   "it-harness",
 ]
 
@@ -55,6 +56,7 @@ hex-literal.workspace = true
 reth-db.workspace = true
 
 guard-types.workspace = true
+common.workspace = true
 consensus.workspace = true
 action.workspace = true
 sim.workspace = true
@@ -116,6 +118,7 @@ ethers-middleware = { version = "2.0", default-features = false }
 
 consensus = { path = "./crates/consensus/" }
 guard-types = { path = "./crates/types/" }
+common = { path = "./crates/common/" }
 action = { path = "./crates/action/" }
 sim = { path = "./crates/sim/" }
 
@@ -146,7 +149,7 @@ quote = "1.0"
 
 ## tokio
 tokio-stream = "0.1.11"
-tokio = { version = "1.21", default-features = false }
+tokio = { version = "1.21", features = ["full"], default-features = false }
 tokio-util = { version = "0.7.4", features = ["codec"] }
 
 ## async
