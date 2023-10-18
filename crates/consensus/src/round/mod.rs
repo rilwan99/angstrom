@@ -70,6 +70,18 @@ impl RoundState {
         self.height
     }
 
+    pub fn on_commit(&mut self) {
+        todo!()
+    }
+
+    pub fn on_proposal(&mut self) {
+        todo!()
+    }
+
+    pub fn on_pre_propose(&mut self) {
+        todo!()
+    }
+
     // will be updated to include the lower bound and other stuff
     pub fn new_best_details(&mut self, bundle_details: SimmedBundle) {
         let state = self.consensus.get_current_state();
