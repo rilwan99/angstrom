@@ -24,6 +24,7 @@ use tracing::{debug, warn};
 use url::Url;
 
 use crate::{
+    round_robin_sync::RoundRobinSync,
     submission_server::{
         Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner,
         SubscriptionKind, SubscriptionResult
@@ -61,7 +62,9 @@ where
     /// guard network connection
     consensus: ConsensusCore,
     /// deals with everything surrounding bundle building
-    action:    ActionCore<S>
+    action:    ActionCore<S>,
+    /// deals with round robin sycning
+    syncing:   Option<RoundRobinSync<M>>
 }
 
 impl<M: Middleware + Unpin, S: Simulator + Unpin> Guard<M, S>
@@ -92,9 +95,11 @@ where
         )));
         let sources = Sources::new(middleware, swarm, sub_server, relay_sender).await?;
         let action = ActionCore::new(action_config).await?;
-        let consensus = ConsensusCore::new().await;
 
-        Ok(Self { action, consensus, sources })
+        let (consensus, current_height) = ConsensusCore::new().await;
+        let syncing = RoundRobinSync::new(middleware, current_height).await;
+
+        Ok(Self { action, consensus, sources, syncing: Some(syncing) })
     }
 
     fn on_submission(&mut self, msg: Submission) {
@@ -197,7 +202,12 @@ where
                     }
                     SourceMessages::SubmissionServer(msg) => self.on_submission(msg),
 
-                    SourceMessages::NewEthereumBlock(block) => {}
+                    SourceMessages::NewEthereumBlock(block) => {
+                        let block = Arc::new(block);
+                        if let Some(sync) = self.syncing.as_mut() {
+                            sync.on_new_block(block);
+                        }
+                    }
                 }
             }
 

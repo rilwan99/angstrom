@@ -3,7 +3,7 @@ use guard_types::{
     consensus::{BundleVote, LeaderProposal, SignedLeaderProposal, Time},
     on_chain::Signature
 };
-use reth_primitives::{keccak256, H256};
+use reth_primitives::{keccak256, H256, H512};
 use reth_rlp::Encodable;
 use revm_primitives::{bytes::BytesMut, Address};
 
@@ -25,6 +25,10 @@ impl Signer {
         self.0
             .sign_hash(hash.into())
             .map(|signature| SignedLeaderProposal(Signature(signature)))
+    }
+
+    pub fn is_us(&self, addr: &H512) -> bool {
+        todo!("change key to proper")
     }
 
     pub fn sign_bundle_vote(

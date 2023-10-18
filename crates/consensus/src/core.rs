@@ -1,14 +1,15 @@
 use std::{
     collections::VecDeque,
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll}
 };
 
+use ethers_core::types::{Block, H256};
 use futures::{Stream, StreamExt};
 use guard_types::{
     consensus::{
-        Block, BundleVote, EvidenceError, GuardInfo, LeaderProposal, SignedLeaderProposal,
-        Valid23Bundle
+        BundleVote, EvidenceError, GuardInfo, LeaderProposal, SignedLeaderProposal, Valid23Bundle
     },
     database::State,
     on_chain::SimmedBundle
@@ -29,8 +30,6 @@ pub enum ConsensusMessage {
     // finalization actions
     Proposal(LeaderProposal),
     SignedProposal(SignedLeaderProposal),
-    // db related
-    NewBlock(Block),
     NewBundle(SimmedBundle)
 }
 
@@ -59,6 +58,7 @@ pub struct ConsensusCore {
     /// keeps track of the current round state
     round_state:        RoundState,
     /// the current overlook of the network stage
+    /// this prob to be removed
     state:              State,
     /// leader selection algo
     leader_selection:   RoundRobinAlgo,
@@ -71,7 +71,9 @@ pub struct ConsensusCore {
 }
 
 impl ConsensusCore {
-    pub async fn new() -> Self {
+    /// returns self but also returns the block that the round robin algo
+    /// has historic state up until
+    pub async fn new() -> (Self, u64) {
         todo!()
     }
 
@@ -80,10 +82,17 @@ impl ConsensusCore {
         self.state.next_guards.new_guard(guard);
     }
 
-    pub fn new_block(&mut self, block: Block) {
-        if self.round_state.current_height() < block.header.height {
+    pub fn new_block(&mut self, block: Arc<Block<H256>>) {
+        // need to make sure that this is sequential
+        if self.round_state.current_height() + 1 == block.number.unwrap().as_u64() {
             // TODO: wire in guard selection stuff
-            self.round_state.new_height(block.header.height, false)
+            let new_leader = self.leader_selection.on_new_block(block.clone());
+            let is_leader = self.signer.is_us(&new_leader);
+
+            self.round_state
+                .new_height(block.number.unwrap().as_u64(), new_leader, is_leader);
+        } else {
+            panic!("have a gap in blocks which will break the round robin algo");
         }
     }
 

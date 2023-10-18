@@ -5,8 +5,12 @@ use std::{
     time::Duration
 };
 
-use common::{return_if, AtomicConsensus, ConsensusState, IsLeader, PollExt};
+use common::{
+    return_if, AtomicConsensus, ConsensusState, IsLeader, PollExt, ORDER_ACCUMULATION, PRE_PROPOSE
+};
 use futures::{Future, Stream, StreamExt};
+use guard_types::{consensus::Evidence, on_chain::SimmedBundle};
+use reth_primitives::H512;
 
 use self::{
     commit::CommitState, order_accumulation::OrderAccumulationState, pre_propose::PreProposeState,
@@ -24,37 +28,61 @@ pub mod submit;
 /// is transient to the given ethereum block height
 pub struct RoundState {
     /// The current ethereum height
-    height:        u64,
+    height:         u64,
     /// If this guard is leader for the given height
-    is_leader:     IsLeader,
+    is_leader:      IsLeader,
+    /// The current leader address,
+    leader_address: H512,
     /// global consensus state indicator
-    consensus:     AtomicConsensus,
+    consensus:      AtomicConsensus,
     /// the current action we should be taking at the moment of
     /// time for this height
-    current_state: RoundAction
+    current_state:  RoundAction
 }
 
 impl RoundState {
-    pub fn new(height: u64, is_leader: IsLeader, consensus: AtomicConsensus) -> Self {
+    pub fn new(
+        height: u64,
+        is_leader: IsLeader,
+        consensus: AtomicConsensus,
+        leader_address: H512
+    ) -> Self {
         Self {
             is_leader: is_leader.clone(),
             consensus,
             height,
-            current_state: RoundAction::new(is_leader)
+            current_state: RoundAction::new(is_leader),
+            leader_address
         }
     }
 
-    pub fn new_height(&mut self, block_height: u64, is_leader: bool) {
+    pub fn new_height(&mut self, block_height: u64, leader_address: H512, is_leader: bool) {
         assert!(block_height > self.height);
 
         self.height = block_height;
         self.is_leader.set_leader(is_leader);
+        self.leader_address = leader_address;
         self.consensus.reset();
         self.current_state = RoundAction::new(self.is_leader.clone());
     }
 
     pub fn current_height(&self) -> u64 {
         self.height
+    }
+
+    // will be updated to include the lower bound and other stuff
+    pub fn new_best_details(&mut self, bundle_details: SimmedBundle) {
+        let state = self.consensus.get_current_state();
+
+        if self.is_leader.is_leader() || state == ORDER_ACCUMULATION {
+            self.current_state.new_best_details(bundle_details);
+        }
+    }
+
+    // TODO: because evidence is black and white. if any is collected. Should
+    // be submitted to chain immediately. prob shouldn't be in here
+    pub fn new_evidence(&mut self, evidence: Evidence) {
+        self.current_state.new_evidence(evidence)
     }
 }
 
@@ -79,7 +107,17 @@ impl Stream for RoundState {
     }
 }
 
-pub enum RoundStateMessage {}
+pub enum RoundStateMessage {
+    /// All guards lock there lower-bound and broadcast it
+    PrePropose(),
+    /// the leader for this round will send out the vanilla bundle and
+    /// lower-bound commit for the round
+    Proposal(),
+    /// the commit or nil vote the the lower-bound + vanilla proposal
+    Commit(),
+    /// if leader. then the finalized bundle that is sent to builders
+    RelaySubmission()
+}
 
 /// Should be on all different states of consensus. These trigger the moves
 trait StateTransition {
@@ -131,6 +169,14 @@ impl RoundAction {
             Timeout::new(Duration::from_secs(6)),
             is_leader
         ))
+    }
+
+    pub fn new_best_details(&mut self, bundle_details: SimmedBundle) {
+        todo!()
+    }
+
+    pub fn new_evidence(&mut self, evidence: Evidence) {
+        todo!()
     }
 }
 
