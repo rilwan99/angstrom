@@ -204,8 +204,8 @@ where
 
                     SourceMessages::NewEthereumBlock(block) => {
                         let block = Arc::new(block);
-                        if let Some(sync) = self.syncing {
-                            self.syncing.on_new_block(block);
+                        if let Some(sync) = self.syncing.as_mut() {
+                            sync.on_new_block(block);
                         }
                     }
                 }

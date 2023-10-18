@@ -9,15 +9,18 @@ use ethers_providers::{Middleware, ProviderError};
 use futures::Stream;
 use futures_util::{Future, FutureExt};
 
+type CatchupFuture<M> =
+    Pin<Box<dyn Future<Output = Result<Option<Block<H256>>, <M as Middleware>::Error>> + Send>>;
+
 pub struct RoundRobinSync<M: Middleware + 'static> {
-    middleware:     M,
+    middleware:     &'static M,
     live_height:    u64,
     current_height: u64,
-    catchup:        Pin<Box<dyn Future<Output = Result<Option<Block<H256>>, ProviderError>>>>
+    catchup:        CatchupFuture<M>
 }
 
 impl<M: Middleware> RoundRobinSync<M> {
-    pub async fn new(middleware: M, current_height: u64) -> Self {
+    pub async fn new(middleware: &'static M, current_height: u64) -> Self {
         let live_height = middleware.get_block_number().await.unwrap().as_u64();
         let catchup = middleware.get_block(current_height);
 
@@ -33,7 +36,7 @@ impl<M: Middleware> Stream for RoundRobinSync<M> {
     type Item = Block<H256>;
 
     fn poll_next(
-        self: std::pin::Pin<&mut Self>,
+        mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>
     ) -> std::task::Poll<Option<Self::Item>> {
         // TODO: clean this shit up
@@ -45,6 +48,7 @@ impl<M: Middleware> Stream for RoundRobinSync<M> {
             }
 
             let res = res.unwrap();
+
             self.current_height = res.number.unwrap().as_u64();
             self.catchup = self.middleware.get_block(self.current_height + 1);
 
