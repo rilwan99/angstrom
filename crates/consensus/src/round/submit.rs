@@ -40,16 +40,17 @@ impl StateTransition for SubmitState {
         cx: &mut Context<'_>,
         _: GlobalStateContext
     ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)> {
-        self.submit_deadline
-            .poll_unpin(cx)
-            .filter(|_| self.can_send)
-            .map(|_| {
+        self.submit_deadline.poll_unpin(cx).map(|_| {
+            if self.can_send {
                 // submission here
                 (
                     RoundAction::Completed(CompletedState),
                     WAITING_NEXT_BLOCK,
                     Some(RoundStateMessage::RelaySubmission())
                 )
-            })
+            } else {
+                (RoundAction::Completed(CompletedState), WAITING_NEXT_BLOCK, None)
+            }
+        })
     }
 }

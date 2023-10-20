@@ -182,10 +182,6 @@ impl RoundAction {
     pub fn new_best_details(&mut self, bundle_details: SimmedBundle) {
         todo!()
     }
-
-    pub fn new_evidence(&mut self, evidence: Evidence) {
-        todo!()
-    }
 }
 
 impl StateTransition for RoundAction {
