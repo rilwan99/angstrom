@@ -33,7 +33,11 @@ impl StateTransition for PreProposeState {
             if self.is_leader.is_leader() {
                 (RoundAction::Propose(ProposeState::new(cx.waker().clone())), PROPOSE, None)
             } else {
-                (RoundAction::Commit(CommitState::new()), COMMIT, None)
+                (
+                    RoundAction::Commit(CommitState::new()),
+                    COMMIT,
+                    Some(RoundStateMessage::PrePropose())
+                )
             }
         })
     }

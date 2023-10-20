@@ -45,7 +45,11 @@ impl StateTransition for SubmitState {
             .filter(|_| self.can_send)
             .map(|_| {
                 // submission here
-                (RoundAction::Completed(CompletedState), WAITING_NEXT_BLOCK, None)
+                (
+                    RoundAction::Completed(CompletedState),
+                    WAITING_NEXT_BLOCK,
+                    Some(RoundStateMessage::RelaySubmission())
+                )
             })
     }
 }
