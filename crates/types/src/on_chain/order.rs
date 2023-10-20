@@ -1,7 +1,8 @@
-use bytes::Bytes;
+use bytes::{Bytes, BytesMut};
 use ethers_core::{
     abi::{AbiArrayType, AbiType, ParamType, Tokenizable, TokenizableItem},
-    types::{H256, U256}
+    types::{H256, U256},
+    utils::keccak256
 };
 use hex_literal::hex;
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
@@ -28,13 +29,13 @@ const ORDER_TYPE_HASH: H256 =
 )]
 pub struct Order {
     /// The original order from the user.
-    order:             OrderDetails,
+    pub order:             OrderDetails,
     /// The user's EIP-712 signature of the Order.
-    signature:         Signature,
+    pub signature:         Signature,
     /// The actual executed input amount.
-    amount_in_actual:  U256,
+    pub amount_in_actual:  U256,
     /// The actual executed output amount.
-    amount_out_actual: U256
+    pub amount_out_actual: U256
 }
 
 /// The struct that the user signs using EIP-721.
@@ -53,24 +54,24 @@ pub struct Order {
 )]
 pub struct OrderDetails {
     /// The user provided nonce, can only be used once.
-    nonce:          U256,
+    pub nonce:          U256,
     /// The order's type, can enable partial fills or fallible hooks.
-    order_type:     OrderType,
+    pub order_type:     OrderType,
     /// The input currency for the order.
-    currency_in:    Currency,
+    pub currency_in:    Currency,
     /// The output currency for the order.
-    currency_out:   Currency,
+    pub currency_out:   Currency,
     /// The (maximum) amount of input currency.
-    amount_in:      u128,
+    pub amount_in:      u128,
     /// The minimum amount of output currency.
-    amount_out_min: u128,
+    pub amount_out_min: u128,
     /// The order cannot be executed after this timestamp.
-    deadline:       U256,
+    pub deadline:       U256,
     /// An optional user provided hook to run before collecting input
     /// payment.
-    pre_hook:       Bytes,
+    pub pre_hook:       Bytes,
     /// An optional user provided hook to run after paying the output.
-    post_hook:      Bytes
+    pub post_hook:      Bytes
 }
 
 impl TryInto<HookSim> for OrderDetails {

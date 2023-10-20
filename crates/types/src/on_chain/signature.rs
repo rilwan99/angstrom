@@ -14,30 +14,12 @@ use secp256k1::{
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tracing::trace;
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ethers_contract::EthAbiCodec,
 )]
 #[repr(transparent)]
 pub struct Signature(pub ESignature);
-
-impl Compact for Signature {
-    fn to_compact<B>(self, buf: &mut B) -> usize
-    where
-        B: bytes::BufMut + AsMut<[u8]>
-    {
-        self.encode(buf);
-        self.length()
-    }
-
-    fn from_compact(buf: &[u8], len: usize) -> (Self, &[u8])
-    where
-        Self: Sized
-    {
-        todo!()
-    }
-}
 
 impl Default for Signature {
     fn default() -> Self {
