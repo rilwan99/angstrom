@@ -95,8 +95,9 @@ impl Stream for RoundState {
     type Item = RoundStateMessage;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let is_leader = self.is_leader.clone();
         if let Poll::Ready((new_action, msg)) = Pin::new(&mut self.current_state)
-            .should_transition(cx, GlobalStateContext {})
+            .should_transition(cx, GlobalStateContext { is_leader })
             .map(|(round_action, new_state, message)| {
                 self.consensus.update_state(new_state);
                 (round_action, message)
@@ -182,7 +183,6 @@ impl RoundAction {
     }
 
     pub fn new_best_details(&mut self, bundle_details: SimmedBundle) {
-
         todo!()
     }
 }
