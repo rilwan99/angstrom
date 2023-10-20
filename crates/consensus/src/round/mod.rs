@@ -20,6 +20,7 @@ pub mod order_accumulation;
 pub mod pre_propose;
 pub mod propose;
 pub mod submit;
+pub mod completed;
 
 /// The current state and subsequent actions that should be taken
 /// for such state in a given round. All state that this contains

@@ -7,15 +7,10 @@ use common::ConsensusState;
 
 use super::{RoundAction, RoundStateMessage, StateTransition};
 
-pub struct ProposeState {}
+/// waiting for next block state
+pub struct CompletedState {}
 
-impl ProposeState {
-    pub fn new() -> Self {
-        todo!()
-    }
-}
-
-impl StateTransition for ProposeState {
+impl StateTransition for CompletedState {
     fn should_transition(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>

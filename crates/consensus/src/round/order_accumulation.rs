@@ -33,7 +33,8 @@ impl StateTransition for OrderAccumulationState {
                 RoundAction::PrePropose(PreProposeState::new(
                     // TODO: placeholder
                     Timeout::new(Duration::from_secs(6)),
-                    self.best_bundle.take(),
+                    // todo don't unwrap
+                    self.best_bundle.take().unwrap(),
                     self.is_leader.clone()
                 )),
                 PRE_PROPOSE,
