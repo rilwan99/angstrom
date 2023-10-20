@@ -2,6 +2,7 @@ use ethers_core::types::{Address, H160};
 use hex_literal::hex;
 
 mod bundle;
+mod evidence;
 mod external_state_sim;
 mod lower_bound;
 mod order;
@@ -10,6 +11,7 @@ mod submission;
 mod uniswap_data;
 
 pub use bundle::*;
+pub use evidence::*;
 pub use external_state_sim::*;
 pub use lower_bound::*;
 pub use order::*;
@@ -19,4 +21,4 @@ pub use uniswap_data::*;
 
 /// 1234567890abcedf1234567890abcdef12345678
 pub const ANGSTROM_CONTRACT_ADDR: H160 = H160(hex!("1234567890abcedf1234567890abcdef12345678"));
-type Currency = Address;
+pub type Currency = Address;
