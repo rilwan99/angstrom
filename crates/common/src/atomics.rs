@@ -10,7 +10,8 @@ pub enum ConsensusState {
     PrePropose        = 1,
     Propose           = 2,
     Commit            = 3,
-    Submit            = 4
+    Submit            = 4,
+    WaitingNextBlock  = 5
 }
 
 pub const ORDER_ACCUMULATION: ConsensusState = ConsensusState::OrderAccumulation;
@@ -18,6 +19,7 @@ pub const PRE_PROPOSE: ConsensusState = ConsensusState::PrePropose;
 pub const PROPOSE: ConsensusState = ConsensusState::Propose;
 pub const COMMIT: ConsensusState = ConsensusState::Commit;
 pub const SUBMIT: ConsensusState = ConsensusState::Submit;
+pub const WAITING_NEXT_BLOCK: ConsensusState = ConsensusState::WaitingNextBlock;
 
 #[derive(Debug, Clone, Default)]
 #[repr(transparent)]

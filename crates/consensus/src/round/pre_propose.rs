@@ -1,7 +1,6 @@
 use std::{
     pin::Pin,
-    task::{Context, Poll},
-    time::Duration
+    task::{Context, Poll}
 };
 
 use common::{ConsensusState, IsLeader, COMMIT, PRE_PROPOSE, PROPOSE};

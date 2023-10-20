@@ -3,11 +3,14 @@ use std::{
     task::{Context, Poll, Waker}
 };
 
-use common::{ConsensusState, ORDER_ACCUMULATION};
+use common::{ConsensusState, ORDER_ACCUMULATION, WAITING_NEXT_BLOCK};
 use guard_types::on_chain::SimmedBundle;
 use reth_primitives::H512;
 
-use super::{RoundAction, RoundStateMessage, StateTransition, order_accumulation::OrderAccumulationState, completed::CompletedState};
+use super::{
+    completed::CompletedState, order_accumulation::OrderAccumulationState, RoundAction,
+    RoundStateMessage, StateTransition
+};
 
 pub enum CommitVote {
     Commit(()),
@@ -38,13 +41,13 @@ impl CommitState {
 impl StateTransition for CommitState {
     fn should_transition(
         mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>
+        _cx: &mut Context<'_>
     ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)> {
         if let Some(vote) = self.vote.take() {
             return Poll::Ready((
-                RoundAction::Completed(CompletedState)
-                ,
-                None,
+                RoundAction::Completed(CompletedState),
+                WAITING_NEXT_BLOCK,
+                Some(RoundStateMessage::Commit())
             ))
         }
         Poll::Pending

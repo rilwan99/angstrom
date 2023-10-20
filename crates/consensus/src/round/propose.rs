@@ -7,6 +7,7 @@ use common::ConsensusState;
 
 use super::{RoundAction, RoundStateMessage, StateTransition};
 
+/// This state is only reached if this guard is the leader
 pub struct ProposeState {}
 
 impl ProposeState {
