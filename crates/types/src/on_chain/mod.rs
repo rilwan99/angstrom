@@ -9,12 +9,14 @@ use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
 mod bundle;
+mod order;
 mod searcher;
 mod signature;
 mod submission;
 mod users;
 
 pub use bundle::*;
+pub use order::*;
 pub use searcher::*;
 pub use signature::*;
 pub use submission::*;
@@ -22,6 +24,8 @@ pub use users::*;
 
 /// 1234567890abcedf1234567890abcdef12345678
 pub const ANGSTROM_CONTRACT_ADDR: H160 = H160(hex!("1234567890abcedf1234567890abcdef12345678"));
+
+type Currency = Address;
 
 /// the call address, the bytes to be called.
 pub type HookCall = (Address, Bytes);
