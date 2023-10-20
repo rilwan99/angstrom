@@ -1,13 +1,11 @@
 use std::{
     ops::{Deref, DerefMut},
-    pin::{pin, Pin},
+    pin::Pin,
     task::{Context, Poll},
     time::Duration
 };
 
-use common::{
-    return_if, AtomicConsensus, ConsensusState, IsLeader, PollExt, ORDER_ACCUMULATION, PRE_PROPOSE
-};
+use common::{return_if, AtomicConsensus, ConsensusState, IsLeader, PollExt, ORDER_ACCUMULATION};
 use futures::{Future, Stream, StreamExt};
 use guard_types::{consensus::Evidence, on_chain::SimmedBundle};
 use reth_primitives::H512;
@@ -92,7 +90,7 @@ impl RoundState {
     }
 
     // TODO: because evidence is black and white. if any is collected. Should
-    // be submitted to chain immediately. prob shouldn't be in here
+    // prop be submitted to chain immediately. prob shouldn't be in here
     pub fn new_evidence(&mut self, evidence: Evidence) {
         self.current_state.new_evidence(evidence)
     }

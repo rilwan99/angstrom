@@ -5,7 +5,7 @@ use std::{
 
 use common::{ConsensusState, IsLeader, PROPOSE};
 use futures::FutureExt;
-use guard_types::on_chain::{PoolKey, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement};
+use guard_types::on_chain::SimmedBundle;
 
 use super::{propose::ProposeState, RoundAction, RoundStateMessage, StateTransition, Timeout};
 
@@ -32,6 +32,6 @@ impl StateTransition for PreProposeState {
     ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)> {
         self.timeout
             .poll_unpin(cx)
-            .map(|best_bundle| (RoundAction::Propose(ProposeState {}), PROPOSE, None))
+            .map(|_| (RoundAction::Propose(ProposeState {}), PROPOSE, None))
     }
 }
