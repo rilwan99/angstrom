@@ -1,9 +1,9 @@
 use std::{
     pin::Pin,
-    task::{Context, Poll, Waker}
+    task::{Context, Poll}
 };
 
-use common::{ConsensusState, PollExt, WAITING_NEXT_BLOCK};
+use common::{ConsensusState, WAITING_NEXT_BLOCK};
 use futures::FutureExt;
 use guard_types::on_chain::SimmedBundle;
 

@@ -7,8 +7,7 @@ use common::{ConsensusState, WAITING_NEXT_BLOCK};
 use guard_types::on_chain::SimmedBundle;
 
 use super::{
-    completed::CompletedState, order_accumulation::OrderAccumulationState, GlobalStateContext,
-    RoundAction, RoundStateMessage, StateTransition
+    completed::CompletedState, GlobalStateContext, RoundAction, RoundStateMessage, StateTransition
 };
 
 pub enum CommitVote {
@@ -31,7 +30,9 @@ impl CommitState {
     pub fn on_proposal(&mut self, proposal: ()) {
         // some code here to check the proposal against our bundle
         // to make sure that the lower bound and other stuff is
-        // up to standard
+        // up to standard.
+        //
+        // don't love this tho that there needs to be another poll to transition
         self.waker.wake_by_ref();
         todo!()
     }

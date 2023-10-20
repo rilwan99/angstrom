@@ -122,7 +122,9 @@ pub enum RoundStateMessage {
     RelaySubmission()
 }
 
-pub struct GlobalStateContext {}
+pub struct GlobalStateContext {
+    pub is_leader: IsLeader
+}
 
 /// Should be on all different states of consensus. These trigger the moves
 trait StateTransition {
@@ -180,6 +182,7 @@ impl RoundAction {
     }
 
     pub fn new_best_details(&mut self, bundle_details: SimmedBundle) {
+
         todo!()
     }
 }

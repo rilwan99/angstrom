@@ -13,6 +13,8 @@ use super::{
     StateTransition, Timeout
 };
 
+/// During this State. Everyone continuously is updating there best bundles
+/// collecting up until the timeout occurs
 pub struct OrderAccumulationState {
     timeout:     Timeout,
     best_bundle: Option<SimmedBundle>,
@@ -46,13 +48,11 @@ impl StateTransition for OrderAccumulationState {
             (
                 RoundAction::PrePropose(PreProposeState::new(
                     // TODO: placeholder
-                    Timeout::new(Duration::from_secs(6)),
-                    // todo don't unwrap
-                    self.best_bundle.take().unwrap(),
-                    self.is_leader.clone()
+                    Timeout::new(Duration::from_secs(6)) // todo don't unwrap
                 )),
                 PRE_PROPOSE,
-                None
+                // TODO: this will be there pre pose commit
+                Some(RoundStateMessage::PrePropose())
             )
         })
     }

@@ -3,23 +3,22 @@ use std::{
     task::{Context, Poll}
 };
 
-use common::{ConsensusState, IsLeader, COMMIT, PRE_PROPOSE, PROPOSE};
+use common::{ConsensusState, COMMIT, PROPOSE};
 use futures::FutureExt;
-use guard_types::on_chain::SimmedBundle;
 
 use super::{
     commit::CommitState, propose::ProposeState, GlobalStateContext, RoundAction, RoundStateMessage,
     StateTransition, Timeout
 };
 
+/// Given we have pre-proposed. we now wait the Timeout
+/// before transitioning to the next state
 pub struct PreProposeState {
-    timeout:         Timeout,
-    commited_bundle: SimmedBundle,
-    is_leader:       IsLeader
+    timeout: Timeout
 }
 impl PreProposeState {
-    pub fn new(timeout: Timeout, commited_bundle: SimmedBundle, is_leader: IsLeader) -> Self {
-        Self { timeout, commited_bundle, is_leader }
+    pub fn new(timeout: Timeout) -> Self {
+        Self { timeout }
     }
 }
 
@@ -27,17 +26,13 @@ impl StateTransition for PreProposeState {
     fn should_transition(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        _: GlobalStateContext
+        gs_context: GlobalStateContext
     ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)> {
         self.timeout.poll_unpin(cx).map(|_| {
-            if self.is_leader.is_leader() {
+            if gs_context.is_leader.is_leader() {
                 (RoundAction::Propose(ProposeState::new(cx.waker().clone())), PROPOSE, None)
             } else {
-                (
-                    RoundAction::Commit(CommitState::new()),
-                    COMMIT,
-                    Some(RoundStateMessage::PrePropose())
-                )
+                (RoundAction::Commit(CommitState::new()), COMMIT, None)
             }
         })
     }
