@@ -54,5 +54,5 @@ pub struct LowerBound {
 )]
 pub struct PoolQuantity {
     pub pool_key: PoolKey,
-    pub quantity: u128
+    pub quantity: i128
 }
