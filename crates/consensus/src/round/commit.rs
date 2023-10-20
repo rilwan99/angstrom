@@ -1,19 +1,56 @@
 use std::{
     pin::Pin,
-    task::{Context, Poll}
+    task::{Context, Poll, Waker}
 };
 
-use common::ConsensusState;
+use common::{ConsensusState, WAITING_NEXT_BLOCK};
+use guard_types::on_chain::SimmedBundle;
 
-use super::{RoundAction, RoundStateMessage, StateTransition};
+use super::{
+    completed::CompletedState, GlobalStateContext, RoundAction, RoundStateMessage, StateTransition
+};
 
-pub struct CommitState {}
+pub enum CommitVote {
+    Commit(()),
+    Nil(())
+}
+
+pub struct CommitState {
+    proposal:    Option<()>,
+    best_bundle: SimmedBundle,
+    waker:       Waker,
+    vote:        Option<CommitVote>
+}
+
+impl CommitState {
+    pub fn new() -> Self {
+        todo!()
+    }
+
+    pub fn on_proposal(&mut self, proposal: ()) {
+        // some code here to check the proposal against our bundle
+        // to make sure that the lower bound and other stuff is
+        // up to standard.
+        //
+        // don't love this tho that there needs to be another poll to transition
+        self.waker.wake_by_ref();
+        todo!()
+    }
+}
 
 impl StateTransition for CommitState {
     fn should_transition(
         mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>
+        _cx: &mut Context<'_>,
+        _: GlobalStateContext
     ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)> {
-        todo!()
+        if let Some(_vote) = self.vote.take() {
+            return Poll::Ready((
+                RoundAction::Completed(CompletedState),
+                WAITING_NEXT_BLOCK,
+                Some(RoundStateMessage::Commit())
+            ))
+        }
+        Poll::Pending
     }
 }

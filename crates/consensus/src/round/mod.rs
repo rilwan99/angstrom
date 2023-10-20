@@ -11,11 +11,12 @@ use guard_types::{consensus::Evidence, on_chain::SimmedBundle};
 use reth_primitives::H512;
 
 use self::{
-    commit::CommitState, order_accumulation::OrderAccumulationState, pre_propose::PreProposeState,
-    propose::ProposeState, submit::SubmitState
+    commit::CommitState, completed::CompletedState, order_accumulation::OrderAccumulationState,
+    pre_propose::PreProposeState, propose::ProposeState, submit::SubmitState
 };
 
 pub mod commit;
+pub mod completed;
 pub mod order_accumulation;
 pub mod pre_propose;
 pub mod propose;
@@ -88,22 +89,15 @@ impl RoundState {
             self.current_state.new_best_details(bundle_details);
         }
     }
-
-    // TODO: because evidence is black and white. if any is collected. Should
-    // prop be submitted to chain immediately. prob shouldn't be in here
-    pub fn new_evidence(&mut self, evidence: Evidence) {
-        self.current_state.new_evidence(evidence)
-    }
 }
 
 impl Stream for RoundState {
     type Item = RoundStateMessage;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Poll::Ready((new_action, msg)) = self
-            .current_state
-            .poll_next_unpin(cx)
-            .filter_map(|f| f)
+        let is_leader = self.is_leader.clone();
+        if let Poll::Ready((new_action, msg)) = Pin::new(&mut self.current_state)
+            .should_transition(cx, GlobalStateContext { is_leader })
             .map(|(round_action, new_state, message)| {
                 self.consensus.update_state(new_state);
                 (round_action, message)
@@ -129,13 +123,18 @@ pub enum RoundStateMessage {
     RelaySubmission()
 }
 
+pub struct GlobalStateContext {
+    pub is_leader: IsLeader
+}
+
 /// Should be on all different states of consensus. These trigger the moves
 trait StateTransition {
     /// needs to pass context for timeout related tasks. returns the new round
     /// state with the updater for global consensus
     fn should_transition(
         self: Pin<&mut Self>,
-        cx: &mut Context<'_>
+        cx: &mut Context<'_>,
+        global_state: GlobalStateContext
     ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)>;
 }
 
@@ -169,7 +168,9 @@ pub enum RoundAction {
     PrePropose(PreProposeState),
     Propose(ProposeState),
     Commit(CommitState),
-    Submit(SubmitState)
+    Submit(SubmitState),
+    /// non leader completed state
+    Completed(CompletedState)
 }
 
 impl RoundAction {
@@ -184,22 +185,21 @@ impl RoundAction {
     pub fn new_best_details(&mut self, bundle_details: SimmedBundle) {
         todo!()
     }
-
-    pub fn new_evidence(&mut self, evidence: Evidence) {
-        todo!()
-    }
 }
 
-impl Stream for RoundAction {
-    type Item = (RoundAction, ConsensusState, Option<RoundStateMessage>);
-
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+impl StateTransition for RoundAction {
+    fn should_transition(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        global_state: GlobalStateContext
+    ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)> {
         match &mut *self {
-            RoundAction::OrderAccumulation(p) => Pin::new(p).should_transition(cx).map(|p| Some(p)),
-            RoundAction::PrePropose(p) => Pin::new(p).should_transition(cx).map(|p| Some(p)),
-            RoundAction::Propose(p) => Pin::new(p).should_transition(cx).map(|p| Some(p)),
-            RoundAction::Commit(p) => Pin::new(p).should_transition(cx).map(|p| Some(p)),
-            RoundAction::Submit(p) => Pin::new(p).should_transition(cx).map(|p| Some(p))
+            RoundAction::OrderAccumulation(p) => Pin::new(p).should_transition(cx, global_state),
+            RoundAction::PrePropose(p) => Pin::new(p).should_transition(cx, global_state),
+            RoundAction::Propose(p) => Pin::new(p).should_transition(cx, global_state),
+            RoundAction::Commit(p) => Pin::new(p).should_transition(cx, global_state),
+            RoundAction::Submit(p) => Pin::new(p).should_transition(cx, global_state),
+            RoundAction::Completed(p) => Pin::new(p).should_transition(cx, global_state)
         }
     }
 }
