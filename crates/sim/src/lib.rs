@@ -5,8 +5,8 @@ use errors::{SimError, SimResult};
 use ethers_core::types::{transaction::eip2718::TypedTransaction, I256, U256};
 use executor::ThreadPool;
 use guard_types::on_chain::{
-    CallerInfo, HookSim, RawBundle, RawLvrSettlement, RawUserSettlement, SearcherOrUser,
-    SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement
+    CallerInfo, HookSim, OrderDetails, RawBundle, RawLvrSettlement, RawUserSettlement,
+    SearcherOrUser, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement
 };
 use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
 
@@ -36,7 +36,7 @@ pub fn spawn_revm_sim(db: lru_db::RevmLRU) -> Result<RevmClient, SimError> {
 #[derive(Debug)]
 pub enum BundleOrTransactionResult {
     Bundle(SimmedBundle),
-    HookSimResult { tx: SearcherOrUser, pre_hook_gas: U256, post_hook_gas: U256 },
+    HookSimResult { tx: OrderDetails, pre_hook_gas: U256, post_hook_gas: U256 },
     UniswapV4Results { delta: I256, gas: U256 }
 }
 
