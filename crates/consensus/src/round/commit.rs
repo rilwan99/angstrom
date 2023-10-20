@@ -7,7 +7,7 @@ use common::{ConsensusState, ORDER_ACCUMULATION};
 use guard_types::on_chain::SimmedBundle;
 use reth_primitives::H512;
 
-use super::{RoundAction, RoundStateMessage, StateTransition};
+use super::{RoundAction, RoundStateMessage, StateTransition, order_accumulation::OrderAccumulationState, completed::CompletedState};
 
 pub enum CommitVote {
     Commit(()),
@@ -42,9 +42,9 @@ impl StateTransition for CommitState {
     ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)> {
         if let Some(vote) = self.vote.take() {
             return Poll::Ready((
-                RoundAction::OrderAccumulation(()),
-                ORDER_ACCUMULATION,
-                Some(RoundStateMessage::Commit())
+                RoundAction::Completed(CompletedState)
+                ,
+                None,
             ))
         }
         Poll::Pending

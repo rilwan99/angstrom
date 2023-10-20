@@ -11,16 +11,16 @@ use guard_types::{consensus::Evidence, on_chain::SimmedBundle};
 use reth_primitives::H512;
 
 use self::{
-    commit::CommitState, order_accumulation::OrderAccumulationState, pre_propose::PreProposeState,
-    propose::ProposeState, submit::SubmitState
+    commit::CommitState, completed::CompletedState, order_accumulation::OrderAccumulationState,
+    pre_propose::PreProposeState, propose::ProposeState, submit::SubmitState
 };
 
 pub mod commit;
+pub mod completed;
 pub mod order_accumulation;
 pub mod pre_propose;
 pub mod propose;
 pub mod submit;
-pub mod completed;
 
 /// The current state and subsequent actions that should be taken
 /// for such state in a given round. All state that this contains
@@ -170,7 +170,9 @@ pub enum RoundAction {
     PrePropose(PreProposeState),
     Propose(ProposeState),
     Commit(CommitState),
-    Submit(SubmitState)
+    Submit(SubmitState),
+    /// non leader completed state
+    Completed(CompletedState)
 }
 
 impl RoundAction {
