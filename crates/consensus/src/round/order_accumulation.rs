@@ -9,7 +9,8 @@ use futures::FutureExt;
 use guard_types::on_chain::SimmedBundle;
 
 use super::{
-    pre_propose::PreProposeState, RoundAction, RoundStateMessage, StateTransition, Timeout
+    pre_propose::PreProposeState, GlobalStateContext, RoundAction, RoundStateMessage,
+    StateTransition, Timeout
 };
 
 pub struct OrderAccumulationState {
@@ -21,12 +22,25 @@ impl OrderAccumulationState {
     pub fn new(timeout: Timeout, is_leader: IsLeader) -> Self {
         Self { timeout, best_bundle: None, is_leader }
     }
+
+    pub fn new_bundle(&mut self, bundle: SimmedBundle) {
+        if self
+            .best_bundle
+            .as_ref()
+            .map(|cur_best| bundle.get_cumulative_lp_bribe() > cur_best.get_cumulative_lp_bribe())
+            .filter(|f| *f)
+            .is_some()
+        {
+            self.best_bundle.replace(bundle);
+        }
+    }
 }
 
 impl StateTransition for OrderAccumulationState {
     fn should_transition(
         mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>
+        cx: &mut Context<'_>,
+        _: GlobalStateContext
     ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)> {
         self.timeout.poll_unpin(cx).map(|_| {
             (

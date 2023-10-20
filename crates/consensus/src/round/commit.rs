@@ -8,8 +8,8 @@ use guard_types::on_chain::SimmedBundle;
 use reth_primitives::H512;
 
 use super::{
-    completed::CompletedState, order_accumulation::OrderAccumulationState, RoundAction,
-    RoundStateMessage, StateTransition
+    completed::CompletedState, order_accumulation::OrderAccumulationState, GlobalStateContext,
+    RoundAction, RoundStateMessage, StateTransition
 };
 
 pub enum CommitVote {
@@ -41,7 +41,8 @@ impl CommitState {
 impl StateTransition for CommitState {
     fn should_transition(
         mut self: Pin<&mut Self>,
-        _cx: &mut Context<'_>
+        _cx: &mut Context<'_>,
+        _: GlobalStateContext
     ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)> {
         if let Some(vote) = self.vote.take() {
             return Poll::Ready((

@@ -7,7 +7,10 @@ use common::{ConsensusState, PollExt, WAITING_NEXT_BLOCK};
 use futures::FutureExt;
 use guard_types::on_chain::SimmedBundle;
 
-use super::{completed::CompletedState, RoundAction, RoundStateMessage, StateTransition, Timeout};
+use super::{
+    completed::CompletedState, GlobalStateContext, RoundAction, RoundStateMessage, StateTransition,
+    Timeout
+};
 
 /// This state is only reached if this guard is the leader
 pub struct SubmitState {
@@ -34,7 +37,8 @@ impl SubmitState {
 impl StateTransition for SubmitState {
     fn should_transition(
         mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>
+        cx: &mut Context<'_>,
+        _: GlobalStateContext
     ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)> {
         self.submit_deadline
             .poll_unpin(cx)

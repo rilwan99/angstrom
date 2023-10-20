@@ -8,8 +8,8 @@ use futures::FutureExt;
 use guard_types::on_chain::SimmedBundle;
 
 use super::{
-    commit::CommitState, propose::ProposeState, RoundAction, RoundStateMessage, StateTransition,
-    Timeout
+    commit::CommitState, propose::ProposeState, GlobalStateContext, RoundAction, RoundStateMessage,
+    StateTransition, Timeout
 };
 
 pub struct PreProposeState {
@@ -26,11 +26,12 @@ impl PreProposeState {
 impl StateTransition for PreProposeState {
     fn should_transition(
         mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>
+        cx: &mut Context<'_>,
+        _: GlobalStateContext
     ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)> {
         self.timeout.poll_unpin(cx).map(|_| {
             if self.is_leader.is_leader() {
-                (RoundAction::Propose(ProposeState::new()), PROPOSE, None)
+                (RoundAction::Propose(ProposeState::new(cx.waker().clone())), PROPOSE, None)
             } else {
                 (RoundAction::Commit(CommitState::new()), COMMIT, None)
             }
