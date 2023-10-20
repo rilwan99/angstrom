@@ -23,17 +23,6 @@ pub struct DuplicateVoteEvidence {
 impl DuplicateVoteEvidence {
     /// constructor
     pub fn new() -> Result<Self, EvidenceError> {
-        // if vote_a.height != vote_b.height {
-        //     return Err(EvidenceError::InvalidEvidence)
-        // }
-
-        // Todo: make more assumptions about what is considered a valid evidence for
-        // duplicate vote
         Ok(Self { total_voting_power: Default::default(), validator_power: Default::default() })
     }
-
-    // /// Get votes
-    // pub fn votes(&self) -> (&Vote, &Vote) {
-    //     (&self.vote_a, &self.vote_b)
-    // }
 }
