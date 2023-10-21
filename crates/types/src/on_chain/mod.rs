@@ -22,3 +22,11 @@ pub use uniswap_data::*;
 /// 1234567890abcedf1234567890abcdef12345678
 pub const ANGSTROM_CONTRACT_ADDR: H160 = H160(hex!("1234567890abcedf1234567890abcdef12345678"));
 pub type Currency = Address;
+
+/// This type is for when we want to notify consensus of our new internal best
+/// data
+pub struct BestSolvedBundleData {
+    pub vanilla:     Option<VanillaBundle>,
+    pub lower_bound: Option<LowerBound>,
+    pub non_vanilla: Option<NonVanillaBundle>
+}

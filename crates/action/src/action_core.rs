@@ -6,7 +6,7 @@ use std::{
 use common::{AtomicConsensus, IsLeader};
 use ethers_signers::LocalWallet;
 use futures::stream::StreamExt;
-use guard_types::on_chain::{SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement};
+use guard_types::on_chain::{BestSolvedBundleData, SubmittedOrder, VanillaBundle};
 use sim::Simulator;
 
 use crate::{BundleSolver, BundleSolverMsg};
@@ -21,19 +21,16 @@ pub struct ActionConfig<S: Simulator + 'static> {
 
 #[derive(Debug, Clone)]
 pub enum ActionMessage {
-    NewBestBundle(Arc<SimmedBundle>),
-    NewValidUserTransaction(Arc<SimmedUserSettlement>),
-    NewValidSearcherTransaction(Arc<SimmedLvrSettlement>)
+    NewBestBundle(Arc<VanillaBundle>),
+    NewOrder(Arc<SubmittedOrder>),
+    NewBestSolvedData(BestSolvedBundleData)
 }
 
 impl From<BundleSolverMsg> for ActionMessage {
     fn from(value: BundleSolverMsg) -> Self {
         match value {
             BundleSolverMsg::NewBestBundle(b) => ActionMessage::NewBestBundle(b),
-            BundleSolverMsg::NewUserTransaction(t) => ActionMessage::NewValidUserTransaction(t),
-            BundleSolverMsg::NewSearcherTransaction(t) => {
-                ActionMessage::NewValidSearcherTransaction(t)
-            }
+            BundleSolverMsg::NewOrder(t) => ActionMessage::NewOrder(t)
         }
     }
 }

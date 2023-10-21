@@ -8,10 +8,7 @@ use std::{
 
 use ethers_core::types::U256;
 use futures::{stream::FuturesUnordered, Stream, StreamExt};
-use guard_types::on_chain::{
-    CallerInfo, PoolKey, RawBundle, RawLvrSettlement, RawUserSettlement, SearcherOrUser,
-    SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement
-};
+use guard_types::on_chain::{CallerInfo, PoolKey, SubmittedOrder, VanillaBundle};
 use revm::primitives::B160;
 use sim::{
     errors::{SimError, SimResult},
@@ -21,9 +18,8 @@ use tracing::{debug, info, trace};
 
 #[derive(Debug, Clone)]
 pub enum BundleSolverMsg {
-    NewBestBundle(Arc<SimmedBundle>),
-    NewUserTransaction(Arc<SimmedUserSettlement>),
-    NewSearcherTransaction(Arc<SimmedLvrSettlement>)
+    NewBestBundle(Arc<VanillaBundle>),
+    NewOrder(Arc<SubmittedOrder>)
 }
 
 pub type SimFut = Pin<Box<dyn Future<Output = Result<SimResult, SimError>> + Send + 'static>>;
@@ -31,11 +27,7 @@ pub type SimFut = Pin<Box<dyn Future<Output = Result<SimResult, SimError>> + Sen
 /// Handles what is the currently best bundle and tries
 /// to beat it
 pub struct BundleSolver<S: Simulator + 'static> {
-    all_user_txes:     HashSet<SimmedUserSettlement>,
-    // need to know this to properly route multihop transactions
-    best_searcher_tx:  HashMap<PoolKey, SimmedLvrSettlement>,
-    bytes_to_pool_key: HashMap<[u8; 32], PoolKey>,
-
+    all_orders:          HashSet<SubmittedOrder>,
     sim:                 S,
     // tmp
     call_info:           CallerInfo,
@@ -46,12 +38,7 @@ impl<S: Simulator + 'static> BundleSolver<S> {
     pub fn new(sim: S, bytes_to_pool_key: Vec<PoolKey>) -> Self {
         Self {
             sim,
-            bytes_to_pool_key: bytes_to_pool_key
-                .into_iter()
-                .map(|key| (key.clone().into(), key))
-                .collect(),
-            best_searcher_tx: HashMap::default(),
-            all_user_txes: HashSet::default(),
+            all_orders: HashSet::default(),
             pending_simulations: FuturesUnordered::default(),
             call_info: CallerInfo {
                 address:   B160::default(),
@@ -61,28 +48,14 @@ impl<S: Simulator + 'static> BundleSolver<S> {
         }
     }
 
-    pub fn new_bundle(&mut self, bundle: RawBundle) {
+    pub fn new_bundle(&mut self, bundle: VanillaBundle) {
         let handle = self.sim.clone();
         let call_info = self.call_info.clone();
         self.pending_simulations
             .push(Box::pin(async move { handle.simulate_bundle(call_info, bundle).await }));
     }
 
-    pub fn new_searcher_transaction(&mut self, tx: RawLvrSettlement) {
-        let handle = self.sim.clone();
-        let call_info = self.call_info.clone();
-
-        self.pending_simulations
-            .push(Box::pin(async move { handle.simulate_hooks(tx, call_info).await }));
-    }
-
-    pub fn new_user_transaction(&mut self, tx: RawUserSettlement) {
-        let handle = self.sim.clone();
-        let call_info = self.call_info.clone();
-
-        self.pending_simulations
-            .push(Box::pin(async move { handle.simulate_hooks(tx, call_info).await }));
-    }
+    pub fn new_order(&mut self, order: SubmittedOrder) {}
 
     fn on_sim_res(&mut self, sim_results: Result<SimResult, SimError>) -> Option<BundleSolverMsg> {
         debug!(?sim_results);
