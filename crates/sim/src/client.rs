@@ -1,8 +1,7 @@
 use std::fmt::Debug;
 
-use anvil_core::eth::transaction::EthTransactionRequest;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
-use guard_types::on_chain::{ComposableBundle, VanillaBundle};
+use guard_types::on_chain::{CallerInfo, ComposableBundle, ExternalStateSim, VanillaBundle};
 use tokio::sync::{mpsc::UnboundedSender, oneshot::channel};
 
 use crate::{
@@ -31,14 +30,14 @@ impl Simulator for RevmClient {
         Ok(rx.await.unwrap())
     }
 
-    async fn simulate_hooks<T>(
+    async fn simulate_external_state<T>(
         &self,
         hook_data: T,
         caller_info: CallerInfo
     ) -> Result<SimResult, SimError>
     where
-        T: TryInto<HookSim> + Send,
-        <T as TryInto<HookSim>>::Error: Debug
+        T: TryInto<ExternalStateSim> + Send,
+        <T as TryInto<ExternalStateSim>>::Error: Debug
     {
         let (tx, rx) = channel();
         let hook = hook_data.try_into().unwrap();

@@ -7,10 +7,7 @@ use ethers_core::{
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use super::{
-    ComposableBundle, NonVanillaBundle, Signature, SignedLowerBound, SignedVanillaBundle,
-    VanillaBundle
-};
+use super::{ComposableBundle, Signature, SignedLowerBound, SignedVanillaBundle, VanillaBundle};
 
 #[derive(
     Debug,

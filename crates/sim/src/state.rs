@@ -37,9 +37,9 @@ impl RevmState {
         RevmLRU::update_evm_state(&this.db, slot_changes)
     }
 
-    pub fn simulate_hooks(
+    pub fn simulate_external_state(
         &self,
-        txes: HookSim,
+        txes: ExternalStateSim,
         _caller_info: CallerInfo,
         overrides: HashMap<B160, U256>
     ) -> Result<(SimResult, AddressSlots), SimError> {

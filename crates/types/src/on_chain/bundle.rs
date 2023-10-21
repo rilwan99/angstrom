@@ -58,6 +58,12 @@ impl VanillaBundle {
     }
 }
 
+impl From<VanillaBundle> for TxEnv {
+    fn from(value: VanillaBundle) -> Self {
+        todo!()
+    }
+}
+
 #[derive(
     Debug,
     Clone,
@@ -73,6 +79,12 @@ impl VanillaBundle {
 pub struct ComposableBundle {
     pub orders:       Vec<Order>,
     pub uniswap_data: UniswapData
+}
+
+impl From<ComposableBundle> for TxEnv {
+    fn from(value: ComposableBundle) -> Self {
+        todo!()
+    }
 }
 
 #[derive(Debug, Clone)]

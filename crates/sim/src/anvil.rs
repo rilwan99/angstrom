@@ -149,16 +149,16 @@ impl Simulator for AnvilSimulator {
         }))
     }
 
-    async fn simulate_hooks<T>(
+    async fn simulate_external_state<T>(
         &self,
         hook_data: T,
         _caller_info: CallerInfo
     ) -> Result<SimResult, SimError>
     where
-        T: TryInto<HookSim> + Send,
-        <T as TryInto<HookSim>>::Error: Debug
+        T: TryInto<ExternalStateSim> + Send,
+        <T as TryInto<ExternalStateSim>>::Error: Debug
     {
-        let hook: HookSim = hook_data.try_into().unwrap();
+        let hook: ExternalStateSim = hook_data.try_into().unwrap();
         let (call_addr, data) = hook.pre_hook();
 
         // send prehook and then check if we have enough now to swap on our pool

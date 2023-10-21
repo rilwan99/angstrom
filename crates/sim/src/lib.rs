@@ -89,7 +89,7 @@ pub trait Simulator: Send + Sync + Clone + Unpin {
 
 /// enum of transaction type
 pub enum SimEvent {
-    Hook(HookSim, CallerInfo, Sender<SimResult>),
+    Hook(ExternalStateSim, CallerInfo, Sender<SimResult>),
     UniswapV4(TypedTransaction, Sender<SimResult>),
     VanillaBundle(VanillaBundle, CallerInfo, Sender<SimResult>),
     ComposableBundle(ComposableBundle, CallerInfo, Sender<SimResult>),
