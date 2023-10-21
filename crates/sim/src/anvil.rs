@@ -149,16 +149,16 @@ impl Simulator for AnvilSimulator {
         }))
     }
 
-    async fn simulate_hooks<T>(
+    async fn simulate_external_state<T>(
         &self,
         hook_data: T,
         _caller_info: CallerInfo
     ) -> Result<SimResult, SimError>
     where
-        T: TryInto<HookSim> + Send,
-        <T as TryInto<HookSim>>::Error: Debug
+        T: TryInto<ExternalStateSim> + Send,
+        <T as TryInto<ExternalStateSim>>::Error: Debug
     {
-        let hook: HookSim = hook_data.try_into().unwrap();
+        let hook: ExternalStateSim = hook_data.try_into().unwrap();
         let (call_addr, data) = hook.pre_hook();
 
         // send prehook and then check if we have enough now to swap on our pool
@@ -231,10 +231,11 @@ impl Simulator for AnvilSimulator {
         }))
     }
 
-    async fn simulate_bundle(
+    /// simulates the full bundle in order to make sure it is valid and passes
+    async fn simulate_vanilla_bundle(
         &self,
-        _caller_info: CallerInfo,
-        bundle: RawBundle
+        caller_info: CallerInfo,
+        bundle: VanillaBundle
     ) -> Result<SimResult, SimError> {
         let mut data = Vec::new();
         data.extend(hex!("ac8a9f85"));
@@ -250,8 +251,30 @@ impl Simulator for AnvilSimulator {
             return Err(SimError::V4Failed)
         }
 
-        let bundle = SimmedBundle { raw: bundle, gas_used: frame.gas };
-        Ok(SimResult::ExecutionResult(BundleOrTransactionResult::Bundle(bundle)))
+        Ok(SimResult::ExecutionResult(BundleOrTransactionResult::VanillaBundle(bundle)))
+    }
+
+    /// simulates the full bundle in order to make sure it is valid and passes
+    async fn simulate_composable_bundle(
+        &self,
+        caller_info: CallerInfo,
+        bundle: ComposableBundle
+    ) -> Result<SimResult, SimError> {
+        let mut data = Vec::new();
+        data.extend(hex!("ac8a9f85"));
+        data.extend(bundle.clone().encode());
+
+        let tx = EthTransactionRequest { data: Some(data.into()), ..Default::default() };
+        let frame = self
+            .eth_api
+            .debug_trace_call(tx, None, GethDebugTracingOptions::default())
+            .await
+            .unwrap();
+        if frame.failed {
+            return Err(SimError::V4Failed)
+        }
+
+        Ok(SimResult::ExecutionResult(BundleOrTransactionResult::ComposableBundle(bundle)))
     }
 }
 

@@ -12,7 +12,7 @@ use ethers_providers::{Middleware, PubsubClient, RpcError, SubscriptionStream};
 use futures::Stream;
 use futures_util::StreamExt;
 use guard_network::{Swarm, SwarmEvent};
-use guard_types::on_chain::{SimmedBundle, UserOrder};
+use guard_types::on_chain::{SubmissionBundle, SubmittedOrder, VanillaBundle};
 
 use crate::submission_server::{Submission, SubmissionServer};
 
@@ -60,17 +60,17 @@ where
     }
 
     /// sends the bundle to all specified relays
-    pub fn send_to_relay(&mut self, bundle: SimmedBundle) {
+    pub fn send_to_relay(&mut self, bundle: SubmissionBundle) {
         self.relay_sender.submit_bundle(bundle);
     }
 
     /// used to share new txes with externally subscribed users
-    pub fn on_new_user_txes(&mut self, tx: Arc<UserOrder>) {
+    pub fn on_new_user_txes(&mut self, tx: Arc<SubmittedOrder>) {
         self.submission_server.on_new_user_tx(tx);
     }
 
     /// used to share new bundles with externally subscribed users
-    pub fn on_new_best_bundle(&mut self, bundle: Arc<SimmedBundle>) {
+    pub fn on_new_best_bundle(&mut self, bundle: Arc<VanillaBundle>) {
         self.submission_server.on_new_best_bundle(bundle)
     }
 }

@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    sync::Arc,
-    task::{Context, Poll}
-};
+use std::{collections::HashMap, sync::Arc, task::Poll};
 
 use common::PollExt;
 use ethers_core::{abi::Bytes, types::Address};
@@ -71,7 +67,7 @@ impl Revm {
             SimEvent::Hook(data, overrides, sender) => {
                 let slots = self.slot_keeper.get_current_slots().clone();
                 let fut = async move {
-                    let res = state.simulate_hooks(data, overrides, slots);
+                    let res = state.simulate_external_state(data, overrides, slots);
 
                     match res {
                         Ok((sim_res, slots)) => {
@@ -105,9 +101,20 @@ impl Revm {
 
                 let _ = self.threadpool.spawn_task_as(fut, TaskKind::Blocking);
             }
-            SimEvent::BundleTx(tx, caller_info, sender) => {
+            SimEvent::VanillaBundle(tx, caller_info, sender) => {
                 let fut = async move {
-                    let res = state.simulate_bundle(tx, caller_info);
+                    let res = state.simulate_vanilla_bundle(tx, caller_info);
+                    let _ = if let Err(e) = res {
+                        sender.send(SimResult::SimError(e))
+                    } else {
+                        sender.send(res.unwrap())
+                    };
+                };
+                let _ = self.threadpool.spawn_task_as(fut, TaskKind::Blocking);
+            }
+            SimEvent::ComposableBundle(tx, caller_info, sender) => {
+                let fut = async move {
+                    let res = state.simulate_composable_bundle(tx, caller_info);
                     let _ = if let Err(e) = res {
                         sender.send(SimResult::SimError(e))
                     } else {

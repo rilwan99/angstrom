@@ -8,7 +8,6 @@ use crate::on_chain::Signature;
 
 pub mod consensus;
 pub mod contract_bindings;
-pub mod database;
 pub mod on_chain;
 
 pub fn validate_signature(signature: &Signature, message: H256, public_key: H512) -> bool {

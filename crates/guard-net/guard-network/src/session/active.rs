@@ -198,17 +198,7 @@ impl ActiveSession {
             };
         }
 
-        broadcast!(
-            NewBlock,
-            BundleVote,
-            Bundle23Vote,
-            LeaderProposal,
-            SignedLeaderProposal,
-            PropagateUserTransaction,
-            PropagateSearcherTransaction,
-            PropagateBundle,
-            NewState
-        );
+        broadcast!(PropagateBundle, PropagateOrder, PrePropose, Proposal, Commit);
     }
 }
 

@@ -4,6 +4,7 @@ use std::{
 };
 
 use common::{ConsensusState, SUBMIT};
+use guard_types::{consensus::LeaderProposal, on_chain::BestSolvedBundleData};
 
 use super::{
     submit::SubmitState, GlobalStateContext, RoundAction, RoundStateMessage, StateTransition
@@ -11,14 +12,14 @@ use super::{
 
 /// This state is only reached if this guard is the leader
 pub struct ProposeState {
-    proposal: ()
+    data: BestSolvedBundleData
 }
 
 impl ProposeState {
-    pub fn new(waker: Waker) -> Self {
+    pub fn new(waker: Waker, data: BestSolvedBundleData) -> Self {
         waker.wake();
 
-        Self { proposal: () }
+        Self { data }
     }
 }
 

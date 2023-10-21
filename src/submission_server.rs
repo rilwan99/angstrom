@@ -10,9 +10,7 @@ use std::{
 use common::PollExt;
 use ethers_core::types::transaction::eip712::TypedData;
 use futures::{Stream, StreamExt};
-use guard_types::on_chain::{
-    RawLvrSettlement, RawUserSettlement, SearcherOrder, Signature, SimmedBundle, UserOrder
-};
+use guard_types::on_chain::{OrderDetails, Signature, SubmittedOrder, VanillaBundle};
 use hyper::{http::HeaderValue, Method};
 use jsonrpsee::{
     proc_macros::rpc, server::ServerHandle, PendingSubscriptionSink, SubscriptionSink
@@ -85,18 +83,16 @@ pub enum SubscriptionKind {
 #[serde(rename_all = "camelCase")]
 pub enum SubscriptionResult {
     /// Simmed bundles
-    Bundle(Arc<SimmedBundle>),
+    Bundle(Arc<VanillaBundle>),
     /// Simmed User orders
-    CowTransaction(Arc<UserOrder>)
+    CowTransaction(Arc<SubmittedOrder>)
 }
 
 #[rpc(server, client, namespace = "guard")]
 #[async_trait::async_trait]
 pub trait GuardSubmitApi {
-    #[method(name = "SubmitUserTransaction")]
-    async fn submit_user_tx(&self, signature: Signature, meta_tx: TypedData) -> RpcResult<bool>;
-    #[method(name = "SubmitArbTransaction")]
-    async fn submit_arb_tx(&self, signature: Signature, meta_tx: TypedData) -> RpcResult<bool>;
+    #[method(name = "SubmitOrder")]
+    async fn submit_order(&self, signature: Signature, meta_tx: TypedData) -> RpcResult<bool>;
 }
 
 #[rpc(server, namespace = "guard_sub")]
@@ -115,8 +111,7 @@ pub trait GaurdSubscribeApi {
 
 #[derive(Debug)]
 pub enum Submission {
-    ArbTx(RawLvrSettlement),
-    UserTx(RawUserSettlement),
+    UserOrder(SubmittedOrder),
     Subscription(SubscriptionKind, Sender<SubscriptionResult>)
 }
 
@@ -134,7 +129,7 @@ pub struct SubmissionServer {
 
 impl SubmissionServer {
     /// used to share new txes with externally subscribed users
-    pub fn on_new_user_tx(&mut self, tx: Arc<UserOrder>) {
+    pub fn on_new_user_tx(&mut self, tx: Arc<SubmittedOrder>) {
         self.server_subscriptions
             .entry(SubscriptionKind::CowTransactions)
             .or_default()
@@ -146,7 +141,7 @@ impl SubmissionServer {
     }
 
     /// used to share new bundles with externally subscribed users
-    pub fn on_new_best_bundle(&mut self, bundle: Arc<SimmedBundle>) {
+    pub fn on_new_best_bundle(&mut self, bundle: Arc<VanillaBundle>) {
         self.server_subscriptions
             .entry(SubscriptionKind::BestBundles)
             .or_default()
@@ -214,30 +209,9 @@ impl SubmissionServerInner {
 
 #[async_trait::async_trait]
 impl GuardSubmitApiServer for SubmissionServerInner {
-    async fn submit_user_tx(&self, signature: Signature, meta_tx: TypedData) -> RpcResult<bool> {
+    async fn submit_order(&self, signature: Signature, meta_tx: TypedData) -> RpcResult<bool> {
         info!(?meta_tx, "new user submission");
-        let Ok(user_tx): Result<UserOrder, _> = serde_json::from_value(serde_json::Value::Object(
-            serde_json::Map::from_iter(meta_tx.message)
-        )) else {
-            return Ok(false)
-        };
-
-        if self
-            .sender
-            .send(Submission::UserTx(RawUserSettlement { order: user_tx, signature }))
-            .await
-            .is_err()
-        {
-            // just for testing
-            panic!("failed to send a new eip712 tx");
-        }
-        Ok(true)
-    }
-
-    async fn submit_arb_tx(&self, signature: Signature, meta_tx: TypedData) -> RpcResult<bool> {
-        info!(?meta_tx, "new arb submission");
-
-        let Ok(arb_tx): Result<SearcherOrder, _> = serde_json::from_value(
+        let Ok(user_tx): Result<OrderDetails, _> = serde_json::from_value(
             serde_json::Value::Object(serde_json::Map::from_iter(meta_tx.message))
         ) else {
             return Ok(false)
@@ -245,14 +219,13 @@ impl GuardSubmitApiServer for SubmissionServerInner {
 
         if self
             .sender
-            .send(Submission::ArbTx(RawLvrSettlement { order: arb_tx, signature }))
+            .send(Submission::UserOrder(SubmittedOrder { signature, details: user_tx }))
             .await
             .is_err()
         {
             // just for testing
             panic!("failed to send a new eip712 tx");
         }
-
         Ok(true)
     }
 }

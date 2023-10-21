@@ -4,7 +4,7 @@ use std::{
 };
 
 use common::{ConsensusState, WAITING_NEXT_BLOCK};
-use guard_types::on_chain::SimmedBundle;
+use guard_types::{consensus::LeaderProposal, on_chain::VanillaBundle};
 
 use super::{
     completed::CompletedState, GlobalStateContext, RoundAction, RoundStateMessage, StateTransition
@@ -16,18 +16,19 @@ pub enum CommitVote {
 }
 
 pub struct CommitState {
-    proposal:    Option<()>,
-    best_bundle: SimmedBundle,
+    /// This is specifically vanilla as this is the only bundle we care about
+    /// on this state path
+    best_bundle: VanillaBundle,
     waker:       Waker,
     vote:        Option<CommitVote>
 }
 
 impl CommitState {
-    pub fn new() -> Self {
-        todo!()
+    pub fn new(waker: Waker, commited_bundle: VanillaBundle) -> Self {
+        Self { best_bundle: commited_bundle, waker, vote: None }
     }
 
-    pub fn on_proposal(&mut self, proposal: ()) {
+    pub fn on_proposal(&mut self, proposal: LeaderProposal) {
         // some code here to check the proposal against our bundle
         // to make sure that the lower bound and other stuff is
         // up to standard.

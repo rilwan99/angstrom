@@ -6,10 +6,10 @@ use std::{
 use common::{AtomicConsensus, IsLeader};
 use ethers_signers::LocalWallet;
 use futures::stream::StreamExt;
-use guard_types::on_chain::{SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement};
+use guard_types::on_chain::{BestSolvedBundleData, SubmittedOrder, VanillaBundle};
 use sim::Simulator;
 
-use crate::{CowMsg, CowSolver};
+use crate::{BundleSolver, BundleSolverMsg};
 
 pub struct ActionConfig<S: Simulator + 'static> {
     pub simulator:           S,
@@ -21,17 +21,16 @@ pub struct ActionConfig<S: Simulator + 'static> {
 
 #[derive(Debug, Clone)]
 pub enum ActionMessage {
-    NewBestBundle(Arc<SimmedBundle>),
-    NewValidUserTransaction(Arc<SimmedUserSettlement>),
-    NewValidSearcherTransaction(Arc<SimmedLvrSettlement>)
+    NewBestBundle(Arc<VanillaBundle>),
+    NewOrder(Arc<SubmittedOrder>),
+    NewBestSolvedData(BestSolvedBundleData)
 }
 
-impl From<CowMsg> for ActionMessage {
-    fn from(value: CowMsg) -> Self {
+impl From<BundleSolverMsg> for ActionMessage {
+    fn from(value: BundleSolverMsg) -> Self {
         match value {
-            CowMsg::NewBestBundle(b) => ActionMessage::NewBestBundle(b),
-            CowMsg::NewUserTransaction(t) => ActionMessage::NewValidUserTransaction(t),
-            CowMsg::NewSearcherTransaction(t) => ActionMessage::NewValidSearcherTransaction(t)
+            BundleSolverMsg::NewBestBundle(b) => ActionMessage::NewBestBundle(b),
+            BundleSolverMsg::NewOrder(t) => ActionMessage::NewOrder(t)
         }
     }
 }
@@ -46,11 +45,11 @@ impl From<CowMsg> for ActionMessage {
 /// module.
 pub struct ActionCore<S: Simulator + 'static> {
     /// deals with our bundle state
-    cow_solver: CowSolver<S>,
+    bundle_solver: BundleSolver<S>,
     /// current consensus lifecycle
-    lifecycle:  AtomicConsensus,
+    lifecycle:     AtomicConsensus,
     /// if we are leader
-    is_leader:  IsLeader
+    is_leader:     IsLeader
 }
 
 impl<S: Simulator + Unpin> ActionCore<S> {
@@ -58,19 +57,19 @@ impl<S: Simulator + Unpin> ActionCore<S> {
         let ActionConfig { simulator, consensus_lifecycle, is_leader, .. } = config;
 
         Ok(Self {
-            cow_solver: CowSolver::new(simulator.clone(), vec![]),
+            bundle_solver: BundleSolver::new(simulator.clone(), vec![]),
             // placeholders
             lifecycle: consensus_lifecycle,
             is_leader
         })
     }
 
-    pub fn get_cow(&mut self) -> &mut CowSolver<S> {
-        &mut self.cow_solver
+    pub fn bundle_solver(&mut self) -> &mut BundleSolver<S> {
+        &mut self.bundle_solver
     }
 
     pub fn poll(&mut self, cx: &mut Context<'_>) -> Poll<Option<ActionMessage>> {
-        self.cow_solver
+        self.bundle_solver
             .poll_next_unpin(cx)
             .map(|op| op.map(Into::into))
     }

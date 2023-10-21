@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use guard_types::consensus::Evidence;
+use guard_types::on_chain::Evidence;
 use thiserror::Error;
 
 #[derive(Debug, Error)]

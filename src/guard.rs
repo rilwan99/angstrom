@@ -17,7 +17,6 @@ use ethers_providers::{Middleware, PubsubClient};
 use futures::{Future, FutureExt};
 use futures_util::StreamExt;
 use guard_network::{GuardStakingEvent, NetworkConfig, PeerMessages, Swarm, SwarmEvent};
-use guard_types::on_chain::{RawLvrSettlement, RawUserSettlement};
 use sim::Simulator;
 use tokio::sync::mpsc::{Sender, UnboundedSender};
 use tracing::{debug, warn};
@@ -106,11 +105,8 @@ where
         debug!(?msg, "handling new submission");
 
         match msg {
-            Submission::ArbTx(arb_tx) => {
-                self.action.get_cow().new_searcher_transaction(arb_tx);
-            }
-            Submission::UserTx(user) => {
-                self.action.get_cow().new_user_transaction(user);
+            Submission::UserOrder(order) => {
+                self.action.bundle_solver().new_order(order);
             }
             Submission::Subscription(..) => {
                 unreachable!("this is handled in the subscription server")
@@ -126,24 +122,16 @@ where
                 debug!(?peer_id, ?request, "got data from peer");
                 match request {
                     PeerMessages::PropagateBundle(bundle) => {
-                        self.action.get_cow().new_bundle((*bundle).clone().into())
+                        self.action.bundle_solver().new_bundle((*bundle).clone())
                     }
-                    PeerMessages::PropagateSearcherTransaction(tx) => {
-                        self.action
-                            .get_cow()
-                            .new_searcher_transaction((*tx).clone().into());
+                    PeerMessages::PropagateOrder(order) => {
+                        self.action.bundle_solver().new_order((*order).clone())
                     }
-                    PeerMessages::PropagateUserTransaction(tx) => {
-                        self.action
-                            .get_cow()
-                            .new_user_transaction((*tx).clone().into());
+                    PeerMessages::Commit(c) => {
+                        todo!()
                     }
-                    PeerMessages::NewBlock(b) => {}
-                    PeerMessages::BundleVote(vote) => {}
-                    PeerMessages::Bundle23Vote(vote) => {}
-                    PeerMessages::LeaderProposal(prop) => {}
-                    PeerMessages::SignedLeaderProposal(signed_prop) => {}
-                    PeerMessages::NewState(state) => {}
+                    PeerMessages::Proposal(p) => todo!(),
+                    PeerMessages::PrePropose(p) => todo!()
                 }
             }
             res @ _ => {
@@ -163,18 +151,11 @@ where
 
                 self.sources.on_new_best_bundle(bundle);
             }
-            ActionMessage::NewValidUserTransaction(transaction) => {
-                self.sources
-                    .guard_net_mut()
-                    .propagate_msg(PeerMessages::PropagateUserTransaction(transaction.clone()));
-
-                self.sources
-                    .on_new_user_txes(transaction.raw.order.clone().into());
-            }
-            ActionMessage::NewValidSearcherTransaction(transaction) => self
+            ActionMessage::NewOrder(order) => self
                 .sources
                 .guard_net_mut()
-                .propagate_msg(PeerMessages::PropagateSearcherTransaction(transaction))
+                .propagate_msg(PeerMessages::PropagateOrder(order)),
+            ActionMessage::NewBestSolvedData(data) => self.consensus.better_bundle(data)
         }
     }
 
