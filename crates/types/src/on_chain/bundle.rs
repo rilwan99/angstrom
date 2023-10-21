@@ -70,7 +70,7 @@ impl VanillaBundle {
     ethers_contract::EthAbiType,
     ethers_contract::EthAbiCodec,
 )]
-pub struct NonVanillaBundle {
+pub struct ComposableBundle {
     pub orders:       Vec<Order>,
     pub uniswap_data: UniswapData
 }

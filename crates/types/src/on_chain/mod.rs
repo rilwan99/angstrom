@@ -28,7 +28,7 @@ pub type Currency = Address;
 pub struct BestSolvedBundleData {
     pub vanilla:     Option<VanillaBundle>,
     pub lower_bound: Option<LowerBound>,
-    pub non_vanilla: Option<NonVanillaBundle>
+    pub non_vanilla: Option<ComposableBundle>
 }
 
 impl BestSolvedBundleData {

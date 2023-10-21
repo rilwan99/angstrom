@@ -105,7 +105,18 @@ impl Revm {
 
                 let _ = self.threadpool.spawn_task_as(fut, TaskKind::Blocking);
             }
-            SimEvent::BundleTx(tx, caller_info, sender) => {
+            SimEvent::VanillaBundle(tx, caller_info, sender) => {
+                let fut = async move {
+                    let res = state.simulate_bundle(tx, caller_info);
+                    let _ = if let Err(e) = res {
+                        sender.send(SimResult::SimError(e))
+                    } else {
+                        sender.send(res.unwrap())
+                    };
+                };
+                let _ = self.threadpool.spawn_task_as(fut, TaskKind::Blocking);
+            }
+            SimEvent::ComposableBundle(tx, caller_info, sender) => {
                 let fut = async move {
                     let res = state.simulate_bundle(tx, caller_info);
                     let _ = if let Err(e) = res {

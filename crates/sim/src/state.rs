@@ -122,9 +122,9 @@ impl RevmState {
     }
 
     /// simulates a bundle of transactions
-    pub fn simulate_bundle(
+    pub fn simulate_vanilla_bundle(
         &self,
-        bundle: RawBundle,
+        bundle: VanillaBundle,
         caller_info: CallerInfo
     ) -> Result<SimResult, SimError> {
         let mut evm_db = self.db.clone();
@@ -143,10 +143,35 @@ impl RevmState {
             .transact_ref()
             .map_err(|_| SimError::RevmEVMTransactionError(tx_env.clone()))?;
 
-        let result = SimResult::ExecutionResult(BundleOrTransactionResult::Bundle(SimmedBundle {
-            raw:      bundle,
-            gas_used: state_change.result.gas_used().into()
-        }));
+        let result = SimResult::ExecutionResult(BundleOrTransactionResult::VanillaBundle(bundle));
+
+        Ok(result)
+    }
+
+    /// simulates a bundle of transactions
+    pub fn simulate_composable_bundle(
+        &self,
+        bundle: ComposableBundle,
+        caller_info: CallerInfo
+    ) -> Result<SimResult, SimError> {
+        let mut evm_db = self.db.clone();
+        evm_db.set_state_overrides(caller_info.overrides);
+
+        let mut evm = EVM::new();
+        evm.database(evm_db);
+
+        let mut tx_env: TxEnv = bundle.clone().into();
+        tx_env.caller = caller_info.address;
+        tx_env.nonce = Some(caller_info.nonce);
+
+        evm.env.tx = tx_env.clone();
+
+        let state_change = evm
+            .transact_ref()
+            .map_err(|_| SimError::RevmEVMTransactionError(tx_env.clone()))?;
+
+        let result =
+            SimResult::ExecutionResult(BundleOrTransactionResult::ComposableBundle(bundle));
 
         Ok(result)
     }

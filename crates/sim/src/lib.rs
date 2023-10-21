@@ -5,8 +5,8 @@ use errors::{SimError, SimResult};
 use ethers_core::types::{transaction::eip2718::TypedTransaction, I256, U256};
 use executor::ThreadPool;
 use guard_types::on_chain::{
-    CallerInfo, HookSim, OrderDetails, RawBundle, RawLvrSettlement, RawUserSettlement,
-    SearcherOrUser, SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement
+    CallerInfo, ComposableBundle, ExternalStateSim, Order, OrderDetails, SubmittedOrder,
+    VanillaBundle
 };
 use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
 
@@ -35,9 +35,21 @@ pub fn spawn_revm_sim(db: lru_db::RevmLRU) -> Result<RevmClient, SimError> {
 
 #[derive(Debug)]
 pub enum BundleOrTransactionResult {
-    Bundle(SimmedBundle),
-    HookSimResult { tx: OrderDetails, pre_hook_gas: U256, post_hook_gas: U256 },
-    UniswapV4Results { delta: I256, gas: U256 }
+    /// We just return the bundle as we don't care about gas usage but rather
+    /// it finishes execution
+    VanillaBundle(VanillaBundle),
+    /// We just return the bundle as we don't care about gas usage but rather
+    /// it finishes execution
+    ComposableBundle(ComposableBundle),
+    HookSimResult {
+        tx:            SubmittedOrder,
+        pre_hook_gas:  U256,
+        post_hook_gas: U256
+    },
+    UniswapV4Results {
+        delta: I256,
+        gas:   U256
+    }
 }
 
 // the simulator is a handle that we use to simulate transactions.
@@ -51,20 +63,27 @@ pub trait Simulator: Send + Sync + Clone + Unpin {
     /// this also checks to make sure we have enough value to execute on
     /// angstrom given there specifed amount in. we then for post hook give
     /// them there limit price they specifed and simulate that.
-    async fn simulate_hooks<T>(
+    async fn simulate_external_state<T>(
         &self,
         hook_data: T,
         caller_info: CallerInfo
     ) -> Result<SimResult, SimError>
     where
-        T: TryInto<HookSim> + Send,
-        <T as TryInto<HookSim>>::Error: Debug;
+        T: TryInto<ExternalStateSim> + Send,
+        <T as TryInto<ExternalStateSim>>::Error: Debug;
 
     /// simulates the full bundle in order to make sure it is valid and passes
-    async fn simulate_bundle(
+    async fn simulate_vanilla_bundle(
         &self,
         caller_info: CallerInfo,
-        bundle: RawBundle
+        bundle: VanillaBundle
+    ) -> Result<SimResult, SimError>;
+
+    /// simulates the full bundle in order to make sure it is valid and passes
+    async fn simulate_composable_bundle(
+        &self,
+        caller_info: CallerInfo,
+        bundle: ComposableBundle
     ) -> Result<SimResult, SimError>;
 }
 
@@ -72,6 +91,7 @@ pub trait Simulator: Send + Sync + Clone + Unpin {
 pub enum SimEvent {
     Hook(HookSim, CallerInfo, Sender<SimResult>),
     UniswapV4(TypedTransaction, Sender<SimResult>),
-    BundleTx(RawBundle, CallerInfo, Sender<SimResult>),
+    VanillaBundle(VanillaBundle, CallerInfo, Sender<SimResult>),
+    ComposableBundle(ComposableBundle, CallerInfo, Sender<SimResult>),
     NewBlock(Sender<SimResult>)
 }

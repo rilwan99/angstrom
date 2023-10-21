@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use anvil_core::eth::transaction::EthTransactionRequest;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
-use guard_types::on_chain::*;
+use guard_types::on_chain::{ComposableBundle, VanillaBundle};
 use tokio::sync::{mpsc::UnboundedSender, oneshot::channel};
 
 use crate::{
@@ -48,14 +48,28 @@ impl Simulator for RevmClient {
         Ok(rx.await.unwrap())
     }
 
-    async fn simulate_bundle(
+    /// simulates the full bundle in order to make sure it is valid and passes
+    async fn simulate_vanilla_bundle(
         &self,
         caller_info: CallerInfo,
-        bundle: RawBundle
+        bundle: VanillaBundle
     ) -> Result<SimResult, SimError> {
         let (tx, rx) = channel();
         self.transaction_tx
-            .send(SimEvent::BundleTx(bundle, caller_info, tx))?;
+            .send(SimEvent::VanillaBundle(bundle, caller_info, tx))?;
+
+        Ok(rx.await.unwrap())
+    }
+
+    /// simulates the full bundle in order to make sure it is valid and passes
+    async fn simulate_composable_bundle(
+        &self,
+        caller_info: CallerInfo,
+        bundle: ComposableBundle
+    ) -> Result<SimResult, SimError> {
+        let (tx, rx) = channel();
+        self.transaction_tx
+            .send(SimEvent::ComposableBundle(bundle, caller_info, tx))?;
 
         Ok(rx.await.unwrap())
     }
