@@ -1,22 +1,11 @@
-use std::{
-    sync::Arc,
-    task::{ready, Context, Poll}
-};
+use std::sync::Arc;
 
-use futures::FutureExt;
 use guard_eth_wire::{message::RequestPair, EthMessage};
 use guard_types::{
-    consensus::{
-        Block, Bundle23Votes, BundleVote, GuardInfo, LeaderProposal, PrePreposeBundle,
-        ProposalCommit, SignedLeaderProposal, Valid23Bundle
-    },
-    database::State,
-    on_chain::{
-        SimmedBundle, SimmedLvrSettlement, SimmedUserSettlement, SubmittedOrder, VanillaBundle
-    }
+    consensus::{LeaderProposal, PrePreposeBundle, ProposalCommit},
+    on_chain::{SubmittedOrder, VanillaBundle}
 };
 use reth_interfaces::p2p::error::RequestResult;
-use tokio::sync::{oneshot, oneshot::Sender as OneSender};
 
 /// General bi-directional messages sent to & from peers
 #[derive(Debug, Clone)]
