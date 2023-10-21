@@ -6,11 +6,11 @@ edition.workspace = true
 [dependencies]
 bytes = "1.4"
 tracing.workspace = true
-ethers-contract = "2.0.8"
+ethers-contract = "2.0"
 thiserror.workspace = true
 serde_json.workspace = true
 ethers-core.workspace = true
-ethers = "2.0.9"
+ethers = "2.0"
 reth-primitives.workspace = true
 revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
 serde.workspace = true
@@ -23,7 +23,6 @@ anyhow.workspace = true
 modular-bitfield = "0.11.2"
 alloy-sol-macro.workspace = true
 alloy-sol-types.workspace = true
-alloy-primitives = {workspace = true, features = ["rlp"] }
+alloy-primitives = { workspace = true, features = ["rlp"] }
 alloy-rlp.workspace = true
 alloy-rlp-derive.workspace = true
-

@@ -13,11 +13,11 @@ exclude.workspace = true
 [dependencies]
 common.workspace = true
 # ethers
-ethers = "2.0.9"
+ethers = "2.0"
 ethers-middleware.workspace = true
 ethers-providers.workspace = true
-ethers-core = "2.0.9"
-ethers-signers = "2.0.9"
+ethers-core.workspace = true
+ethers-signers.workspace = true
 auto_impl.workspace = true
 anvil.workspace = true
 anvil-core.workspace = true

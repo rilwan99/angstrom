@@ -1,13 +1,13 @@
 pub use alloy_primitives::*;
-
-use alloy_sol_macro::sol;
-use alloy_rlp_derive::{RlpEncodable, RlpDecodable};
 use alloy_rlp::{Decodable, Encodable, Error};
+use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
+use alloy_sol_macro::sol;
+
 use crate::contract_bindings::Angstrom::OrderType;
 
-sol!{
+sol! {
     #![sol(all_derives = true)]
-    
+
     interface Angstrom {
         event OwnershipHandoverCanceled(address indexed pendingOwner);
         event OwnershipHandoverRequested(address indexed pendingOwner);
@@ -144,7 +144,6 @@ sol!{
     }
 }
 
-
 impl Encodable for OrderType {
     fn encode(&self, out: &mut dyn bytes::BufMut) {
         let byte: u8 = unsafe { std::mem::transmute(*self) };
@@ -156,4 +155,3 @@ impl Decodable for OrderType {
         unsafe { std::mem::transmute(u8::decode(buf)) }
     }
 }
-
