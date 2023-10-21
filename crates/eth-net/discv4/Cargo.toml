@@ -13,7 +13,8 @@ Ethereum network discovery
 [dependencies]
 # reth
 reth-primitives.workspace = true
-reth-rlp.workspace = true
+alloy-rlp.workspace = true
+alloy-rlp-derive.workspace = true
 reth-rlp-derive = { path = "../../rlp/rlp-derive" }
 reth-net-common = { path = "../common" }
 reth-net-nat = { path = "../nat" }

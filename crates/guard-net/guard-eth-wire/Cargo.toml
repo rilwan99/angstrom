@@ -19,7 +19,7 @@ secp256k1.workspace = true
 reth-codecs.workspace = true
 reth-primitives.workspace = true
 reth-ecies.workspace = true
-reth-rlp.workspace = true
+alloy-rlp.workspace = true
 guard-discv4 = {path = "../guard-discv4" }
 
 # metrics

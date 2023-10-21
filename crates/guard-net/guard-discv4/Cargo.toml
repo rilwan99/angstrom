@@ -13,11 +13,12 @@ Ethereum network discovery
 [dependencies]
 # reth
 reth-primitives.workspace = true
-reth-rlp.workspace = true
+alloy-rlp.workspace = true
+alloy-rlp-derive.workspace = true
 
-reth-rlp-derive = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
-reth-net-common = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
-reth-net-nat = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+
+reth-net-common = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
+reth-net-nat = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
 
 # ethereum
 discv5 = { git = "https://github.com/sigp/discv5" }
@@ -47,7 +48,7 @@ serde = { workspace = true, optional = true }
 [dev-dependencies]
 rand.workspace = true
 tokio = { workspace = true, features = ["macros"] }
-reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
+reth-tracing = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
 
 [features]
 default = ["serde"]

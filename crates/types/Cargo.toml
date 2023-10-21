@@ -15,7 +15,6 @@ reth-primitives.workspace = true
 revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
 serde.workspace = true
 reth-codecs.workspace = true
-reth-rlp.workspace = true
 secp256k1.workspace = true
 open-fastrlp = "0.1.4"
 hex-literal = "0.4.1"
