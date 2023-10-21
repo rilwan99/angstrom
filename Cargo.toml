@@ -83,8 +83,11 @@ revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
 revm-primitives = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
 
 [workspace.dependencies]
+# revm
 revm = { version = "3" }
 revm-primitives = "1.1"
+
+# reth
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-interfaces = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
@@ -109,6 +112,20 @@ reth-network-api = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609
 reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 reth-libmdbx = { git = "https://github.com/paradigmxyz/reth", rev = "d8b1609" }
 
+
+# alloy
+alloy-sol-macro = { git = "https://github.com/SorellaLabs/alloy-core", features = [
+  "json",
+] }
+alloy-sol-types = { git = "https://github.com/SorellaLabs/alloy-core", features = [
+  "json",
+] }
+alloy-primitives = { git = "https://github.com/SorellaLabs/alloy-core", features = [
+  "rlp",
+  "std",
+] }
+alloy-rlp = { version = "0.3.3"}
+alloy-rlp-derive = { version = "0.3.3"}
 
 hex-literal = "0.4.1"
 ethers-core = { version = "2.0", default-features = false }
