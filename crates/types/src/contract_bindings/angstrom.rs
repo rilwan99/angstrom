@@ -3,7 +3,6 @@ use alloy_rlp_derive::{RlpEncodable, RlpDecodable};
 use serde::{Deserialize, Serialize};
 use alloy_rlp::{Decodable, Encodable, Error};
 use crate::contract_bindings::Angstrom::OrderType;
-use alloy_primitives::U256;
 
 sol!{
     #![sol(all_derives = true)]

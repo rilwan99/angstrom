@@ -5,7 +5,7 @@ use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
 use super::{Currency, ExternalStateSim, Signature};
-use crate::contract_bindings::Order;
+use crate::contract_bindings::Angstrom::Order;
 
 /// Signed order with actual execution amounts.
 

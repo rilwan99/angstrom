@@ -1,4 +1,5 @@
-use alloy_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
+use alloy_rlp::{Decodable, Encodable, Error};
+use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use bytes::Bytes;
 use ethers_core::{
     abi::{AbiArrayType, AbiType, ParamType, Token, Tokenizable, TokenizableItem},
@@ -35,7 +36,7 @@ impl Encodable for SubmissionType {
     }
 }
 impl Decodable for SubmissionType {
-    fn decode(buf: &mut &[u8]) -> Result<Self, DecodeError> {
+    fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
         unsafe { std::mem::transmute(u8::decode(buf)) }
     }
 }
@@ -81,7 +82,7 @@ impl Encodable for SubmissionPayload {
     }
 }
 impl Decodable for SubmissionPayload {
-    fn decode(buf: &mut &[u8]) -> Result<Self, DecodeError> {
+    fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
         todo!()
     }
 }

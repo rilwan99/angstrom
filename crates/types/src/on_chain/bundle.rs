@@ -6,7 +6,7 @@ use revm::primitives::{TransactTo, TxEnv, B160, U256 as RU256};
 use serde::{Deserialize, Serialize};
 
 use super::{angstrom_CONTRACT_ADDR, Signature};
-use crate::contract_bindings::{angstrom::Order, PoolManager::PoolKey};
+use crate::contract_bindings::{Angstrom::Order, PoolManager::PoolKey};
 
 sol! {
     #![sol(all_derives = true)]
