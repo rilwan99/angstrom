@@ -9,8 +9,7 @@ use ethers_core::types::{Block, H256};
 use futures::{Stream, StreamExt};
 use guard_types::{
     consensus::{LeaderProposal, PrePreposeBundle, ProposalCommit},
-    database::State,
-    on_chain::{BestSolvedBundleData, Evidence, EvidenceError, SimmedBundle, SubmissionBundle}
+    on_chain::{BestSolvedBundleData, Evidence, EvidenceError, SubmissionBundle}
 };
 use thiserror::Error;
 use tracing::error;
@@ -74,11 +73,6 @@ impl ConsensusCore {
     /// has historic state up until
     pub async fn new() -> (Self, u64) {
         todo!()
-    }
-
-    // TODO: this should be when they officially join
-    pub fn new_guard(&mut self, guard: GuardInfo) {
-        self.state.next_guards.new_guard(guard);
     }
 
     pub fn new_block(&mut self, block: Arc<Block<H256>>) {

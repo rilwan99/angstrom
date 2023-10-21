@@ -6,7 +6,6 @@ use std::{
     task::{Context, Poll}
 };
 
-use ethers_core::types::U256;
 use futures::{stream::FuturesUnordered, Stream, StreamExt};
 use guard_types::on_chain::{CallerInfo, PoolKey, SubmittedOrder, VanillaBundle};
 use revm::primitives::B160;
@@ -52,7 +51,7 @@ impl<S: Simulator + 'static> BundleSolver<S> {
         let handle = self.sim.clone();
         let call_info = self.call_info.clone();
         self.pending_simulations
-            .push(Box::pin(async move { handle.simulate_bundle(call_info, bundle).await }));
+            .push(Box::pin(async move { handle.simulate_vanilla_bundle(call_info, bundle).await }));
     }
 
     pub fn new_order(&mut self, order: SubmittedOrder) {}
@@ -72,14 +71,7 @@ impl<S: Simulator + 'static> BundleSolver<S> {
                     else {
                         unreachable!()
                     };
-                    convert_simmed_results(
-                        tx,
-                        pre_hook_gas,
-                        post_hook_gas,
-                        &self.bytes_to_pool_key,
-                        &mut self.best_searcher_tx,
-                        &mut self.all_user_txes
-                    )
+                    todo!("add processing to the sim results");
                 }
                 SimResult::SimError(e) => {
                     trace!(?e, "sim error");
@@ -101,53 +93,6 @@ impl<S: Simulator + Unpin> Stream for BundleSolver<S> {
         self.pending_simulations
             .poll_next_unpin(cx)
             .map(|possible_sim| self.on_sim_res(possible_sim?))
-    }
-}
-
-fn convert_simmed_results(
-    tx: SearcherOrUser,
-    pre_hook_gas: U256,
-    post_hook_gas: U256,
-    bytes_to_pool_key: &HashMap<[u8; 32], PoolKey>,
-    best_searcher_tx: &mut HashMap<PoolKey, SimmedLvrSettlement>,
-    all_user_tx: &mut HashSet<SimmedUserSettlement>
-) -> Option<BundleSolverMsg> {
-    match tx {
-        guard_types::on_chain::SearcherOrUser::User(user) => {
-            let simed_user = SimmedUserSettlement {
-                raw:               user,
-                amount_out:        U256::zero(),
-                amount_gas_actual: pre_hook_gas + post_hook_gas
-            };
-
-            if all_user_tx.contains(&simed_user) {
-                return None
-            }
-            all_user_tx.insert(simed_user.clone());
-
-            return Some(BundleSolverMsg::NewUserTransaction(simed_user.into()))
-        }
-        guard_types::on_chain::SearcherOrUser::Searcher(searcher) => {
-            let Some(pool) = bytes_to_pool_key.get(&searcher.order.pool) else { return None };
-
-            let simmed_searcher = SimmedLvrSettlement {
-                raw:        searcher,
-                gas_actual: pre_hook_gas + post_hook_gas
-            };
-            match best_searcher_tx.entry(pool.clone()) {
-                std::collections::hash_map::Entry::Vacant(v) => {
-                    v.insert(simmed_searcher.clone());
-                    return Some(BundleSolverMsg::NewSearcherTransaction(simmed_searcher.into()))
-                }
-                std::collections::hash_map::Entry::Occupied(mut o) => {
-                    if o.get().raw.order.bribe > simmed_searcher.raw.order.bribe {
-                        return None
-                    }
-                    o.insert(simmed_searcher.clone());
-                    return Some(BundleSolverMsg::NewSearcherTransaction(simmed_searcher.into()))
-                }
-            }
-        }
     }
 }
 

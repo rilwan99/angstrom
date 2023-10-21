@@ -25,7 +25,7 @@ pub type Currency = Address;
 
 /// This type is for when we want to notify consensus of our new internal best
 /// data.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BestSolvedBundleData {
     pub vanilla:     Option<VanillaBundle>,
     pub lower_bound: Option<LowerBound>,

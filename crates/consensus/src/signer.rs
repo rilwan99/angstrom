@@ -1,7 +1,7 @@
 use ethers_signers::{LocalWallet, Signer as ESigner, WalletError};
 use guard_types::{
     consensus::{LeaderProposal, PrePreposeBundle, ProposalCommit},
-    on_chain::{Signature, VanillaBundle}
+    on_chain::{LowerBound, Signature, VanillaBundle}
 };
 use reth_primitives::{keccak256, H256, H512};
 use reth_rlp::Encodable;
@@ -16,17 +16,6 @@ pub struct Signer(
 );
 
 impl Signer {
-    pub fn sign_leader_proposal(
-        &self,
-        proposal: &LeaderProposal
-    ) -> Result<ProposalCommit, WalletError> {
-        let hash = proposal.bundle.hash();
-
-        self.0
-            .sign_hash(hash.into())
-            .map(|signature| SignedLeaderProposal(Signature(signature)))
-    }
-
     pub fn sign_proposal(
         &self,
         ethereum_block: u64,
@@ -36,10 +25,18 @@ impl Signer {
         todo!()
     }
 
+    pub fn sign_commit(
+        &self,
+        ethereum_block: u64,
+        proposal: LeaderProposal
+    ) -> Result<ProposalCommit, WalletError> {
+        todo!()
+    }
+
     pub fn sign_pre_propose(
         &self,
-        bundle: VanillaBundle,
-        ethereum_block: u64
+        ethereum_block: u64,
+        bundle: VanillaBundle
     ) -> Result<PrePreposeBundle, WalletError> {
         todo!()
     }
