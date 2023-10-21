@@ -19,8 +19,8 @@ pub struct PreProposeState {
     commited_details: BestSolvedBundleData
 }
 impl PreProposeState {
-    pub fn new(timeout: Timeout) -> Self {
-        Self { timeout }
+    pub fn new(timeout: Timeout, commited_details: BestSolvedBundleData) -> Self {
+        Self { timeout, commited_details }
     }
 }
 
@@ -32,9 +32,24 @@ impl StateTransition for PreProposeState {
     ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)> {
         self.timeout.poll_unpin(cx).map(|_| {
             if gs_context.is_leader.is_leader() {
-                (RoundAction::Propose(ProposeState::new(cx.waker().clone())), PROPOSE, None)
+                (
+                    RoundAction::Propose(ProposeState::new(
+                        cx.waker().clone(),
+                        self.commited_details
+                    )),
+                    PROPOSE,
+                    None
+                )
             } else {
-                (RoundAction::Commit(CommitState::new()), COMMIT, None)
+                (
+                    RoundAction::Commit(CommitState::new(
+                        cx.waker().clone(),
+                        // TODO: make this cleaner
+                        self.commited_details.vanilla.take().unwrap()
+                    )),
+                    COMMIT,
+                    None
+                )
             }
         })
     }

@@ -48,7 +48,8 @@ impl StateTransition for OrderAccumulationState {
             (
                 RoundAction::PrePropose(PreProposeState::new(
                     // TODO: placeholder
-                    Timeout::new(Duration::from_secs(6)) // todo don't unwrap
+                    Timeout::new(Duration::from_secs(6)),
+                    self.best_bundle.take().unwrap()
                 )),
                 PRE_PROPOSE,
                 // TODO: this will be there pre pose commit
