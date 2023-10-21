@@ -46,9 +46,9 @@ pub struct VanillaBundle {
 
 impl VanillaBundle {
     pub fn new(orders: Vec<Order>, uniswap_data: UniswapData) -> anyhow::Result<Self> {
-        let non_vanilla = orders
-            .iter()
-            .find(|order| !order.order.pre_hook.is_empty() || !order.order.post_hook.is_empty());
+        let non_vanilla = orders.iter().find(|order| {
+            !order.order.details.pre_hook.is_empty() || !order.order.details.post_hook.is_empty()
+        });
 
         if non_vanilla.is_some() {
             anyhow::bail!("found a non_villa order: {:?}", non_vanilla);

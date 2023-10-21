@@ -51,7 +51,7 @@ pub struct Order {
 )]
 pub struct SubmittedOrder {
     /// The original order from the user.
-    pub order:     OrderDetails,
+    pub details:   OrderDetails,
     /// The user's EIP-712 signature of the Order.
     pub signature: Signature
 }

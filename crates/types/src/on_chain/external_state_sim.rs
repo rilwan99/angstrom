@@ -42,13 +42,13 @@ impl TryInto<ExternalStateSim> for SubmittedOrder {
         let addr = self.get_ethereum_address();
 
         Ok(ExternalStateSim {
-            tx: self,
-            pre_hook: self.order.pre_hook,
-            amount_in_req: self.order.amount_in,
-            amount_in_token: self.order.currency_in,
-            post_hook: self.order.post_hook,
-            amount_out_lim: self.order.amount_out_min,
-            amount_out_token: self.order.currency_out,
+            tx: self.clone(),
+            pre_hook: self.details.pre_hook,
+            amount_in_req: self.details.amount_in,
+            amount_in_token: self.details.currency_in,
+            post_hook: self.details.post_hook,
+            amount_out_lim: self.details.amount_out_min,
+            amount_out_token: self.details.currency_out,
             addr
         })
     }

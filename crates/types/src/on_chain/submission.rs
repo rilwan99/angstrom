@@ -43,7 +43,7 @@ pub struct LowerBoundBundle {
     pub signed_lower_bound: SignedLowerBound
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum SubmissionType {
     Vanilla    = 0,
