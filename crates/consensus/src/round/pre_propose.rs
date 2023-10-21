@@ -35,7 +35,7 @@ impl StateTransition for PreProposeState {
                 (
                     RoundAction::Propose(ProposeState::new(
                         cx.waker().clone(),
-                        self.commited_details
+                        self.commited_details.clone()
                     )),
                     PROPOSE,
                     None

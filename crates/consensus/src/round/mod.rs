@@ -7,7 +7,7 @@ use std::{
 
 use common::{return_if, AtomicConsensus, ConsensusState, IsLeader, PollExt, ORDER_ACCUMULATION};
 use futures::{Future, Stream, StreamExt};
-use guard_types::{consensus::Evidence, on_chain::BestSolvedBundleData};
+use guard_types::on_chain::BestSolvedBundleData;
 use reth_primitives::H512;
 
 use self::{

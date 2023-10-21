@@ -5,7 +5,7 @@ use std::{
 
 use common::{ConsensusState, WAITING_NEXT_BLOCK};
 use futures::FutureExt;
-use guard_types::on_chain::{BestSolvedBundleData, SimmedBundle};
+use guard_types::on_chain::BestSolvedBundleData;
 
 use super::{
     completed::CompletedState, GlobalStateContext, RoundAction, RoundStateMessage, StateTransition,

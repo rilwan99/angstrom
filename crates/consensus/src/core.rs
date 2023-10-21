@@ -89,7 +89,7 @@ impl ConsensusCore {
         }
     }
 
-    pub fn new_pre_propose(&mut self, commit: PreProposeBundle) {
+    pub fn new_pre_propose(&mut self, commit: PrePreposeBundle) {
         todo!()
     }
 
