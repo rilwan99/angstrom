@@ -59,9 +59,6 @@ pub enum ConsensusError {
 pub struct ConsensusCore {
     /// keeps track of the current round state
     round_state:        RoundState,
-    /// the current overlook of the network stage
-    /// this prob to be removed
-    state:              State,
     /// leader selection algo
     leader_selection:   RoundRobinAlgo,
     /// collects + formulates evidence of byzantine guards

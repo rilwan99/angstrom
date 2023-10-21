@@ -24,9 +24,15 @@ pub const ANGSTROM_CONTRACT_ADDR: H160 = H160(hex!("1234567890abcedf1234567890ab
 pub type Currency = Address;
 
 /// This type is for when we want to notify consensus of our new internal best
-/// data
+/// data.
 pub struct BestSolvedBundleData {
     pub vanilla:     Option<VanillaBundle>,
     pub lower_bound: Option<LowerBound>,
     pub non_vanilla: Option<NonVanillaBundle>
+}
+
+impl BestSolvedBundleData {
+    pub fn get_weight(&self) -> u128 {
+        todo!()
+    }
 }
