@@ -78,14 +78,10 @@ clap = { version = "4", features = ["derive"] }
 fdlimit = "0.2.1"
 ethers-flashbots = "0.14.0"
 
-[patch.crates-io]
-revm = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
-revm-primitives = { git = "https://github.com/bluealloy/revm/", branch = "release/v25" }
-
 [workspace.dependencies]
 # revm
-revm = { version = "3" }
-revm-primitives = "1.1"
+revm = { git = "https://github.com/bluealloy/revm", rev = "df44297bc3949dc9e0cec06594c62dd946708b2a" }
+revm-primitives = { git = "https://github.com/bluealloy/revm", rev = "df44297bc3949dc9e0cec06594c62dd946708b2a" }
 
 # reth
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
@@ -124,10 +120,10 @@ alloy-rlp = { git = "https://github.com/SorellaLabs/alloy-rlp" }
 alloy-rlp-derive = { git = "https://github.com/SorellaLabs/alloy-rlp" }
 
 hex-literal = "0.4.1"
-ethers-core = { version = "2.0", default-features = false }
-ethers-providers = { version = "2.0", features = ["ws"] }
-ethers-signers = { version = "2.0", default-features = false }
-ethers-middleware = { version = "2.0", default-features = false }
+ethers-core = { version = "2.0.8", default-features = false }
+ethers-providers = { version = "2.0.8", features = ["ws"] }
+ethers-signers = { version = "2.0.8" }
+ethers-middleware = { version = "2.0.8", default-features = false }
 
 consensus = { path = "./crates/consensus/" }
 guard-types = { path = "./crates/types/" }
@@ -184,8 +180,6 @@ secp256k1 = { version = "0.27.0", default-features = false, features = [
   "recovery",
 ] }
 enr = { version = "0.9", default-features = false, features = ["k256"] }
-# for eip-4844
-c-kzg = { git = "https://github.com/ethereum/c-kzg-4844" }
 
 ### misc-testing
 proptest = "1.0"
