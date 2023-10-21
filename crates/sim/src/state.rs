@@ -151,7 +151,7 @@ impl RevmState {
     /// simulates a bundle of transactions
     pub fn simulate_composable_bundle(
         &self,
-        bundle: ComposableBundle,
+        bundle: MevBundle,
         caller_info: CallerInfo
     ) -> Result<SimResult, SimError> {
         let mut evm_db = self.db.clone();
@@ -170,8 +170,7 @@ impl RevmState {
             .transact_ref()
             .map_err(|_| SimError::RevmEVMTransactionError(tx_env.clone()))?;
 
-        let result =
-            SimResult::ExecutionResult(BundleOrTransactionResult::ComposableBundle(bundle));
+        let result = SimResult::ExecutionResult(BundleOrTransactionResult::MevBundle(bundle));
 
         Ok(result)
     }

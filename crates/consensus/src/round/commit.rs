@@ -4,7 +4,7 @@ use std::{
 };
 
 use common::{ConsensusState, WAITING_NEXT_BLOCK};
-use guard_types::{consensus::LeaderProposal, on_chain::VanillaBundle};
+use guard_types::{consensus::Proposal, on_chain::VanillaBundle};
 
 use super::{
     completed::CompletedState, GlobalStateContext, RoundAction, RoundStateMessage, StateTransition
@@ -28,7 +28,7 @@ impl CommitState {
         Self { best_bundle: commited_bundle, waker, vote: None }
     }
 
-    pub fn on_proposal(&mut self, proposal: LeaderProposal) {
+    pub fn on_proposal(&mut self, proposal: Proposal) {
         // some code here to check the proposal against our bundle
         // to make sure that the lower bound and other stuff is
         // up to standard.

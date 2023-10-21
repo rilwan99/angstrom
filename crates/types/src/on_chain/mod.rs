@@ -29,7 +29,7 @@ pub type Currency = Address;
 pub struct BestBundles {
     pub vanilla:     Option<VanillaBundle>,
     pub lower_bound: Option<LowerBound>,
-    pub non_vanilla: Option<ComposableBundle>
+    pub mev_bundle:  Option<MevBundle>
 }
 
 impl BestBundles {

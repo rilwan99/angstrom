@@ -7,7 +7,7 @@ use ethers_core::{
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use super::{ComposableBundle, Signature, SignedLowerBound, SignedVanillaBundle, VanillaBundle};
+use super::{MevBundle, Signature, SignedLowerBound, SignedVanillaBundle, VanillaBundle};
 
 #[derive(
     Debug,
@@ -39,7 +39,7 @@ pub struct SubmissionBundle {
     ethers_contract::EthAbiCodec,
 )]
 pub struct LowerBoundBundle {
-    pub bundle:             ComposableBundle,
+    pub bundle:             MevBundle,
     pub signed_lower_bound: SignedLowerBound
 }
 

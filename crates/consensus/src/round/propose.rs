@@ -4,7 +4,7 @@ use std::{
 };
 
 use common::{ConsensusState, SUBMIT};
-use guard_types::{consensus::LeaderProposal, on_chain::BestBundles};
+use guard_types::{consensus::Proposal, on_chain::BestBundles};
 
 use super::{
     submit::SubmitState, GlobalStateContext, RoundAction, RoundStateMessage, StateTransition

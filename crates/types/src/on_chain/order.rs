@@ -51,7 +51,7 @@ pub struct Order {
 )]
 pub struct SubmittedOrder {
     /// The original order from the user.
-    pub details:   OrderDetails,
+    pub details:   UserOrder,
     /// The user's EIP-712 signature of the Order.
     pub signature: Signature
 }
@@ -76,7 +76,7 @@ impl SubmittedOrder {
     ethers_contract::EthAbiType,
     ethers_contract::EthAbiCodec,
 )]
-pub struct OrderDetails {
+pub struct UserOrder {
     /// The user provided nonce, can only be used once.
     pub nonce:          U256,
     /// The order's type, can enable partial fills or fallible hooks.

@@ -47,12 +47,12 @@ pub struct VanillaBundle {
 
 impl VanillaBundle {
     pub fn new(orders: Vec<Order>, uniswap_data: UniswapData) -> anyhow::Result<Self> {
-        let non_vanilla = orders.iter().find(|order| {
+        let mev_bundle = orders.iter().find(|order| {
             !order.order.details.pre_hook.is_empty() || !order.order.details.post_hook.is_empty()
         });
 
-        if non_vanilla.is_some() {
-            anyhow::bail!("found a non_villa order: {:?}", non_vanilla);
+        if mev_bundle.is_some() {
+            anyhow::bail!("found a non_villa order: {:?}", mev_bundle);
         }
 
         Ok(Self { orders, uniswap_data })
@@ -77,13 +77,13 @@ impl From<VanillaBundle> for TxEnv {
     ethers_contract::EthAbiType,
     ethers_contract::EthAbiCodec,
 )]
-pub struct ComposableBundle {
+pub struct MevBundle {
     pub orders:       Vec<Order>,
     pub uniswap_data: UniswapData
 }
 
-impl From<ComposableBundle> for TxEnv {
-    fn from(value: ComposableBundle) -> Self {
+impl From<MevBundle> for TxEnv {
+    fn from(value: MevBundle) -> Self {
         todo!()
     }
 }

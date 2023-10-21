@@ -18,7 +18,7 @@ pub struct Args {
     // #[arg(long, value_name = "FILE")]
     // pub staking_secret_key:   PathBuf,
     // #[arg(long, value_name = "FILE")]
-    // pub bundle_key:           PathBuf,
+    // pub submission_key:           PathBuf,
     // #[arg(long, value_name = "FILE")]
     // pub submission_key:       PathBuf,
     // #[arg(long, value_delimiter = ',')]
@@ -61,7 +61,7 @@ impl Args {
         let revm_lru = RevmLRU::new(9999999, db);
 
         let sim = spawn_revm_sim(revm_lru).unwrap();
-        let edsca_key = LocalWallet::from_str(
+        let ecdsa_key = LocalWallet::from_str(
             "ad21c16051f74f24b3fbad57b0010d98bfef20441c84ee5a872133f19f807fc4"
         )?;
 
@@ -69,8 +69,8 @@ impl Args {
         let network_config = NetworkConfig::new(fake_key, fake_pub_key.into());
         let action_config = ActionConfig {
             simulator: sim,
-            edsca_key,
-            bundle_key: fake_bundle,
+            ecdsa_key,
+            submission_key: fake_bundle,
             consensus_lifecycle: AtomicConsensus::default(),
             is_leader: IsLeader::default()
         };

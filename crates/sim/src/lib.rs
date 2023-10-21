@@ -5,8 +5,7 @@ use errors::{SimError, SimResult};
 use ethers_core::types::{transaction::eip2718::TypedTransaction, I256, U256};
 use executor::ThreadPool;
 use guard_types::on_chain::{
-    CallerInfo, ComposableBundle, ExternalStateSim, Order, OrderDetails, SubmittedOrder,
-    VanillaBundle
+    CallerInfo, ExternalStateSim, MevBundle, Order, SubmittedOrder, UserOrder, VanillaBundle
 };
 use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
 
@@ -40,7 +39,7 @@ pub enum BundleOrTransactionResult {
     VanillaBundle(VanillaBundle),
     /// We just return the bundle as we don't care about gas usage but rather
     /// it finishes execution
-    ComposableBundle(ComposableBundle),
+    MevBundle(MevBundle),
     HookSimResult {
         tx:            SubmittedOrder,
         pre_hook_gas:  U256,
@@ -83,7 +82,7 @@ pub trait Simulator: Send + Sync + Clone + Unpin {
     async fn simulate_composable_bundle(
         &self,
         caller_info: CallerInfo,
-        bundle: ComposableBundle
+        bundle: MevBundle
     ) -> Result<SimResult, SimError>;
 }
 
@@ -92,6 +91,6 @@ pub enum SimEvent {
     Hook(ExternalStateSim, CallerInfo, Sender<SimResult>),
     UniswapV4(TypedTransaction, Sender<SimResult>),
     VanillaBundle(VanillaBundle, CallerInfo, Sender<SimResult>),
-    ComposableBundle(ComposableBundle, CallerInfo, Sender<SimResult>),
+    MevBundle(MevBundle, CallerInfo, Sender<SimResult>),
     NewBlock(Sender<SimResult>)
 }

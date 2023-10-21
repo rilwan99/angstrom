@@ -8,7 +8,7 @@ use std::{
 use ethers_core::types::{Block, H256};
 use futures::{Stream, StreamExt};
 use guard_types::{
-    consensus::{LeaderProposal, PrePreposeBundle, ProposalCommit},
+    consensus::{Commit, PreProposal, Proposal},
     on_chain::{BestBundles, Evidence, EvidenceError, SubmissionBundle}
 };
 use thiserror::Error;
@@ -24,12 +24,12 @@ use crate::{
 #[derive(Debug)]
 pub enum ConsensusMessage {
     /// All guards lock there lower-bound and broadcast it
-    PrePropose(PrePreposeBundle),
+    PrePropose(PreProposal),
     /// the leader for this round will send out the vanilla bundle and
     /// lower-bound commit for the round
-    Proposal(LeaderProposal),
+    Proposal(Proposal),
     /// the commit or nil vote the the lower-bound + vanilla proposal
-    Commit(ProposalCommit),
+    Commit(Commit),
     /// if leader. then the finalized bundle that is sent to builders
     RelaySubmission(SubmissionBundle)
 }
@@ -89,15 +89,15 @@ impl ConsensusCore {
         }
     }
 
-    pub fn new_pre_propose(&mut self, commit: PrePreposeBundle) {
+    pub fn new_pre_propose(&mut self, commit: PreProposal) {
         todo!()
     }
 
-    pub fn proposal(&mut self, proposal: LeaderProposal) {
+    pub fn proposal(&mut self, proposal: Proposal) {
         todo!()
     }
 
-    pub fn proposal_commit(&mut self, commit: ProposalCommit) {
+    pub fn proposal_commit(&mut self, commit: Commit) {
         todo!()
     }
 

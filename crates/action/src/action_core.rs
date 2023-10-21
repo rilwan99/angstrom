@@ -13,8 +13,8 @@ use crate::{BundleSolver, BundleSolverMsg};
 
 pub struct ActionConfig<S: Simulator + 'static> {
     pub simulator:           S,
-    pub edsca_key:           LocalWallet,
-    pub bundle_key:          LocalWallet,
+    pub ecdsa_key:           LocalWallet,
+    pub submission_key:      LocalWallet,
     pub consensus_lifecycle: AtomicConsensus,
     pub is_leader:           IsLeader
 }
@@ -23,7 +23,7 @@ pub struct ActionConfig<S: Simulator + 'static> {
 pub enum ActionMessage {
     NewBestVanilla(Arc<VanillaBundle>),
     NewOrder(Arc<SubmittedOrder>),
-    NewBestVanillas(BestBundles)
+    NewBestBundles(BestBundles)
 }
 
 impl From<BundleSolverMsg> for ActionMessage {

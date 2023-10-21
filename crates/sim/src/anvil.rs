@@ -258,7 +258,7 @@ impl Simulator for AnvilSimulator {
     async fn simulate_composable_bundle(
         &self,
         caller_info: CallerInfo,
-        bundle: ComposableBundle
+        bundle: MevBundle
     ) -> Result<SimResult, SimError> {
         let mut data = Vec::new();
         data.extend(hex!("ac8a9f85"));
@@ -274,7 +274,7 @@ impl Simulator for AnvilSimulator {
             return Err(SimError::V4Failed)
         }
 
-        Ok(SimResult::ExecutionResult(BundleOrTransactionResult::ComposableBundle(bundle)))
+        Ok(SimResult::ExecutionResult(BundleOrTransactionResult::MevBundle(bundle)))
     }
 }
 

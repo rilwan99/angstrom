@@ -10,7 +10,7 @@ use std::{
 use common::PollExt;
 use ethers_core::types::transaction::eip712::TypedData;
 use futures::{Stream, StreamExt};
-use guard_types::on_chain::{OrderDetails, Signature, SubmittedOrder, VanillaBundle};
+use guard_types::on_chain::{Signature, SubmittedOrder, UserOrder, VanillaBundle};
 use hyper::{http::HeaderValue, Method};
 use jsonrpsee::{
     proc_macros::rpc, server::ServerHandle, PendingSubscriptionSink, SubscriptionSink
@@ -211,9 +211,9 @@ impl SubmissionServerInner {
 impl GuardSubmitApiServer for SubmissionServerInner {
     async fn submit_order(&self, signature: Signature, meta_tx: TypedData) -> RpcResult<bool> {
         info!(?meta_tx, "new user submission");
-        let Ok(user_tx): Result<OrderDetails, _> = serde_json::from_value(
-            serde_json::Value::Object(serde_json::Map::from_iter(meta_tx.message))
-        ) else {
+        let Ok(user_tx): Result<UserOrder, _> = serde_json::from_value(serde_json::Value::Object(
+            serde_json::Map::from_iter(meta_tx.message)
+        )) else {
             return Ok(false)
         };
 

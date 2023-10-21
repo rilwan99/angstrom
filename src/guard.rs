@@ -87,10 +87,10 @@ where
                     .collect(),
                 Url::parse(SIMULATION_RELAY)?,
                 // TODO: move into own config from action
-                action_config.bundle_key.clone()
+                action_config.submission_key.clone()
             ),
             // TODO: move into on config from action
-            action_config.edsca_key.clone()
+            action_config.ecdsa_key.clone()
         )));
         let sources = Sources::new(middleware, swarm, sub_server, relay_sender).await?;
         let action = ActionCore::new(action_config).await?;
@@ -155,7 +155,7 @@ where
                 .sources
                 .guard_net_mut()
                 .propagate_msg(PeerMessages::PropagateOrder(order)),
-            ActionMessage::NewBestVanillas(data) => self.consensus.better_bundle(data)
+            ActionMessage::NewBestBundles(data) => self.consensus.better_bundle(data)
         }
     }
 

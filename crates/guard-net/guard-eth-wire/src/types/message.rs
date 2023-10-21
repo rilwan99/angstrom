@@ -2,7 +2,7 @@
 use std::{fmt::Debug, sync::Arc};
 
 use guard_types::{
-    consensus::{LeaderProposal, PrePreposeBundle, ProposalCommit},
+    consensus::{Commit, PreProposal, Proposal},
     on_chain::{SubmittedOrder, VanillaBundle}
 };
 use reth_primitives::bytes::{Buf, BufMut};
@@ -34,9 +34,9 @@ impl ProtocolMessage {
             EthMessageID::PropagateOrder => {
                 EthMessage::PropagateOrder(SubmittedOrder::decode(buf)?)
             }
-            EthMessageID::PrePropose => EthMessage::PrePropose(PrePreposeBundle::decode(buf)?),
-            EthMessageID::Proposal => EthMessage::Proposal(LeaderProposal::decode(buf)?),
-            EthMessageID::Commit => EthMessage::Commit(ProposalCommit::decode(buf)?)
+            EthMessageID::PrePropose => EthMessage::PrePropose(PreProposal::decode(buf)?),
+            EthMessageID::Proposal => EthMessage::Proposal(Proposal::decode(buf)?),
+            EthMessageID::Commit => EthMessage::Commit(Commit::decode(buf)?)
         };
         Ok(ProtocolMessage { message_type, message })
     }
@@ -114,9 +114,9 @@ pub enum EthMessage {
     // init
     Status(Status),
     // broadcast
-    PrePropose(PrePreposeBundle),
-    Proposal(LeaderProposal),
-    Commit(ProposalCommit),
+    PrePropose(PreProposal),
+    Proposal(Proposal),
+    Commit(Commit),
 
     // default communication
     PropagateOrder(SubmittedOrder),
@@ -168,9 +168,9 @@ encodable_enum!(EthMessage, Status, PropagateOrder, PropagateBundle, Commit, Pro
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EthBroadcastMessage {
     // broadcast
-    PrePropose(Arc<PrePreposeBundle>),
-    Proposal(Arc<LeaderProposal>),
-    Commit(Arc<ProposalCommit>),
+    PrePropose(Arc<PreProposal>),
+    Proposal(Arc<Proposal>),
+    Commit(Arc<Commit>),
 
     // default communication
     PropagateOrder(Arc<SubmittedOrder>),

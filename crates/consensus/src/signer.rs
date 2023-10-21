@@ -1,6 +1,6 @@
 use ethers_signers::{LocalWallet, Signer as ESigner, WalletError};
 use guard_types::{
-    consensus::{LeaderProposal, PrePreposeBundle, ProposalCommit},
+    consensus::{Commit, PreProposal, Proposal},
     on_chain::{LowerBound, Signature, VanillaBundle}
 };
 use reth_primitives::{keccak256, H256, H512};
@@ -21,15 +21,15 @@ impl Signer {
         ethereum_block: u64,
         vanilla_bundle: VanillaBundle,
         lower_bound: LowerBound
-    ) -> Result<LeaderProposal, WalletError> {
+    ) -> Result<Proposal, WalletError> {
         todo!()
     }
 
     pub fn sign_commit(
         &self,
         ethereum_block: u64,
-        proposal: LeaderProposal
-    ) -> Result<ProposalCommit, WalletError> {
+        proposal: Proposal
+    ) -> Result<Commit, WalletError> {
         todo!()
     }
 
@@ -37,7 +37,7 @@ impl Signer {
         &self,
         ethereum_block: u64,
         bundle: VanillaBundle
-    ) -> Result<PrePreposeBundle, WalletError> {
+    ) -> Result<PreProposal, WalletError> {
         todo!()
     }
 
