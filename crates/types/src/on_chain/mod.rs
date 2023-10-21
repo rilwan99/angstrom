@@ -8,7 +8,6 @@ mod lower_bound;
 mod order;
 mod signature;
 mod submission;
-mod uniswap_data;
 
 pub use bundle::*;
 pub use evidence::*;
@@ -17,7 +16,6 @@ pub use lower_bound::*;
 pub use order::*;
 pub use signature::*;
 pub use submission::*;
-pub use uniswap_data::*;
 
 /// 1234567890abcedf1234567890abcdef12345678
 pub const ANGSTROM_CONTRACT_ADDR: H160 = H160(hex!("1234567890abcedf1234567890abcdef12345678"));

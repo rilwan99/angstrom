@@ -26,18 +26,7 @@ pub struct SubmissionBundle {
     underlying_payload: SubmissionPayload
 }
 
-#[derive(
-    Debug,
-    Clone,
-    Serialize,
-    Deserialize,
-    RlpDecodable,
-    RlpEncodable,
-    PartialEq,
-    Eq,
-    ethers_contract::EthAbiType,
-    ethers_contract::EthAbiCodec,
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
 pub struct LowerBoundBundle {
     pub bundle:             MevBundle,
     pub signed_lower_bound: SignedLowerBound
