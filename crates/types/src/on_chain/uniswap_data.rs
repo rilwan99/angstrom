@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
     RlpEncodable,
     PartialEq,
     Eq,
+    Hash,
     ethers_contract::EthAbiType,
     ethers_contract::EthAbiCodec,
 )]

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash};
 
 use ethers_core::types::U256;
 use reth_primitives::{bytes::BytesMut, H256};
@@ -36,6 +36,7 @@ pub struct SignedVanillaBundle {
     RlpEncodable,
     PartialEq,
     Eq,
+    Hash,
     ethers_contract::EthAbiType,
     ethers_contract::EthAbiCodec,
 )]
