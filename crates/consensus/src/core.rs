@@ -8,29 +8,31 @@ use std::{
 use ethers_core::types::{Block, H256};
 use futures::{Stream, StreamExt};
 use guard_types::{
-    consensus::{
-        BundleVote, EvidenceError, GuardInfo, LeaderProposal, SignedLeaderProposal, Valid23Bundle
-    },
+    consensus::{LeaderProposal, PrePreposeBundle, ProposalCommit},
     database::State,
-    on_chain::SimmedBundle
+    on_chain::{BestSolvedBundleData, Evidence, EvidenceError, SimmedBundle, SubmissionBundle}
 };
 use thiserror::Error;
 use tracing::error;
 
 use crate::{
-    evidence::EvidenceCollector, round::RoundState, round_robin_algo::RoundRobinAlgo,
+    evidence::EvidenceCollector,
+    round::{propose::ProposeState, RoundState},
+    round_robin_algo::RoundRobinAlgo,
     signer::Signer
 };
 
 #[derive(Debug)]
 pub enum ConsensusMessage {
-    // voting related activities
-    NewBundle23(Valid23Bundle),
-    NewBundleVote(BundleVote),
-    // finalization actions
+    /// All guards lock there lower-bound and broadcast it
+    PrePropose(PrePreposeBundle),
+    /// the leader for this round will send out the vanilla bundle and
+    /// lower-bound commit for the round
     Proposal(LeaderProposal),
-    SignedProposal(SignedLeaderProposal),
-    NewBundle(SimmedBundle)
+    /// the commit or nil vote the the lower-bound + vanilla proposal
+    Commit(ProposalCommit),
+    /// if leader. then the finalized bundle that is sent to builders
+    RelaySubmission(SubmissionBundle)
 }
 
 #[derive(Debug, Error)]
@@ -96,15 +98,21 @@ impl ConsensusCore {
         }
     }
 
-    pub fn new_proposal_vote(&mut self, vote: SignedLeaderProposal) {}
+    pub fn new_pre_propose(&mut self, commit: PreProposeBundle) {
+        todo!()
+    }
 
-    pub fn new_proposal(&mut self, proposal: LeaderProposal) {}
+    pub fn proposal(&mut self, proposal: LeaderProposal) {
+        todo!()
+    }
 
-    pub fn new_bundle(&mut self, bundle: SimmedBundle) {}
+    pub fn proposal_commit(&mut self, commit: ProposalCommit) {
+        todo!()
+    }
 
-    pub fn new_bundle_vote(&mut self, vote: BundleVote) {}
-
-    pub fn new_bundle_23(&mut self, bundle: Valid23Bundle) {}
+    pub fn better_bundle(&mut self, bundle_data: BestSolvedBundleData) {
+        todo!()
+    }
 }
 
 impl Stream for ConsensusCore {
