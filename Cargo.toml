@@ -122,10 +122,9 @@ alloy-sol-types = { git = "https://github.com/SorellaLabs/alloy-core", features 
 ] }
 alloy-primitives = { git = "https://github.com/SorellaLabs/alloy-core", features = [
   "rlp",
-  "std",
 ] }
-alloy-rlp = { version = "0.3.3"}
-alloy-rlp-derive = { version = "0.3.3"}
+alloy-rlp = { git = "https://github.com/SorellaLabs/alloy-rlp" }
+alloy-rlp-derive = { git = "https://github.com/SorellaLabs/alloy-rlp" }
 
 hex-literal = "0.4.1"
 ethers-core = { version = "2.0", default-features = false }

@@ -2,7 +2,6 @@ pub use alloy_primitives::*;
 
 use alloy_sol_macro::sol;
 use alloy_rlp_derive::{RlpEncodable, RlpDecodable};
-use serde::{Deserialize, Serialize};
 use alloy_rlp::{Decodable, Encodable, Error};
 use crate::contract_bindings::Angstrom::OrderType;
 

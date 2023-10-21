@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use alloy_rlp::{Decodable, Encodable};
+use alloy_rlp::{Decodable, Encodable, Error};
 use bytes::{Bytes, BytesMut};
 use ethers_core::{
     abi::{AbiArrayType, AbiType, ParamType, Token, Tokenizable, TokenizableItem},
@@ -94,9 +94,9 @@ impl Encodable for Signature {
     }
 }
 impl Decodable for Signature {
-    fn decode(buf: &mut &[u8]) -> Result<Self, DecodeError> {
+    fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
         let sig = open_fastrlp::Decodable::decode(buf)
-            .map_err(|_| DecodeError::Custom("failed to decode sig"))?;
+            .map_err(|_| Error::Custom("failed to decode sig"))?;
 
         Ok(Signature(sig))
     }
