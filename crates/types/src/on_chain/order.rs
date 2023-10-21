@@ -1,16 +1,16 @@
 use bytes::{Bytes, BytesMut};
 use ethers_core::{
     abi::{AbiArrayType, AbiType, ParamType, Tokenizable, TokenizableItem},
-    types::{H256, U256},
+    types::{transaction::eip712::TypedData, Address, H256, U256},
     utils::keccak256
 };
 use hex_literal::hex;
 use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use super::{Currency, Signature};
+use super::{Currency, ExternalStateSim, Signature};
 
-const ORDER_TYPE_HASH: H256 =
+pub const ORDER_TYPE_HASH: H256 =
     H256(hex!("83a8a6ca1711f7deba4a7af7849103c6eeeea4e0a9d366881856d7e4e8e81365"));
 
 /// Signed order with actual execution amounts.
@@ -28,14 +28,38 @@ const ORDER_TYPE_HASH: H256 =
     ethers_contract::EthAbiCodec,
 )]
 pub struct Order {
-    /// The original order from the user.
-    pub order:             OrderDetails,
-    /// The user's EIP-712 signature of the Order.
-    pub signature:         Signature,
+    /// The order that was submitted though our endpoint
+    pub order:             SubmittedOrder,
     /// The actual executed input amount.
     pub amount_in_actual:  U256,
     /// The actual executed output amount.
     pub amount_out_actual: U256
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Serialize,
+    Deserialize,
+    RlpDecodable,
+    RlpEncodable,
+    PartialEq,
+    Eq,
+    Hash,
+    ethers_contract::EthAbiType,
+    ethers_contract::EthAbiCodec,
+)]
+pub struct SubmittedOrder {
+    /// The original order from the user.
+    pub order:     OrderDetails,
+    /// The user's EIP-712 signature of the Order.
+    pub signature: Signature
+}
+
+impl SubmittedOrder {
+    pub fn get_ethereum_address(&self) -> Address {
+        todo!()
+    }
 }
 
 /// The struct that the user signs using EIP-721.
@@ -72,42 +96,6 @@ pub struct OrderDetails {
     pub pre_hook:       Bytes,
     /// An optional user provided hook to run after paying the output.
     pub post_hook:      Bytes
-}
-
-impl TryInto<HookSim> for OrderDetails {
-    type Error = anyhow::Error;
-
-    fn try_into(self) -> Result<HookSim, Self::Error> {
-        let mut msg = Vec::new();
-        msg.extend(USER_TYPE_HASH.to_fixed_bytes());
-        msg.extend(self.order.token_in.to_fixed_bytes());
-        msg.extend(self.order.token_out.to_fixed_bytes());
-        msg.extend(self.order.amount_in.to_be_bytes());
-        msg.extend(self.order.amount_out_min.to_be_bytes());
-
-        let mut deadbuf = BytesMut::new();
-        self.order.deadline.to_big_endian(&mut deadbuf);
-        msg.extend(deadbuf.to_vec());
-        let mut bribe = BytesMut::new();
-        self.order.gas_cap.to_big_endian(&mut bribe);
-        msg.extend(bribe.to_vec());
-        msg.extend(keccak256(&self.order.pre_hook));
-        msg.extend(keccak256(&self.order.post_hook));
-
-        let digest = keccak256(msg);
-        let addr = self.signature.recover(digest)?;
-
-        Ok(HookSim {
-            tx: super::SearcherOrUser::User(self.clone()),
-            pre_hook: self.order.pre_hook,
-            amount_in_req: self.order.amount_in,
-            amount_in_token: self.order.token_in,
-            post_hook: self.order.post_hook,
-            amount_out_lim: self.order.amount_out_min,
-            amount_out_token: self.order.token_out,
-            addr
-        })
-    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]

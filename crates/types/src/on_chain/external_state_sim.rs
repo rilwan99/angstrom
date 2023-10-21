@@ -1,16 +1,14 @@
 use bytes::{Bytes, BytesMut};
-use ethers_core::{
-    types::{Address, U256},
-    utils::keccak256
-};
+use ethers_core::{types::Address, utils::keccak256};
+use reth_rlp::Encodable;
 
-use super::OrderDetails;
+use super::SubmittedOrder;
 
 pub type ExternalStateCall = (Address, Bytes);
 
 #[derive(Debug)]
 pub struct ExternalStateSim {
-    pub tx:               OrderDetails,
+    pub tx:               SubmittedOrder,
     // the address of the user.
     pub addr:             Address,
     // gas in
@@ -25,50 +23,32 @@ pub struct ExternalStateSim {
 
 impl ExternalStateSim {
     pub fn pre_hook(&self) -> ExternalStateCall {
-        let addr = Address::from_slice(&self.pre_hook[0..19]);
+        let addr = Address::from_slice(&self.pre_hook[0..20]);
 
-        (addr, Bytes::copy_from_slice(&self.pre_hook[20..]))
+        (addr, Bytes::copy_from_slice(&self.pre_hook[21..]))
     }
 
     pub fn post_hook(&self) -> ExternalStateCall {
-        let addr = Address::from_slice(&self.post_hook[0..19]);
+        let addr = Address::from_slice(&self.post_hook[0..20]);
 
-        (addr, Bytes::copy_from_slice(&self.post_hook[20..]))
+        (addr, Bytes::copy_from_slice(&self.post_hook[21..]))
     }
 }
 
-impl TryInto<ExternalStateSim> for OrderDetails {
+impl TryInto<ExternalStateSim> for SubmittedOrder {
     type Error = anyhow::Error;
 
     fn try_into(self) -> Result<ExternalStateSim, Self::Error> {
-        let mut msg = Vec::new();
-        msg.extend(SEARCHER_TYPE_HASH.to_fixed_bytes());
-        msg.extend(self.order.pool);
-        msg.extend(self.order.token_in.to_fixed_bytes());
-        msg.extend(self.order.token_out.to_fixed_bytes());
-        msg.extend(self.order.amount_in.to_be_bytes());
-        msg.extend(self.order.amount_out_min.to_be_bytes());
-
-        let mut deadbuf = BytesMut::new();
-        self.order.deadline.to_big_endian(&mut deadbuf);
-        msg.extend(deadbuf.to_vec());
-        let mut bribe = BytesMut::new();
-        self.order.bribe.to_big_endian(&mut bribe);
-        msg.extend(bribe.to_vec());
-        msg.extend(keccak256(&self.order.pre_hook));
-        msg.extend(keccak256(&self.order.post_hook));
-
-        let digest = keccak256(msg);
-        let addr = self.signature.recover(digest)?;
+        let addr = self.get_ethereum_address();
 
         Ok(ExternalStateSim {
-            tx: ::SearcherOrUser::Searcher(self.clone()),
+            tx: self,
             pre_hook: self.order.pre_hook,
             amount_in_req: self.order.amount_in,
-            amount_in_token: self.order.token_in,
+            amount_in_token: self.order.currency_in,
             post_hook: self.order.post_hook,
             amount_out_lim: self.order.amount_out_min,
-            amount_out_token: self.order.token_out,
+            amount_out_token: self.order.currency_out,
             addr
         })
     }
