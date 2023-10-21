@@ -5,7 +5,7 @@ use std::{
 
 use common::{ConsensusState, COMMIT, PROPOSE};
 use futures::FutureExt;
-use guard_types::on_chain::BestSolvedBundleData;
+use guard_types::on_chain::BestBundles;
 
 use super::{
     commit::CommitState, propose::ProposeState, GlobalStateContext, RoundAction, RoundStateMessage,
@@ -16,10 +16,10 @@ use super::{
 /// before transitioning to the next state
 pub struct PreProposeState {
     timeout:          Timeout,
-    commited_details: BestSolvedBundleData
+    commited_details: BestBundles
 }
 impl PreProposeState {
-    pub fn new(timeout: Timeout, commited_details: BestSolvedBundleData) -> Self {
+    pub fn new(timeout: Timeout, commited_details: BestBundles) -> Self {
         Self { timeout, commited_details }
     }
 }

@@ -6,7 +6,7 @@ use std::{
 
 use common::{ConsensusState, IsLeader, PRE_PROPOSE};
 use futures::FutureExt;
-use guard_types::on_chain::BestSolvedBundleData;
+use guard_types::on_chain::BestBundles;
 
 use super::{
     pre_propose::PreProposeState, GlobalStateContext, RoundAction, RoundStateMessage,
@@ -17,7 +17,7 @@ use super::{
 /// collecting up until the timeout occurs
 pub struct OrderAccumulationState {
     timeout:     Timeout,
-    best_bundle: Option<BestSolvedBundleData>,
+    best_bundle: Option<BestBundles>,
     is_leader:   IsLeader
 }
 impl OrderAccumulationState {
@@ -25,7 +25,7 @@ impl OrderAccumulationState {
         Self { timeout, best_bundle: None, is_leader }
     }
 
-    pub fn new_bundle(&mut self, bundle: BestSolvedBundleData) {
+    pub fn new_bundle(&mut self, bundle: BestBundles) {
         if self
             .best_bundle
             .as_ref()

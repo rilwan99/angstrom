@@ -35,8 +35,8 @@ pub struct SignedLowerBound {
     ethers_contract::EthAbiCodec,
 )]
 pub struct LowerBound {
-    pub searcher_bids: Vec<PoolQuantity>,
-    pub quantity:      Vec<PoolQuantity>
+    pub searcher_bids: Vec<PoolValue>,
+    pub volume:        Vec<PoolValue>
 }
 
 #[derive(
@@ -52,7 +52,7 @@ pub struct LowerBound {
     ethers_contract::EthAbiType,
     ethers_contract::EthAbiCodec,
 )]
-pub struct PoolQuantity {
+pub struct PoolValue {
     pub pool_key: PoolKey,
     pub quantity: u128
 }

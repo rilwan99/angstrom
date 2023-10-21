@@ -26,13 +26,13 @@ pub type Currency = Address;
 /// This type is for when we want to notify consensus of our new internal best
 /// data.
 #[derive(Debug, Clone)]
-pub struct BestSolvedBundleData {
+pub struct BestBundles {
     pub vanilla:     Option<VanillaBundle>,
     pub lower_bound: Option<LowerBound>,
     pub non_vanilla: Option<ComposableBundle>
 }
 
-impl BestSolvedBundleData {
+impl BestBundles {
     pub fn get_weight(&self) -> u128 {
         todo!()
     }

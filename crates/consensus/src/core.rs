@@ -9,7 +9,7 @@ use ethers_core::types::{Block, H256};
 use futures::{Stream, StreamExt};
 use guard_types::{
     consensus::{LeaderProposal, PrePreposeBundle, ProposalCommit},
-    on_chain::{BestSolvedBundleData, Evidence, EvidenceError, SubmissionBundle}
+    on_chain::{BestBundles, Evidence, EvidenceError, SubmissionBundle}
 };
 use thiserror::Error;
 use tracing::error;
@@ -101,7 +101,7 @@ impl ConsensusCore {
         todo!()
     }
 
-    pub fn better_bundle(&mut self, bundle_data: BestSolvedBundleData) {
+    pub fn better_bundle(&mut self, bundle_data: BestBundles) {
         todo!()
     }
 }

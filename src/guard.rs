@@ -144,7 +144,7 @@ where
         debug!(?event, "got actions");
 
         match event {
-            ActionMessage::NewBestBundle(bundle) => {
+            ActionMessage::NewBestVanilla(bundle) => {
                 self.sources
                     .guard_net_mut()
                     .propagate_msg(PeerMessages::PropagateBundle(bundle.clone()));
@@ -155,7 +155,7 @@ where
                 .sources
                 .guard_net_mut()
                 .propagate_msg(PeerMessages::PropagateOrder(order)),
-            ActionMessage::NewBestSolvedData(data) => self.consensus.better_bundle(data)
+            ActionMessage::NewBestVanillas(data) => self.consensus.better_bundle(data)
         }
     }
 

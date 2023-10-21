@@ -17,7 +17,7 @@ use tracing::{debug, info, trace};
 
 #[derive(Debug, Clone)]
 pub enum BundleSolverMsg {
-    NewBestBundle(Arc<VanillaBundle>),
+    NewBestVanilla(Arc<VanillaBundle>),
     NewOrder(Arc<SubmittedOrder>)
 }
 

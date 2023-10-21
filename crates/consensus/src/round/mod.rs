@@ -7,7 +7,7 @@ use std::{
 
 use common::{return_if, AtomicConsensus, ConsensusState, IsLeader, PollExt, ORDER_ACCUMULATION};
 use futures::{Future, Stream, StreamExt};
-use guard_types::on_chain::BestSolvedBundleData;
+use guard_types::on_chain::BestBundles;
 use reth_primitives::H512;
 
 use self::{
@@ -82,7 +82,7 @@ impl RoundState {
     }
 
     // will be updated to include the lower bound and other stuff
-    pub fn new_best_details(&mut self, bundle_details: BestSolvedBundleData) {
+    pub fn new_best_details(&mut self, bundle_details: BestBundles) {
         let state = self.consensus.get_current_state();
 
         if self.is_leader.is_leader() || state == ORDER_ACCUMULATION {
@@ -182,7 +182,7 @@ impl RoundAction {
         ))
     }
 
-    pub fn new_best_details(&mut self, bundle_details: BestSolvedBundleData) {
+    pub fn new_best_details(&mut self, bundle_details: BestBundles) {
         todo!()
     }
 }

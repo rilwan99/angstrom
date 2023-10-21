@@ -5,7 +5,7 @@ use std::{
 
 use common::{ConsensusState, WAITING_NEXT_BLOCK};
 use futures::FutureExt;
-use guard_types::on_chain::BestSolvedBundleData;
+use guard_types::on_chain::BestBundles;
 
 use super::{
     completed::CompletedState, GlobalStateContext, RoundAction, RoundStateMessage, StateTransition,
@@ -15,7 +15,7 @@ use super::{
 /// This state is only reached if this guard is the leader
 pub struct SubmitState {
     submit_deadline: Timeout,
-    best_bundle:     BestSolvedBundleData,
+    best_bundle:     BestBundles,
     current_commits: Vec<()>,
     needed_commits:  usize,
     can_send:        bool
