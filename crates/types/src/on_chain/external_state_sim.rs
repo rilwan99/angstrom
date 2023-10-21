@@ -1,5 +1,5 @@
+use alloy_primitives::{keccak256, Address};
 use bytes::{Bytes, BytesMut};
-use ethers_core::{types::Address, utils::keccak256};
 use reth_rlp::Encodable;
 
 use super::SubmittedOrder;
@@ -39,16 +39,16 @@ impl TryInto<ExternalStateSim> for SubmittedOrder {
     type Error = anyhow::Error;
 
     fn try_into(self) -> Result<ExternalStateSim, Self::Error> {
-        let addr = self.get_ethereum_address();
+        let addr: Address = self.get_ethereum_address().into();
 
         Ok(ExternalStateSim {
             tx: self.clone(),
-            pre_hook: self.details.pre_hook,
-            amount_in_req: self.details.amount_in,
-            amount_in_token: self.details.currency_in,
-            post_hook: self.details.post_hook,
-            amount_out_lim: self.details.amount_out_min,
-            amount_out_token: self.details.currency_out,
+            pre_hook: self.details.preHook.into(),
+            amount_in_req: self.details.amountIn,
+            amount_in_token: self.details.currencyIn,
+            post_hook: self.details.postHook.into(),
+            amount_out_lim: self.details.amountOutMin,
+            amount_out_token: self.details.currencyOut,
             addr
         })
     }

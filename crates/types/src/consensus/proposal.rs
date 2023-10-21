@@ -6,7 +6,7 @@ use crate::{
     on_chain::{LowerBound, Signature, VanillaBundle}
 };
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Proposal {
     pub ethereum_block:   u64,
     pub vanilla_bundle:   VanillaBundle,

@@ -9,24 +9,13 @@ use serde::{Deserialize, Serialize};
 
 use super::{MevBundle, Signature, SignedLowerBound, SignedVanillaBundle, VanillaBundle};
 
-#[derive(
-    Debug,
-    Clone,
-    Serialize,
-    Deserialize,
-    RlpDecodable,
-    RlpEncodable,
-    PartialEq,
-    Eq,
-    ethers_contract::EthAbiType,
-    ethers_contract::EthAbiCodec,
-)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubmissionBundle {
     submission_type:    SubmissionType,
     underlying_payload: SubmissionPayload
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, RlpDecodable, RlpEncodable, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LowerBoundBundle {
     pub bundle:             MevBundle,
     pub signed_lower_bound: SignedLowerBound
@@ -80,7 +69,7 @@ impl Tokenizable for SubmissionType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SubmissionPayload {
     Vanilla(SignedVanillaBundle),
     LowerBound(LowerBoundBundle)

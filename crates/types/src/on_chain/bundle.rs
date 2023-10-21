@@ -23,7 +23,7 @@ sol! {
     }
 
     /// @notice Instruction to donate revenue to a pool.
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Eq)]
     struct PoolFees {
         /// @member The pool to pay fees to.
         PoolKey pool;
@@ -34,7 +34,7 @@ sol! {
     }
 
     /// @notice Instruction to execute a swap on UniswapV4.
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Eq)]
     struct PoolSwap {
         /// @member The pool to perform the swap on.
         PoolKey pool;
@@ -44,7 +44,7 @@ sol! {
         uint256 amountIn;
     }
     /// @notice Uniswap instructions to execute after lock is taken.
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Eq)]
     struct UniswapData {
         /// @member The discrete swaps to perform, there should be at most one entry
         ///         per pool.
@@ -58,7 +58,7 @@ sol! {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignedVanillaBundle {
     pub bundle:     VanillaBundle,
     pub signatures: Vec<Signature>
@@ -72,9 +72,9 @@ pub struct VanillaBundle {
 
 impl VanillaBundle {
     pub fn new(orders: Vec<Order>, uniswap_data: UniswapData) -> anyhow::Result<Self> {
-        let mev_bundle = orders.iter().find(|order| {
-            !order.order.details.pre_hook.is_empty() || !order.order.details.post_hook.is_empty()
-        });
+        let mev_bundle = orders
+            .iter()
+            .find(|order| !order.preHook.is_empty() || !order.postHook.is_empty());
 
         if mev_bundle.is_some() {
             anyhow::bail!("found a non_villa order: {:?}", mev_bundle);
@@ -90,7 +90,7 @@ impl From<VanillaBundle> for TxEnv {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MevBundle {
     pub orders:       Vec<Order>,
     pub uniswap_data: UniswapData

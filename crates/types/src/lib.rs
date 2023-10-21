@@ -1,4 +1,4 @@
-use reth_primitives::{H256, H512};
+use alloy_primitives::{B256, B512};
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
     Message, SECP256K1
@@ -10,7 +10,7 @@ pub mod consensus;
 pub mod contract_bindings;
 pub mod on_chain;
 
-pub fn validate_signature(signature: &Signature, message: H256, public_key: H512) -> bool {
+pub fn validate_signature(signature: &Signature, message: B256, public_key: B512) -> bool {
     // let signature: [u8; 64] = signature.0.to_vec().try_into().unwrap();
     // let rec_id: [u8; 4] = signature.recovery_id().unwrap().try_into().unwrap();
     //
@@ -28,7 +28,7 @@ pub fn validate_signature(signature: &Signature, message: H256, public_key: H512
     todo!()
 }
 
-pub fn get_public_key(check_signature: &Signature, message: H256) -> H512 {
+pub fn get_public_key(check_signature: &Signature, message: B256) -> B512 {
     // let signature: [u8; 64] =
     // check_signature.0.to_vec().0.clone().try_into().unwrap(); let rec_id:
     // [u8; 4] = check_signature.recovery_id().unwrap().try_into().unwrap();

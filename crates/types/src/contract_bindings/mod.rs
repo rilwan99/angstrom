@@ -13,6 +13,11 @@ sol! {
 Angstrom,
 "src/contract_bindings/angstrom.json"}
 
+sol! {
+#![sol(all_derives = true)]
+ERC20,
+"src/contract_bindings/ERC20.json"}
+
 //pub use AngstromSpoof::*;
 pub use Angstrom::*;
 pub use PoolManager::*;
