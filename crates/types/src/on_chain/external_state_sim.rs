@@ -1,6 +1,5 @@
 use alloy_primitives::{keccak256, Address};
 use bytes::{Bytes, BytesMut};
-use reth_rlp::Encodable;
 
 use super::SubmittedOrder;
 

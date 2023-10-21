@@ -1,10 +1,10 @@
+use alloy_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use bytes::Bytes;
 use ethers_core::{
     abi::{AbiArrayType, AbiType, ParamType, Token, Tokenizable, TokenizableItem},
     types::{H256, U256},
     utils::keccak256
 };
-use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
 use super::{MevBundle, Signature, SignedLowerBound, SignedVanillaBundle, VanillaBundle};

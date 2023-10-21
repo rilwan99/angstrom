@@ -1,5 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
+use alloy_rlp::{Decodable, Encodable};
 use bytes::{Bytes, BytesMut};
 use ethers_core::{
     abi::{AbiArrayType, AbiType, ParamType, Token, Tokenizable, TokenizableItem},
@@ -7,7 +8,6 @@ use ethers_core::{
 };
 use reth_codecs::{main_codec, Compact};
 use reth_primitives::{PeerId, H512};
-use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
     Message, SECP256K1

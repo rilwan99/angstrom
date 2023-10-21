@@ -62,9 +62,7 @@ impl RevmState {
         let out_token_override = overrides.get(&txes.amount_out_token.into()).unwrap();
 
         let db = self.db.clone();
-        let current_bal = db
-            .storage(posthook_addr.into(), *out_token_override)
-            .unwrap();
+        let current_bal = db.storage(posthook_addr, *out_token_override).unwrap();
 
         let mut overrides: HashMap<B160, HashMap<U256, U256>> = HashMap::default();
 

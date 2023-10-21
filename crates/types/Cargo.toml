@@ -24,3 +24,5 @@ modular-bitfield = "0.11.2"
 alloy-sol-macro = {version = "0.4.2", features = ["json"]}
 alloy-sol-types = { version = "0.4.2", features = ["json"] }
 alloy-primitives = { version = "0.4.2"}
+alloy-rlp = { version = "0.3.3"}
+alloy-rlp-derive = { version = "0.3.3"}

@@ -1,14 +1,12 @@
 use std::{collections::HashMap, hash::Hash};
 
 use alloy_sol_types::sol;
-use ethers_core::types::U256;
-use reth_primitives::{bytes::BytesMut, H256};
-use reth_rlp::{Encodable, RlpDecodable, RlpEncodable};
+use reth_rlp::{Decodable, Encodable};
 use revm::primitives::{TransactTo, TxEnv, B160, U256 as RU256};
 use serde::{Deserialize, Serialize};
 
-use super::{Signature, ANGSTROM_CONTRACT_ADDR};
-use crate::contract_bindings::{Angstrom::Order, PoolManager::PoolKey};
+use super::{angstrom_CONTRACT_ADDR, Signature};
+use crate::contract_bindings::{angstrom::Order, PoolManager::PoolKey};
 
 sol! {
     #![sol(all_derives = true)]

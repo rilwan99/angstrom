@@ -53,7 +53,7 @@ pub enum ConsensusError {
 /// bundles that this guard has built except for the most profitable one. Nor
 /// does it know what the proper pricing for a given storage slot is. We
 /// abstract all of this out in order to keep this module as clean as possible
-/// as proper functionality is critical here to ensure that Angstrom works
+/// as proper functionality is critical here to ensure that angstrom works
 /// properly.
 pub struct ConsensusCore {
     /// keeps track of the current round state

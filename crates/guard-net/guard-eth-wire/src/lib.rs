@@ -29,7 +29,7 @@ pub use builder::*;
 pub mod types;
 pub use types::*;
 
-pub const DEFAULT_HELLO_VERIFICATION_MESSAGE: &str = "ANGSTROM";
+pub const DEFAULT_HELLO_VERIFICATION_MESSAGE: &str = "angstrom";
 
 #[cfg(test)]
 pub use tokio_util::codec::{

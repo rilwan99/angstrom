@@ -2,7 +2,7 @@ use reth_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    contract_bindings::{Angstrom::Order, PoolManager::PoolKey},
+    contract_bindings::{angstrom::Order, PoolManager::PoolKey},
     on_chain::Signature
 };
 

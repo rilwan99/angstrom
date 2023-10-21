@@ -1,4 +1,4 @@
-use reth_rlp::{RlpDecodable, RlpEncodable};
+use alloy_rlp::{Decodable, Encodable};
 use serde::{Deserialize, Serialize};
 
 use super::Signature;

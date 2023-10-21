@@ -18,7 +18,7 @@ use crate::{
 ///TODO: replace once settled
 const V4_BYTE_CODE: Bytes = vec![];
 ///TODO: replace once settled
-const ANGSTROM_ADDRESS: B160 = B160::zero();
+const angstrom_ADDRESS: B160 = B160::zero();
 
 /// revm state handler
 pub struct Revm {
@@ -92,7 +92,7 @@ impl Revm {
                         ..Default::default()
                     };
 
-                    map.insert(ANGSTROM_ADDRESS, bytecode);
+                    map.insert(angstrom_ADDRESS, bytecode);
                     let _ = match state.simulate_v4_tx(tx, map) {
                         Ok(res) => sender.send(res),
                         Err(err) => sender.send(SimResult::SimError(err))
