@@ -11,7 +11,7 @@ use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
 
 use crate::revm::Revm;
 
-pub mod anvil;
+// pub mod anvil;
 pub mod client;
 pub mod errors;
 pub mod executor;

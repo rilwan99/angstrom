@@ -120,10 +120,10 @@ alloy-rlp = { git = "https://github.com/SorellaLabs/alloy-rlp" }
 alloy-rlp-derive = { git = "https://github.com/SorellaLabs/alloy-rlp" }
 
 hex-literal = "0.4.1"
-ethers-core = { version = "2.0.8", default-features = false }
-ethers-providers = { version = "2.0.8", features = ["ws"] }
-ethers-signers = { version = "2.0.8" }
-ethers-middleware = { version = "2.0.8", default-features = false }
+ethers-core = { version = "2.0.10", default-features = false }
+ethers-providers = { version = "2.0.10", features = ["ws"] }
+ethers-signers = { version = "2.0.10", default-features = false }
+ethers-middleware = { version = "2.0.10", default-features = false }
 
 consensus = { path = "./crates/consensus/" }
 guard-types = { path = "./crates/types/" }
@@ -131,8 +131,8 @@ common = { path = "./crates/common/" }
 action = { path = "./crates/action/" }
 sim = { path = "./crates/sim/" }
 
-anvil = { git = "https://github.com/SorellaLabs/fastfoundry" }
-anvil-core = { git = "https://github.com/SorellaLabs/fastfoundry" }
+# anvil = { git = "https://github.com/SorellaLabs/fastfoundry" }
+# anvil-core = { git = "https://github.com/SorellaLabs/fastfoundry" }
 
 ## misc
 bytes = "1.4"
