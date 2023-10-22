@@ -2,12 +2,12 @@
 
 use std::fmt::Display;
 
+use alloy_rlp::{Decodable, Encodable, Error, Header};
 use bytes::Bytes;
 use futures::{Sink, SinkExt};
 use reth_codecs::derive_arbitrary;
 use reth_ecies::stream::ECIESStream;
 use reth_primitives::bytes::{Buf, BufMut};
-use reth_rlp::{Decodable, DecodeError, Encodable, Header};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -121,7 +121,7 @@ impl TryFrom<u8> for DisconnectReason {
     }
 }
 
-/// The [`Encodable`](reth_rlp::Encodable) implementation for
+/// The [`Encodable`](alloy_rlp::Encodable) implementation for
 /// [`DisconnectReason`] encodes the disconnect reason in a single-element RLP
 /// list.
 impl Encodable for DisconnectReason {
@@ -134,15 +134,15 @@ impl Encodable for DisconnectReason {
     }
 }
 
-/// The [`Decodable`](reth_rlp::Decodable) implementation for
+/// The [`Decodable`](alloy_rlp::Decodable) implementation for
 /// [`DisconnectReason`] supports either a disconnect reason encoded a single
 /// byte or a RLP list containing the disconnect reason.
 impl Decodable for DisconnectReason {
-    fn decode(buf: &mut &[u8]) -> Result<Self, DecodeError> {
+    fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
         if buf.is_empty() {
-            return Err(DecodeError::InputTooShort)
+            return Err(Error::InputTooShort)
         } else if buf.len() > 2 {
-            return Err(DecodeError::Overflow)
+            return Err(Error::Overflow)
         }
 
         if buf.len() > 1 {
@@ -150,7 +150,7 @@ impl Decodable for DisconnectReason {
             // buffer so buf[0] is the first (and only) element of the list.
             let header = Header::decode(buf)?;
             if !header.list {
-                return Err(DecodeError::UnexpectedString)
+                return Err(Error::UnexpectedString)
             }
         }
 
@@ -161,7 +161,7 @@ impl Decodable for DisconnectReason {
             Ok(DisconnectReason::DisconnectRequested)
         } else {
             DisconnectReason::try_from(u8::decode(buf)?)
-                .map_err(|_| DecodeError::Custom("unknown disconnect reason"))
+                .map_err(|_| Error::Custom("unknown disconnect reason"))
         }
     }
 }
@@ -207,8 +207,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use alloy_rlp::{Decodable, Encodable};
     use reth_primitives::hex;
-    use reth_rlp::{Decodable, Encodable};
 
     use crate::{p2pstream::P2PMessage, DisconnectReason};
 

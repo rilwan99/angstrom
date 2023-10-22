@@ -1,9 +1,9 @@
 //! Decoding tests for [`NewBlock`]
 use std::{fs, path::PathBuf};
 
+use alloy_rlp::Decodable;
 use guard_eth_wire::NewBlock;
 use reth_primitives::hex;
-use reth_rlp::Decodable;
 
 #[test]
 fn decode_new_block_network() {

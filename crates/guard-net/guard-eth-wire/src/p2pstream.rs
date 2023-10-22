@@ -7,6 +7,7 @@ use std::{
     time::Duration
 };
 
+use alloy_rlp::{Decodable, Encodable, Error, EMPTY_LIST_CODE};
 use futures::{Sink, SinkExt, StreamExt};
 use pin_project::pin_project;
 use reth_codecs::{derive_arbitrary, Compact};
@@ -15,7 +16,6 @@ use reth_primitives::{
     bytes::{Buf, BufMut, Bytes, BytesMut},
     hex, keccak256, Address, PeerId, Signature, H160, H256, H512
 };
-use reth_rlp::{Decodable, DecodeError, Encodable, EMPTY_LIST_CODE};
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
     Message, SECP256K1
@@ -752,7 +752,7 @@ impl P2PMessage {
     }
 }
 
-/// The [`Encodable`](reth_rlp::Encodable) implementation for
+/// The [`Encodable`](alloy_rlp::Encodable) implementation for
 /// [`P2PMessage::Ping`] and [`P2PMessage::Pong`] encodes the message as RLP,
 /// and prepends a snappy header to the RLP bytes for all variants except the
 /// [`P2PMessage::Hello`] variant, because the hello message is never compressed
@@ -790,29 +790,29 @@ impl Encodable for P2PMessage {
     }
 }
 
-/// The [`Decodable`](reth_rlp::Decodable) implementation for [`P2PMessage`]
+/// The [`Decodable`](alloy_rlp::Decodable) implementation for [`P2PMessage`]
 /// assumes that each of the message variants are snappy compressed, except for
 /// the [`P2PMessage::Hello`] variant since the hello message is never
 /// compressed in the `p2p` subprotocol. The [`Decodable`] implementation for
 /// [`P2PMessage::Ping`] and [`P2PMessage::Pong`] expects a snappy encoded
 /// payload, see [`Encodable`] implementation.
 impl Decodable for P2PMessage {
-    fn decode(buf: &mut &[u8]) -> Result<Self, DecodeError> {
+    fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
         /// Removes the snappy prefix from the Ping/Pong buffer
-        fn advance_snappy_ping_pong_payload(buf: &mut &[u8]) -> Result<(), DecodeError> {
+        fn advance_snappy_ping_pong_payload(buf: &mut &[u8]) -> Result<(), Error> {
             if buf.len() < 3 {
-                return Err(DecodeError::InputTooShort)
+                return Err(Error::InputTooShort)
             }
             if buf[..3] != [0x01, 0x00, EMPTY_LIST_CODE] {
-                return Err(DecodeError::Custom("expected snappy payload"))
+                return Err(Error::Custom("expected snappy payload"))
             }
             buf.advance(3);
             Ok(())
         }
 
         let message_id = u8::decode(&mut &buf[..])?;
-        let id = P2PMessageID::try_from(message_id)
-            .or(Err(DecodeError::Custom("unknown p2p message id")))?;
+        let id =
+            P2PMessageID::try_from(message_id).or(Err(Error::Custom("unknown p2p message id")))?;
         buf.advance(1);
         match id {
             P2PMessageID::Hello => Ok(P2PMessage::Hello(HelloMessage::decode(buf)?)),
@@ -894,12 +894,12 @@ impl Encodable for ProtocolVersion {
 }
 
 impl Decodable for ProtocolVersion {
-    fn decode(buf: &mut &[u8]) -> Result<Self, DecodeError> {
+    fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
         let version = u8::decode(buf)?;
         match version {
             4 => Ok(ProtocolVersion::V4),
             5 => Ok(ProtocolVersion::V5),
-            _ => Err(DecodeError::Custom("unknown p2p protocol version"))
+            _ => Err(Error::Custom("unknown p2p protocol version"))
         }
     }
 }

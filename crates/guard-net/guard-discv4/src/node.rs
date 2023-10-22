@@ -13,9 +13,9 @@ impl From<PeerId> for NodeKey {
 
 impl From<NodeKey> for discv5::Key<NodeKey> {
     fn from(value: NodeKey) -> Self {
-        let hash = keccak256(value.0.as_bytes());
-        let hash = *GenericArray::from_slice(hash.as_bytes());
-        discv5::Key::new_raw(value, hash)
+        let hash = keccak256(value.0);
+        let hash = GenericArray::from_slice(&hash.0);
+        discv5::Key::new_raw(value, *hash)
     }
 }
 

@@ -43,6 +43,7 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH}
 };
 
+use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use discv5::{
     kbucket,
     kbucket::{
@@ -58,7 +59,6 @@ use reth_primitives::{
     bytes::{Bytes, BytesMut},
     ForkId, PeerId, H256
 };
-use reth_rlp::{RlpDecodable, RlpEncodable};
 use secp256k1::SecretKey;
 use tokio::{
     net::UdpSocket,
@@ -364,7 +364,7 @@ impl Discv4 {
     /// Sets the pair in the EIP-868 [`Enr`] of the node.
     ///
     /// If the key already exists, this will update it.
-    pub fn set_eip868_rlp(&self, key: Vec<u8>, value: impl reth_rlp::Encodable) {
+    pub fn set_eip868_rlp(&self, key: Vec<u8>, value: impl alloy_rlp::Encodable) {
         let mut buf = BytesMut::new();
         value.encode(&mut buf);
         self.set_eip868_rlp_pair(key, buf.freeze())
@@ -2134,9 +2134,9 @@ impl From<ForkId> for EnrForkIdEntry {
 mod tests {
     use std::{future::poll_fn, net::Ipv4Addr};
 
+    use alloy_rlp::{Decodable, Encodable};
     use rand::{thread_rng, Rng};
     use reth_primitives::{hex_literal::hex, mainnet_nodes, ForkHash};
-    use reth_rlp::{Decodable, Encodable};
 
     use super::*;
     use crate::test_utils::{create_discv4, create_discv4_with_config, rng_endpoint, rng_record};

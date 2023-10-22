@@ -1,7 +1,8 @@
 use alloy_primitives::{Address, B256, U256};
+use alloy_rlp::{Decodable, Encodable, Error};
+use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use bytes::{Bytes, BytesMut};
 use hex_literal::hex;
-use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
 use super::{Currency, ExternalStateSim, Signature};

@@ -22,7 +22,7 @@ use reth_primitives::{
     FromRecoveredPooledTransaction, IntoRecoveredTransaction, PeerId, PooledTransactionsElement,
     TransactionSigned, TxHash, TxType, H256,
 };
-use reth_rlp::Encodable;
+use alloy_rlp::Encodable;
 use reth_transaction_pool::{
     error::PoolResult, GetPooledTransactionLimit, PoolTransaction, PropagateKind,
     PropagatedTransactions, TransactionPool, ValidPoolTransaction,
@@ -855,7 +855,7 @@ mod tests {
     use reth_interfaces::sync::{NetworkSyncUpdater, SyncState};
     use reth_network_api::NetworkInfo;
     use reth_provider::test_utils::NoopProvider;
-    use reth_rlp::Decodable;
+    use alloy_rlp::Decodable;
     use reth_transaction_pool::test_utils::{testing_pool, MockTransaction};
     use secp256k1::SecretKey;
     use std::future::poll_fn;

@@ -1,7 +1,8 @@
 use std::{collections::HashMap, hash::Hash};
 
+use alloy_primitives::{Address, U256};
+use alloy_rlp::{Decodable, Encodable};
 use alloy_sol_types::sol;
-use reth_rlp::{Decodable, Encodable};
 use revm::primitives::{TransactTo, TxEnv, B160, U256 as RU256};
 use serde::{Deserialize, Serialize};
 
@@ -102,7 +103,7 @@ impl From<MevBundle> for TxEnv {
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 pub struct CallerInfo {
-    pub address:   B160,
+    pub address:   Address,
     pub nonce:     u64,
-    pub overrides: HashMap<B160, HashMap<RU256, RU256>>
+    pub overrides: HashMap<Address, HashMap<U256, U256>>
 }

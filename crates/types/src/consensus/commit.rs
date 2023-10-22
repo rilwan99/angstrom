@@ -1,5 +1,5 @@
+use alloy_rlp::{RlpDecodable, RlpEncodable};
 use ethers_core::types::H256;
-use reth_rlp::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
 use crate::on_chain::Signature;

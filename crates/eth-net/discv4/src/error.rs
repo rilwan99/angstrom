@@ -7,7 +7,7 @@ use tokio::sync::{mpsc::error::SendError, oneshot::error::RecvError};
 #[allow(missing_docs)]
 pub enum DecodePacketError {
     #[error("Failed to rlp decode: {0:?}")]
-    Rlp(#[from] reth_rlp::DecodeError),
+    Rlp(#[from] alloy_rlp::Error),
     #[error("Received packet len too short.")]
     PacketTooShort,
     #[error("Hash of the header not equals to the hash of the data.")]
@@ -15,7 +15,7 @@ pub enum DecodePacketError {
     #[error("Message id {0} is not supported.")]
     UnknownMessage(u8),
     #[error("Failed to recover public key: {0:?}")]
-    Secp256k1(#[from] secp256k1::Error),
+    Secp256k1(#[from] secp256k1::Error)
 }
 
 /// High level errors that can occur when interacting with the discovery service
@@ -26,7 +26,7 @@ pub enum Discv4Error {
     Send,
     /// Failed to receive a command response
     #[error(transparent)]
-    Receive(#[from] RecvError),
+    Receive(#[from] RecvError)
 }
 
 impl<T> From<SendError<T>> for Discv4Error {

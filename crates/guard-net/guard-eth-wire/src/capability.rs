@@ -1,5 +1,6 @@
 //! All capability related types
 
+use alloy_rlp::{Decodable, Encodable, Error, RlpDecodable, RlpEncodable};
 #[cfg(any(test, feature = "arbitrary"))]
 use proptest::{
     arbitrary::{any_with, ParamsFor},
@@ -7,7 +8,6 @@ use proptest::{
 };
 use reth_codecs::add_arbitrary_tests;
 use reth_primitives::bytes::{BufMut, Bytes};
-use reth_rlp::{Decodable, DecodeError, Encodable, RlpDecodable, RlpEncodable};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use smol_str::SmolStr;
@@ -161,7 +161,7 @@ impl Encodable for Capabilities {
 }
 
 impl Decodable for Capabilities {
-    fn decode(buf: &mut &[u8]) -> Result<Self, DecodeError> {
+    fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
         let inner = Vec::<Capability>::decode(buf)?;
 
         Ok(Self {

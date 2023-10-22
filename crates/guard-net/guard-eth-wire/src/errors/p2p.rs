@@ -15,7 +15,7 @@ pub enum P2PStreamError {
     #[error(transparent)]
     Io(#[from] io::Error),
     #[error(transparent)]
-    Rlp(#[from] reth_rlp::DecodeError),
+    Rlp(#[from] alloy_rlp::Error),
     #[error(transparent)]
     Snap(#[from] snap::Error),
     #[error(transparent)]
@@ -76,7 +76,7 @@ pub enum P2PHandshakeError {
     #[error("Disconnected by peer: {0}")]
     Disconnected(DisconnectReason),
     #[error("error decoding a message during handshake: {0}")]
-    DecodeError(#[from] reth_rlp::DecodeError),
+    Error(#[from] alloy_rlp::Error),
     #[error("unable to decode signature: {0}")]
     UnableToDecodeSignature(String),
     #[error("unable to recover signer: {0}")]

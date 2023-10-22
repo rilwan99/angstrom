@@ -1,10 +1,10 @@
 use std::fmt::{Debug, Display};
 
+use alloy_rlp::{RlpDecodable, RlpEncodable};
 use reth_codecs::derive_arbitrary;
 use reth_primitives::{
     hex, Chain, ChainSpec, ForkId, Genesis, Hardfork, Head, H256, MAINNET, U256
 };
-use reth_rlp::{RlpDecodable, RlpEncodable};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -154,13 +154,13 @@ impl Default for Status {
 mod tests {
     use std::str::FromStr;
 
+    use alloy_rlp::{Decodable, Encodable};
     use ethers_core::types::Chain as NamedChain;
     use hex_literal::hex;
     use rand::Rng;
     use reth_primitives::{
         Chain, ChainSpec, ForkCondition, ForkHash, ForkId, Genesis, Hardfork, Head, H256, U256
     };
-    use reth_rlp::{Decodable, Encodable};
 
     use crate::types::{EthVersion, Status};
 

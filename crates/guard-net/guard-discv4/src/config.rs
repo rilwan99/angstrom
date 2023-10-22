@@ -8,13 +8,13 @@ use std::{
     time::Duration
 };
 
+use alloy_rlp::Encodable;
 use reth_net_common::ban_list::BanList;
 use reth_net_nat::{NatResolver, ResolveNatInterval};
 use reth_primitives::{
     bytes::{Bytes, BytesMut},
     NodeRecord
 };
-use reth_rlp::Encodable;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 

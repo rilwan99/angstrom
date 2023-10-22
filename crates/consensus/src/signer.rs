@@ -1,10 +1,10 @@
+use alloy_rlp::Encodable;
 use ethers_signers::{LocalWallet, Signer as ESigner, WalletError};
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
     on_chain::{LowerBound, Signature, VanillaBundle}
 };
 use reth_primitives::{keccak256, H256, H512};
-use reth_rlp::Encodable;
 use revm_primitives::{bytes::BytesMut, Address};
 
 /// The Signer deals with verifying external signatures as well as

@@ -1,12 +1,12 @@
 #![allow(missing_docs)]
 use std::{fmt::Debug, sync::Arc};
 
+use alloy_rlp::{length_of_length, Decodable, Encodable, Header};
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
     on_chain::{SubmittedOrder, VanillaBundle}
 };
 use reth_primitives::bytes::{Buf, BufMut};
-use reth_rlp::{length_of_length, Decodable, Encodable, Header};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -218,8 +218,8 @@ impl Encodable for EthMessageID {
 }
 
 impl Decodable for EthMessageID {
-    fn decode(buf: &mut &[u8]) -> Result<Self, reth_rlp::DecodeError> {
-        let id = buf.first().ok_or(reth_rlp::DecodeError::InputTooShort)?;
+    fn decode(buf: &mut &[u8]) -> Result<Self, alloy_rlp::Error> {
+        let id = buf.first().ok_or(alloy_rlp::Error::InputTooShort)?;
         let id = match id {
             0 => EthMessageID::Status,
             1 => EthMessageID::PropagateBundle,
@@ -227,7 +227,7 @@ impl Decodable for EthMessageID {
             3 => EthMessageID::PrePropose,
             4 => EthMessageID::Proposal,
             5 => EthMessageID::Commit,
-            _ => return Err(reth_rlp::DecodeError::Custom("Invalid message ID"))
+            _ => return Err(alloy_rlp::Error::Custom("Invalid message ID"))
         };
         buf.advance(1);
         Ok(id)
@@ -268,7 +268,7 @@ impl<T> Encodable for RequestPair<T>
 where
     T: Encodable
 {
-    fn encode(&self, out: &mut dyn reth_rlp::BufMut) {
+    fn encode(&self, out: &mut dyn alloy_rlp::BufMut) {
         let header = Header {
             list:           true,
             payload_length: self.request_id.length() + self.message.length()
@@ -293,7 +293,7 @@ impl<T> Decodable for RequestPair<T>
 where
     T: Decodable
 {
-    fn decode(buf: &mut &[u8]) -> Result<Self, reth_rlp::DecodeError> {
+    fn decode(buf: &mut &[u8]) -> Result<Self, alloy_rlp::Error> {
         let _header = Header::decode(buf)?;
         Ok(Self { request_id: u64::decode(buf)?, message: T::decode(buf)? })
     }
@@ -302,7 +302,7 @@ where
 #[cfg(test)]
 mod test {
     // use hex_literal::hex;
-    // use reth_rlp::{Decodable, Encodable};
+    // use alloy_rlp::{Decodable, Encodable};
     //
     // use crate::{
     //     errors::EthStreamError, types::message::RequestPair, EthMessage,
