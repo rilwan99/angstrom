@@ -129,7 +129,9 @@ sol! {
         function lockAcquired(bytes memory aBundle) external returns (bytes memory);
         function nonceBitmap(address, uint256) external view returns (uint256);
         function owner() external view returns (address result);
-        function ownershipHandoverExpiresAt(address pendingOwner) external view returns (uint256 result);
+        function ownershipHandoverExpiresAt(
+            address pendingOwner
+        ) external view returns (uint256 result);
         function poolManager() external view returns (address);
         function process(Bundle memory aBundle) external;
         function renounceOwnership() external payable;

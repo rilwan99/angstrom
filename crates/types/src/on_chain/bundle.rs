@@ -26,7 +26,7 @@ sol! {
     }
 
     /// @notice Instruction to donate revenue to a pool.
-    #[derive(Debug, PartialEq, Eq,Serialize, Deserialize, RlpEncodable, RlpDecodable)]
+    #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
     struct PoolFees {
         /// @member The pool to pay fees to.
         PoolKey pool;
@@ -37,7 +37,7 @@ sol! {
     }
 
     /// @notice Instruction to execute a swap on UniswapV4.
-    #[derive(Debug, PartialEq, Eq,Serialize, Deserialize, RlpEncodable, RlpDecodable)]
+    #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
     struct PoolSwap {
         /// @member The pool to perform the swap on.
         PoolKey pool;
@@ -47,7 +47,7 @@ sol! {
         uint256 amountIn;
     }
     /// @notice Uniswap instructions to execute after lock is taken.
-    #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
+    #[derive(Debug, PartialEq, Eq, Hash, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
     struct UniswapData {
         /// @member The discrete swaps to perform, there should be at most one entry
         ///         per pool.
@@ -87,7 +87,7 @@ pub struct SignedVanillaBundle {
     pub signatures: Vec<Signature>
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable, Hash)]
 pub struct VanillaBundle {
     orders:       Vec<Order>,
     uniswap_data: UniswapData

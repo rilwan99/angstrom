@@ -10,7 +10,11 @@ use std::{
 use common::PollExt;
 use ethers_core::types::transaction::eip712::TypedData;
 use futures::{Stream, StreamExt};
-use guard_types::on_chain::{Signature, SubmittedOrder, UserOrder, VanillaBundle};
+use guard_types::{
+    consensus::PreProposal,
+    contract_bindings::Angstrom::Order,
+    on_chain::{Signature, SubmittedOrder, VanillaBundle}
+};
 use hyper::{http::HeaderValue, Method};
 use jsonrpsee::{
     proc_macros::rpc, server::ServerHandle, PendingSubscriptionSink, SubscriptionSink
@@ -103,7 +107,7 @@ pub enum SubscriptionResult {
 #[async_trait::async_trait]
 pub trait GuardSubmitApi {
     #[method(name = "SubmitOrder")]
-    async fn submit_order(&self, signature: Signature, meta_tx: Order) -> RpcResult<bool>;
+    async fn submit_order(&self, signature: Signature, meta_tx: TypedData) -> RpcResult<bool>;
 }
 
 #[rpc(server, namespace = "guard_sub")]
@@ -142,19 +146,19 @@ impl SubmissionServer {
     /// used to share new txes with externally subscribed users
     pub fn on_new_user_tx(&mut self, tx: Arc<SubmittedOrder>) {
         self.server_subscriptions
-            .entry(SubscriptionKind::CowTransactions)
+            .entry(SubscriptionKind::NewBestSearcherOrder)
             .or_default()
             .retain(|sender| {
                 sender
-                    .try_send(SubscriptionResult::UserOrder(tx.clone()))
+                    .try_send(SubscriptionResult::SearcherOrder(tx.clone()))
                     .is_ok()
             });
     }
 
     /// used to share new bundles with externally subscribed users
-    pub fn on_new_prepropose(&mut self, bundle: Arc<VanillaBundle>) {
+    pub fn on_new_best_bundle(&mut self, bundle: Arc<VanillaBundle>) {
         self.server_subscriptions
-            .entry(SubscriptionKind::BestBundles)
+            .entry(SubscriptionKind::NewBestBundle)
             .or_default()
             .retain(|sender| {
                 sender
@@ -222,7 +226,7 @@ impl SubmissionServerInner {
 impl GuardSubmitApiServer for SubmissionServerInner {
     async fn submit_order(&self, signature: Signature, meta_tx: TypedData) -> RpcResult<bool> {
         info!(?meta_tx, "new user submission");
-        let Ok(user_tx): Result<UserOrder, _> = serde_json::from_value(serde_json::Value::Object(
+        let Ok(user_tx): Result<Order, _> = serde_json::from_value(serde_json::Value::Object(
             serde_json::Map::from_iter(meta_tx.message)
         )) else {
             return Ok(false)

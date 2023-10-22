@@ -6,7 +6,7 @@ use crate::{
     on_chain::{Signature, SubmittedOrder}
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, RlpDecodable, RlpEncodable)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, RlpDecodable, RlpEncodable)]
 pub struct PoolOrders {
     pub pool:         PoolKey,
     pub searcher_bid: SubmittedOrder,
@@ -14,7 +14,7 @@ pub struct PoolOrders {
     pub sorted_asks:  Vec<SubmittedOrder>
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, RlpEncodable, RlpDecodable)]
 pub struct PreProposal {
     pub ethereum_height: u64,
     pub pre_bundle:      Vec<PoolOrders>,
