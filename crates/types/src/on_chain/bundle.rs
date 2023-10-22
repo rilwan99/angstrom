@@ -1,14 +1,14 @@
 use std::{collections::HashMap, hash::Hash};
 
-use alloy_primitives::{Address, U256};
+use alloy_primitives::{Address, Signed, Uint, U256};
 use alloy_rlp::{Decodable, Encodable};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_types::sol;
-use revm::primitives::{TransactTo, TxEnv, U256 as RU256};
+use revm::primitives::TxEnv;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    contract_bindings::{Angstrom::Order, PoolManager::PoolKey},
+    contract_bindings::Angstrom::{Order, PoolKey},
     Signature
 };
 
@@ -16,6 +16,7 @@ sol! {
     #![sol(all_derives = true)]
     type Currency is address;
     /// @notice Instruction to settle an amount of currency.
+    #[derive(Serialize, Deserialize)]
     struct CurrencySettlement {
         /// @member The currency to settle.
         Currency currency;
@@ -25,7 +26,7 @@ sol! {
     }
 
     /// @notice Instruction to donate revenue to a pool.
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq,Serialize, Deserialize, RlpEncodable, RlpDecodable)]
     struct PoolFees {
         /// @member The pool to pay fees to.
         PoolKey pool;
@@ -36,7 +37,7 @@ sol! {
     }
 
     /// @notice Instruction to execute a swap on UniswapV4.
-    #[derive(Debug, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+    #[derive(Debug, PartialEq, Eq,Serialize, Deserialize, RlpEncodable, RlpDecodable)]
     struct PoolSwap {
         /// @member The pool to perform the swap on.
         PoolKey pool;
@@ -46,7 +47,7 @@ sol! {
         uint256 amountIn;
     }
     /// @notice Uniswap instructions to execute after lock is taken.
-    #[derive(Debug, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+    #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
     struct UniswapData {
         /// @member The discrete swaps to perform, there should be at most one entry
         ///         per pool.
@@ -60,13 +61,33 @@ sol! {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+impl Encodable for CurrencySettlement {
+    fn length(&self) -> usize {
+        56
+    }
+
+    fn encode(&self, out: &mut dyn bytes::BufMut) {
+        self.currency.encode(out);
+        self.amountNet.twos_complement().encode(out);
+    }
+}
+impl Decodable for CurrencySettlement {
+    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+        let currency = Address::decode(buf)?;
+        let amount_net = Uint::<256, 4>::decode(buf)?;
+        let twos = Signed::from_raw((!amount_net).overflowing_add(Uint::from(1)).0);
+
+        Ok(Self { amountNet: twos, currency })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
 pub struct SignedVanillaBundle {
     pub bundle:     VanillaBundle,
     pub signatures: Vec<Signature>
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 pub struct VanillaBundle {
     orders:       Vec<Order>,
     uniswap_data: UniswapData

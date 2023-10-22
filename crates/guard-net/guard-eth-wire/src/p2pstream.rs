@@ -14,7 +14,7 @@ use reth_codecs::{derive_arbitrary, Compact};
 use reth_metrics::metrics::counter;
 use reth_primitives::{
     bytes::{Buf, BufMut, Bytes, BytesMut},
-    hex, keccak256, Address, PeerId, Signature, H160, H256, H512
+    hex, keccak256, Address, PeerId, Signature, H256, H512
 };
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
@@ -188,7 +188,7 @@ where
         )
         .unwrap();
 
-        let msg: Message = Message::from_slice(their_hello.signed_hello.as_bytes()).unwrap();
+        let msg: Message = Message::from_slice(their_hello.signed_hello.as_ref() as &[u8]).unwrap();
         let recovered_pub_key = sig.recover(&msg).unwrap();
         let pub_key: [u8; 64] = recovered_pub_key.serialize_uncompressed()[1..]
             .try_into()
@@ -911,8 +911,8 @@ pub(crate) fn convert_sig(sig: Bytes) -> Signature {
     let s: [u8; 32] = sig[32..64].try_into().unwrap();
     let y = if sig[64] == 1 { true } else { false };
     let sig = Signature {
-        r:            reth_primitives::H256(r).into(),
-        s:            reth_primitives::H256(s).into(),
+        r:            reth_primitives::H256::from_slice(&r).into(),
+        s:            reth_primitives::H256::from_slice(&s).into(),
         odd_y_parity: y
     };
 

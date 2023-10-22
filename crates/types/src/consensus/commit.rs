@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::on_chain::Signature;
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 pub struct Commit {
     pub block_height: u64,
 

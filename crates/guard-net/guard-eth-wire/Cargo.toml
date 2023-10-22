@@ -20,7 +20,7 @@ reth-codecs.workspace = true
 reth-primitives.workspace = true
 reth-ecies.workspace = true
 alloy-rlp.workspace = true
-guard-discv4 = {path = "../guard-discv4" }
+guard-discv4 = { path = "../guard-discv4" }
 
 # metrics
 reth-metrics.workspace = true
@@ -54,7 +54,12 @@ tokio-util = { workspace = true, features = ["io", "codec"] }
 hex-literal = "0.3"
 hex = "0.4"
 rand.workspace = true
-secp256k1 = { workspace = true, features = ["global-context", "rand-std", "recovery", "alloc"] }
+secp256k1 = { workspace = true, features = [
+  "global-context",
+  "rand-std",
+  "recovery",
+  "alloc",
+] }
 
 arbitrary = { workspace = true, features = ["derive"] }
 proptest.workspace = true
@@ -63,7 +68,12 @@ proptest-derive = "0.3"
 [features]
 default = ["serde"]
 serde = ["dep:serde", "smol_str/serde"]
-arbitrary = ["reth-primitives/arbitrary", "dep:arbitrary", "dep:proptest", "dep:proptest-derive"]
+arbitrary = [
+  "reth-primitives/arbitrary",
+  "dep:arbitrary",
+  "dep:proptest",
+  "dep:proptest-derive",
+]
 
 [[test]]
 name = "fuzz_roundtrip"

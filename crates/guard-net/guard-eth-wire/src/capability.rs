@@ -41,14 +41,14 @@ pub enum CapabilityMessage {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Capability {
     /// The name of the subprotocol
-    pub name:    SmolStr,
+    pub name:    String,
     /// The version of the subprotocol
     pub version: usize
 }
 
 impl Capability {
     /// Create a new `Capability` with the given name and version.
-    pub fn new(name: SmolStr, version: usize) -> Self {
+    pub fn new(name: String, version: usize) -> Self {
         Self { name, version }
     }
 
@@ -75,7 +75,7 @@ impl Capability {
 impl<'a> arbitrary::Arbitrary<'a> for Capability {
     fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
         let version = u.int_in_range(0..=32)?; // TODO: What's the max?
-        let name: SmolStr = String::arbitrary(u)?.into(); // TODO: what possible values?
+        let name: String = String::arbitrary(u)?; // TODO: what possible values?
         Ok(Self { name, version })
     }
 }

@@ -221,7 +221,3 @@ sol! {
         function extsload(bytes32 slot, uint256 nSlots) external view returns (bytes memory value);
     }
 }
-
-impl Decodable for PoolKey {}
-
-impl Encodable for PoolKey {}

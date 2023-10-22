@@ -1,19 +1,20 @@
 use std::{collections::HashMap, sync::Arc};
 
+use alloy_primitives::Address;
 use parking_lot::RwLock;
 use reth_db::mdbx::{tx::Tx, WriteMap, RO};
 use reth_provider::LatestStateProvider;
-use reth_revm::database::State;
+use reth_revm::State;
 use revm::db::{AccountState, DbAccount};
-use revm_primitives::{db::DatabaseRef, AccountInfo, Bytecode, B160, B256, U256};
+use revm_primitives::{db::DatabaseRef, AccountInfo, Bytecode, B256, U256};
 use schnellru::{ByMemoryUsage, LruMap};
 
 use crate::{errors::SimError, state::RevmBackend};
 
 pub struct RevmLRU {
-    state_overrides:    HashMap<B160, HashMap<U256, U256>>,
-    bytecode_overrides: HashMap<B160, Bytecode>,
-    accounts:           Arc<RwLock<LruMap<B160, DbAccount, ByMemoryUsage>>>,
+    state_overrides:    HashMap<Address, HashMap<U256, U256>>,
+    bytecode_overrides: HashMap<Address, Bytecode>,
+    accounts:           Arc<RwLock<LruMap<Address, DbAccount, ByMemoryUsage>>>,
     contracts:          Arc<RwLock<LruMap<B256, Bytecode, ByMemoryUsage>>>,
     db:                 Arc<reth_db::mdbx::Env<WriteMap>>
 }
@@ -71,17 +72,17 @@ impl RevmLRU {
         }
     }
 
-    pub fn set_state_overrides(&mut self, overrides: HashMap<B160, HashMap<U256, U256>>) {
+    pub fn set_state_overrides(&mut self, overrides: HashMap<Address, HashMap<U256, U256>>) {
         self.state_overrides = overrides
     }
 
-    pub fn set_bytecode_overrides(&mut self, overrides: HashMap<B160, Bytecode>) {
+    pub fn set_bytecode_overrides(&mut self, overrides: HashMap<Address, Bytecode>) {
         self.bytecode_overrides = overrides
     }
 
     pub fn get_lastest_state_provider(
         tx: Tx<'_, RO, WriteMap>
-    ) -> State<LatestStateProvider<'_, Tx<'_, RO, WriteMap>>> {
+    ) -> State<LatestStateProvider<Tx<'_, RO, WriteMap>>> {
         let db_provider = LatestStateProvider::new(tx);
 
         State::new(db_provider)
@@ -91,7 +92,7 @@ impl RevmLRU {
 impl DatabaseRef for RevmLRU {
     type Error = SimError;
 
-    fn basic(&self, address: B160) -> Result<Option<AccountInfo>, Self::Error> {
+    fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         let accounts = self.accounts.read();
         match accounts.peek(&address) {
             Some(acc) => Ok(acc.info()),
@@ -102,12 +103,12 @@ impl DatabaseRef for RevmLRU {
         }
     }
 
-    fn code_by_hash(&self, _code_hash: B256) -> Result<Bytecode, Self::Error> {
+    fn code_by_hash_ref(&self, _code_hash: B256) -> Result<Bytecode, Self::Error> {
         unreachable!() // this should never be reached since the code hash is
                        // defined in basic()
     }
 
-    fn storage(&self, address: B160, index: U256) -> Result<U256, Self::Error> {
+    fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
         // check overrides
         if let Some(storage) = self.state_overrides.get(&address) {
             if let Some(value) = storage.get(&index) {
@@ -135,7 +136,7 @@ impl DatabaseRef for RevmLRU {
         Ok(U256::default())
     }
 
-    fn block_hash(&self, _number: U256) -> Result<B256, Self::Error> {
+    fn block_hash_ref(&self, _number: U256) -> Result<B256, Self::Error> {
         unreachable!() // this should never be reached since we will never sim
                        // blocks
     }

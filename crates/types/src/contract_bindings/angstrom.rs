@@ -2,6 +2,7 @@ pub use alloy_primitives::*;
 use alloy_rlp::{Decodable, Encodable, Error};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_macro::sol;
+use serde::{Deserialize, Serialize};
 
 sol! {
     #![sol(all_derives = true)]
@@ -32,7 +33,7 @@ sol! {
             uint160 sqrtPriceLimitX96;
         }
 
-        #[derive(RlpEncodable, RlpDecodable)]
+        #[derive(Serialize, Deserialize, RlpEncodable, RlpDecodable)]
         struct Order {
             uint256 nonce;
             uint8 orderType;
@@ -53,6 +54,7 @@ sol! {
             SearcherFallible
         }
 
+        #[derive(Serialize, Deserialize)]
         struct PoolKey {
             address currency0;
             address currency1;
@@ -133,5 +135,25 @@ sol! {
         function renounceOwnership() external payable;
         function requestOwnershipHandover() external payable;
         function transferOwnership(address newOwner) external payable;
+    }
+}
+
+impl Encodable for Angstrom::PoolKey {
+    fn encode(&self, out: &mut dyn bytes::BufMut) {
+        self.currency0.encode(out);
+        self.currency1.encode(out);
+        self.fee.encode(out);
+        // self.tickSpacing
+        self.hooks.encode(out);
+    }
+
+    fn length(&self) -> usize {
+        68
+    }
+}
+
+impl Decodable for Angstrom::PoolKey {
+    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+        todo!()
     }
 }

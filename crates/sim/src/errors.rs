@@ -1,7 +1,7 @@
 use ethers_core::types::transaction::eip712::{Eip712Error, TypedData};
 use guard_types::on_chain::SubmittedOrder;
 use reth_primitives::Signature;
-use revm_primitives::{Account, HashMap, TxEnv, B160};
+use revm_primitives::{Account, Address, HashMap, TxEnv};
 use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
 
@@ -29,7 +29,7 @@ impl SimResult {
 #[derive(Debug, Error)]
 pub enum SimError {
     #[error("Unable to read Revm-Reth StateProvider Database")]
-    RevmDatabaseError(reth_interfaces::Error),
+    RevmDatabaseError(reth_interfaces::RethError),
     #[error("Unable to Send Transaction to Sim: {0:#?}")]
     SendToSimError(SendError<SimEvent>),
     #[error("Unable to Create Runtime For ThreadPool")]
@@ -47,7 +47,7 @@ pub enum SimError {
     #[error("EVM Simulation Error: {0:#?}")]
     RevmEVMTransactionError(TxEnv),
     #[error("Revm Cache Error: {0:#?}")]
-    RevmCacheError((TxEnv, HashMap<B160, Account>)),
+    RevmCacheError((TxEnv, HashMap<Address, Account>)),
     #[error("Call instead of create transaction: {0:#?}")]
     CallInsteadOfCreateError(TxEnv),
     #[error("Error Decoding EIP712 Transaction: {0:#?}")]
@@ -86,8 +86,8 @@ impl From<reth_db::mdbx::Error> for SimError {
     }
 }
 
-impl From<reth_interfaces::Error> for SimError {
-    fn from(value: reth_interfaces::Error) -> Self {
+impl From<reth_interfaces::RethError> for SimError {
+    fn from(value: reth_interfaces::RethError) -> Self {
         SimError::RevmDatabaseError(value)
     }
 }

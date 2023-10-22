@@ -139,7 +139,7 @@ impl Default for Status {
         let mainnet_genesis = MAINNET.genesis_hash();
         Status {
             version:          EthVersion::Eth68 as u8,
-            chain:            Chain::Named(ethers_core::types::Chain::Mainnet),
+            chain:            Chain::Named(reth_primitives::NamedChain::Mainnet),
             total_difficulty: U256::from(17_179_869_184u64),
             blockhash:        mainnet_genesis,
             genesis:          mainnet_genesis,

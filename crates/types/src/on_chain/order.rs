@@ -9,7 +9,7 @@ use crate::contract_bindings::Angstrom::Order;
 
 /// Signed order with actual execution amounts.
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, RlpEncodable, RlpDecodable)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, RlpEncodable, RlpDecodable)]
 pub struct SubmittedOrder {
     /// The original order from the user.
     pub details:   Order,

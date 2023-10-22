@@ -1,7 +1,7 @@
 //! Error handling for [`P2PStream`](crate::P2PStream)
 use std::io;
 
-use reth_primitives::{PeerId, Signature, H160};
+use reth_primitives::PeerId;
 
 use crate::{
     capability::SharedCapabilityError, disconnect::UnknownDisconnectReason, DisconnectReason

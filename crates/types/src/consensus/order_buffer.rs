@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::on_chain::SubmittedOrder;
 
-#[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 pub struct OrderBuffer {
     pub excess_orders:  Vec<SubmittedOrder>,
     pub reserve_orders: Vec<SubmittedOrder>
