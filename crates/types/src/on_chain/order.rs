@@ -1,5 +1,5 @@
 use alloy_primitives::{Address, B256, U256};
-use alloy_rlp_derive::{RlpEncodable, RlpDecodable};
+use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use bytes::{Bytes, BytesMut};
 use hex_literal::hex;
 use serde::{Deserialize, Serialize};

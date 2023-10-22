@@ -17,7 +17,7 @@ sol! {
             ExecutedOrder[] orders;
             bytes uniswapData;
         }
-    
+
         #[derive(RlpEncodable, RlpDecodable)]
         struct ExecutedOrder {
             Order order;

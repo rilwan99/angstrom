@@ -1,10 +1,9 @@
+use alloy_rlp::{Decodable, Encodable};
 use alloy_sol_macro::sol;
-use alloy_rlp::{Encodable, Decodable};
-
 
 sol! {
     #![sol(all_derives = true)]
-    
+
     interface PoolManager is IFees, IERC1155 {
         type Currency is address;
         type PoolId is bytes32;
@@ -223,9 +222,6 @@ sol! {
     }
 }
 
-impl Decodable for PoolKey {
+impl Decodable for PoolKey {}
 
-}
-
-impl Encodable for PoolKey {
-}
+impl Encodable for PoolKey {}
