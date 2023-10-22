@@ -16,7 +16,7 @@ reth-primitives.workspace = true
 alloy-rlp.workspace = true
 alloy-rlp-derive.workspace = true
 
-
+rlp = "0.5" # needed for enr
 reth-net-common = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
 reth-net-nat = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
 
@@ -42,7 +42,7 @@ thiserror.workspace = true
 parking_lot.workspace = true
 hex = "0.4"
 rand = { workspace = true, optional = true }
-generic-array = "1.0.0"
+generic-array = "0.14.7"
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]

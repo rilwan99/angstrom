@@ -1,16 +1,24 @@
-pub use alloy_primitives::*;
-use alloy_rlp::{Decodable, Encodable, Error};
-use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_macro::sol;
-
 
 
 sol! {
     #![sol(all_derives = true)]
-    interface IPoolManager is IFees, IERC1155 {
+    
+    interface PoolManager is IFees, IERC1155 {
         type Currency is address;
-        
-        #[derive(RlpDecodable, RlpEncodable)]
+        type PoolId is bytes32;
+        type IHooks is address;
+        type BalanceDelta is int256;
+
+        // info stored for each user's position
+        struct Info {
+            // the amount of liquidity owned by this position
+            uint128 liquidity;
+            // fee growth per unit of liquidity as of the last update to liquidity or fees owed
+            uint256 feeGrowthInside0LastX128;
+            uint256 feeGrowthInside1LastX128;
+        }
+
         /// @notice Returns the key for identifying a pool
         struct PoolKey {
             /// @notice The lower currency of the pool, sorted numerically
@@ -121,7 +129,7 @@ sol! {
         function getPosition(PoolId id, address owner, int24 tickLower, int24 tickUpper)
             external
             view
-            returns (Position.Info memory position);
+            returns (Info memory position);
 
         /// @notice Returns the reserves for a given ERC20 currency
         function reservesOf(Currency currency) external view returns (uint256);

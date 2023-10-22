@@ -266,23 +266,23 @@ where
 
 impl<K: EnrKey> Decodable for EnrWrapper<K> {
     fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
-        let enr = <Enr<K> as rlp::Decodable>::decode(&rlp::Rlp::new(buf))
+        let enr = <Enr<K> asalloy_rlp::Decodable>::decode(&rlp::Rlp::new(buf))
             .map_err(|e| match e {
-                rlp::DecoderError::RlpIsTooShort => Error::InputTooShort,
-                rlp::DecoderError::RlpInvalidLength => Error::Overflow,
-                rlp::DecoderError::RlpExpectedToBeList => Error::UnexpectedString,
-                rlp::DecoderError::RlpExpectedToBeData => Error::UnexpectedList,
-                rlp::DecoderError::RlpDataLenWithZeroPrefix
-                | rlp::DecoderError::RlpListLenWithZeroPrefix => Error::LeadingZero,
-                rlp::DecoderError::RlpInvalidIndirection => Error::NonCanonicalSize,
-                rlp::DecoderError::RlpIncorrectListLen => {
+               alloy_rlp::Error::RlpIsTooShort => Error::InputTooShort,
+               alloy_rlp::Error::RlpInvalidLength => Error::Overflow,
+               alloy_rlp::Error::RlpExpectedToBeList => Error::UnexpectedString,
+               alloy_rlp::Error::RlpExpectedToBeData => Error::UnexpectedList,
+               alloy_rlp::Error::RlpDataLenWithZeroPrefix
+                |alloy_rlp::Error::RlpListLenWithZeroPrefix => Error::LeadingZero,
+               alloy_rlp::Error::RlpInvalidIndirection => Error::NonCanonicalSize,
+               alloy_rlp::Error::RlpIncorrectListLen => {
                     Error::Custom("incorrect list length when decoding rlp")
                 }
-                rlp::DecoderError::RlpIsTooBig => Error::Custom("rlp is too big"),
-                rlp::DecoderError::RlpInconsistentLengthAndData => {
+               alloy_rlp::Error::RlpIsTooBig => Error::Custom("rlp is too big"),
+               alloy_rlp::Error::RlpInconsistentLengthAndData => {
                     Error::Custom("inconsistent length and data when decoding rlp")
                 }
-                rlp::DecoderError::Custom(s) => Error::Custom(s)
+               alloy_rlp::Error::Custom(s) => Error::Custom(s)
             })
             .map(EnrWrapper::new);
         if enr.is_ok() {

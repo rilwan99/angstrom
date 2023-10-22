@@ -6,8 +6,10 @@ use alloy_sol_types::sol;
 use revm::primitives::{TransactTo, TxEnv, U256 as RU256};
 use serde::{Deserialize, Serialize};
 
-use super::{angstrom_CONTRACT_ADDR, Signature};
-use crate::contract_bindings::{Angstrom::Order, PoolManager::PoolKey};
+use crate::{
+    contract_bindings::{Angstrom::Order, PoolManager::PoolKey},
+    Signature
+};
 
 sol! {
     #![sol(all_derives = true)]

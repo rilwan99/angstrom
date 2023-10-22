@@ -56,6 +56,7 @@ serde_json.workspace = true
 hex-literal.workspace = true
 reth-db.workspace = true
 
+alloy-primitives.workspace = true
 guard-types.workspace = true
 common.workspace = true
 consensus.workspace = true
@@ -117,6 +118,7 @@ alloy-sol-macro = { version = "0.4.0", features = ["json"] }
 alloy-rlp = {version = "0.3.3"}
 alloy-rlp-derive = {version = "0.3.3"}
 alloy-primitives = {version = "0.4.0", features = ["rlp"]}
+
 
 
 hex-literal = "0.4.1"

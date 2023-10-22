@@ -356,7 +356,7 @@ impl Discv4 {
     /// If the key already exists, this will update it.
     ///
     /// CAUTION: The value **must** be rlp encoded
-    pub fn set_eip868_rlp_pair(&self, key: Vec<u8>, rlp: Bytes) {
+    pub fn set_eip868_rlp_pair(&self, key: Vec<u8>, alloy_rlp: Bytes) {
         let cmd = Discv4Command::SetEIP868RLPPair { key, rlp };
         self.send_to_service(cmd);
     }
@@ -1752,7 +1752,7 @@ pub(crate) async fn receive_loop(udp: Arc<UdpSocket>, tx: IngressSender, local_i
 enum Discv4Command {
     Add(NodeRecord),
     SetTcpPort(u16),
-    SetEIP868RLPPair { key: Vec<u8>, rlp: Bytes },
+    SetEIP868RLPPair { key: Vec<u8>, alloy_rlp: Bytes },
     Ban(PeerId, IpAddr),
     BanPeer(PeerId),
     BanIp(IpAddr),

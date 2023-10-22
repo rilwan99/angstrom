@@ -90,7 +90,7 @@ impl Discv4Config {
     }
 
     /// Add another key value pair to include in the ENR
-    pub fn add_eip868_rlp_pair(&mut self, key: impl AsRef<[u8]>, rlp: Bytes) -> &mut Self {
+    pub fn add_eip868_rlp_pair(&mut self, key: impl AsRef<[u8]>, alloy_rlp: Bytes) -> &mut Self {
         self.additional_eip868_rlp_pairs
             .insert(key.as_ref().to_vec(), rlp);
         self
@@ -248,7 +248,7 @@ impl Discv4ConfigBuilder {
     }
 
     /// Add another key value pair to include in the ENR
-    pub fn add_eip868_rlp_pair(&mut self, key: impl AsRef<[u8]>, rlp: Bytes) -> &mut Self {
+    pub fn add_eip868_rlp_pair(&mut self, key: impl AsRef<[u8]>, alloy_rlp: Bytes) -> &mut Self {
         self.config
             .additional_eip868_rlp_pairs
             .insert(key.as_ref().to_vec(), rlp);

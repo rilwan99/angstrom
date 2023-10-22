@@ -3,8 +3,6 @@ use alloy_rlp::{Decodable, Encodable, Error};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_macro::sol;
 
-use crate::contract_bindings::Angstrom::OrderType;
-
 sol! {
     #![sol(all_derives = true)]
 
@@ -133,17 +131,5 @@ sol! {
         function renounceOwnership() external payable;
         function requestOwnershipHandover() external payable;
         function transferOwnership(address newOwner) external payable;
-    }
-}
-
-impl Encodable for OrderType {
-    fn encode(&self, out: &mut dyn bytes::BufMut) {
-        let byte: u8 = unsafe { std::mem::transmute(*self) };
-        out.put_u8(byte)
-    }
-}
-impl Decodable for OrderType {
-    fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
-        unsafe { std::mem::transmute(u8::decode(buf)) }
     }
 }

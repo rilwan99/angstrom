@@ -122,7 +122,12 @@ pub enum EthMessage {
     PropagateOrder(SubmittedOrder),
     PropagateBundle(VanillaBundle)
 }
-
+//TODO: Will, you have to implement the request pair model so that you can have
+//TODO: the message & request pair is rlp encode/decodable but the type that
+// the request pair holds is not rlp encode/decodable it is only
+// RlpEncodableWrapper, RlpDecodableWrapper which completely removes the fuckery
+// we had intially
+//
 impl EthMessage {
     /// Returns the message's ID.
     pub fn message_id(&self) -> EthMessageID {
@@ -154,7 +159,7 @@ macro_rules! encodable_enum {
         }
     };
 }
-
+//TODO: see how they do it in ethereum
 encodable_enum!(EthMessage, Status, PropagateOrder, PropagateBundle, Commit, Proposal, PrePropose);
 
 /// Represents broadcast messages of [`EthMessage`] with the same object that

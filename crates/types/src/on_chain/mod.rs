@@ -16,12 +16,6 @@ pub use order::*;
 pub use signature::*;
 pub use submission::*;
 
-/// 1234567890abcedf1234567890abcdef12345678
-pub const angstrom_CONTRACT_ADDR: Address =
-    Address(hex!("1234567890abcedf1234567890abcdef12345678").into());
-
-pub type Currency = Address;
-
 /// This type is for when we want to notify consensus of our new internal best
 /// data.
 #[derive(Debug, Clone)]
