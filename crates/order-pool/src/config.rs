@@ -14,32 +14,33 @@ pub const DEFAULT_PRICE_BUMP: u128 = 10;
 
 /// Replace blob price bump (in %) for the transaction pool underpriced check.
 ///
-/// This enforces that a blob transaction requires a 100% price bump to be replaced
+/// This enforces that a blob transaction requires a 100% price bump to be
+/// replaced
 pub const REPLACE_BLOB_PRICE_BUMP: u128 = 100;
 
 /// Configuration options for the Transaction pool.
 #[derive(Debug, Clone)]
 pub struct PoolConfig {
     /// Max number of transaction in the pending sub-pool
-    pub pending_limit: SubPoolLimit,
+    pub pending_limit:     SubPoolLimit,
     /// Max number of transaction in the basefee sub-pool
-    pub basefee_limit: SubPoolLimit,
+    pub basefee_limit:     SubPoolLimit,
     /// Max number of transaction in the queued sub-pool
-    pub queued_limit: SubPoolLimit,
+    pub queued_limit:      SubPoolLimit,
     /// Max number of executable transaction slots guaranteed per account
     pub max_account_slots: usize,
     /// Price bump (in %) for the transaction pool underpriced check.
-    pub price_bumps: PriceBumpConfig,
+    pub price_bumps:       PriceBumpConfig
 }
 
 impl Default for PoolConfig {
     fn default() -> Self {
         Self {
-            pending_limit: Default::default(),
-            basefee_limit: Default::default(),
-            queued_limit: Default::default(),
+            pending_limit:     Default::default(),
+            basefee_limit:     Default::default(),
+            queued_limit:      Default::default(),
             max_account_slots: TXPOOL_MAX_ACCOUNT_SLOTS_PER_SENDER,
-            price_bumps: Default::default(),
+            price_bumps:       Default::default()
         }
     }
 }
@@ -48,9 +49,9 @@ impl Default for PoolConfig {
 #[derive(Debug, Clone)]
 pub struct SubPoolLimit {
     /// Maximum amount of transaction in the pool.
-    pub max_txs: usize,
+    pub max_txs:  usize,
     /// Maximum combined size (in bytes) of transactions in the pool.
-    pub max_size: usize,
+    pub max_size: usize
 }
 
 impl SubPoolLimit {
@@ -65,8 +66,8 @@ impl Default for SubPoolLimit {
     fn default() -> Self {
         // either 10k transactions or 20MB
         Self {
-            max_txs: TXPOOL_SUBPOOL_MAX_TXS_DEFAULT,
-            max_size: TXPOOL_SUBPOOL_MAX_SIZE_MB_DEFAULT * 1024 * 1024,
+            max_txs:  TXPOOL_SUBPOOL_MAX_TXS_DEFAULT,
+            max_size: TXPOOL_SUBPOOL_MAX_SIZE_MB_DEFAULT * 1024 * 1024
         }
     }
 }
@@ -75,9 +76,10 @@ impl Default for SubPoolLimit {
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub struct PriceBumpConfig {
     /// Default price bump (in %) for the transaction pool underpriced check.
-    pub default_price_bump: u128,
-    /// Replace blob price bump (in %) for the transaction pool underpriced check.
-    pub replace_blob_tx_price_bump: u128,
+    pub default_price_bump:         u128,
+    /// Replace blob price bump (in %) for the transaction pool underpriced
+    /// check.
+    pub replace_blob_tx_price_bump: u128
 }
 
 impl PriceBumpConfig {
@@ -94,8 +96,8 @@ impl PriceBumpConfig {
 impl Default for PriceBumpConfig {
     fn default() -> Self {
         Self {
-            default_price_bump: DEFAULT_PRICE_BUMP,
-            replace_blob_tx_price_bump: REPLACE_BLOB_PRICE_BUMP,
+            default_price_bump:         DEFAULT_PRICE_BUMP,
+            replace_blob_tx_price_bump: REPLACE_BLOB_PRICE_BUMP
         }
     }
 }

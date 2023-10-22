@@ -1,24 +1,28 @@
-use crate::{
-    identifier::TransactionId, pool::pending::PendingTransaction, PoolTransaction,
-    TransactionOrdering, ValidPoolTransaction,
-};
-use reth_primitives::B256 as TxHash;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
-    sync::Arc,
+    sync::Arc
 };
+
+use reth_primitives::B256 as TxHash;
 use tokio::sync::broadcast::{error::TryRecvError, Receiver};
 use tracing::debug;
 
-/// An iterator that returns transactions that can be executed on the current state (*best*
-/// transactions).
+use crate::{
+    identifier::TransactionId, pool::pending::PendingTransaction, PoolTransaction,
+    TransactionOrdering, ValidPoolTransaction
+};
+
+/// An iterator that returns transactions that can be executed on the current
+/// state (*best* transactions).
 ///
-/// This is a wrapper around [`BestTransactions`] that also enforces a specific basefee.
+/// This is a wrapper around [`BestTransactions`] that also enforces a specific
+/// basefee.
 ///
-/// This iterator guarantees that all transaction it returns satisfy the base fee.
+/// This iterator guarantees that all transaction it returns satisfy the base
+/// fee.
 pub(crate) struct BestTransactionsWithBasefee<T: TransactionOrdering> {
-    pub(crate) best: BestTransactions<T>,
-    pub(crate) base_fee: u64,
+    pub(crate) best:     BestTransactions<T>,
+    pub(crate) base_fee: u64
 }
 
 impl<T: TransactionOrdering> crate::traits::BestTransactions for BestTransactionsWithBasefee<T> {
@@ -56,32 +60,36 @@ impl<T: TransactionOrdering> Iterator for BestTransactionsWithBasefee<T> {
     }
 }
 
-/// An iterator that returns transactions that can be executed on the current state (*best*
-/// transactions).
+/// An iterator that returns transactions that can be executed on the current
+/// state (*best* transactions).
 ///
-/// The [`PendingPool`](crate::pool::pending::PendingPool) contains transactions that *could* all
-/// be executed on the current state, but only yields transactions that are ready to be executed
-/// now. While it contains all gapless transactions of a sender, it _always_ only returns the
-/// transaction with the current on chain nonce.
+/// The [`PendingPool`](crate::pool::pending::PendingPool) contains transactions
+/// that *could* all be executed on the current state, but only yields
+/// transactions that are ready to be executed now. While it contains all
+/// gapless transactions of a sender, it _always_ only returns the transaction
+/// with the current on chain nonce.
 pub(crate) struct BestTransactions<T: TransactionOrdering> {
-    /// Contains a copy of _all_ transactions of the pending pool at the point in time this
-    /// iterator was created.
+    /// Contains a copy of _all_ transactions of the pending pool at the point
+    /// in time this iterator was created.
     pub(crate) all: BTreeMap<TransactionId, PendingTransaction<T>>,
-    /// Transactions that can be executed right away: these have the expected nonce.
+    /// Transactions that can be executed right away: these have the expected
+    /// nonce.
     ///
-    /// Once an `independent` transaction with the nonce `N` is returned, it unlocks `N+1`, which
-    /// then can be moved from the `all` set to the `independent` set.
+    /// Once an `independent` transaction with the nonce `N` is returned, it
+    /// unlocks `N+1`, which then can be moved from the `all` set to the
+    /// `independent` set.
     pub(crate) independent: BTreeSet<PendingTransaction<T>>,
-    /// There might be the case where a yielded transactions is invalid, this will track it.
+    /// There might be the case where a yielded transactions is invalid, this
+    /// will track it.
     pub(crate) invalid: HashSet<TxHash>,
-    /// Used to receive any new pending transactions that have been added to the pool after this
-    /// iterator was snapshotted
+    /// Used to receive any new pending transactions that have been added to the
+    /// pool after this iterator was snapshotted
     ///
-    /// These new pending transactions are inserted into this iterator's pool before yielding the
-    /// next value
+    /// These new pending transactions are inserted into this iterator's pool
+    /// before yielding the next value
     pub(crate) new_transaction_receiver: Option<Receiver<PendingTransaction<T>>>,
     /// Flag to control whether to skip blob transactions (EIP4844).
-    pub(crate) skip_blobs: bool,
+    pub(crate) skip_blobs: bool
 }
 
 impl<T: TransactionOrdering> BestTransactions<T> {
@@ -90,10 +98,12 @@ impl<T: TransactionOrdering> BestTransactions<T> {
         self.invalid.insert(*tx.hash());
     }
 
-    /// Returns the ancestor the given transaction, the transaction with `nonce - 1`.
+    /// Returns the ancestor the given transaction, the transaction with `nonce
+    /// - 1`.
     ///
-    /// Note: for a transaction with nonce higher than the current on chain nonce this will always
-    /// return an ancestor since all transaction in this pool are gapless.
+    /// Note: for a transaction with nonce higher than the current on chain
+    /// nonce this will always return an ancestor since all transaction in
+    /// this pool are gapless.
     pub(crate) fn ancestor(&self, id: &TransactionId) -> Option<&PendingTransaction<T>> {
         self.all.get(&id.unchecked_ancestor()?)
     }
@@ -116,13 +126,13 @@ impl<T: TransactionOrdering> BestTransactions<T> {
 
                 // this case is still better than the existing iterator behavior where no new
                 // pending txs are surfaced to consumers
-                Err(_) => return None,
+                Err(_) => return None
             }
         }
     }
 
-    /// Checks for new transactions that have come into the PendingPool after this iterator was
-    /// created and inserts them
+    /// Checks for new transactions that have come into the PendingPool after
+    /// this iterator was created and inserts them
     fn add_new_transactions(&mut self) {
         while let Some(pending_tx) = self.try_recv() {
             let tx = pending_tx.transaction.clone();
@@ -195,7 +205,7 @@ mod tests {
     use super::*;
     use crate::{
         pool::pending::PendingPool,
-        test_utils::{MockOrdering, MockTransaction, MockTransactionFactory},
+        test_utils::{MockOrdering, MockTransaction, MockTransactionFactory}
     };
 
     #[test]

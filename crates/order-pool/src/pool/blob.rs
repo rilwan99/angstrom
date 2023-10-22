@@ -1,18 +1,20 @@
 #![allow(dead_code, unused)]
-use crate::{
-    identifier::TransactionId, pool::size::SizeTracker, traits::BestTransactionsAttributes,
-    PoolTransaction, ValidPoolTransaction,
-};
 use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
-    sync::Arc,
+    sync::Arc
+};
+
+use crate::{
+    identifier::TransactionId, pool::size::SizeTracker, traits::BestTransactionsAttributes,
+    PoolTransaction, ValidPoolTransaction
 };
 
 /// A set of __all__ validated blob transactions in the pool.
 ///
-/// The purpose of this pool is keep track of blob transactions that are either pending or queued
-/// and to evict the worst blob transactions once the sub-pool is full.
+/// The purpose of this pool is keep track of blob transactions that are either
+/// pending or queued and to evict the worst blob transactions once the sub-pool
+/// is full.
 ///
 /// This expects that certain constraints are met:
 ///   - blob transactions are always gap less
@@ -21,14 +23,15 @@ pub(crate) struct BlobTransactions<T: PoolTransaction> {
     ///
     /// This way we can determine when transactions were submitted to the pool.
     submission_id: u64,
-    /// _All_ Transactions that are currently inside the pool grouped by their identifier.
-    by_id: BTreeMap<TransactionId, Arc<ValidPoolTransaction<T>>>,
+    /// _All_ Transactions that are currently inside the pool grouped by their
+    /// identifier.
+    by_id:         BTreeMap<TransactionId, Arc<ValidPoolTransaction<T>>>,
     /// _All_ transactions sorted by blob priority.
-    all: BTreeSet<BlobTransaction<T>>,
+    all:           BTreeSet<BlobTransaction<T>>,
     /// Keeps track of the size of this pool.
     ///
     /// See also [`PoolTransaction::size`].
-    size_of: SizeTracker,
+    size_of:       SizeTracker
 }
 
 // === impl BlobTransactions ===
@@ -63,7 +66,7 @@ impl<T: PoolTransaction> BlobTransactions<T> {
     /// Removes the transaction from the pool
     pub(crate) fn remove_transaction(
         &mut self,
-        id: &TransactionId,
+        id: &TransactionId
     ) -> Option<Arc<ValidPoolTransaction<T>>> {
         // remove from queues
         let tx = self.by_id.remove(id)?;
@@ -80,7 +83,7 @@ impl<T: PoolTransaction> BlobTransactions<T> {
     /// Returns all transactions that satisfy the given basefee and blob_fee.
     pub(crate) fn satisfy_attributes(
         &self,
-        best_transactions_attributes: BestTransactionsAttributes,
+        best_transactions_attributes: BestTransactionsAttributes
     ) -> Vec<Arc<ValidPoolTransaction<T>>> {
         Vec::new()
     }
@@ -101,7 +104,8 @@ impl<T: PoolTransaction> BlobTransactions<T> {
         self.by_id.len()
     }
 
-    /// Returns `true` if the transaction with the given id is already included in this pool.
+    /// Returns `true` if the transaction with the given id is already included
+    /// in this pool.
     #[cfg(test)]
     #[allow(unused)]
     pub(crate) fn contains(&self, id: &TransactionId) -> bool {
@@ -119,9 +123,9 @@ impl<T: PoolTransaction> Default for BlobTransactions<T> {
     fn default() -> Self {
         Self {
             submission_id: 0,
-            by_id: Default::default(),
-            all: Default::default(),
-            size_of: Default::default(),
+            by_id:         Default::default(),
+            all:           Default::default(),
+            size_of:       Default::default()
         }
     }
 }
@@ -131,7 +135,7 @@ struct BlobTransaction<T: PoolTransaction> {
     /// Actual blob transaction.
     transaction: Arc<ValidPoolTransaction<T>>,
     /// The value that determines the order of this transaction.
-    ord: BlobOrd,
+    ord:         BlobOrd
 }
 
 impl<T: PoolTransaction> Eq for BlobTransaction<T> {}
@@ -157,7 +161,7 @@ impl<T: PoolTransaction> Ord for BlobTransaction<T> {
 #[derive(Debug)]
 struct BlobOrd {
     /// Identifier that tags when transaction was submitted in the pool.
-    pub(crate) submission_id: u64,
+    pub(crate) submission_id: u64
     // TODO(mattsse): add ord values
 }
 

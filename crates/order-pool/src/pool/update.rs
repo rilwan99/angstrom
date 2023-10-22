@@ -1,6 +1,7 @@
 //! Support types for updating the pool.
-use crate::{identifier::TransactionId, pool::state::SubPool};
 use reth_primitives::TxHash;
+
+use crate::{identifier::TransactionId, pool::state::SubPool};
 
 /// A change of the transaction's location
 ///
@@ -8,13 +9,13 @@ use reth_primitives::TxHash;
 #[derive(Debug)]
 pub(crate) struct PoolUpdate {
     /// Internal tx id.
-    pub(crate) id: TransactionId,
+    pub(crate) id:          TransactionId,
     /// Hash of the transaction.
-    pub(crate) hash: TxHash,
+    pub(crate) hash:        TxHash,
     /// Where the transaction is currently held.
-    pub(crate) current: SubPool,
+    pub(crate) current:     SubPool,
     /// Where to move the transaction to.
-    pub(crate) destination: Destination,
+    pub(crate) destination: Destination
 }
 
 /// Where to move an existing transaction.
@@ -23,5 +24,5 @@ pub(crate) enum Destination {
     /// Discard the transaction.
     Discard,
     /// Move transaction to pool
-    Pool(SubPool),
+    Pool(SubPool)
 }

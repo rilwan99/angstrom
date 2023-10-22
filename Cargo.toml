@@ -5,8 +5,8 @@ members = [
   "crates/consensus",
   "crates/types",
   "crates/common",
+  "crates/order-pool",
   "it-harness",
-  #"crates/order-pool",
 ]
 
 [workspace.package]
@@ -187,7 +187,7 @@ proptest = "1.0"
 proptest-derive = "0.4"
 arbitrary = "1.1"
 assert_matches = "1.5.0"
-
+aquamarine = "0.3"
 
 [features]
 test_harness = ["action/test_harness", "guard-network/test_harness"]

@@ -1,5 +1,6 @@
-use crate::blobstore::{BlobStore, BlobStoreError, BlobTransactionSidecar};
 use reth_primitives::B256;
+
+use crate::blobstore::{BlobStore, BlobStoreError, BlobTransactionSidecar};
 
 /// A blobstore implementation that does nothing
 #[derive(Clone, Copy, Debug, PartialOrd, PartialEq, Default)]
@@ -29,7 +30,7 @@ impl BlobStore for NoopBlobStore {
 
     fn get_all(
         &self,
-        _txs: Vec<B256>,
+        _txs: Vec<B256>
     ) -> Result<Vec<(B256, BlobTransactionSidecar)>, BlobStoreError> {
         Ok(vec![])
     }

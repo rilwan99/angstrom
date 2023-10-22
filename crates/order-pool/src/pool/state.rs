@@ -42,7 +42,8 @@ bitflags::bitflags! {
 // === impl TxState ===
 
 impl TxState {
-    /// The state of a transaction is considered `pending`, if the transaction has:
+    /// The state of a transaction is considered `pending`, if the transaction
+    /// has:
     ///   - _No_ parked ancestors
     ///   - enough balance
     ///   - enough fee cap
@@ -69,16 +70,20 @@ impl TxState {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 #[repr(u8)]
 pub enum SubPool {
-    /// The queued sub-pool contains transactions that are not ready to be included in the next
-    /// block because they have missing or queued ancestors.
+    /// The queued sub-pool contains transactions that are not ready to be
+    /// included in the next block because they have missing or queued
+    /// ancestors.
     Queued = 0,
-    /// The base-fee sub-pool contains transactions that are not ready to be included in the next
-    /// block because they don't meet the base fee requirement.
+    /// The base-fee sub-pool contains transactions that are not ready to be
+    /// included in the next block because they don't meet the base fee
+    /// requirement.
     BaseFee,
-    /// The blob sub-pool contains all blob transactions that are __not__ pending.
+    /// The blob sub-pool contains all blob transactions that are __not__
+    /// pending.
     Blob,
-    /// The pending sub-pool contains transactions that are ready to be included in the next block.
-    Pending,
+    /// The pending sub-pool contains transactions that are ready to be included
+    /// in the next block.
+    Pending
 }
 
 // === impl SubPool ===
@@ -108,7 +113,8 @@ impl SubPool {
         matches!(self, SubPool::Blob)
     }
 
-    /// Returns whether this is a promotion depending on the current sub-pool location.
+    /// Returns whether this is a promotion depending on the current sub-pool
+    /// location.
     #[inline]
     pub fn is_promoted(&self, other: SubPool) -> bool {
         self > &other
@@ -157,10 +163,10 @@ mod tests {
         let state = TxState::default();
         assert_eq!(SubPool::Queued, state.into());
 
-        let state = TxState::NO_PARKED_ANCESTORS |
-            TxState::NO_NONCE_GAPS |
-            TxState::NOT_TOO_MUCH_GAS |
-            TxState::ENOUGH_FEE_CAP_BLOCK;
+        let state = TxState::NO_PARKED_ANCESTORS
+            | TxState::NO_NONCE_GAPS
+            | TxState::NOT_TOO_MUCH_GAS
+            | TxState::ENOUGH_FEE_CAP_BLOCK;
         assert_eq!(SubPool::Queued, state.into());
     }
 

@@ -1,38 +1,43 @@
-use crate::blobstore::{BlobStore, BlobStoreError, BlobTransactionSidecar};
-use parking_lot::RwLock;
-use reth_primitives::B256;
 use std::{
     collections::HashMap,
-    sync::{atomic::AtomicUsize, Arc},
+    sync::{atomic::AtomicUsize, Arc}
 };
+
+use parking_lot::RwLock;
+use reth_primitives::B256;
+
+use crate::blobstore::{BlobStore, BlobStoreError, BlobTransactionSidecar};
 
 /// An in-memory blob store.
 #[derive(Clone, Debug, Default)]
 pub struct InMemoryBlobStore {
-    inner: Arc<InMemoryBlobStoreInner>,
+    inner: Arc<InMemoryBlobStoreInner>
 }
 
 #[derive(Debug, Default)]
 struct InMemoryBlobStoreInner {
     /// Storage for all blob data.
-    store: RwLock<HashMap<B256, BlobTransactionSidecar>>,
+    store:     RwLock<HashMap<B256, BlobTransactionSidecar>>,
     data_size: AtomicUsize,
-    num_blobs: AtomicUsize,
+    num_blobs: AtomicUsize
 }
 
 impl InMemoryBlobStoreInner {
     #[inline]
     fn add_size(&self, add: usize) {
-        self.data_size.fetch_add(add, std::sync::atomic::Ordering::Relaxed);
+        self.data_size
+            .fetch_add(add, std::sync::atomic::Ordering::Relaxed);
     }
 
     #[inline]
     fn sub_size(&self, sub: usize) {
-        self.data_size.fetch_sub(sub, std::sync::atomic::Ordering::Relaxed);
+        self.data_size
+            .fetch_sub(sub, std::sync::atomic::Ordering::Relaxed);
     }
 
     fn update_len(&self, len: usize) {
-        self.num_blobs.store(len, std::sync::atomic::Ordering::Relaxed);
+        self.num_blobs
+            .store(len, std::sync::atomic::Ordering::Relaxed);
     }
 }
 
@@ -89,7 +94,7 @@ impl BlobStore for InMemoryBlobStore {
 
     fn get_all(
         &self,
-        txs: Vec<B256>,
+        txs: Vec<B256>
     ) -> Result<Vec<(B256, BlobTransactionSidecar)>, BlobStoreError> {
         let mut items = Vec::with_capacity(txs.len());
         let store = self.inner.store.read();
@@ -117,28 +122,37 @@ impl BlobStore for InMemoryBlobStore {
     }
 
     fn data_size_hint(&self) -> Option<usize> {
-        Some(self.inner.data_size.load(std::sync::atomic::Ordering::Relaxed))
+        Some(
+            self.inner
+                .data_size
+                .load(std::sync::atomic::Ordering::Relaxed)
+        )
     }
 
     fn blobs_len(&self) -> usize {
-        self.inner.num_blobs.load(std::sync::atomic::Ordering::Relaxed)
+        self.inner
+            .num_blobs
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 }
 
-/// Removes the given blob from the store and returns the size of the blob that was removed.
+/// Removes the given blob from the store and returns the size of the blob that
+/// was removed.
 #[inline]
 fn remove_size(store: &mut HashMap<B256, BlobTransactionSidecar>, tx: &B256) -> usize {
     store.remove(tx).map(|rem| rem.size()).unwrap_or_default()
 }
 
-/// Inserts the given blob into the store and returns the size of the blob that was added
+/// Inserts the given blob into the store and returns the size of the blob that
+/// was added
 ///
-/// We don't need to handle the size updates for replacements because transactions are unique.
+/// We don't need to handle the size updates for replacements because
+/// transactions are unique.
 #[inline]
 fn insert_size(
     store: &mut HashMap<B256, BlobTransactionSidecar>,
     tx: B256,
-    blob: BlobTransactionSidecar,
+    blob: BlobTransactionSidecar
 ) -> usize {
     let add = blob.size();
     store.insert(tx, blob).map(|rem| rem.size());

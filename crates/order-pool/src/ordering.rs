@@ -1,6 +1,8 @@
-use crate::traits::PoolTransaction;
-use reth_primitives::U256;
 use std::{fmt, marker::PhantomData};
+
+use reth_primitives::U256;
+
+use crate::traits::PoolTransaction;
 
 /// Priority of the transaction that can be missing.
 ///
@@ -10,21 +12,22 @@ pub enum Priority<T: Ord + Clone> {
     /// The value of the priority of the transaction.
     Value(T),
     /// Missing priority due to ordering internals.
-    None,
+    None
 }
 
 impl<T: Ord + Clone> From<Option<T>> for Priority<T> {
     fn from(value: Option<T>) -> Self {
         match value {
             Some(val) => Priority::Value(val),
-            None => Priority::None,
+            None => Priority::None
         }
     }
 }
 
 /// Transaction ordering trait to determine the order of transactions.
 ///
-/// Decides how transactions should be ordered within the pool, depending on a `Priority` value.
+/// Decides how transactions should be ordered within the pool, depending on a
+/// `Priority` value.
 ///
 /// The returned priority must reflect [total order](https://en.wikipedia.org/wiki/Total_order).
 pub trait TransactionOrdering: Send + Sync + 'static {
@@ -40,7 +43,7 @@ pub trait TransactionOrdering: Send + Sync + 'static {
     fn priority(
         &self,
         transaction: &Self::Transaction,
-        base_fee: u64,
+        base_fee: u64
     ) -> Priority<Self::PriorityValue>;
 }
 
@@ -54,7 +57,7 @@ pub struct CoinbaseTipOrdering<T>(PhantomData<T>);
 
 impl<T> TransactionOrdering for CoinbaseTipOrdering<T>
 where
-    T: PoolTransaction + 'static,
+    T: PoolTransaction + 'static
 {
     type PriorityValue = U256;
     type Transaction = T;
@@ -65,9 +68,12 @@ where
     fn priority(
         &self,
         transaction: &Self::Transaction,
-        base_fee: u64,
+        base_fee: u64
     ) -> Priority<Self::PriorityValue> {
-        transaction.effective_tip_per_gas(base_fee).map(U256::from).into()
+        transaction
+            .effective_tip_per_gas(base_fee)
+            .map(U256::from)
+            .into()
     }
 }
 
