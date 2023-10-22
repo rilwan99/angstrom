@@ -1,4 +1,5 @@
 use alloy_sol_macro::sol;
+use alloy_rlp::{Encodable, Decodable};
 
 
 sol! {
@@ -220,4 +221,11 @@ sol! {
         /// @return value The value of the sload-ed slots concatenated as dynamic bytes
         function extsload(bytes32 slot, uint256 nSlots) external view returns (bytes memory value);
     }
+}
+
+impl Decodable for PoolKey {
+
+}
+
+impl Encodable for PoolKey {
 }

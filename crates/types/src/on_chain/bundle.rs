@@ -2,6 +2,7 @@ use std::{collections::HashMap, hash::Hash};
 
 use alloy_primitives::{Address, U256};
 use alloy_rlp::{Decodable, Encodable};
+use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_types::sol;
 use revm::primitives::{TransactTo, TxEnv, U256 as RU256};
 use serde::{Deserialize, Serialize};
@@ -35,7 +36,7 @@ sol! {
     }
 
     /// @notice Instruction to execute a swap on UniswapV4.
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq, RlpEncodable, RlpDecodable)]
     struct PoolSwap {
         /// @member The pool to perform the swap on.
         PoolKey pool;
@@ -45,7 +46,7 @@ sol! {
         uint256 amountIn;
     }
     /// @notice Uniswap instructions to execute after lock is taken.
-    #[derive(Debug, PartialEq, Eq)]
+    #[derive(Debug, PartialEq, Eq, RlpEncodable, RlpDecodable)]
     struct UniswapData {
         /// @member The discrete swaps to perform, there should be at most one entry
         ///         per pool.
@@ -65,7 +66,7 @@ pub struct SignedVanillaBundle {
     pub signatures: Vec<Signature>
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 pub struct VanillaBundle {
     orders:       Vec<Order>,
     uniswap_data: UniswapData

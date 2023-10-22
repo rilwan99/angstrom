@@ -1,9 +1,11 @@
+use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
+
 use crate::{
     contract_bindings::Angstrom::PoolKey,
     on_chain::{Signature, SubmittedOrder}
 };
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, RlpDecodable, RlpEncodable)]
 pub struct PoolOrders {
     pub pool:         PoolKey,
     pub searcher_bid: SubmittedOrder,
@@ -11,7 +13,7 @@ pub struct PoolOrders {
     pub sorted_asks:  Vec<SubmittedOrder>
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 pub struct PreProposal {
     pub ethereum_height: u64,
     pub pre_bundle:      Vec<PoolOrders>,

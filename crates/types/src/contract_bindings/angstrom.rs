@@ -18,6 +18,7 @@ sol! {
             bytes uniswapData;
         }
     
+        #[derive(RlpEncodable, RlpDecodable)]
         struct ExecutedOrder {
             Order order;
             bytes signature;
@@ -31,6 +32,7 @@ sol! {
             uint160 sqrtPriceLimitX96;
         }
 
+        #[derive(RlpEncodable, RlpDecodable)]
         struct Order {
             uint256 nonce;
             uint8 orderType;

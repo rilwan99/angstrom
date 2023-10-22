@@ -1,16 +1,16 @@
+use alloy_primitives::B256 ;
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
-use ethers_core::types::H256;
 use serde::{Deserialize, Serialize};
 
 use crate::on_chain::Signature;
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 pub struct Commit {
     pub block_height: u64,
 
-    pub vanilla_bundle_hash: H256,
-    pub lower_bound_hash:    H256,
-    pub order_buffer_hash:   H256,
+    pub vanilla_bundle_hash: B256,
+    pub lower_bound_hash:    B256,
+    pub order_buffer_hash:   B256,
     /// This signature is (block_height | vanilla_bundle_hash |
     /// lower_bound_hash | order_buffer_hash)
     pub message_sig:         Signature,
