@@ -1,26 +1,28 @@
 //! A validation service for transactions.
 
-use crate::{
-    blobstore::BlobStore,
-    validate::{EthOrderValidatorBuilder, OrderValidatorError},
-    EthOrderValidator, PoolTransaction, TransactionOrigin, TransactionValidationOutcome,
-    OrderValidator,
-};
+use std::{future::Future, pin::Pin, sync::Arc};
+
 use futures_util::{lock::Mutex, StreamExt};
 use reth_primitives::{ChainSpec, SealedBlock};
 use reth_tasks::TaskSpawner;
-use std::{future::Future, pin::Pin, sync::Arc};
 use tokio::{
     sync,
-    sync::{mpsc, oneshot},
+    sync::{mpsc, oneshot}
 };
 use tokio_stream::wrappers::ReceiverStream;
+
+use crate::{
+    blobstore::BlobStore,
+    validate::{EthOrderValidatorBuilder, OrderValidatorError},
+    EthOrderValidator, OrderValidator, PoolTransaction, TransactionOrigin,
+    TransactionValidationOutcome
+};
 
 /// A service that performs validation jobs.
 #[derive(Clone)]
 pub struct ValidationTask {
     #[allow(clippy::type_complexity)]
-    validation_jobs: Arc<Mutex<ReceiverStream<Pin<Box<dyn Future<Output = ()> + Send>>>>>,
+    validation_jobs: Arc<Mutex<ReceiverStream<Pin<Box<dyn Future<Output = ()> + Send>>>>>
 }
 
 impl ValidationTask {
@@ -37,13 +39,14 @@ impl ValidationTask {
 
     /// Executes all new validation jobs that come in.
     ///
-    /// This will run as long as the channel is alive and is expected to be spawned as a task.
+    /// This will run as long as the channel is alive and is expected to be
+    /// spawned as a task.
     pub async fn run(self) {
         loop {
             let task = self.validation_jobs.lock().await.next().await;
             match task {
                 None => return,
-                Some(task) => task.await,
+                Some(task) => task.await
             }
         }
     }
@@ -51,35 +54,41 @@ impl ValidationTask {
 
 impl std::fmt::Debug for ValidationTask {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("ValidationTask").field("validation_jobs", &"...").finish()
+        f.debug_struct("ValidationTask")
+            .field("validation_jobs", &"...")
+            .finish()
     }
 }
 
 /// A sender new type for sending validation jobs to [ValidationTask].
 #[derive(Debug)]
 pub struct ValidationJobSender {
-    tx: mpsc::Sender<Pin<Box<dyn Future<Output = ()> + Send>>>,
+    tx: mpsc::Sender<Pin<Box<dyn Future<Output = ()> + Send>>>
 }
 
 impl ValidationJobSender {
     /// Sends the given job to the validation task.
     pub async fn send(
         &self,
-        job: Pin<Box<dyn Future<Output = ()> + Send>>,
+        job: Pin<Box<dyn Future<Output = ()> + Send>>
     ) -> Result<(), OrderValidatorError> {
-        self.tx.send(job).await.map_err(|_| OrderValidatorError::ValidationServiceUnreachable)
+        self.tx
+            .send(job)
+            .await
+            .map_err(|_| OrderValidatorError::ValidationServiceUnreachable)
     }
 }
 
 /// A [OrderValidator] implementation that validates ethereum transaction.
 ///
-/// This validator is non-blocking, all validation work is done in a separate task.
+/// This validator is non-blocking, all validation work is done in a separate
+/// task.
 #[derive(Debug, Clone)]
 pub struct TransactionValidationTaskExecutor<V> {
     /// The validator that will validate transactions on a separate task.
-    pub validator: V,
+    pub validator:          V,
     /// The sender half to validation tasks that perform the actual validation.
-    pub to_validation_task: Arc<sync::Mutex<ValidationJobSender>>,
+    pub to_validation_task: Arc<sync::Mutex<ValidationJobSender>>
 }
 
 // === impl TransactionValidationTaskExecutor ===
@@ -94,16 +103,17 @@ impl TransactionValidationTaskExecutor<()> {
 impl<Client, Tx> TransactionValidationTaskExecutor<EthOrderValidator<Client, Tx>> {
     /// Creates a new instance for the given [ChainSpec]
     ///
-    /// This will spawn a single validation tasks that performs the actual validation.
+    /// This will spawn a single validation tasks that performs the actual
+    /// validation.
     /// See [TransactionValidationTaskExecutor::eth_with_additional_tasks]
     pub fn eth<T, S: BlobStore>(
         client: Client,
         chain_spec: Arc<ChainSpec>,
         blob_store: S,
-        tasks: T,
+        tasks: T
     ) -> Self
     where
-        T: TaskSpawner,
+        T: TaskSpawner
     {
         Self::eth_with_additional_tasks(client, chain_spec, blob_store, tasks, 0)
     }
@@ -115,17 +125,17 @@ impl<Client, Tx> TransactionValidationTaskExecutor<EthOrderValidator<Client, Tx>
     ///   - eip1559
     ///   - eip2930
     ///
-    /// This will always spawn a validation task that performs the actual validation. It will spawn
-    /// `num_additional_tasks` additional tasks.
+    /// This will always spawn a validation task that performs the actual
+    /// validation. It will spawn `num_additional_tasks` additional tasks.
     pub fn eth_with_additional_tasks<T, S: BlobStore>(
         client: Client,
         chain_spec: Arc<ChainSpec>,
         blob_store: S,
         tasks: T,
-        num_additional_tasks: usize,
+        num_additional_tasks: usize
     ) -> Self
     where
-        T: TaskSpawner,
+        T: TaskSpawner
     {
         EthOrderValidatorBuilder::new(chain_spec)
             .with_additional_tasks(num_additional_tasks)
@@ -134,10 +144,11 @@ impl<Client, Tx> TransactionValidationTaskExecutor<EthOrderValidator<Client, Tx>
 }
 
 impl<V> TransactionValidationTaskExecutor<V> {
-    /// Creates a new executor instance with the given validator for transaction validation.
+    /// Creates a new executor instance with the given validator for transaction
+    /// validation.
     ///
-    /// Initializes the executor with the provided validator and sets up communication for
-    /// validation tasks.
+    /// Initializes the executor with the provided validator and sets up
+    /// communication for validation tasks.
     pub fn new(validator: V) -> Self {
         let (tx, _) = ValidationTask::new();
         Self { validator, to_validation_task: Arc::new(sync::Mutex::new(tx)) }
@@ -147,14 +158,14 @@ impl<V> TransactionValidationTaskExecutor<V> {
 #[async_trait::async_trait]
 impl<V> OrderValidator for TransactionValidationTaskExecutor<V>
 where
-    V: OrderValidator + Clone + 'static,
+    V: OrderValidator + Clone + 'static
 {
     type Transaction = <V as OrderValidator>::Transaction;
 
     async fn validate_transaction(
         &self,
         origin: TransactionOrigin,
-        transaction: Self::Transaction,
+        transaction: Self::Transaction
     ) -> TransactionValidationOutcome<Self::Transaction> {
         let hash = *transaction.hash();
         let (tx, rx) = oneshot::channel();
@@ -173,7 +184,7 @@ where
             if res.is_err() {
                 return TransactionValidationOutcome::Error(
                     hash,
-                    Box::new(OrderValidatorError::ValidationServiceUnreachable),
+                    Box::new(OrderValidatorError::ValidationServiceUnreachable)
                 )
             }
         }
@@ -182,8 +193,8 @@ where
             Ok(res) => res,
             Err(_) => TransactionValidationOutcome::Error(
                 hash,
-                Box::new(OrderValidatorError::ValidationServiceUnreachable),
-            ),
+                Box::new(OrderValidatorError::ValidationServiceUnreachable)
+            )
         }
     }
 

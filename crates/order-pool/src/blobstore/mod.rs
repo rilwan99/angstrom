@@ -1,9 +1,10 @@
 //! Storage for blob data of EIP4844 transactions.
 
+use std::fmt;
+
 pub use mem::InMemoryBlobStore;
 pub use noop::NoopBlobStore;
 use reth_primitives::{BlobTransactionSidecar, B256};
-use std::fmt;
 pub use tracker::{BlobStoreCanonTracker, BlobStoreUpdates};
 
 mod mem;
@@ -12,8 +13,8 @@ mod tracker;
 
 /// A blob store that can be used to store blob data of EIP4844 transactions.
 ///
-/// This type is responsible for keeping track of blob data until it is no longer needed (after
-/// finalization).
+/// This type is responsible for keeping track of blob data until it is no
+/// longer needed (after finalization).
 ///
 /// Note: this is Clone because it is expected to be wrapped in an Arc.
 pub trait BlobStore: fmt::Debug + Send + Sync + 'static {
@@ -38,11 +39,11 @@ pub trait BlobStore: fmt::Debug + Send + Sync + 'static {
     /// If there's no blob it will not be returned.
     fn get_all(
         &self,
-        txs: Vec<B256>,
+        txs: Vec<B256>
     ) -> Result<Vec<(B256, BlobTransactionSidecar)>, BlobStoreError>;
 
-    /// Returns the exact [BlobTransactionSidecar] for the given transaction hashes in the order
-    /// they were requested.
+    /// Returns the exact [BlobTransactionSidecar] for the given transaction
+    /// hashes in the order they were requested.
     ///
     /// Returns an error if any of the blobs are not found in the blob store.
     fn get_exact(&self, txs: Vec<B256>) -> Result<Vec<BlobTransactionSidecar>, BlobStoreError>;
@@ -57,7 +58,8 @@ pub trait BlobStore: fmt::Debug + Send + Sync + 'static {
 /// Error variants that can occur when interacting with a blob store.
 #[derive(Debug, thiserror::Error)]
 pub enum BlobStoreError {
-    /// Thrown if the blob sidecar is not found for a given transaction hash but was required.
+    /// Thrown if the blob sidecar is not found for a given transaction hash but
+    /// was required.
     #[error("blob sidecar not found for transaction {0:?}")]
     MissingSidecar(B256),
     /// Failed to decode the stored blob data.
@@ -65,7 +67,7 @@ pub enum BlobStoreError {
     DecodeError(#[from] alloy_rlp::Error),
     /// Other implementation specific error.
     #[error(transparent)]
-    Other(Box<dyn std::error::Error + Send + Sync>),
+    Other(Box<dyn std::error::Error + Send + Sync>)
 }
 
 #[cfg(test)]
@@ -74,6 +76,6 @@ mod tests {
 
     #[allow(unused)]
     struct DynStore {
-        store: Box<dyn BlobStore>,
+        store: Box<dyn BlobStore>
     }
 }

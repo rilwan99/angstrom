@@ -1,6 +1,7 @@
+use std::collections::HashMap;
+
 use fnv::FnvHashMap;
 use reth_primitives::Address;
-use std::collections::HashMap;
 
 /// An internal mapping of addresses.
 ///
@@ -9,11 +10,11 @@ use std::collections::HashMap;
 #[derive(Debug, Default)]
 pub(crate) struct SenderIdentifiers {
     /// The identifier to use next.
-    id: u64,
+    id:                u64,
     /// Assigned `SenderId` for an `Address`.
-    address_to_id: HashMap<Address, SenderId>,
+    address_to_id:     HashMap<Address, SenderId>,
     /// Reverse mapping of `SenderId` to `Address`.
-    sender_to_address: FnvHashMap<SenderId, Address>,
+    sender_to_address: FnvHashMap<SenderId, Address>
 }
 
 impl SenderIdentifiers {
@@ -49,8 +50,8 @@ impl SenderIdentifiers {
 
 /// A _unique_ identifier for a sender of an address.
 ///
-/// This is the identifier of an internal `address` mapping that is valid in the context of this
-/// program.
+/// This is the identifier of an internal `address` mapping that is valid in the
+/// context of this program.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct SenderId(u64);
 
@@ -72,13 +73,14 @@ impl From<u64> for SenderId {
 /// A unique identifier of a transaction of a Sender.
 ///
 /// This serves as an identifier for dependencies of a transaction:
-/// A transaction with a nonce higher than the current state nonce depends on `tx.nonce - 1`.
+/// A transaction with a nonce higher than the current state nonce depends on
+/// `tx.nonce - 1`.
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct TransactionId {
     /// Sender of this transaction
     pub sender: SenderId,
     /// Nonce of this transaction
-    pub nonce: u64,
+    pub nonce:  u64
 }
 
 // === impl TransactionId ===
@@ -91,12 +93,12 @@ impl TransactionId {
 
     /// Returns the `TransactionId` this transaction depends on.
     ///
-    /// This returns `transaction_nonce - 1` if `transaction_nonce` is higher than the
-    /// `on_chain_none`
+    /// This returns `transaction_nonce - 1` if `transaction_nonce` is higher
+    /// than the `on_chain_none`
     pub fn ancestor(
         transaction_nonce: u64,
         on_chain_nonce: u64,
-        sender: SenderId,
+        sender: SenderId
     ) -> Option<TransactionId> {
         if transaction_nonce == on_chain_nonce {
             return None
@@ -110,7 +112,8 @@ impl TransactionId {
         (self.nonce != 0).then(|| TransactionId::new(self.sender, self.nonce - 1))
     }
 
-    /// Returns the `TransactionId` that directly follows this transaction: `self.nonce + 1`
+    /// Returns the `TransactionId` that directly follows this transaction:
+    /// `self.nonce + 1`
     pub fn descendant(&self) -> TransactionId {
         TransactionId::new(self.sender, self.nonce + 1)
     }
@@ -124,8 +127,9 @@ impl TransactionId {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::collections::BTreeSet;
+
+    use super::*;
 
     #[test]
     fn test_transaction_id_ord_eq_sender() {

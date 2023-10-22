@@ -1,22 +1,23 @@
 #![allow(missing_docs)]
 
-use crate::{
-    test_utils::{MockTransactionFactory, MockValidTx},
-    EthPooledTransaction,
-};
 use rand::Rng;
 use reth_primitives::{
     constants::MIN_PROTOCOL_BASE_FEE, sign_message, AccessList, Address, Bytes,
     FromRecoveredTransaction, Transaction, TransactionKind, TransactionSigned, TxEip1559, TxLegacy,
-    TxValue, B256, MAINNET,
+    TxValue, B256, MAINNET
+};
+
+use crate::{
+    test_utils::{MockTransactionFactory, MockValidTx},
+    EthPooledTransaction
 };
 
 /// A generator for transactions for testing purposes
 pub struct TransactionGenerator<R> {
-    rng: R,
+    rng:         R,
     signer_keys: Vec<B256>,
-    base_fee: u128,
-    gas_limit: u64,
+    base_fee:    u128,
+    gas_limit:   u64
 }
 
 impl<R: Rng> TransactionGenerator<R> {
@@ -107,7 +108,7 @@ pub struct TransactionBuilder {
     to: TransactionKind,
     value: TxValue,
     access_list: AccessList,
-    input: Bytes,
+    input: Bytes
 }
 
 impl TransactionBuilder {
@@ -122,7 +123,7 @@ impl TransactionBuilder {
             to,
             value,
             access_list,
-            input,
+            input
         } = self;
         let tx: Transaction = TxLegacy {
             chain_id: Some(chain_id),
@@ -131,7 +132,7 @@ impl TransactionBuilder {
             gas_price: max_fee_per_gas,
             to,
             value,
-            input,
+            input
         }
         .into();
         TransactionBuilder::signed(tx, signer)
@@ -148,7 +149,7 @@ impl TransactionBuilder {
             to,
             value,
             access_list,
-            input,
+            input
         } = self;
         let tx: Transaction = TxEip1559 {
             chain_id,
@@ -159,7 +160,7 @@ impl TransactionBuilder {
             to,
             value,
             access_list,
-            input,
+            input
         }
         .into();
         TransactionBuilder::signed(tx, signer)
@@ -293,15 +294,16 @@ impl Default for TransactionBuilder {
             to: Default::default(),
             value: Default::default(),
             access_list: Default::default(),
-            input: Default::default(),
+            input: Default::default()
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use rand::thread_rng;
+
+    use super::*;
 
     #[test]
     fn test_generate_transaction() {

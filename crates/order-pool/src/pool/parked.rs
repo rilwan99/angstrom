@@ -1,34 +1,37 @@
-use crate::{
-    identifier::TransactionId, pool::size::SizeTracker, PoolTransaction, ValidPoolTransaction,
-};
-use fnv::FnvHashMap;
 use std::{cmp::Ordering, collections::BTreeSet, ops::Deref, sync::Arc};
 
-/// A pool of transactions that are currently parked and are waiting for external changes (e.g.
-/// basefee, ancestor transactions, balance) that eventually move the transaction into the pending
-/// pool.
+use fnv::FnvHashMap;
+
+use crate::{
+    identifier::TransactionId, pool::size::SizeTracker, PoolTransaction, ValidPoolTransaction
+};
+
+/// A pool of transactions that are currently parked and are waiting for
+/// external changes (e.g. basefee, ancestor transactions, balance) that
+/// eventually move the transaction into the pending pool.
 ///
-/// This pool is a bijection: at all times each set (`best`, `by_id`) contains the same
-/// transactions.
+/// This pool is a bijection: at all times each set (`best`, `by_id`) contains
+/// the same transactions.
 ///
-/// Note: This type is generic over [ParkedPool] which enforces that the underlying transaction type
-/// is [ValidPoolTransaction] wrapped in an [Arc].
+/// Note: This type is generic over [ParkedPool] which enforces that the
+/// underlying transaction type is [ValidPoolTransaction] wrapped in an [Arc].
 #[derive(Clone)]
 pub(crate) struct ParkedPool<T: ParkedOrd> {
     /// Keeps track of transactions inserted in the pool.
     ///
     /// This way we can determine when transactions were submitted to the pool.
     submission_id: u64,
-    /// _All_ Transactions that are currently inside the pool grouped by their identifier.
-    by_id: FnvHashMap<TransactionId, ParkedPoolTransaction<T>>,
+    /// _All_ Transactions that are currently inside the pool grouped by their
+    /// identifier.
+    by_id:         FnvHashMap<TransactionId, ParkedPoolTransaction<T>>,
     /// All transactions sorted by their order function.
     ///
     /// The higher, the better.
-    best: BTreeSet<ParkedPoolTransaction<T>>,
+    best:          BTreeSet<ParkedPoolTransaction<T>>,
     /// Keeps track of the size of this pool.
     ///
     /// See also [`PoolTransaction::size`].
-    size_of: SizeTracker,
+    size_of:       SizeTracker
 }
 
 // === impl ParkedPool ===
@@ -59,7 +62,7 @@ impl<T: ParkedOrd> ParkedPool<T> {
 
     /// Returns an iterator over all transactions in the pool
     pub(crate) fn all(
-        &self,
+        &self
     ) -> impl Iterator<Item = Arc<ValidPoolTransaction<T::Transaction>>> + '_ {
         self.by_id.values().map(|tx| tx.transaction.clone().into())
     }
@@ -67,7 +70,7 @@ impl<T: ParkedOrd> ParkedPool<T> {
     /// Removes the transaction from the pool
     pub(crate) fn remove_transaction(
         &mut self,
-        id: &TransactionId,
+        id: &TransactionId
     ) -> Option<Arc<ValidPoolTransaction<T::Transaction>>> {
         // remove from queues
         let tx = self.by_id.remove(id)?;
@@ -108,7 +111,8 @@ impl<T: ParkedOrd> ParkedPool<T> {
         self.by_id.is_empty()
     }
 
-    /// Returns `true` if the transaction with the given id is already included in this pool.
+    /// Returns `true` if the transaction with the given id is already included
+    /// in this pool.
     #[cfg(test)]
     pub(crate) fn contains(&self, id: &TransactionId) -> bool {
         self.by_id.contains_key(id)
@@ -127,12 +131,19 @@ impl<T: PoolTransaction> ParkedPool<BasefeeOrd<T>> {
     /// Note: this does _not_ remove the transactions
     pub(crate) fn satisfy_base_fee_transactions(
         &self,
-        basefee: u64,
+        basefee: u64
     ) -> Vec<Arc<ValidPoolTransaction<T>>> {
         let ids = self.satisfy_base_fee_ids(basefee);
         let mut txs = Vec::with_capacity(ids.len());
         for id in ids {
-            txs.push(self.by_id.get(&id).expect("transaction exists").transaction.clone().into());
+            txs.push(
+                self.by_id
+                    .get(&id)
+                    .expect("transaction exists")
+                    .transaction
+                    .clone()
+                    .into()
+            );
         }
         txs
     }
@@ -160,8 +171,8 @@ impl<T: PoolTransaction> ParkedPool<BasefeeOrd<T>> {
         transactions
     }
 
-    /// Removes all transactions and their dependent transaction from the subpool that no longer
-    /// satisfy the given basefee.
+    /// Removes all transactions and their dependent transaction from the
+    /// subpool that no longer satisfy the given basefee.
     ///
     /// Note: the transactions are not returned in a particular order.
     pub(crate) fn enforce_basefee(&mut self, basefee: u64) -> Vec<Arc<ValidPoolTransaction<T>>> {
@@ -180,9 +191,9 @@ impl<T: ParkedOrd> Default for ParkedPool<T> {
     fn default() -> Self {
         Self {
             submission_id: 0,
-            by_id: Default::default(),
-            best: Default::default(),
-            size_of: Default::default(),
+            by_id:         Default::default(),
+            best:          Default::default(),
+            size_of:       Default::default()
         }
     }
 }
@@ -192,7 +203,7 @@ struct ParkedPoolTransaction<T: ParkedOrd> {
     /// Identifier that tags when transaction was submitted in the pool.
     submission_id: u64,
     /// Actual transaction.
-    transaction: T,
+    transaction:   T
 }
 
 impl<T: ParkedOrd> Clone for ParkedPoolTransaction<T> {
@@ -217,8 +228,8 @@ impl<T: ParkedOrd> PartialOrd<Self> for ParkedPoolTransaction<T> {
 
 impl<T: ParkedOrd> Ord for ParkedPoolTransaction<T> {
     fn cmp(&self, other: &Self) -> Ordering {
-        // This compares by the transactions first, and only if two tx are equal this compares
-        // the unique `submission_id`.
+        // This compares by the transactions first, and only if two tx are equal this
+        // compares the unique `submission_id`.
         // "better" transactions are Greater
         self.transaction
             .cmp(&other.transaction)
@@ -228,7 +239,8 @@ impl<T: ParkedOrd> Ord for ParkedPoolTransaction<T> {
 
 /// Helper trait used for custom `Ord` wrappers around a transaction.
 ///
-/// This is effectively a wrapper for `Arc<ValidPoolTransaction>` with custom `Ord` implementation.
+/// This is effectively a wrapper for `Arc<ValidPoolTransaction>` with custom
+/// `Ord` implementation.
 pub(crate) trait ParkedOrd:
     Ord
     + Clone
@@ -292,7 +304,8 @@ macro_rules! impl_ord_wrapper {
 ///
 /// This sorts transactions by their base fee.
 ///
-/// Caution: This assumes all transaction in the `BaseFee` sub-pool have a fee value.
+/// Caution: This assumes all transaction in the `BaseFee` sub-pool have a fee
+/// value.
 #[derive(Debug)]
 pub(crate) struct BasefeeOrd<T: PoolTransaction>(Arc<ValidPoolTransaction<T>>);
 
@@ -300,7 +313,10 @@ impl_ord_wrapper!(BasefeeOrd);
 
 impl<T: PoolTransaction> Ord for BasefeeOrd<T> {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.0.transaction.max_fee_per_gas().cmp(&other.0.transaction.max_fee_per_gas())
+        self.0
+            .transaction
+            .max_fee_per_gas()
+            .cmp(&other.0.transaction.max_fee_per_gas())
     }
 }
 
@@ -308,11 +324,12 @@ impl<T: PoolTransaction> Ord for BasefeeOrd<T> {
 ///
 /// This sorts transactions by their distance.
 ///
-/// `Queued` transactions are transactions that are currently blocked by other parked (basefee,
-/// queued) or missing transactions.
+/// `Queued` transactions are transactions that are currently blocked by other
+/// parked (basefee, queued) or missing transactions.
 ///
-/// The primary order function always compares the transaction costs first. In case these
-/// are equal, it compares the timestamps when the transactions were created.
+/// The primary order function always compares the transaction costs first. In
+/// case these are equal, it compares the timestamps when the transactions were
+/// created.
 #[derive(Debug)]
 pub(crate) struct QueuedOrd<T: PoolTransaction>(Arc<ValidPoolTransaction<T>>);
 
@@ -322,7 +339,9 @@ impl_ord_wrapper!(QueuedOrd);
 impl<T: PoolTransaction> Ord for QueuedOrd<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         // Higher price is better
-        self.max_fee_per_gas().cmp(&self.max_fee_per_gas()).then_with(||
+        self.max_fee_per_gas()
+            .cmp(&self.max_fee_per_gas())
+            .then_with(||
             // Lower timestamp is better
             other.timestamp.cmp(&self.timestamp))
     }

@@ -68,16 +68,27 @@ impl Encodable for CurrencySettlement {
 
     fn encode(&self, out: &mut dyn bytes::BufMut) {
         self.currency.encode(out);
+        if self.amountNet.is_negative() {
+            1_u8.encode(out);
+        } else {
+            0_u8.encode(out);
+        }
         self.amountNet.twos_complement().encode(out);
     }
 }
 impl Decodable for CurrencySettlement {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let currency = Address::decode(buf)?;
+        let side: bool = Decodable::decode(buf)?;
         let amount_net = Uint::<256, 4>::decode(buf)?;
-        let twos = Signed::from_raw((!amount_net).overflowing_add(Uint::from(1)).0);
 
-        Ok(Self { amountNet: twos, currency })
+        let res = if side {
+            Signed::from_raw((!amount_net).overflowing_add(Uint::from(1)).0)
+        } else {
+            Signed::from_raw(amount_net)
+        };
+
+        Ok(Self { amountNet: res, currency })
     }
 }
 

@@ -1,14 +1,15 @@
 //! Support for maintaining the blob pool.
 
+use std::collections::BTreeMap;
+
 use reth_primitives::{BlockNumber, B256};
 use reth_provider::chain::ChainBlocks;
-use std::collections::BTreeMap;
 
 /// The type that is used to track canonical blob transactions.
 #[derive(Debug, Default, Eq, PartialEq)]
 pub struct BlobStoreCanonTracker {
     /// Keeps track of the blob transactions included in blocks.
-    blob_txs_in_blocks: BTreeMap<BlockNumber, Vec<B256>>,
+    blob_txs_in_blocks: BTreeMap<BlockNumber, Vec<B256>>
 }
 
 impl BlobStoreCanonTracker {
@@ -16,15 +17,16 @@ impl BlobStoreCanonTracker {
     pub fn add_block(
         &mut self,
         block_number: BlockNumber,
-        blob_txs: impl IntoIterator<Item = B256>,
+        blob_txs: impl IntoIterator<Item = B256>
     ) {
-        self.blob_txs_in_blocks.insert(block_number, blob_txs.into_iter().collect());
+        self.blob_txs_in_blocks
+            .insert(block_number, blob_txs.into_iter().collect());
     }
 
     /// Adds all blocks to the tracked list of blocks.
     pub fn add_blocks(
         &mut self,
-        blocks: impl IntoIterator<Item = (BlockNumber, impl IntoIterator<Item = B256>)>,
+        blocks: impl IntoIterator<Item = (BlockNumber, impl IntoIterator<Item = B256>)>
     ) {
         for (block_number, blob_txs) in blocks {
             self.add_block(block_number, blob_txs);
@@ -34,8 +36,11 @@ impl BlobStoreCanonTracker {
     /// Adds all blob transactions from the given chain to the tracker.
     pub fn add_new_chain_blocks(&mut self, blocks: &ChainBlocks<'_>) {
         let blob_txs = blocks.iter().map(|(num, blocks)| {
-            let iter =
-                blocks.body.iter().filter(|tx| tx.transaction.is_eip4844()).map(|tx| tx.hash);
+            let iter = blocks
+                .body
+                .iter()
+                .filter(|tx| tx.transaction.is_eip4844())
+                .map(|tx| tx.hash);
             (*num, iter)
         });
         self.add_blocks(blob_txs);
@@ -66,7 +71,7 @@ pub enum BlobStoreUpdates {
     /// No updates.
     None,
     /// Delete the given finalized transactions from the blob store.
-    Finalized(Vec<B256>),
+    Finalized(Vec<B256>)
 }
 
 #[cfg(test)]

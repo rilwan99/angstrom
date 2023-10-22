@@ -145,7 +145,16 @@ impl Encodable for Angstrom::PoolKey {
         self.currency0.encode(out);
         self.currency1.encode(out);
         self.fee.encode(out);
-        // self.tickSpacing
+
+        if self.tickSpacing.is_negative() {
+            1_u8.encode(out);
+            let spacing = (!self.tickSpacing).overflowing_add(1).0 as u32;
+            spacing.encode(out);
+        } else {
+            0_u8.encode(out);
+            (self.tickSpacing as u32).encode(out);
+        }
+
         self.hooks.encode(out);
     }
 
@@ -156,6 +165,19 @@ impl Encodable for Angstrom::PoolKey {
 
 impl Decodable for Angstrom::PoolKey {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
-        todo!()
+        let cur_0 = Address::decode(buf)?;
+        let cur_1 = Address::decode(buf)?;
+        let fee = u32::decode(buf)?;
+        let is_neg: bool = Decodable::decode(buf)?;
+
+        let tick_spacing = if is_neg {
+            let spacing = u32::decode(buf)?;
+            (!spacing).overflowing_add(1).0 as i32
+        } else {
+            u32::decode(buf)? as i32
+        };
+        let hooks = Address::decode(buf)?;
+
+        Ok(Self { hooks, fee, tickSpacing: tick_spacing, currency0: cur_0, currency1: cur_1 })
     }
 }

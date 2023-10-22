@@ -5,8 +5,8 @@ members = [
   "crates/consensus",
   "crates/types",
   "crates/common",
+  "crates/order-pool",
   "it-harness",
-  #"crates/order-pool",
 ]
 
 [workspace.package]
@@ -38,14 +38,12 @@ incremental = false
 tokio.workspace = true
 futures.workspace = true
 thiserror.workspace = true
-reth-network.workspace = true
 reth-primitives.workspace = true
 ethers-providers.workspace = true
 ethers-signers.workspace = true
 ethers-middleware.workspace = true
 ethers-core.workspace = true
 tracing.workspace = true
-reth-rpc-builder.workspace = true
 async-trait.workspace = true
 tokio-stream.workspace = true
 serde.workspace = true
@@ -64,7 +62,7 @@ action.workspace = true
 sim.workspace = true
 
 rand = "0.8.5"
-jsonrpsee = { workspace = true, features = ["server"] }
+jsonrpsee = { workspace = true, features = ["full"] }
 tower-http = { version = "0.4", features = ["full"] }
 tower = { version = "0.4", features = ["full"] }
 hyper = "0.14"
@@ -187,7 +185,7 @@ proptest = "1.0"
 proptest-derive = "0.4"
 arbitrary = "1.1"
 assert_matches = "1.5.0"
-
+aquamarine = "0.3"
 
 [features]
 test_harness = ["action/test_harness", "guard-network/test_harness"]
