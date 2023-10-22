@@ -29,9 +29,17 @@ bitflags::bitflags! {
         /// We track this as part of the state for simplicity, since blob transactions are handled differently and are mutually exclusive with normal transactions.
         const BLOB_TRANSACTION = 0b00000010;
 
-        const PENDING_POOL_BITS = Self::NO_PARKED_ANCESTORS.bits() | Self::NO_NONCE_GAPS.bits() | Self::ENOUGH_BALANCE.bits() | Self::NOT_TOO_MUCH_GAS.bits() |  Self::ENOUGH_FEE_CAP_BLOCK.bits() | Self::ENOUGH_BLOB_FEE_CAP_BLOCK.bits();
+        const PENDING_POOL_BITS = Self::NO_PARKED_ANCESTORS.bits()
+            | Self::NO_NONCE_GAPS.bits()
+            | Self::ENOUGH_BALANCE.bits()
+            | Self::NOT_TOO_MUCH_GAS.bits()
+            |  Self::ENOUGH_FEE_CAP_BLOCK.bits()
+            | Self::ENOUGH_BLOB_FEE_CAP_BLOCK.bits();
 
-        const BASE_FEE_POOL_BITS = Self::NO_PARKED_ANCESTORS.bits() | Self::NO_NONCE_GAPS.bits() | Self::ENOUGH_BALANCE.bits() | Self::NOT_TOO_MUCH_GAS.bits();
+        const BASE_FEE_POOL_BITS = Self::NO_PARKED_ANCESTORS.bits()
+            | Self::NO_NONCE_GAPS.bits()
+            | Self::ENOUGH_BALANCE.bits()
+            | Self::NOT_TOO_MUCH_GAS.bits();
 
         const QUEUED_POOL_BITS  = Self::NO_PARKED_ANCESTORS.bits();
 

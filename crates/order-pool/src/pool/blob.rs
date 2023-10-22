@@ -161,8 +161,7 @@ impl<T: PoolTransaction> Ord for BlobTransaction<T> {
 #[derive(Debug)]
 struct BlobOrd {
     /// Identifier that tags when transaction was submitted in the pool.
-    pub(crate) submission_id: u64
-    // TODO(mattsse): add ord values
+    pub(crate) submission_id: u64 // TODO(mattsse): add ord values
 }
 
 impl Eq for BlobOrd {}
