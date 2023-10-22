@@ -3,7 +3,7 @@ use std::{collections::HashMap, hash::Hash};
 use alloy_primitives::{Address, U256};
 use alloy_rlp::{Decodable, Encodable};
 use alloy_sol_types::sol;
-use revm::primitives::{TransactTo, TxEnv, B160, U256 as RU256};
+use revm::primitives::{TransactTo, TxEnv, U256 as RU256};
 use serde::{Deserialize, Serialize};
 
 use super::{angstrom_CONTRACT_ADDR, Signature};

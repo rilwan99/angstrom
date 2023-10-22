@@ -7,9 +7,7 @@ use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use enr::{Enr, EnrKey};
 use reth_primitives::{
     bytes::{Buf, BufMut, Bytes, BytesMut},
-    keccak256,
-    rpc_utils::rlp,
-    ForkId, NodeRecord, H256
+    keccak256, ForkId, NodeRecord, B256
 };
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},

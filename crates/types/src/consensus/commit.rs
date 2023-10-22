@@ -1,4 +1,4 @@
-use alloy_rlp::{RlpDecodable, RlpEncodable};
+use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use ethers_core::types::H256;
 use serde::{Deserialize, Serialize};
 
