@@ -3,9 +3,8 @@ use std::fmt::Debug;
 use client::RevmClient;
 use errors::{SimError, SimResult};
 use ethers_core::types::{transaction::eip2718::TypedTransaction, I256, U256};
-use executor::ThreadPool;
 use guard_types::on_chain::{
-    CallerInfo, ExternalStateSim, MevBundle, Order, SubmittedOrder, UserOrder, VanillaBundle
+    CallerInfo, ExternalStateSim, MevBundle, SubmittedOrder, VanillaBundle
 };
 use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
 

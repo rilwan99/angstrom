@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use alloy_primitive::{Bytes, B160, U256};
+use alloy_primitives::{Address, Bytes, U256};
 use byteorder::{ByteOrder, LittleEndian};
 use ethers_core::types::{transaction::eip2718::TypedTransaction, I256, U256 as EU256};
 use eyre::Result;
@@ -20,7 +20,7 @@ pub trait RevmBackend {
     fn update_evm_state(&self, slot_changes: &AddressSlots) -> Result<(), SimError>;
 }
 
-pub type AddressSlots = HashMap<B160, HashMap<U256, U256>>;
+pub type AddressSlots = HashMap<Address, HashMap<U256, U256>>;
 
 /// struct used to share the mutable state across threads
 pub struct RevmState {
@@ -42,7 +42,7 @@ impl RevmState {
         &self,
         txes: ExternalStateSim,
         _caller_info: CallerInfo,
-        overrides: HashMap<B160, U256>
+        overrides: HashMap<Address, U256>
     ) -> Result<(SimResult, AddressSlots), SimError> {
         let mut prehook_env = TxEnv::default();
         let (prehook_addr, pre_hook_calldata) = txes.pre_hook();
@@ -60,12 +60,12 @@ impl RevmState {
         post_env.data = posthook_calldata;
         post_env.transact_to = TransactTo::Call(posthook_addr.into());
 
-        let out_token_override = overrides.get(&txes.amount_out_token.into()).unwrap();
+        let out_token_override = overrides.get(&txes.amount_out_token).unwrap();
 
         let db = self.db.clone();
-        let current_bal = db.storage(posthook_addr, *out_token_override).unwrap();
+        let current_bal = db.storage_ref(posthook_addr, *out_token_override).unwrap();
 
-        let mut overrides: HashMap<B160, HashMap<U256, U256>> = HashMap::default();
+        let mut overrides: HashMap<Address, HashMap<U256, U256>> = HashMap::default();
 
         let mut slot_map = HashMap::default();
         slot_map.insert(*out_token_override, current_bal + U256::from(txes.amount_out_lim));
@@ -92,11 +92,12 @@ impl RevmState {
     pub fn simulate_v4_tx(
         &self,
         tx: TypedTransaction,
-        contract_overrides: HashMap<B160, Bytecode>
+        contract_overrides: HashMap<Address, Bytecode>
     ) -> Result<SimResult, SimError> {
         let mut env = TxEnv::default();
         env.data = Bytes::copy_from_slice(&*tx.data().cloned().unwrap());
-        env.transact_to = TransactTo::Call((*tx.to_addr().unwrap()).into());
+
+        env.transact_to = TransactTo::Call((tx.to_addr().unwrap().0).into());
         let mut db = self.db.clone();
         db.set_bytecode_overrides(contract_overrides);
         let mut evm = EVM::default();
@@ -178,8 +179,8 @@ impl RevmState {
     fn simulate_single_tx(
         &self,
         tx_env: TxEnv,
-        overrides: HashMap<B160, HashMap<U256, U256>>
-    ) -> Result<(ExecutionResult, HashMap<B160, HashMap<U256, U256>>), SimError> {
+        overrides: HashMap<Address, HashMap<U256, U256>>
+    ) -> Result<(ExecutionResult, HashMap<Address, HashMap<U256, U256>>), SimError> {
         let mut evm_db = self.db.clone();
         evm_db.set_state_overrides(overrides);
 
@@ -336,12 +337,12 @@ mod tests {
 
     fn convert_typed_tx(tx: &TypedTransaction) -> TxEnv {
         let transact_to = match tx.to_addr() {
-            Some(to) => TransactTo::Call(B160::from(*to)),
+            Some(to) => TransactTo::Call(Address::from(*to)),
             None => TransactTo::Create(CreateScheme::Create)
         };
 
         let tx_env = TxEnv {
-            caller: Into::<B160>::into(*tx.from().unwrap()),
+            caller: Into::<Address>::into(*tx.from().unwrap()),
             gas_limit: u64::MAX,
             gas_price: U256::ZERO,
             gas_priority_fee: None,

@@ -4,8 +4,11 @@ use alloy_primitives::Address;
 use parking_lot::RwLock;
 use reth_db::mdbx::{tx::Tx, WriteMap, RO};
 use reth_provider::LatestStateProvider;
-use reth_revm::State;
-use revm::db::{AccountState, DbAccount};
+use reth_revm::{database::StateProviderDatabase, State};
+use revm::{
+    db::{AccountState, DbAccount},
+    Database
+};
 use revm_primitives::{db::DatabaseRef, AccountInfo, Bytecode, B256, U256};
 use schnellru::{ByMemoryUsage, LruMap};
 
@@ -82,10 +85,10 @@ impl RevmLRU {
 
     pub fn get_lastest_state_provider(
         tx: Tx<'_, RO, WriteMap>
-    ) -> State<LatestStateProvider<Tx<'_, RO, WriteMap>>> {
+    ) -> StateProviderDatabase<LatestStateProvider<Tx<'_, RO, WriteMap>>> {
         let db_provider = LatestStateProvider::new(tx);
 
-        State::new(db_provider)
+        StateProviderDatabase(db_provider)
     }
 }
 
