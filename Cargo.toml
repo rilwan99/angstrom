@@ -84,26 +84,26 @@ revm = { git = "https://github.com/bluealloy/revm", rev = "df44297bc3949dc9e0cec
 revm-primitives = { git = "https://github.com/bluealloy/revm", rev = "df44297bc3949dc9e0cec06594c62dd946708b2a" }
 
 # reth
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-interfaces = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-provider = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-db = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-codecs = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-ecies = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-rpc-builder = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-blockchain-tree = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-beacon-consensus = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-metrics = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-revm = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-payload-builder = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-tasks = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-tracing = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-network = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-network-api = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-libmdbx = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
+reth-primitives = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-interfaces = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-provider = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-db = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-codecs = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-ecies = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-rpc-types = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-rpc-builder = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-blockchain-tree = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-beacon-consensus = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-metrics = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-revm = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-payload-builder = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-transaction-pool = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-tasks = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-tracing = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-network = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-network-api = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-rpc-types-compat = {  git = "https://github.com/SorellaLabs/reth.git" }
+reth-libmdbx = {  git = "https://github.com/SorellaLabs/reth.git" }
 
 
 # alloy
