@@ -5,55 +5,23 @@ use std::{
     task::{Context, Poll}
 };
 
-use ethers_core::{
-    abi::AbiEncode,
-    types::{Address, U256 as EU256}
-};
+use alloy_sol_types::SolCall;
 use ethers_providers::{JsonRpcClient, Middleware, ProviderError};
 use futures::Future;
 use futures_util::FutureExt;
 use guard_types::contract_bindings::ERC20;
-use revm::EVM;
-use revm_primitives::{TransactTo, TxEnv, B160, U256};
+use revm::new;
+use revm_primitives::{Address, Env, TransactTo, TxEnv, U256};
 use tokio::{runtime::Handle, task::JoinHandle};
 
 use crate::lru_db::RevmLRU;
 
-#[derive(Debug)]
-/// we use this to be able to generate our fake transaction data
-struct FakeClient;
-
-#[async_trait::async_trait]
-impl JsonRpcClient for FakeClient {
-    type Error = ProviderError;
-
-    async fn request<T, R>(&self, _method: &str, _params: T) -> Result<R, Self::Error>
-    where
-        T: std::fmt::Debug + serde::Serialize + Send + Sync,
-        R: serde::de::DeserializeOwned + Send
-    {
-        unreachable!()
-    }
-}
-impl Middleware for FakeClient {
-    type Error = ProviderError;
-    /// The next-lower middleware in the middleware stack
-    type Inner = Self;
-    /// The JSON-RPC client type at the bottom of the stack
-    type Provider = Self;
-
-    /// Get a reference to the next-lower middleware in the middleware stack
-    fn inner(&self) -> &Self::Inner {
-        self
-    }
-}
-
 pub struct SlotKeeper {
     addresses: Vec<Address>,
-    slots:     HashMap<B160, U256>,
+    slots:     HashMap<Address, U256>,
     db:        RevmLRU,
     handle:    Handle,
-    fut:       Option<JoinHandle<HashMap<B160, U256>>>
+    fut:       Option<JoinHandle<HashMap<Address, U256>>>
 }
 
 impl SlotKeeper {
@@ -63,7 +31,7 @@ impl SlotKeeper {
         Self { addresses, db, slots, handle, fut: None }
     }
 
-    pub fn get_current_slots(&self) -> &HashMap<B160, U256> {
+    pub fn get_current_slots(&self) -> &HashMap<Address, U256> {
         &self.slots
     }
 
@@ -79,24 +47,24 @@ impl SlotKeeper {
         self.addresses.extend(address);
     }
 
-    pub fn get_slots(addresses: Vec<Address>, db: RevmLRU) -> HashMap<B160, U256> {
+    pub fn get_slots(addresses: Vec<Address>, db: RevmLRU) -> HashMap<Address, U256> {
         // this is pretty big. would be nice to breakup
         addresses
             .iter()
             .map(|token_addr| {
-                let erc = ERC20::new(*token_addr, Arc::new(FakeClient));
-                let tx = erc.balance_of(*token_addr).tx;
-                let mut tx_env = TxEnv::default();
+                let mut call = ERC20::balanceOfCall::default();
+                call._owner = Address::ZERO;
 
-                tx_env.data = tx.data().unwrap().clone().0;
-                tx_env.transact_to = TransactTo::Call((*tx.to_addr().unwrap()).into());
+                let mut tx_env = TxEnv::default();
+                tx_env.data = call.abi_encode().into();
+                tx_env.transact_to = TransactTo::Call(*token_addr);
 
                 let prob_value = U256::from_limbs([u64::MAX, u64::MAX, u64::MAX, u64::MAX]);
-                let search_addr = Address::zero();
+                let search_addr = Address::ZERO;
 
                 for i in 0..100 {
-                    let mut user_addr_encoded = search_addr.clone().encode();
-                    user_addr_encoded.extend(EU256::from(i).encode());
+                    let mut user_addr_encoded = search_addr.to_vec();
+                    user_addr_encoded.extend(U256::from(i).to_be_bytes::<32>().to_vec());
 
                     let user_balance_slot =
                         U256::from_be_bytes(ethers::utils::keccak256(user_addr_encoded));
@@ -108,8 +76,9 @@ impl SlotKeeper {
 
                     let mut db = db.clone();
                     db.set_state_overrides(overrides);
-                    let mut evm = EVM::new();
+                    let mut evm = new();
                     evm.database(db);
+                    // evm.env = Env::from(tx_env.clone());
 
                     // this is just a balance_of call. should never fail
                     let output = match evm.transact_ref().unwrap().result {

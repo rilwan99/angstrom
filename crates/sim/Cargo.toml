@@ -68,3 +68,5 @@ serde_json = { workspace = true, features = ["arbitrary_precision"] }
 
 # alloy
 alloy-primitives.workspace = true
+alloy-sol-types.workspace = true
+

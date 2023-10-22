@@ -7,8 +7,11 @@ use std::{
 };
 
 use futures::{stream::FuturesUnordered, Stream, StreamExt};
-use guard_types::on_chain::{CallerInfo, PoolKey, SubmittedOrder, VanillaBundle};
-use revm::primitives::B160;
+use guard_types::{
+    contract_bindings::Angstrom::PoolKey,
+    on_chain::{CallerInfo, SubmittedOrder, VanillaBundle}
+};
+use revm::primitives::Address;
 use sim::{
     errors::{SimError, SimResult},
     Simulator
@@ -40,7 +43,7 @@ impl<S: Simulator + 'static> BundleSolver<S> {
             all_orders: HashSet::default(),
             pending_simulations: FuturesUnordered::default(),
             call_info: CallerInfo {
-                address:   B160::default(),
+                address:   Address::default(),
                 nonce:     69,
                 overrides: HashMap::new()
             }

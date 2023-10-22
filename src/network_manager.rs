@@ -16,7 +16,7 @@ use guard_types::on_chain::{SubmissionBundle, SubmittedOrder, VanillaBundle};
 
 use crate::submission_server::{Submission, SubmissionServer};
 
-pub enum SourceMessages {
+pub enum NetworkManagerMsg {
     Swarm(SwarmEvent),
     SubmissionServer(Submission),
     NewEthereumBlock(Block<H256>),
@@ -79,7 +79,7 @@ impl<M: Middleware + 'static> Stream for NetworkManager<M>
 where
     <M as Middleware>::Provider: PubsubClient
 {
-    type Item = SourceMessages;
+    type Item = NetworkManagerMsg;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         return_if!(
@@ -87,7 +87,7 @@ where
             .guard_net
             .poll_next_unpin(cx)
             .filter_map(|poll| poll)
-            .map(|event| Some(SourceMessages::Swarm(event))) => { is_ready() }
+            .map(|event| Some(NetworkManagerMsg::Swarm(event))) => { is_ready() }
         );
 
         return_if!(
@@ -95,7 +95,7 @@ where
             .submission_server
             .poll_next_unpin(cx)
             .filter_map(|poll| poll)
-            .map(|event| Some(SourceMessages::SubmissionServer(event))) => { is_ready() }
+            .map(|event| Some(NetworkManagerMsg::SubmissionServer(event))) => { is_ready() }
         );
 
         return_if!(
@@ -103,14 +103,14 @@ where
             .block_stream
             .poll_next_unpin(cx)
             .filter_map(|poll| poll)
-            .map(|event| Some(SourceMessages::NewEthereumBlock(event))) =>{ is_ready() }
+            .map(|event| Some(NetworkManagerMsg::NewEthereumBlock(event))) =>{ is_ready() }
         );
 
         return_if!(
         self
             .relay_sender
             .poll(cx)
-            .map(|event| Some(SourceMessages::RelaySubmission(event))) => { is_ready() }
+            .map(|event| Some(NetworkManagerMsg::RelaySubmission(event))) => { is_ready() }
         );
 
         Poll::Pending

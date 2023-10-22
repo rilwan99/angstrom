@@ -28,7 +28,7 @@ use crate::{
         Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner,
         SubscriptionKind, SubscriptionResult
     },
-    NetworkManager, SourceMessages
+    NetworkManager, NetworkManagerMsg
 };
 
 // TODO: these values should be moved somewhere else bc there ugly
@@ -178,13 +178,13 @@ where
             // poll all NetworkManager
             if let Poll::Ready(Some(message)) = self.network_manager.poll_next_unpin(cx) {
                 match message {
-                    SourceMessages::Swarm(swarm_event) => self.on_guard_net(swarm_event),
-                    SourceMessages::RelaySubmission(relay_submission) => {
+                    NetworkManagerMsg::Swarm(swarm_event) => self.on_guard_net(swarm_event),
+                    NetworkManagerMsg::RelaySubmission(relay_submission) => {
                         todo!()
                     }
-                    SourceMessages::SubmissionServer(msg) => self.on_submission(msg),
+                    NetworkManagerMsg::SubmissionServer(msg) => self.on_submission(msg),
 
-                    SourceMessages::NewEthereumBlock(block) => {
+                    NetworkManagerMsg::NewEthereumBlock(block) => {
                         let block = Arc::new(block);
                         if let Some(sync) = self.syncing.as_mut() {
                             sync.on_new_block(block);

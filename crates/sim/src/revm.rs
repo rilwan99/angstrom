@@ -1,9 +1,9 @@
 use std::{collections::HashMap, sync::Arc, task::Poll};
 
 use common::PollExt;
-use ethers_core::{abi::Bytes, types::Address};
+use ethers_core::abi::Bytes;
 use futures_util::{stream::FuturesUnordered, Future, FutureExt, StreamExt};
-use revm_primitives::{Bytecode, B160};
+use revm_primitives::{Address, Bytecode};
 use tokio::{runtime::Handle, sync::mpsc::UnboundedReceiver, task::JoinHandle};
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
 ///TODO: replace once settled
 const V4_BYTE_CODE: Bytes = vec![];
 ///TODO: replace once settled
-const angstrom_ADDRESS: B160 = B160::zero();
+const ANGSTROM_ADDRESS: Address = Address::ZERO;
 
 /// revm state handler
 pub struct Revm {
@@ -92,7 +92,7 @@ impl Revm {
                         ..Default::default()
                     };
 
-                    map.insert(angstrom_ADDRESS, bytecode);
+                    map.insert(ANGSTROM_ADDRESS, bytecode);
                     let _ = match state.simulate_v4_tx(tx, map) {
                         Ok(res) => sender.send(res),
                         Err(err) => sender.send(SimResult::SimError(err))
