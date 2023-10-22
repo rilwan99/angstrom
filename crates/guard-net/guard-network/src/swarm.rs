@@ -17,7 +17,6 @@ use reth_net_common::bandwidth_meter::BandwidthMeter;
 use reth_network_api::ReputationChangeKind;
 use reth_primitives::{ForkId, NodeRecord, PeerId, H256};
 use reth_tokio_util::EventListeners;
-use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::{debug, trace};
 
 use crate::{
@@ -84,13 +83,9 @@ pub struct Swarm {
     /// Tracks the connection state of the node
     net_connection_state: NetworkConnectionState,
     /// All listeners for high level network events.
-    event_listeners:      EventListeners<NetworkEvent>,
-    /// Tracks the number of active session (connected peers).
-    ///
-    /// This is updated via internal events and shared via `Arc` with the
-    /// [`NetworkHandle`] Updated by the `NetworkWorker` and loaded by the
-    /// `NetworkService`.
-    num_active_peers:     Arc<AtomicUsize>
+    event_listeners:      EventListeners<(PeerId, PeerMessages)>
+    // Receive for outbound state
+    // outbound_receiver: R
 }
 
 // === impl Swarm ===
@@ -160,8 +155,7 @@ impl Swarm {
             sessions,
             state,
             net_connection_state: NetworkConnectionState::default(),
-            event_listeners: Default::default(),
-            num_active_peers
+            event_listeners: Default::default()
         })
     }
 

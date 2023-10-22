@@ -208,9 +208,9 @@ impl SubmissionServerInner {
 
         let sub_server = Self { sender: tx };
 
-        let mut methods = GuardSubmitApiServer::into_rpc(sub_server.clone());
+        let mut methods = GuardSubmitApi::into_rpc(sub_server.clone());
         if allow_subscriptions {
-            methods.merge(GuardSubscribeApiServer::into_rpc(sub_server))?;
+            methods.merge(GuardSubscribeApi::into_rpc(sub_server))?;
         }
 
         let handle = server.start(methods);
@@ -223,7 +223,7 @@ impl SubmissionServerInner {
 }
 
 #[async_trait::async_trait]
-impl GuardSubmitApiServer for SubmissionServerInner {
+impl GuardSubmitServer for SubmissionServerInner {
     async fn submit_order(&self, signature: Signature, meta_tx: TypedData) -> RpcResult<bool> {
         info!(?meta_tx, "new user submission");
         let Ok(user_tx): Result<Order, _> = serde_json::from_value(serde_json::Value::Object(

@@ -12,6 +12,7 @@ use futures_util::{Future, FutureExt};
 type CatchupFuture<M> =
     Pin<Box<dyn Future<Output = Result<Option<Block<H256>>, <M as Middleware>::Error>> + Send>>;
 
+// TODO: lets catchup by more than one at a time
 pub struct RoundRobinSync<M: Middleware + 'static> {
     middleware:     &'static M,
     live_height:    u64,

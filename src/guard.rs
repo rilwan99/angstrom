@@ -156,6 +156,7 @@ where
                 .network_manager
                 .guard_net_mut()
                 .propagate_msg(PeerMessages::PropagateOrder(order)),
+
             ActionMessage::NewBestBundles(data) => self.consensus.better_bundle(data)
         }
     }
