@@ -148,7 +148,7 @@ impl NetworkConfigBuilder {
     /// Returns the configured [`PeerId`]
     pub fn get_signed_hello(&self) -> (RecoverableSignature, H256) {
         let hashed_msg = keccak256(self.verification_msg);
-        let msg: Message = Message::from_slice(hashed_msg.as_bytes()).unwrap();
+        let msg: Message = Message::from_slice(hashed_msg.as_ref() as &[u8]).unwrap();
 
         let scp = Secp256k1::new();
         let signature = scp.sign_ecdsa_recoverable(&msg, &self.secret_key);

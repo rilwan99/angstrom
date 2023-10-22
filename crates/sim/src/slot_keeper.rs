@@ -16,35 +16,6 @@ use tokio::{runtime::Handle, task::JoinHandle};
 
 use crate::lru_db::RevmLRU;
 
-#[derive(Debug)]
-/// we use this to be able to generate our fake transaction data
-struct FakeClient;
-
-#[async_trait::async_trait]
-impl JsonRpcClient for FakeClient {
-    type Error = ProviderError;
-
-    async fn request<T, R>(&self, _method: &str, _params: T) -> Result<R, Self::Error>
-    where
-        T: std::fmt::Debug + serde::Serialize + Send + Sync,
-        R: serde::de::DeserializeOwned + Send
-    {
-        unreachable!()
-    }
-}
-impl Middleware for FakeClient {
-    type Error = ProviderError;
-    /// The next-lower middleware in the middleware stack
-    type Inner = Self;
-    /// The JSON-RPC client type at the bottom of the stack
-    type Provider = Self;
-
-    /// Get a reference to the next-lower middleware in the middleware stack
-    fn inner(&self) -> &Self::Inner {
-        self
-    }
-}
-
 pub struct SlotKeeper {
     addresses: Vec<Address>,
     slots:     HashMap<Address, U256>,
@@ -81,7 +52,7 @@ impl SlotKeeper {
         addresses
             .iter()
             .map(|token_addr| {
-                let call = ERC20::balanceOfCall::default();
+                let mut call = ERC20::balanceOfCall::default();
                 call._owner = Address::ZERO;
 
                 let mut tx_env = TxEnv::default();
@@ -93,7 +64,7 @@ impl SlotKeeper {
 
                 for i in 0..100 {
                     let mut user_addr_encoded = search_addr.to_vec();
-                    user_addr_encoded.extend(U256::from(i).to_be_bytes());
+                    user_addr_encoded.extend(U256::from(i).to_be_bytes::<32>().to_vec());
 
                     let user_balance_slot =
                         U256::from_be_bytes(ethers::utils::keccak256(user_addr_encoded));
@@ -107,7 +78,7 @@ impl SlotKeeper {
                     db.set_state_overrides(overrides);
                     let mut evm = new();
                     evm.database(db);
-                    evm.env = Env::from(tx_env.clone());
+                    // evm.env = Env::from(tx_env.clone());
 
                     // this is just a balance_of call. should never fail
                     let output = match evm.transact_ref().unwrap().result {

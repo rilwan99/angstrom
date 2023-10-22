@@ -47,12 +47,12 @@ impl RevmBackend for RevmLRU {
         for (addr, storage) in slot_changes.iter() {
             let acct_storage = accounts
                 .get_or_insert(*addr, || DbAccount {
-                    info: state_provider.basic(*addr).unwrap().unwrap(),
+                    info: state_provider.basic_ref(*addr).unwrap().unwrap(),
                     ..Default::default()
                 })
                 .unwrap();
             for (idx, val) in storage {
-                let new_state = state_provider.storage(*addr, *idx)?;
+                let new_state = state_provider.storage_ref(*addr, *idx)?;
                 if new_state != *val {
                     acct_storage.storage.insert(*idx, new_state);
                 }
@@ -101,7 +101,7 @@ impl DatabaseRef for RevmLRU {
             Some(acc) => Ok(acc.info()),
             None => {
                 let db = Self::get_lastest_state_provider(Tx::new(self.db.begin_ro_txn()?));
-                Ok(db.basic(address)?)
+                Ok(db.basic_ref(address)?)
             }
         }
     }
@@ -130,10 +130,10 @@ impl DatabaseRef for RevmLRU {
                 acc_entry.account_state,
                 AccountState::StorageCleared | AccountState::NotExisting
             ) {
-                return Ok(db.storage(address, index)?)
+                return Ok(db.storage_ref(address, index)?)
             }
         } else {
-            return Ok(db.storage(address, index)?)
+            return Ok(db.storage_ref(address, index)?)
         }
 
         Ok(U256::default())
