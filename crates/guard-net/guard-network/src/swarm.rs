@@ -17,6 +17,7 @@ use reth_net_common::bandwidth_meter::BandwidthMeter;
 use reth_network_api::ReputationChangeKind;
 use reth_primitives::{ForkId, NodeRecord, PeerId, H256};
 use reth_tokio_util::EventListeners;
+use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, trace};
 
 use crate::{
@@ -84,8 +85,6 @@ pub struct Swarm {
     net_connection_state: NetworkConnectionState,
     /// All listeners for high level network events.
     event_listeners:      EventListeners<(PeerId, PeerMessages)>
-    // Receive for outbound state
-    // outbound_receiver: R
 }
 
 // === impl Swarm ===

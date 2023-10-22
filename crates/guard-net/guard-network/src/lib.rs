@@ -146,4 +146,3 @@ pub use session::{
 };
 pub use swarm::*;
 
-pub struct GuardNetHandle {}
