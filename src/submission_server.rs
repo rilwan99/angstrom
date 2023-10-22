@@ -72,32 +72,43 @@ pub(crate) fn create_cors_layer(http_cors_domains: &str) -> Result<CorsLayer, Co
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum SubscriptionKind {
-    /// New best sealed bundle seen by this guard
-    BestBundles,
-    /// New cow transactions that this guard has seen
-    CowTransactions
+    /// Sends the new best bundle it has been able to build
+    NewBestBundle,
+    /// Sends a pre-proposal upon receiving it
+    PreProposal,
+    /// Send a pre-proposal upon receiving it, but only if it is better than the
+    /// current best
+    NewBestPreProposal,
+    /// Sends the proposal upon receiving it from the proposer
+    Proposal,
+    ///  New best searcher order this guard has received
+    NewBestSearcherOrder,
+    /// New limit order this guard has received
+    LimitOrder
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum SubscriptionResult {
-    /// Simmed bundles
+    /// Vanilla Bundle
     Bundle(Arc<VanillaBundle>),
+    /// Preprosal
+    PreProposal(Arc<PreProposal>),
     /// Simmed User orders
-    CowTransaction(Arc<SubmittedOrder>)
+    SearcherOrder(Arc<SubmittedOrder>)
 }
 
 #[rpc(server, client, namespace = "guard")]
 #[async_trait::async_trait]
 pub trait GuardSubmitApi {
     #[method(name = "SubmitOrder")]
-    async fn submit_order(&self, signature: Signature, meta_tx: TypedData) -> RpcResult<bool>;
+    async fn submit_order(&self, signature: Signature, meta_tx: Order) -> RpcResult<bool>;
 }
 
 #[rpc(server, namespace = "guard_sub")]
 #[async_trait::async_trait]
-pub trait GaurdSubscribeApi {
+pub trait GuardSubscribeApi {
     /// Create an ethereum subscription for the given params
     #[subscription( name = "subscribe" => "subscription",
         unsubscribe = "unsubscribe",
@@ -135,13 +146,13 @@ impl SubmissionServer {
             .or_default()
             .retain(|sender| {
                 sender
-                    .try_send(SubscriptionResult::CowTransaction(tx.clone()))
+                    .try_send(SubscriptionResult::UserOrder(tx.clone()))
                     .is_ok()
             });
     }
 
     /// used to share new bundles with externally subscribed users
-    pub fn on_new_best_bundle(&mut self, bundle: Arc<VanillaBundle>) {
+    pub fn on_new_prepropose(&mut self, bundle: Arc<VanillaBundle>) {
         self.server_subscriptions
             .entry(SubscriptionKind::BestBundles)
             .or_default()
@@ -195,7 +206,7 @@ impl SubmissionServerInner {
 
         let mut methods = GuardSubmitApiServer::into_rpc(sub_server.clone());
         if allow_subscriptions {
-            methods.merge(GaurdSubscribeApiServer::into_rpc(sub_server))?;
+            methods.merge(GuardSubscribeApiServer::into_rpc(sub_server))?;
         }
 
         let handle = server.start(methods);
@@ -231,7 +242,7 @@ impl GuardSubmitApiServer for SubmissionServerInner {
 }
 
 #[async_trait::async_trait]
-impl GaurdSubscribeApiServer for SubmissionServerInner {
+impl GuardSubscribeApiServer for SubmissionServerInner {
     async fn subscribe_to_data(
         &self,
         pending: PendingSubscriptionSink,

@@ -1,27 +1,28 @@
 //! Connection tests
 
+use std::{collections::HashSet, net::SocketAddr, time::Duration};
+
 use ethers_core::utils::Geth;
 use ethers_providers::{Http, Middleware, Provider};
 use futures::StreamExt;
+use order_pool::test_utils::testing_pool;
 use reth_discv4::Discv4Config;
 use reth_eth_wire::DisconnectReason;
 use reth_interfaces::{
     p2p::headers::client::{HeadersClient, HeadersRequest},
-    sync::{NetworkSyncUpdater, SyncState},
+    sync::{NetworkSyncUpdater, SyncState}
 };
 use reth_net_common::ban_list::BanList;
 use reth_network::{
     test_utils::{
-        enr_to_peer_id, unused_tcp_udp, NetworkEventStream, PeerConfig, Testnet, GETH_TIMEOUT,
+        enr_to_peer_id, unused_tcp_udp, NetworkEventStream, PeerConfig, Testnet, GETH_TIMEOUT
     },
-    NetworkConfigBuilder, NetworkEvent, NetworkManager, PeersConfig,
+    NetworkConfigBuilder, NetworkEvent, NetworkManager, PeersConfig
 };
 use reth_network_api::{NetworkInfo, Peers, PeersInfo};
 use reth_primitives::{mainnet_nodes, HeadersDirection, NodeRecord, PeerId};
 use reth_provider::test_utils::NoopProvider;
-use reth_transaction_pool::test_utils::testing_pool;
 use secp256k1::SecretKey;
-use std::{collections::HashSet, net::SocketAddr, time::Duration};
 use tokio::task;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -204,8 +205,9 @@ async fn test_connect_with_boot_nodes() {
     let mut discv4 = Discv4Config::builder();
     discv4.add_boot_nodes(mainnet_nodes());
 
-    let config =
-        NetworkConfigBuilder::new(secret_key).discovery(discv4).build(NoopProvider::default());
+    let config = NetworkConfigBuilder::new(secret_key)
+        .discovery(discv4)
+        .build(NoopProvider::default());
     let network = NetworkManager::new(config).await.unwrap();
 
     let handle = network.handle().clone();
@@ -226,7 +228,9 @@ async fn test_connect_with_builder() {
     discv4.add_boot_nodes(mainnet_nodes());
 
     let client = NoopProvider::default();
-    let config = NetworkConfigBuilder::new(secret_key).discovery(discv4).build(client);
+    let config = NetworkConfigBuilder::new(secret_key)
+        .discovery(discv4)
+        .build(client);
     let (handle, network, _, requests) = NetworkManager::new(config)
         .await
         .unwrap()
@@ -262,7 +266,9 @@ async fn test_connect_to_trusted_peer() {
     let discv4 = Discv4Config::builder();
 
     let client = NoopProvider::default();
-    let config = NetworkConfigBuilder::new(secret_key).discovery(discv4).build(client);
+    let config = NetworkConfigBuilder::new(secret_key)
+        .discovery(discv4)
+        .build(client);
     let (handle, network, transactions, requests) = NetworkManager::new(config)
         .await
         .unwrap()
@@ -295,9 +301,9 @@ async fn test_connect_to_trusted_peer() {
 
     let headers = fetcher
         .get_headers(HeadersRequest {
-            start: 73174u64.into(),
-            limit: 10,
-            direction: HeadersDirection::Falling,
+            start:     73174u64.into(),
+            limit:     10,
+            direction: HeadersDirection::Falling
         })
         .await;
 
@@ -318,7 +324,11 @@ async fn test_incoming_node_id_blacklist() {
 
         // instantiate geth and add ourselves as a peer
         let temp_dir = tempfile::tempdir().unwrap().into_path();
-        let geth = Geth::new().data_dir(temp_dir).disable_discovery().authrpc_port(0).spawn();
+        let geth = Geth::new()
+            .data_dir(temp_dir)
+            .disable_discovery()
+            .authrpc_port(0)
+            .spawn();
         let geth_endpoint = SocketAddr::new([127, 0, 0, 1].into(), geth.port());
         let provider = Provider::<Http>::try_from(format!("http://{geth_endpoint}")).unwrap();
 
@@ -372,7 +382,11 @@ async fn test_incoming_connect_with_single_geth() {
 
         // instantiate geth and add ourselves as a peer
         let temp_dir = tempfile::tempdir().unwrap().into_path();
-        let geth = Geth::new().data_dir(temp_dir).disable_discovery().authrpc_port(0).spawn();
+        let geth = Geth::new()
+            .data_dir(temp_dir)
+            .disable_discovery()
+            .authrpc_port(0)
+            .spawn();
         let geth_endpoint = SocketAddr::new([127, 0, 0, 1].into(), geth.port());
         let provider = Provider::<Http>::try_from(format!("http://{geth_endpoint}")).unwrap();
 
@@ -431,7 +445,11 @@ async fn test_outgoing_connect_with_single_geth() {
 
         // instantiate geth and add ourselves as a peer
         let temp_dir = tempfile::tempdir().unwrap().into_path();
-        let geth = Geth::new().disable_discovery().data_dir(temp_dir).authrpc_port(0).spawn();
+        let geth = Geth::new()
+            .disable_discovery()
+            .data_dir(temp_dir)
+            .authrpc_port(0)
+            .spawn();
 
         let geth_p2p_port = geth.p2p_port().unwrap();
         let geth_socket = SocketAddr::new([127, 0, 0, 1].into(), geth_p2p_port);
@@ -477,7 +495,11 @@ async fn test_geth_disconnect() {
 
         // instantiate geth and add ourselves as a peer
         let temp_dir = tempfile::tempdir().unwrap().into_path();
-        let geth = Geth::new().disable_discovery().data_dir(temp_dir).authrpc_port(0).spawn();
+        let geth = Geth::new()
+            .disable_discovery()
+            .data_dir(temp_dir)
+            .authrpc_port(0)
+            .spawn();
 
         let geth_p2p_port = geth.p2p_port().unwrap();
         let geth_socket = SocketAddr::new([127, 0, 0, 1].into(), geth_p2p_port);
@@ -493,7 +515,7 @@ async fn test_geth_disconnect() {
 
         match events.next().await {
             Some(NetworkEvent::PeerAdded(peer_id)) => assert_eq!(peer_id, geth_peer_id),
-            _ => panic!("Expected a peer added event"),
+            _ => panic!("Expected a peer added event")
         }
 
         if let Some(NetworkEvent::SessionEstablished { peer_id, .. }) = events.next().await {

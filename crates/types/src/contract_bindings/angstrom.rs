@@ -15,12 +15,11 @@ sol! {
 
         type Currency is address;
 
-        #[derive(RlpDecodable, RlpEncodable)]
         struct Bundle {
             ExecutedOrder[] orders;
             bytes uniswapData;
         }
-        #[derive(RlpDecodable, RlpEncodable)]
+    
         struct ExecutedOrder {
             Order order;
             bytes signature;
@@ -28,14 +27,12 @@ sol! {
             uint256 amountOutActual;
         }
 
-        #[derive(RlpDecodable, RlpEncodable)]
         struct SwapParams {
             bool zeroForOne;
             int256 amountSpecified;
             uint160 sqrtPriceLimitX96;
         }
 
-        #[derive(RlpDecodable, RlpEncodable)]
         struct Order {
             uint256 nonce;
             uint8 orderType;
@@ -56,7 +53,6 @@ sol! {
             SearcherFallible
         }
 
-        #[derive(RlpDecodable, RlpEncodable)]
         struct PoolKey {
             address currency0;
             address currency1;
@@ -65,7 +61,6 @@ sol! {
             address hooks;
         }
 
-        #[derive(RlpDecodable, RlpEncodable)]
         /// @notice Uniswap instructions to execute after lock is taken.
         struct UniswapData {
             /// @member The discrete swaps to perform, there should be at most one entry
@@ -79,7 +74,6 @@ sol! {
             PoolFees[] pools;
         }
 
-        #[derive(RlpDecodable, RlpEncodable)]
         /// @notice Instruction to execute a swap on UniswapV4.
         struct PoolSwap {
             /// @member The pool to perform the swap on.
@@ -90,7 +84,6 @@ sol! {
             uint256 amountIn;
         }
 
-        #[derive(RlpDecodable, RlpEncodable)]
         /// @notice Instruction to settle an amount of currency.
         struct CurrencySettlement {
             /// @member The currency to settle.
@@ -100,7 +93,6 @@ sol! {
             int256 amountNet;
         }
 
-        #[derive(RlpDecodable, RlpEncodable)]
         /// @notice Instruction to donate revenue to a pool.
         struct PoolFees {
             /// @member The pool to pay fees to.

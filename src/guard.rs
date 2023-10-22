@@ -28,7 +28,7 @@ use crate::{
         Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner,
         SubscriptionKind, SubscriptionResult
     },
-    SourceMessages, Sources
+    NetworkManager, SourceMessages
 };
 
 // TODO: these values should be moved somewhere else bc there ugly
@@ -56,14 +56,14 @@ where
     S: Simulator + Unpin + 'static,
     <M as Middleware>::Provider: PubsubClient
 {
-    /// All of the sources that we read and write to
-    sources:   Sources<M>,
+    /// Manager of Network State
+    network_manager: NetworkManager<M>,
     /// guard network connection
-    consensus: ConsensusCore,
+    consensus:       ConsensusCore,
     /// deals with everything surrounding bundle building
-    action:    ActionCore<S>,
+    action:          ActionCore<S>,
     /// deals with round robin sycning
-    syncing:   Option<RoundRobinSync<M>>
+    syncing:         Option<RoundRobinSync<M>>
 }
 
 impl<M: Middleware + Unpin, S: Simulator + Unpin> Guard<M, S>
@@ -92,13 +92,14 @@ where
             // TODO: move into on config from action
             action_config.ecdsa_key.clone()
         )));
-        let sources = Sources::new(middleware, swarm, sub_server, relay_sender).await?;
+        let network_manager =
+            NetworkManager::new(middleware, swarm, sub_server, relay_sender).await?;
         let action = ActionCore::new(action_config).await?;
 
         let (consensus, current_height) = ConsensusCore::new().await;
         let syncing = RoundRobinSync::new(middleware, current_height).await;
 
-        Ok(Self { action, consensus, sources, syncing: Some(syncing) })
+        Ok(Self { action, consensus, network_manager, syncing: Some(syncing) })
     }
 
     fn on_submission(&mut self, msg: Submission) {
@@ -145,14 +146,14 @@ where
 
         match event {
             ActionMessage::NewBestVanilla(bundle) => {
-                self.sources
+                self.network_manager
                     .guard_net_mut()
                     .propagate_msg(PeerMessages::PropagateBundle(bundle.clone()));
 
-                self.sources.on_new_best_bundle(bundle);
+                self.network_manager.on_new_best_bundle(bundle);
             }
             ActionMessage::NewOrder(order) => self
-                .sources
+                .network_manager
                 .guard_net_mut()
                 .propagate_msg(PeerMessages::PropagateOrder(order)),
             ActionMessage::NewBestBundles(data) => self.consensus.better_bundle(data)
@@ -174,9 +175,9 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut work = 4096;
         loop {
-            // poll all sources
-            if let Poll::Ready(Some(sources)) = self.sources.poll_next_unpin(cx) {
-                match sources {
+            // poll all NetworkManager
+            if let Poll::Ready(Some(message)) = self.network_manager.poll_next_unpin(cx) {
+                match message {
                     SourceMessages::Swarm(swarm_event) => self.on_guard_net(swarm_event),
                     SourceMessages::RelaySubmission(relay_submission) => {
                         todo!()

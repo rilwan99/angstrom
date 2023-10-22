@@ -1,4 +1,3 @@
-use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
 use crate::{

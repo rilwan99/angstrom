@@ -23,8 +23,8 @@ pub enum SourceMessages {
     RelaySubmission(Result<(), PendingBundleError>)
 }
 
-/// Holds all of our message sources
-pub struct Sources<M: Middleware + 'static>
+/// Holds all of our network state
+pub struct NetworkManager<M: Middleware + 'static>
 where
     <M as Middleware>::Provider: PubsubClient
 {
@@ -39,7 +39,7 @@ where
     block_stream:      SubscriptionStream<'static, M::Provider, Block<H256>>
 }
 
-impl<M: Middleware + 'static> Sources<M>
+impl<M: Middleware + 'static> NetworkManager<M>
 where
     <M as Middleware>::Provider: PubsubClient
 {
@@ -75,7 +75,7 @@ where
     }
 }
 
-impl<M: Middleware + 'static> Stream for Sources<M>
+impl<M: Middleware + 'static> Stream for NetworkManager<M>
 where
     <M as Middleware>::Provider: PubsubClient
 {

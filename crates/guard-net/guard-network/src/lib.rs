@@ -32,8 +32,7 @@
 //!        * Responds to incoming transaction related requests
 //!        * Requests missing transactions from the `Network`
 //!        * Broadcasts new transactions received from the
-//!          [`TransactionPool`](reth_transaction_pool::TransactionPool) over
-//!          the `Network`
+//!          [`TransactionPool`](order_pool::TransactionPool) over the `Network`
 //!
 //!    - `ETH request Task`: is a spawned
 //!      [`EthRequestHandler`](crate::eth_requests::EthRequestHandler) future
@@ -92,7 +91,7 @@
 //!
 //! ```
 //! use reth_provider::test_utils::NoopProvider;
-//! use reth_transaction_pool::TransactionPool;
+//! use order_pool::TransactionPool;
 //! use reth_primitives::mainnet_nodes;
 //! use reth_network::config::rng_secret_key;
 //! use reth_network::{NetworkConfig, NetworkManager};
