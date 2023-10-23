@@ -72,7 +72,7 @@ where
         self.submission_server.on_new_best_bundle(bundle)
     }
 
-    /// poll fns
+    // poll fns
 
     pub fn poll_swarm(&mut self, cx: &mut Context<'_>) -> Poll<SwarmEvent> {
         self.guard_net.poll_next_unpin(cx).filter_map(|f| f)
