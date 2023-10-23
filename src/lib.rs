@@ -1,3 +1,5 @@
+#![feature(result_option_inspect)]
+
 mod bundle_builder;
 mod guard;
 mod network_manager;
