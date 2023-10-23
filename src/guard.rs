@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     marker::PhantomData,
     pin::Pin,
     sync::Arc,
@@ -13,20 +12,17 @@ use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Middleware, PubsubClient};
 use futures::{Future, FutureExt};
 use futures_util::StreamExt;
-use guard_network::{GuardStakingEvent, NetworkConfig, PeerMessages, Swarm, SwarmEvent};
+use guard_network::{NetworkConfig, PeerMessages, Swarm, SwarmEvent};
 use sim::Simulator;
-use tokio::sync::mpsc::{Sender, UnboundedSender};
-use tracing::{debug, warn};
+use tokio::sync::mpsc::Sender;
+use tracing::debug;
 use url::Url;
 
 use crate::{
     relay_sender::RelaySender,
     round_robin_sync::RoundRobinSync,
-    submission_server::{
-        Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner,
-        SubscriptionKind, SubscriptionResult
-    },
-    GeneralConfig, NetworkManager, NetworkManagerMsg
+    submission_server::{Submission, SubmissionServerConfig, SubmissionServerInner},
+    GeneralConfig, NetworkManager
 };
 
 // TODO: these values should be moved somewhere else bc there ugly
@@ -60,6 +56,7 @@ where
     consensus:       ConsensusCore,
     /// deals with round robin sycning
     syncing:         Option<RoundRobinSync<M>>,
+    /// placeholder for txpool
     _p:              PhantomData<S>
 }
 
@@ -150,23 +147,24 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut work = 4096;
         loop {
-            // poll all NetworkManager
-            if let Poll::Ready(Some(message)) = self.network_manager.poll_next_unpin(cx) {
-                match message {
-                    NetworkManagerMsg::Swarm(swarm_event) => self.on_guard_net(swarm_event),
-                    NetworkManagerMsg::RelaySubmission(relay_submission) => {
-                        todo!()
-                    }
-                    NetworkManagerMsg::SubmissionServer(msg) => self.on_submission(msg),
+            self.network_manager
+                .poll_swarm(cx)
+                .apply(|swarm_event| self.on_guard_net(swarm_event));
 
-                    NetworkManagerMsg::NewEthereumBlock(block) => {
-                        let block = Arc::new(block);
-                        if let Some(sync) = self.syncing.as_mut() {
-                            sync.on_new_block(block);
-                        }
-                    }
+            self.network_manager
+                .poll_submission_server(cx)
+                .apply(|msg| self.on_submission(msg));
+
+            self.network_manager.poll_block_stream(cx).apply(|block| {
+                let block = Arc::new(block);
+                if let Some(sync) = self.syncing.as_mut() {
+                    sync.on_new_block(block);
                 }
-            }
+            });
+
+            self.network_manager
+                .poll_relay_submission(cx)
+                .apply(|result| todo!());
 
             // poll consensus
             self.consensus

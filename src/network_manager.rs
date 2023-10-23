@@ -1,14 +1,12 @@
 use std::{
-    pin::Pin,
     sync::Arc,
     task::{Context, Poll}
 };
 
-use common::{return_if, PollExt};
+use common::PollExt;
 use ethers_core::types::{Block, H256};
 use ethers_flashbots::PendingBundleError;
 use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
-use futures::Stream;
 use futures_util::StreamExt;
 use guard_network::{Swarm, SwarmEvent};
 use guard_types::on_chain::{SubmissionBundle, SubmittedOrder, VanillaBundle};
@@ -17,13 +15,6 @@ use crate::{
     relay_sender::RelaySender,
     submission_server::{Submission, SubmissionServer}
 };
-
-pub enum NetworkManagerMsg {
-    Swarm(SwarmEvent),
-    SubmissionServer(Submission),
-    NewEthereumBlock(Block<H256>),
-    RelaySubmission(Result<(), PendingBundleError>)
-}
 
 /// Holds all of our network state
 pub struct NetworkManager<M: Middleware + 'static>
@@ -75,46 +66,25 @@ where
     pub fn on_new_best_bundle(&mut self, bundle: Arc<VanillaBundle>) {
         self.submission_server.on_new_best_bundle(bundle)
     }
-}
 
-impl<M: Middleware + 'static> Stream for NetworkManager<M>
-where
-    <M as Middleware>::Provider: PubsubClient
-{
-    type Item = NetworkManagerMsg;
+    /// poll fns
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        return_if!(
-        self
-            .guard_net
-            .poll_next_unpin(cx)
-            .filter_map(|poll| poll)
-            .map(|event| Some(NetworkManagerMsg::Swarm(event))) => { is_ready() }
-        );
+    pub fn poll_swarm(&mut self, cx: &mut Context<'_>) -> Poll<SwarmEvent> {
+        self.guard_net.poll_next_unpin(cx).filter_map(|f| f)
+    }
 
-        return_if!(
-        self
-            .submission_server
-            .poll_next_unpin(cx)
-            .filter_map(|poll| poll)
-            .map(|event| Some(NetworkManagerMsg::SubmissionServer(event))) => { is_ready() }
-        );
+    pub fn poll_submission_server(&mut self, cx: &mut Context<'_>) -> Poll<Submission> {
+        self.submission_server.poll_next_unpin(cx).filter_map(|f| f)
+    }
 
-        return_if!(
-        self
-            .block_stream
-            .poll_next_unpin(cx)
-            .filter_map(|poll| poll)
-            .map(|event| Some(NetworkManagerMsg::NewEthereumBlock(event))) =>{ is_ready() }
-        );
+    pub fn poll_block_stream(&mut self, cx: &mut Context<'_>) -> Poll<Block<H256>> {
+        self.block_stream.poll_next_unpin(cx).filter_map(|f| f)
+    }
 
-        return_if!(
-        self
-            .relay_sender
-            .poll(cx)
-            .map(|event| Some(NetworkManagerMsg::RelaySubmission(event))) => { is_ready() }
-        );
-
-        Poll::Pending
+    pub fn poll_relay_submission(
+        &mut self,
+        cx: &mut Context<'_>
+    ) -> Poll<Result<(), PendingBundleError>> {
+        self.relay_sender.poll(cx)
     }
 }
