@@ -1,6 +1,5 @@
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
-use action::action_core::ActionConfig;
 use clap::Parser;
 use common::{AtomicConsensus, IsLeader};
 use ethers_providers::{Provider, Ws};
@@ -9,7 +8,7 @@ use guard_network::{config::SecretKey, NetworkConfig};
 use hex_literal::hex;
 use reth_primitives::{mainnet_nodes, NodeRecord, PeerId, H512};
 use sim::{lru_db::RevmLRU, spawn_revm_sim};
-use stale_guard::{Guard, SubmissionServerConfig};
+use stale_guard::{GeneralConfig, Guard, SubmissionServerConfig};
 use tokio::runtime::Runtime;
 use url::Url;
 
@@ -67,7 +66,7 @@ impl Args {
 
         let fake_bundle = LocalWallet::new(&mut rand::thread_rng());
         let network_config = NetworkConfig::new(fake_key, fake_pub_key.into());
-        let action_config = ActionConfig {
+        let general_config = GeneralConfig {
             simulator: sim,
             ecdsa_key,
             submission_key: fake_bundle,
@@ -84,7 +83,7 @@ impl Args {
         println!("spawning guard");
 
         let guard =
-            rt.block_on(Guard::new(middleware, network_config, action_config, server_config))?;
+            rt.block_on(Guard::new(middleware, network_config, general_config, server_config))?;
         rt.block_on(guard);
 
         Ok(())
@@ -96,6 +95,7 @@ fn main() -> anyhow::Result<()> {
         .enable_all()
         .build()
         .unwrap();
+    let _ = fdlimit::raise_fd_limit();
 
     Args::parse().run(rt)?;
 

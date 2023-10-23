@@ -13,7 +13,6 @@ stale-guard = { path = "../", features = ["test_harness"] }
 guard-network = { path = "../crates/guard-net/guard-network/", features = [
   "test_harness",
 ] }
-action = { path = "../crates/action/", features = ["test_harness"] }
 guard-eth-wire = { path = "../crates/guard-net/guard-eth-wire" }
 guard-discv4 = { path = "../crates/guard-net/guard-discv4" }
 
