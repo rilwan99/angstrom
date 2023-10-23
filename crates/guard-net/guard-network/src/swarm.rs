@@ -82,9 +82,7 @@ pub struct Swarm {
     /// the sessions.
     state:                NetworkState,
     /// Tracks the connection state of the node
-    net_connection_state: NetworkConnectionState,
-    /// All listeners for high level network events.
-    event_listeners:      EventListeners<(PeerId, PeerMessages)>
+    net_connection_state: NetworkConnectionState
 }
 
 // === impl Swarm ===
@@ -153,8 +151,7 @@ impl Swarm {
             incoming,
             sessions,
             state,
-            net_connection_state: NetworkConnectionState::default(),
-            event_listeners: Default::default()
+            net_connection_state: NetworkConnectionState::default()
         })
     }
 
