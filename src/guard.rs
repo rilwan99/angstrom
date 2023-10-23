@@ -57,7 +57,7 @@ where
     /// deals with round robin sycning
     syncing:         Option<RoundRobinSync<M>>,
     /// holds the threads that are currently building bundles
-    builder:         BundleBuilder<S>
+    builder:         BundleBuilder<S> // TODO: txpool should go here
 }
 
 impl<M: Middleware + Unpin, S: Simulator + Unpin> Guard<M, S>

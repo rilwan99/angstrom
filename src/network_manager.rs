@@ -3,12 +3,12 @@ use std::{
     task::{Context, Poll}
 };
 
-use common::PollExt;
+use common::{PollExt, ThreadStream};
 use ethers_core::types::{Block, H256};
 use ethers_flashbots::PendingBundleError;
 use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
 use futures_util::StreamExt;
-use guard_network::{Swarm, SwarmEvent};
+use guard_network::{PeerMessages, Swarm, SwarmEvent};
 use guard_types::on_chain::{SubmissionBundle, SubmittedOrder, VanillaBundle};
 
 use crate::{
@@ -22,7 +22,7 @@ where
     <M as Middleware>::Provider: PubsubClient
 {
     /// guard network connection
-    guard_net:         Swarm,
+    guard_net:         ThreadStream<Swarm, SwarmEvent>,
     /// deals with new submissions through a rpc to the network
     submission_server: SubmissionServer,
     /// for the leader to submit to relays
@@ -44,12 +44,16 @@ where
     ) -> anyhow::Result<Self> {
         let block_stream = middleware.subscribe_blocks().await?;
 
-        Ok(Self { relay_sender, guard_net, submission_server, block_stream })
+        Ok(Self {
+            relay_sender,
+            guard_net: ThreadStream::new(guard_net),
+            submission_server,
+            block_stream
+        })
     }
 
-    /// grabs the guard network handle
-    pub fn guard_net_mut(&mut self) -> &mut Swarm {
-        &mut self.guard_net
+    pub fn new_guard_msg(&mut self, msg: PeerMessages) {
+        self.guard_net.send_msg(|guard| guard.propagate_msg(msg));
     }
 
     /// sends the bundle to all specified relays
