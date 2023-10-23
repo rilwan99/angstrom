@@ -41,6 +41,9 @@ where
     }
 
     fn send_messages(&mut self) {
+        if self.task.is_some() {
+            return
+        }
         self.fn_buffer
             .drain(..)
             .for_each(|outbound| outbound(&mut self.stream));
@@ -55,6 +58,10 @@ where
     type Item = U;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // optimistically schedule
+        self.send_messages();
+        self.process_next();
+
         if let Some(mut task) = self.task.take() {
             let poll_res = task.poll_unpin(cx).filter_map(|res| res.ok());
 
@@ -63,12 +70,7 @@ where
                 return Poll::Pending
             }
 
-            self.send_messages();
-            self.process_next();
-
             return poll_res
-        } else {
-            self.process_next();
         }
 
         Poll::Pending
