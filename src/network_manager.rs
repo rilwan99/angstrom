@@ -4,17 +4,19 @@ use std::{
     task::{Context, Poll}
 };
 
-use action::RelaySender;
 use common::{return_if, PollExt};
 use ethers_core::types::{Block, H256};
 use ethers_flashbots::PendingBundleError;
-use ethers_providers::{Middleware, PubsubClient, RpcError, SubscriptionStream};
+use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
 use futures::Stream;
 use futures_util::StreamExt;
 use guard_network::{Swarm, SwarmEvent};
 use guard_types::on_chain::{SubmissionBundle, SubmittedOrder, VanillaBundle};
 
-use crate::submission_server::{Submission, SubmissionServer};
+use crate::{
+    relay_sender::RelaySender,
+    submission_server::{Submission, SubmissionServer}
+};
 
 pub enum NetworkManagerMsg {
     Swarm(SwarmEvent),

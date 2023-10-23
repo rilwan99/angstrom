@@ -7,7 +7,10 @@ use std::{
 
 use common::{return_if, AtomicConsensus, ConsensusState, IsLeader, PollExt, ORDER_ACCUMULATION};
 use futures::{Future, Stream, StreamExt};
-use guard_types::on_chain::BestBundles;
+use guard_types::{
+    consensus::{Commit, PreProposal, Proposal},
+    on_chain::BestBundles
+};
 use reth_primitives::H512;
 
 use self::{
@@ -69,15 +72,15 @@ impl RoundState {
         self.height
     }
 
-    pub fn on_commit(&mut self) {
+    pub fn on_commit(&mut self, commit: Commit) {
         todo!()
     }
 
-    pub fn on_proposal(&mut self) {
+    pub fn on_proposal(&mut self, proposal: Proposal) {
         todo!()
     }
 
-    pub fn on_pre_propose(&mut self) {
+    pub fn on_pre_propose(&mut self, pre_propose: PreProposal) {
         todo!()
     }
 

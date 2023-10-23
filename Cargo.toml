@@ -1,7 +1,6 @@
 [workspace]
 members = [
   "crates/guard-net/*",
-  "crates/action",
   "crates/consensus",
   "crates/types",
   "crates/common",
@@ -58,7 +57,6 @@ alloy-primitives.workspace = true
 guard-types.workspace = true
 common.workspace = true
 consensus.workspace = true
-action.workspace = true
 sim.workspace = true
 
 rand = "0.8.5"
@@ -127,7 +125,6 @@ ethers-middleware = { version = "2.0.10", default-features = false }
 consensus = { path = "./crates/consensus/" }
 guard-types = { path = "./crates/types/" }
 common = { path = "./crates/common/" }
-action = { path = "./crates/action/" }
 sim = { path = "./crates/sim/" }
 
 # anvil = { git = "https://github.com/SorellaLabs/fastfoundry" }
@@ -188,4 +185,4 @@ assert_matches = "1.5.0"
 aquamarine = "0.3"
 
 [features]
-test_harness = ["action/test_harness", "guard-network/test_harness"]
+test_harness = ["guard-network/test_harness"]

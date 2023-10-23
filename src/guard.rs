@@ -1,14 +1,11 @@
 use std::{
     collections::HashMap,
+    marker::PhantomData,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll}
 };
 
-use action::{
-    action_core::{ActionConfig, ActionCore, ActionMessage},
-    RelaySender
-};
 use common::PollExt;
 use consensus::{ConsensusCore, ConsensusMessage};
 use ethers_flashbots::BroadcasterMiddleware;
@@ -23,12 +20,13 @@ use tracing::{debug, warn};
 use url::Url;
 
 use crate::{
+    relay_sender::RelaySender,
     round_robin_sync::RoundRobinSync,
     submission_server::{
         Submission, SubmissionServer, SubmissionServerConfig, SubmissionServerInner,
         SubscriptionKind, SubscriptionResult
     },
-    NetworkManager, NetworkManagerMsg
+    GeneralConfig, NetworkManager, NetworkManagerMsg
 };
 
 // TODO: these values should be moved somewhere else bc there ugly
@@ -60,10 +58,9 @@ where
     network_manager: NetworkManager<M>,
     /// guard network connection
     consensus:       ConsensusCore,
-    /// deals with everything surrounding bundle building
-    action:          ActionCore<S>,
     /// deals with round robin sycning
-    syncing:         Option<RoundRobinSync<M>>
+    syncing:         Option<RoundRobinSync<M>>,
+    _p:              PhantomData<S>
 }
 
 impl<M: Middleware + Unpin, S: Simulator + Unpin> Guard<M, S>
@@ -73,7 +70,7 @@ where
     pub async fn new(
         middleware: &'static M,
         network_config: NetworkConfig,
-        action_config: ActionConfig<S>,
+        general_config: GeneralConfig<S>,
         server_config: SubmissionServerConfig
     ) -> anyhow::Result<Self> {
         let sub_server = SubmissionServerInner::new(server_config).await?;
@@ -86,20 +83,17 @@ where
                     .map(|u| Url::parse(u).unwrap())
                     .collect(),
                 Url::parse(SIMULATION_RELAY)?,
-                // TODO: move into own config from action
-                action_config.submission_key.clone()
+                general_config.submission_key.clone()
             ),
-            // TODO: move into on config from action
-            action_config.ecdsa_key.clone()
+            general_config.ecdsa_key.clone()
         )));
         let network_manager =
             NetworkManager::new(middleware, swarm, sub_server, relay_sender).await?;
-        let action = ActionCore::new(action_config).await?;
 
         let (consensus, current_height) = ConsensusCore::new().await;
         let syncing = RoundRobinSync::new(middleware, current_height).await;
 
-        Ok(Self { action, consensus, network_manager, syncing: Some(syncing) })
+        Ok(Self { consensus, network_manager, syncing: Some(syncing), _p: Default::default() })
     }
 
     fn on_submission(&mut self, msg: Submission) {
@@ -107,7 +101,7 @@ where
 
         match msg {
             Submission::UserOrder(order) => {
-                self.action.bundle_solver().new_order(order);
+                todo!()
             }
             Submission::Subscription(..) => {
                 unreachable!("this is handled in the subscription server")
@@ -123,10 +117,10 @@ where
                 debug!(?peer_id, ?request, "got data from peer");
                 match request {
                     PeerMessages::PropagateBundle(bundle) => {
-                        self.action.bundle_solver().new_bundle((*bundle).clone())
+                        todo!()
                     }
                     PeerMessages::PropagateOrder(order) => {
-                        self.action.bundle_solver().new_order((*order).clone())
+                        todo!()
                     }
                     PeerMessages::Commit(c) => {
                         todo!()
@@ -138,26 +132,6 @@ where
             res @ _ => {
                 debug!(?res, "got swarm event");
             }
-        }
-    }
-
-    fn on_action(&mut self, event: ActionMessage) {
-        debug!(?event, "got actions");
-
-        match event {
-            ActionMessage::NewBestVanilla(bundle) => {
-                self.network_manager
-                    .guard_net_mut()
-                    .propagate_msg(PeerMessages::PropagateBundle(bundle.clone()));
-
-                self.network_manager.on_new_best_bundle(bundle);
-            }
-            ActionMessage::NewOrder(order) => self
-                .network_manager
-                .guard_net_mut()
-                .propagate_msg(PeerMessages::PropagateOrder(order)),
-
-            ActionMessage::NewBestBundles(data) => self.consensus.better_bundle(data)
         }
     }
 
@@ -193,12 +167,6 @@ where
                     }
                 }
             }
-
-            // poll actions
-            self.action
-                .poll(cx)
-                .filter_map(|f| f)
-                .apply(|msg| self.on_action(msg));
 
             // poll consensus
             self.consensus
