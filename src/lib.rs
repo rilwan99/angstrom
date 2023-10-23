@@ -1,3 +1,4 @@
+mod bundle_builder;
 mod guard;
 mod network_manager;
 mod relay_sender;
