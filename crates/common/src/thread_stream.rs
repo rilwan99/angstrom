@@ -36,6 +36,8 @@ where
             return
         }
 
+        // This is safe as we make sure that all references are cleared before
+        // we drop
         let casted: &'static mut T = unsafe { std::mem::transmute(&mut self.stream) };
         self.task = Some(tokio::spawn(casted.next()))
     }

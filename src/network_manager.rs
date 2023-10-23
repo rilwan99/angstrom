@@ -21,7 +21,8 @@ pub struct NetworkManager<M: Middleware + 'static>
 where
     <M as Middleware>::Provider: PubsubClient
 {
-    /// guard network connection
+    /// guard network connection. This is a thread-stream as it is a pretty
+    /// bulky poll
     guard_net:         ThreadStream<Swarm, SwarmEvent>,
     /// deals with new submissions through a rpc to the network
     submission_server: SubmissionServer,
