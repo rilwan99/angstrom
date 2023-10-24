@@ -630,13 +630,13 @@ pub trait PoolOrder:
     + FromRecoveredTransaction
     + IntoRecoveredTransaction
 {
-    /// Hash of the transaction.
+    /// Hash of the Order
     fn hash(&self) -> &TxHash;
 
-    /// The Sender of the transaction.
+    /// The Sender of the Order
     fn sender(&self) -> Address;
 
-    /// Returns the nonce for this transaction.
+    /// Returns the nonce for this order
     fn nonce(&self) -> u64;
 
     /// Returns the cost that this transaction is allowed to consume:
@@ -647,16 +647,19 @@ pub trait PoolOrder:
     /// + max_blob_fee_per_gas * blob_gas_used`.
     fn cost(&self) -> U256;
 
-    /// Amount of gas that should be used in executing this transaction. This is
+    /// Amount of gas that should be used in executing this order. This is
     /// paid up-front.
     fn gas_limit(&self) -> u64;
 
-    /// Returns the EIP-1559 the maximum fee per gas the caller is willing to
+    /// Returns the maximum fee per gas the caller is willing to
     /// pay.
     ///
     /// For legacy transactions this is gas_price.
     ///
     /// This is also commonly referred to as the "Gas Fee Cap" (`GasFeeCap`).
+    // TODO: We will reimplement this but as a max_fee_per_value where they can
+    // comnunicate their max gas per value cleared based in the numeraire of the
+    // pair which seems especially useful for limit orders
     fn max_fee_per_gas(&self) -> u128;
 
     /// Returns the access_list for the particular transaction type.
@@ -668,11 +671,6 @@ pub trait PoolOrder:
     ///
     /// This will return `None` for non-EIP1559 transactions
     fn max_priority_fee_per_gas(&self) -> Option<u128>;
-
-    /// Returns the EIP-4844 max fee per data gas
-    ///
-    /// This will return `None` for non-EIP4844 transactions
-    fn max_fee_per_blob_gas(&self) -> Option<u128>;
 
     /// Returns the effective tip for this transaction.
     ///
@@ -705,16 +703,6 @@ pub trait PoolOrder:
 
     /// Returns the transaction type
     fn tx_type(&self) -> u8;
-
-    /// Returns true if the transaction is an EIP-1559 transaction.
-    fn is_eip1559(&self) -> bool {
-        self.tx_type() == EIP1559_TX_TYPE_ID
-    }
-
-    /// Returns true if the transaction is an EIP-4844 transaction.
-    fn is_eip4844(&self) -> bool {
-        self.tx_type() == EIP4844_TX_TYPE_ID
-    }
 
     /// Returns the length of the rlp encoded transaction object
     ///
@@ -839,10 +827,6 @@ impl PoolOrder for EthPooledTransaction {
             Transaction::Eip1559(tx) => Some(tx.max_priority_fee_per_gas),
             Transaction::Eip4844(tx) => Some(tx.max_priority_fee_per_gas)
         }
-    }
-
-    fn max_fee_per_blob_gas(&self) -> Option<u128> {
-        self.transaction.max_fee_per_blob_gas()
     }
 
     fn access_list(&self) -> Option<&AccessList> {

@@ -24,9 +24,10 @@ impl<T: Ord + Clone> From<Option<T>> for Priority<T> {
     }
 }
 
-/// Transaction ordering trait to determine the order of transactions.
+/// Order Sorting trait to determine the order and priority of user and searcher
+/// orders.
 ///
-/// Decides how transactions should be ordered within the pool, depending on a
+/// Decides how orders should be sorted within the pool, depending on a
 /// `Priority` value.
 ///
 /// The returned priority must reflect [total order](https://en.wikipedia.org/wiki/Total_order).

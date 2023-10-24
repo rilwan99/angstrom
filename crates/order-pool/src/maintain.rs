@@ -316,7 +316,6 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
                 let pending_block_base_fee = tip
                     .next_block_base_fee(chain_spec.base_fee_params)
                     .unwrap_or_default();
-                let pending_block_blob_fee = tip.next_block_blob_fee();
 
                 let first_block = blocks.first();
                 trace!(

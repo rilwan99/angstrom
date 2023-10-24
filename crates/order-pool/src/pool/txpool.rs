@@ -19,7 +19,7 @@ use crate::{
     config::TXPOOL_MAX_ACCOUNT_SLOTS_PER_SENDER,
     error::{Eip4844PoolTransactionError, InvalidPoolTransactionError, PoolError},
     identifier::{SenderId, TransactionId},
-    metrics::TxPoolMetrics,
+    metrics::OrderPoolMetrics,
     pool::{
         best::BestTransactions,
         parked::{BasefeeOrd, ParkedPool, QueuedOrd},
@@ -93,7 +93,7 @@ pub struct TxPool<T: OrderSorting> {
     /// All transactions in the pool.
     all_transactions: AllTransactions<T::Order>,
     /// Transaction pool metrics
-    metrics:          TxPoolMetrics
+    metrics:          OrderPoolMetrics
 }
 
 // === impl TxPool ===
@@ -460,12 +460,7 @@ impl<T: OrderSorting> TxPool<T> {
                         *transaction.hash(),
                         InvalidPoolTransactionError::ExceedsGasLimit(block_gas_limit, tx_gas_limit)
                     )),
-                    InsertErr::BlobTxHasNonceGap { transaction } => {
-                        Err(PoolError::InvalidTransaction(
-                            *transaction.hash(),
-                            Eip4844PoolTransactionError::Eip4844NonceGap.into()
-                        ))
-                    }
+
                     InsertErr::Overdraft { transaction } => Err(PoolError::InvalidTransaction(
                         *transaction.hash(),
                         InvalidPoolTransactionError::Overdraft
@@ -1169,23 +1164,6 @@ impl<T: PoolOrder> AllTransactions<T> {
             .map(|tx| (tx, internal.subpool))
     }
 
-    /// Checks if the given transaction's type conflicts with an existing
-    /// transaction.
-    ///
-    /// See also [ValidPoolTransaction::tx_type_conflicts_with].
-    ///
-    /// Caution: This assumes that mutually exclusive invariant is always true
-    /// for the same sender.
-    #[inline]
-    fn contains_conflicting_transaction(&self, tx: &ValidPoolTransaction<T>) -> bool {
-        let mut iter = self.txs_iter(tx.transaction_id.sender);
-        if let Some((_, existing)) = iter.next() {
-            return tx.tx_type_conflicts_with(&existing.transaction)
-        }
-        // no existing transaction for this sender
-        false
-    }
-
     /// Additional checks for a new transaction.
     ///
     /// This will enforce all additional rules in the context of this pool, such
@@ -1219,71 +1197,7 @@ impl<T: PoolOrder> AllTransactions<T> {
             })
         }
 
-        if self.contains_conflicting_transaction(&transaction) {
-            // blob vs non blob transactions are mutually exclusive for the same sender
-            return Err(InsertErr::TxTypeConflict { transaction: Arc::new(transaction) })
-        }
-
         Ok(transaction)
-    }
-
-    /// Enforces additional constraints for blob transactions before attempting
-    /// to insert:
-    ///    - new blob transactions must not have any nonce gaps
-    ///    - blob transactions cannot go into overdraft
-    ///    - replacement blob transaction with a higher fee must not shift an
-    ///      already propagated descending blob transaction into overdraft
-    fn ensure_valid_blob_transaction(
-        &self,
-        new_blob_tx: ValidPoolTransaction<T>,
-        on_chain_balance: U256,
-        ancestor: Option<TransactionId>
-    ) -> Result<ValidPoolTransaction<T>, InsertErr<T>> {
-        if let Some(ancestor) = ancestor {
-            let Some(ancestor_tx) = self.txs.get(&ancestor) else {
-                // ancestor tx is missing, so we can't insert the new blob
-                return Err(InsertErr::BlobTxHasNonceGap { transaction: Arc::new(new_blob_tx) })
-            };
-            if ancestor_tx.state.has_nonce_gap() {
-                // the ancestor transaction already has a nonce gap, so we can't insert the new
-                // blob
-                return Err(InsertErr::BlobTxHasNonceGap { transaction: Arc::new(new_blob_tx) })
-            }
-
-            // the max cost executing this transaction requires
-            let mut cumulative_cost = ancestor_tx.next_cumulative_cost() + new_blob_tx.cost();
-
-            // check if the new blob would go into overdraft
-            if cumulative_cost > on_chain_balance {
-                // the transaction would go into overdraft
-                return Err(InsertErr::Overdraft { transaction: Arc::new(new_blob_tx) })
-            }
-
-            // ensure that a replacement would not shift already propagated blob
-            // transactions into overdraft
-            let id = new_blob_tx.transaction_id;
-            let mut descendants = self.descendant_txs_inclusive(&id).peekable();
-            if let Some((maybe_replacement, _)) = descendants.peek() {
-                if **maybe_replacement == new_blob_tx.transaction_id {
-                    // replacement transaction
-                    descendants.next();
-
-                    // check if any of descendant blob transactions should be shifted into overdraft
-                    for (_, tx) in descendants {
-                        cumulative_cost += tx.transaction.cost();
-                        if tx.transaction.is_eip4844() && cumulative_cost > on_chain_balance {
-                            // the transaction would shift
-                            return Err(InsertErr::Overdraft { transaction: Arc::new(new_blob_tx) })
-                        }
-                    }
-                }
-            }
-        } else if new_blob_tx.cost() > on_chain_balance {
-            // the transaction would go into overdraft
-            return Err(InsertErr::Overdraft { transaction: Arc::new(new_blob_tx) })
-        }
-
-        Ok(new_blob_tx)
     }
 
     /// Returns true if the replacement candidate is underpriced and can't
@@ -1318,22 +1232,6 @@ impl<T: PoolOrder> AllTransactions<T> {
             && replacement_max_priority_fee_per_gas != 0
         {
             return true
-        }
-
-        // check max blob fee per gas
-        if let Some(existing_max_blob_fee_per_gas) =
-            existing_transaction.transaction.max_fee_per_blob_gas()
-        {
-            // this enforces that blob txs can only be replaced by blob txs
-            let replacement_max_blob_fee_per_gas = maybe_replacement
-                .transaction
-                .max_fee_per_blob_gas()
-                .unwrap_or(0);
-            if replacement_max_blob_fee_per_gas
-                <= existing_max_blob_fee_per_gas * price_bump_multiplier
-            {
-                return true
-            }
         }
 
         false
@@ -1412,11 +1310,6 @@ impl<T: PoolOrder> AllTransactions<T> {
         }
         if fee_cap >= self.pending_basefee as u128 {
             state.insert(TxState::ENOUGH_FEE_CAP_BLOCK);
-        }
-
-        // Ensure tx does not exceed block gas limit
-        if transaction.gas_limit() < self.block_gas_limit {
-            state.insert(TxState::NOT_TOO_MUCH_GAS);
         }
 
         // placeholder for the replaced transaction, if any
@@ -1605,8 +1498,6 @@ pub(crate) enum InsertErr<T: PoolOrder> {
         transaction: Arc<ValidPoolTransaction<T>>,
         existing:    TxHash
     },
-    /// Attempted to insert a blob transaction with a nonce gap
-    BlobTxHasNonceGap { transaction: Arc<ValidPoolTransaction<T>> },
     /// Attempted to insert a transaction that would overdraft the sender's
     /// balance at the time of insertion.
     Overdraft { transaction: Arc<ValidPoolTransaction<T>> },

@@ -873,14 +873,6 @@ impl<T: PoolOrder> AddedTransaction<T> {
         }
     }
 
-    /// Returns the hash of the replaced transaction if it is a blob
-    /// transaction.
-    pub(crate) fn replaced_blob_transaction(&self) -> Option<B256> {
-        self.replaced()
-            .filter(|tx| tx.transaction.is_eip4844())
-            .map(|tx| *tx.transaction.hash())
-    }
-
     /// Returns the hash of the transaction
     pub(crate) fn hash(&self) -> &TxHash {
         match self {

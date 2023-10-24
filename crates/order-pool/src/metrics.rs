@@ -8,7 +8,7 @@ use reth_metrics::{
 /// Transaction pool metrics
 #[derive(Metrics)]
 #[metrics(scope = "transaction_pool")]
-pub struct TxPoolMetrics {
+pub struct OrderPoolMetrics {
     /// Number of transactions inserted in the pool
     pub(crate) inserted_transactions: Counter,
     /// Number of invalid transactions
