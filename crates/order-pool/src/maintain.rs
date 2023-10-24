@@ -288,7 +288,7 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
                     .transactions()
                     .filter(|tx| !new_mined_transactions.contains(&tx.hash))
                     .filter_map(|tx| tx.clone().into_ecrecovered())
-                    .map(<P as OrderPool>::Transaction::from_recovered_transaction)
+                    .map(<P as OrderPool>::Order::from_recovered_transaction)
                     .collect::<Vec<_>>();
 
                 // update the pool first
@@ -307,9 +307,7 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
                 //
                 // Note: we no longer know if the tx was local or external
                 metrics.inc_reinserted_transactions(pruned_old_transactions.len());
-                let _ = pool
-                    .add_external_transactions(pruned_old_transactions)
-                    .await;
+                let _ = pool.add_external_orders(pruned_old_transactions).await;
             }
             CanonStateNotification::Commit { new } => {
                 let (blocks, state) = new.inner();

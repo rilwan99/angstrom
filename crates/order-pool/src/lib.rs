@@ -309,7 +309,7 @@ where
 impl<V, T> OrderPool for Pool<V, T>
 where
     V: OrderValidator,
-    T: TransactionOrdering<Order = <V as OrderValidator>::Transaction>
+    T: TransactionOrdering<Order = <V as OrderValidator>::Order>
 {
     type Order = T::Order;
 
@@ -464,7 +464,7 @@ where
 impl<V: OrderValidator, T: TransactionOrdering> TransactionPoolExt for Pool<V, T>
 where
     V: OrderValidator,
-    T: TransactionOrdering<Order = <V as OrderValidator>::Transaction>
+    T: TransactionOrdering<Order = <V as OrderValidator>::Order>
 {
     #[instrument(skip(self), target = "txpool")]
     fn set_block_info(&self, info: BlockInfo) {
