@@ -1,0 +1,24 @@
+[package]
+name = "new_rpc"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+guard-types.workspace = true
+common.workspace = true
+
+reth-primitives.workspace = true
+
+# misc
+jsonrpsee = { workspace = true, features = ["server", "macros"] }
+serde_json.workspace = true
+
+[features]
+client = ["jsonrpsee/client", "jsonrpsee/async-client"]
