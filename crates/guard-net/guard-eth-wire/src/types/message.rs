@@ -121,6 +121,8 @@ pub enum EthMessage {
     // default communication
     PropagateOrder(SubmittedOrder),
     PropagateBundle(VanillaBundle)
+    //TODO: Implement Searcher order wrapper type and request for best searcher orders
+    //GetBestSearcherOrders(RequestPair<Vec<SearcherOrder>>),
 }
 //TODO: Will, you have to implement the request pair model so that you can have
 //TODO: the message & request pair is rlp encode/decodable but the type that
