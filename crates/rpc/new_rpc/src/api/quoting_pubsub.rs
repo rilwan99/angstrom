@@ -4,7 +4,7 @@ use crate::types::subscriptions::{QuotingSubscriptionKind, QuotingSubscriptionPa
 
 #[rpc(server, namespace = "quoting")]
 #[async_trait::async_trait]
-pub trait OrderPubSubApi {
+pub trait QuotingPubSubApi {
     #[subscription(
         name = "subscribe" => "subscription",
         unsubscribe = "unsubscribe",

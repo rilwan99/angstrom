@@ -21,6 +21,11 @@ jsonrpsee = { workspace = true, features = ["server", "macros"] }
 serde_json.workspace = true
 serde.workspace = true
 alloy-primitives = { workspace = true, features = ["serde"] }
+async-trait.workspace = true
+
+tower-http = { version = "0.4", features = ["full"] }
+tower = { version = "0.4", features = ["full"] }
+hyper = "0.14"
 
 [features]
 client = ["jsonrpsee/client", "jsonrpsee/async-client"]
