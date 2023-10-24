@@ -20,7 +20,7 @@ reth-primitives.workspace = true
 jsonrpsee = { workspace = true, features = ["server", "macros"] }
 serde_json.workspace = true
 serde.workspace = true
-alloy-primitives.workspace = true
+alloy-primitives = { workspace = true, features = ["serde"] }
 
 [features]
 client = ["jsonrpsee/client", "jsonrpsee/async-client"]

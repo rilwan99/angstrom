@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
-use guard_types::{consensus::*, on_chain::SubmittedOrder};
+use guard_types::{consensus::*, contract_bindings::Angstrom::PoolKey, on_chain::SubmittedOrder};
 use serde::{Deserialize, Serialize};
+
+use super::quoting::{Depth25, Depth5, BBO};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq, Hash, Clone)]
 #[serde(deny_unknown_fields)]
@@ -49,10 +51,18 @@ pub enum OrderSubscriptionResult {
     Order(Arc<SubmittedOrder>)
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
+#[serde(deny_unknown_fields)]
+pub enum QuotingSubscriptionParam {
+    #[default]
+    None,
+    Pool(PoolKey)
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
-pub enum QuotingSubcriptionKind {
+pub enum QuotingSubscriptionKind {
     /// The BBO of a given pool
     BBO,
     /// A 5 tick depth on a given pool
@@ -64,4 +74,8 @@ pub enum QuotingSubcriptionKind {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
-pub enum QuotingSubscriptionResult {}
+pub enum QuotingSubscriptionResult {
+    BBO(Arc<BBO>),
+    Depth5(Arc<Depth5>),
+    Depth25(Arc<Depth25>)
+}

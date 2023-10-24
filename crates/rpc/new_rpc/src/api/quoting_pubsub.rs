@@ -1,6 +1,6 @@
 use jsonrpsee::proc_macros::rpc;
 
-use crate::types::subscriptions::OrderSubscriptionKind;
+use crate::types::subscriptions::{QuotingSubscriptionKind, QuotingSubscriptionParam};
 
 #[rpc(server, namespace = "quoting")]
 #[async_trait::async_trait]
@@ -8,7 +8,11 @@ pub trait OrderPubSubApi {
     #[subscription(
         name = "subscribe" => "subscription",
         unsubscribe = "unsubscribe",
-        item = crate::types::subscription::OrderSubscriptionResult
+        item = crate::types::subscription::QuotingSubscriptionResult
     )]
-    async fn subscribe(&self, kind: OrderSubscriptionKind) -> jsonrpsee::core::SubscriptionResult;
+    async fn subscribe(
+        &self,
+        kind: QuotingSubscriptionKind,
+        params: Option<QuotingSubscriptionParam>
+    ) -> jsonrpsee::core::SubscriptionResult;
 }
