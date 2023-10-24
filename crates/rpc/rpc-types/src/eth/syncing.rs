@@ -2,21 +2,6 @@ use alloy_primitives::{B512, U256, U64};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::collections::BTreeMap;
 
-/// Syncing info
-#[derive(Debug, Clone, Default, Serialize, Deserialize, Eq, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct SyncInfo {
-    /// Starting block
-    pub starting_block: U256,
-    /// Current block
-    pub current_block: U256,
-    /// Highest block seen so far
-    pub highest_block: U256,
-    /// Warp sync snapshot chunks total.
-    pub warp_chunks_amount: Option<U256>,
-    /// Warp sync snapshot chunks processed.
-    pub warp_chunks_processed: Option<U256>,
-}
 
 /// Peers info
 #[derive(Debug, Clone, Default, Serialize)]
@@ -98,49 +83,6 @@ pub struct PipProtocolInfo {
     pub head: String,
 }
 
-/// Sync status
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SyncStatus {
-    /// Info when syncing
-    Info(SyncInfo),
-    /// Not syncing
-    None,
-}
-
-impl<'de> Deserialize<'de> for SyncStatus {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum Syncing {
-            /// When client is synced to the highest block, eth_syncing with return "false"
-            None(bool),
-            IsSyncing(SyncInfo),
-        }
-
-        match Syncing::deserialize(deserializer)? {
-            Syncing::None(false) => Ok(SyncStatus::None),
-            Syncing::None(true) => Err(serde::de::Error::custom(
-                "eth_syncing returned `true` that is undefined value.",
-            )),
-            Syncing::IsSyncing(sync) => Ok(SyncStatus::Info(sync)),
-        }
-    }
-}
-
-impl Serialize for SyncStatus {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        match self {
-            SyncStatus::Info(info) => info.serialize(serializer),
-            SyncStatus::None => serializer.serialize_bool(false),
-        }
-    }
-}
 
 /// Propagation statistics for pending transaction.
 #[derive(Debug, Clone, Default, Serialize)]

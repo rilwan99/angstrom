@@ -13,24 +13,6 @@ use std::{
     ops::{Range, RangeFrom, RangeTo},
 };
 
-/// Helper type to represent a bloom filter used for matching logs.
-#[derive(Default, Debug)]
-pub struct BloomFilter(Vec<Bloom>);
-
-impl From<Vec<Bloom>> for BloomFilter {
-    fn from(src: Vec<Bloom>) -> Self {
-        BloomFilter(src)
-    }
-}
-
-impl BloomFilter {
-    /// Returns whether the given bloom matches the list of Blooms in the current filter.
-    /// If the filter is empty (the list is empty), then any bloom matches
-    /// Otherwise, there must be at least one matche for the BloomFilter to match.
-    pub fn matches(&self, bloom: Bloom) -> bool {
-        self.0.is_empty() || self.0.iter().any(|a| bloom.contains(a))
-    }
-}
 
 #[derive(Default, Debug, PartialEq, Eq, Clone, Deserialize)]
 /// FilterSet is a set of values that will be used to filter logs
