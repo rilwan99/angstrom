@@ -1,34 +1,36 @@
 //! Provides everything related to `eth_` namespace
 //!
-//! The entire implementation of the namespace is quite large, hence it is divided across several
-//! files.
+//! The entire implementation of the namespace is quite large, hence it is
+//! divided across several files.
+
+use std::{
+    future::Future,
+    sync::Arc,
+    time::{Duration, Instant}
+};
+
+use async_trait::async_trait;
+use reth_interfaces::RethResult;
+use reth_network_api::NetworkInfo;
+use reth_primitives::{
+    Address, BlockId, BlockNumberOrTag, ChainInfo, SealedBlock, B256, U256, U64
+};
+use reth_provider::{
+    BlockReaderIdExt, ChainSpecProvider, EvmEnvProvider, StateProviderBox, StateProviderFactory
+};
+use reth_rpc_types::{SyncInfo, SyncStatus};
+use reth_tasks::{TaskSpawner, TokioTaskExecutor};
+use reth_transaction_pool::TransactionPool;
+use revm_primitives::{BlockEnv, CfgEnv};
+use tokio::sync::{oneshot, Mutex};
 
 use crate::eth::{
     api::pending_block::{PendingBlock, PendingBlockEnv, PendingBlockEnvOrigin},
     cache::EthStateCache,
     error::{EthApiError, EthResult},
     gas_oracle::GasPriceOracle,
-    signer::EthSigner,
+    signer::EthSigner
 };
-use async_trait::async_trait;
-use reth_interfaces::RethResult;
-use reth_network_api::NetworkInfo;
-use reth_primitives::{
-    Address, BlockId, BlockNumberOrTag, ChainInfo, SealedBlock, B256, U256, U64,
-};
-use reth_provider::{
-    BlockReaderIdExt, ChainSpecProvider, EvmEnvProvider, StateProviderBox, StateProviderFactory,
-};
-use reth_rpc_types::{SyncInfo, SyncStatus};
-use reth_tasks::{TaskSpawner, TokioTaskExecutor};
-use reth_transaction_pool::TransactionPool;
-use revm_primitives::{BlockEnv, CfgEnv};
-use std::{
-    future::Future,
-    sync::Arc,
-    time::{Duration, Instant},
-};
-use tokio::sync::{oneshot, Mutex};
 
 mod block;
 mod call;
@@ -39,8 +41,9 @@ mod sign;
 mod state;
 mod transactions;
 
-use crate::BlockingTaskPool;
 pub use transactions::{EthTransactions, TransactionSource};
+
+use crate::BlockingTaskPool;
 
 /// `Eth` API trait.
 ///
@@ -69,19 +72,20 @@ pub trait EthApiSpec: EthTransactions + Send + Sync {
 /// `Eth` API implementation.
 ///
 /// This type provides the functionality for handling `eth_` related requests.
-/// These are implemented two-fold: Core functionality is implemented as [EthApiSpec]
-/// trait. Additionally, the required server implementations (e.g. [`reth_rpc_api::EthApiServer`])
-/// are implemented separately in submodules. The rpc handler implementation can then delegate to
-/// the main impls. This way [`EthApi`] is not limited to [`jsonrpsee`] and can be used standalone
+/// These are implemented two-fold: Core functionality is implemented as
+/// [EthApiSpec] trait. Additionally, the required server implementations (e.g.
+/// [`reth_rpc_api::EthApiServer`]) are implemented separately in submodules.
+/// The rpc handler implementation can then delegate to the main impls. This way
+/// [`EthApi`] is not limited to [`jsonrpsee`] and can be used standalone
 /// or in other network handlers (for example ipc).
 pub struct EthApi<Provider, Pool, Network> {
     /// All nested fields bundled together.
-    inner: Arc<EthApiInner<Provider, Pool, Network>>,
+    inner: Arc<EthApiInner<Provider, Pool, Network>>
 }
 
 impl<Provider, Pool, Network> EthApi<Provider, Pool, Network>
 where
-    Provider: BlockReaderIdExt + ChainSpecProvider,
+    Provider: BlockReaderIdExt + ChainSpecProvider
 {
     /// Creates a new, shareable instance using the default tokio task spawner.
     pub fn new(
@@ -91,7 +95,7 @@ where
         eth_cache: EthStateCache,
         gas_oracle: GasPriceOracle<Provider>,
         gas_cap: impl Into<GasCap>,
-        blocking_task_pool: BlockingTaskPool,
+        blocking_task_pool: BlockingTaskPool
     ) -> Self {
         Self::with_spawner(
             provider,
@@ -101,7 +105,7 @@ where
             gas_oracle,
             gas_cap.into().into(),
             Box::<TokioTaskExecutor>::default(),
-            blocking_task_pool,
+            blocking_task_pool
         )
     }
 
@@ -115,7 +119,7 @@ where
         gas_oracle: GasPriceOracle<Provider>,
         gas_cap: u64,
         task_spawner: Box<dyn TaskSpawner>,
-        blocking_task_pool: BlockingTaskPool,
+        blocking_task_pool: BlockingTaskPool
     ) -> Self {
         // get the block number of the latest block
         let latest_block = provider
@@ -136,20 +140,20 @@ where
             starting_block: U256::from(latest_block),
             task_spawner,
             pending_block: Default::default(),
-            blocking_task_pool,
+            blocking_task_pool
         };
         Self { inner: Arc::new(inner) }
     }
 
     /// Executes the future on a new blocking task.
     ///
-    /// This accepts a closure that creates a new future using a clone of this type and spawns the
-    /// future onto a new task that is allowed to block.
+    /// This accepts a closure that creates a new future using a clone of this
+    /// type and spawns the future onto a new task that is allowed to block.
     pub(crate) async fn on_blocking_task<C, F, R>(&self, c: C) -> EthResult<R>
     where
         C: FnOnce(Self) -> F,
         F: Future<Output = EthResult<R>> + Send + 'static,
-        R: Send + 'static,
+        R: Send + 'static
     {
         let (tx, rx) = oneshot::channel();
         let this = self.clone();
@@ -171,7 +175,8 @@ where
         &self.inner.gas_oracle
     }
 
-    /// Returns the configured gas limit cap for `eth_call` and tracing related calls
+    /// Returns the configured gas limit cap for `eth_call` and tracing related
+    /// calls
     pub fn gas_cap(&self) -> u64 {
         self.inner.gas_cap
     }
@@ -197,7 +202,7 @@ where
 impl<Provider, Pool, Network> EthApi<Provider, Pool, Network>
 where
     Provider:
-        BlockReaderIdExt + ChainSpecProvider + StateProviderFactory + EvmEnvProvider + 'static,
+        BlockReaderIdExt + ChainSpecProvider + StateProviderFactory + EvmEnvProvider + 'static
 {
     /// Returns the state at the given [BlockId] enum.
     ///
@@ -208,10 +213,11 @@ where
 
     /// Returns the state at the given [BlockId] enum or the latest.
     ///
-    /// Convenience function to interprets `None` as `BlockId::Number(BlockNumberOrTag::Latest)`
+    /// Convenience function to interprets `None` as
+    /// `BlockId::Number(BlockNumberOrTag::Latest)`
     pub fn state_at_block_id_or_latest(
         &self,
-        block_id: Option<BlockId>,
+        block_id: Option<BlockId>
     ) -> EthResult<StateProviderBox<'_>> {
         if let Some(block_id) = block_id {
             self.state_at_block_id(block_id)
@@ -235,20 +241,23 @@ impl<Provider, Pool, Network> EthApi<Provider, Pool, Network>
 where
     Provider:
         BlockReaderIdExt + ChainSpecProvider + StateProviderFactory + EvmEnvProvider + 'static,
-    Pool: TransactionPool + Clone + 'static,
-    Network: NetworkInfo + Send + Sync + 'static,
+    Pool: OrderPool + Clone + 'static,
+    Network: NetworkInfo + Send + Sync + 'static
 {
     /// Configures the [CfgEnv] and [BlockEnv] for the pending block
     ///
-    /// If no pending block is available, this will derive it from the `latest` block
+    /// If no pending block is available, this will derive it from the `latest`
+    /// block
     pub(crate) fn pending_block_env_and_cfg(&self) -> EthResult<PendingBlockEnv> {
         let origin = if let Some(pending) = self.provider().pending_block()? {
             PendingBlockEnvOrigin::ActualPending(pending)
         } else {
-            // no pending block from the CL yet, so we use the latest block and modify the env
-            // values that we can
-            let mut latest =
-                self.provider().latest_header()?.ok_or_else(|| EthApiError::UnknownBlockNumber)?;
+            // no pending block from the CL yet, so we use the latest block and modify the
+            // env values that we can
+            let mut latest = self
+                .provider()
+                .latest_header()?
+                .ok_or_else(|| EthApiError::UnknownBlockNumber)?;
 
             // child block
             latest.number += 1;
@@ -263,9 +272,11 @@ where
 
         let mut cfg = CfgEnv::default();
         let mut block_env = BlockEnv::default();
-        // Note: for the PENDING block we assume it is past the known merge block and thus this will
-        // not fail when looking up the total difficulty value for the blockenv.
-        self.provider().fill_env_with_header(&mut cfg, &mut block_env, origin.header())?;
+        // Note: for the PENDING block we assume it is past the known merge block and
+        // thus this will not fail when looking up the total difficulty value
+        // for the blockenv.
+        self.provider()
+            .fill_env_with_header(&mut cfg, &mut block_env, origin.header())?;
 
         Ok(PendingBlockEnv { cfg, block_env, origin })
     }
@@ -285,9 +296,9 @@ where
             // check if the block is still good
             if let Some(pending_block) = lock.as_ref() {
                 // this is guaranteed to be the `latest` header
-                if pending.block_env.number.to::<u64>() == pending_block.block.number &&
-                    pending.origin.header().hash == pending_block.block.parent_hash &&
-                    now <= pending_block.expires_at
+                if pending.block_env.number.to::<u64>() == pending_block.block.number
+                    && pending.origin.header().hash == pending_block.block.parent_hash
+                    && now <= pending_block.expires_at
                 {
                     return Ok(Some(pending_block.block.clone()))
                 }
@@ -309,8 +320,8 @@ where
 
             let now = Instant::now();
             *lock = Some(PendingBlock {
-                block: pending_block.clone(),
-                expires_at: now + Duration::from_secs(3),
+                block:      pending_block.clone(),
+                expires_at: now + Duration::from_secs(3)
             });
 
             Ok(Some(pending_block))
@@ -334,10 +345,10 @@ impl<Provider, Pool, Events> Clone for EthApi<Provider, Pool, Events> {
 #[async_trait]
 impl<Provider, Pool, Network> EthApiSpec for EthApi<Provider, Pool, Network>
 where
-    Pool: TransactionPool + Clone + 'static,
+    Pool: OrderPool + Clone + 'static,
     Provider:
         BlockReaderIdExt + ChainSpecProvider + StateProviderFactory + EvmEnvProvider + 'static,
-    Network: NetworkInfo + 'static,
+    Network: NetworkInfo + 'static
 {
     /// Returns the current ethereum protocol version.
     ///
@@ -358,7 +369,11 @@ where
     }
 
     fn accounts(&self) -> Vec<Address> {
-        self.inner.signers.iter().flat_map(|s| s.accounts()).collect()
+        self.inner
+            .signers
+            .iter()
+            .flat_map(|s| s.accounts())
+            .collect()
     }
 
     fn is_syncing(&self) -> bool {
@@ -369,14 +384,17 @@ where
     fn sync_status(&self) -> RethResult<SyncStatus> {
         let status = if self.is_syncing() {
             let current_block = U256::from(
-                self.provider().chain_info().map(|info| info.best_number).unwrap_or_default(),
+                self.provider()
+                    .chain_info()
+                    .map(|info| info.best_number)
+                    .unwrap_or_default()
             );
             SyncStatus::Info(SyncInfo {
                 starting_block: self.inner.starting_block,
                 current_block,
                 highest_block: current_block,
                 warp_chunks_amount: None,
-                warp_chunks_processed: None,
+                warp_chunks_processed: None
             })
         } else {
             SyncStatus::None
@@ -417,25 +435,25 @@ impl From<GasCap> for u64 {
 /// Container type `EthApi`
 struct EthApiInner<Provider, Pool, Network> {
     /// The transaction pool.
-    pool: Pool,
+    pool:               Pool,
     /// The provider that can interact with the chain.
-    provider: Provider,
+    provider:           Provider,
     /// An interface to interact with the network
-    network: Network,
+    network:            Network,
     /// All configured Signers
-    signers: Vec<Box<dyn EthSigner>>,
+    signers:            Vec<Box<dyn EthSigner>>,
     /// The async cache frontend for eth related data
-    eth_cache: EthStateCache,
+    eth_cache:          EthStateCache,
     /// The async gas oracle frontend for gas price suggestions
-    gas_oracle: GasPriceOracle<Provider>,
+    gas_oracle:         GasPriceOracle<Provider>,
     /// Maximum gas limit for `eth_call` and call tracing RPC methods.
-    gas_cap: u64,
+    gas_cap:            u64,
     /// The block number at which the node started
-    starting_block: U256,
+    starting_block:     U256,
     /// The type that can spawn tasks which would otherwise block.
-    task_spawner: Box<dyn TaskSpawner>,
+    task_spawner:       Box<dyn TaskSpawner>,
     /// Cached pending block if any
-    pending_block: Mutex<Option<PendingBlock>>,
+    pending_block:      Mutex<Option<PendingBlock>>,
     /// A pool dedicated to blocking tasks.
-    blocking_task_pool: BlockingTaskPool,
+    blocking_task_pool: BlockingTaskPool
 }

@@ -2,7 +2,7 @@ use std::{fmt, marker::PhantomData};
 
 use reth_primitives::U256;
 
-use crate::traits::PoolTransaction;
+use crate::traits::PoolOrder;
 
 /// Priority of the transaction that can be missing.
 ///
@@ -37,14 +37,10 @@ pub trait TransactionOrdering: Send + Sync + 'static {
     type PriorityValue: Ord + Clone + Default + fmt::Debug + Send + Sync;
 
     /// The transaction type to determine the priority of.
-    type Transaction: PoolTransaction;
+    type Order: PoolOrder;
 
     /// Returns the priority score for the given transaction.
-    fn priority(
-        &self,
-        transaction: &Self::Transaction,
-        base_fee: u64
-    ) -> Priority<Self::PriorityValue>;
+    fn priority(&self, transaction: &Self::Order, base_fee: u64) -> Priority<Self::PriorityValue>;
 }
 
 /// Default ordering for the pool.
@@ -57,19 +53,15 @@ pub struct CoinbaseTipOrdering<T>(PhantomData<T>);
 
 impl<T> TransactionOrdering for CoinbaseTipOrdering<T>
 where
-    T: PoolTransaction + 'static
+    T: PoolOrder + 'static
 {
+    type Order = T;
     type PriorityValue = U256;
-    type Transaction = T;
 
     /// Source: <https://github.com/ethereum/go-ethereum/blob/7f756dc1185d7f1eeeacb1d12341606b7135f9ea/core/txpool/legacypool/list.go#L469-L482>.
     ///
     /// NOTE: The implementation is incomplete for missing base fee.
-    fn priority(
-        &self,
-        transaction: &Self::Transaction,
-        base_fee: u64
-    ) -> Priority<Self::PriorityValue> {
+    fn priority(&self, transaction: &Self::Order, base_fee: u64) -> Priority<Self::PriorityValue> {
         transaction
             .effective_tip_per_gas(base_fee)
             .map(U256::from)

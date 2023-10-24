@@ -67,6 +67,7 @@ hyper = "0.14"
 
 parking_lot = "0.12"
 guard-network = { path = "./crates/guard-net/guard-network/" }
+order-pool = { path = "./crates/order-pool/" }
 futures-util = "0.3.28"
 tokio-util = { version = "0.7.4", features = ["codec"] }
 soketto = "0.7.1"

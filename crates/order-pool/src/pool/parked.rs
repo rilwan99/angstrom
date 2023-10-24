@@ -2,9 +2,7 @@ use std::{cmp::Ordering, collections::BTreeSet, ops::Deref, sync::Arc};
 
 use fnv::FnvHashMap;
 
-use crate::{
-    identifier::TransactionId, pool::size::SizeTracker, PoolTransaction, ValidPoolTransaction
-};
+use crate::{identifier::TransactionId, pool::size::SizeTracker, PoolOrder, ValidPoolTransaction};
 
 /// A pool of transactions that are currently parked and are waiting for
 /// external changes (e.g. basefee, ancestor transactions, balance) that
@@ -42,7 +40,7 @@ impl<T: ParkedOrd> ParkedPool<T> {
     /// # Panics
     ///
     /// If the transaction is already included.
-    pub(crate) fn add_transaction(&mut self, tx: Arc<ValidPoolTransaction<T::Transaction>>) {
+    pub(crate) fn add_transaction(&mut self, tx: Arc<ValidPoolTransaction<T::Order>>) {
         let id = *tx.id();
         assert!(
             !self.by_id.contains_key(&id),
@@ -61,9 +59,7 @@ impl<T: ParkedOrd> ParkedPool<T> {
     }
 
     /// Returns an iterator over all transactions in the pool
-    pub(crate) fn all(
-        &self
-    ) -> impl Iterator<Item = Arc<ValidPoolTransaction<T::Transaction>>> + '_ {
+    pub(crate) fn all(&self) -> impl Iterator<Item = Arc<ValidPoolTransaction<T::Order>>> + '_ {
         self.by_id.values().map(|tx| tx.transaction.clone().into())
     }
 
@@ -71,7 +67,7 @@ impl<T: ParkedOrd> ParkedPool<T> {
     pub(crate) fn remove_transaction(
         &mut self,
         id: &TransactionId
-    ) -> Option<Arc<ValidPoolTransaction<T::Transaction>>> {
+    ) -> Option<Arc<ValidPoolTransaction<T::Order>>> {
         // remove from queues
         let tx = self.by_id.remove(id)?;
         self.best.remove(&tx);
@@ -83,7 +79,7 @@ impl<T: ParkedOrd> ParkedPool<T> {
     }
 
     /// Removes the worst transaction from this pool.
-    pub(crate) fn pop_worst(&mut self) -> Option<Arc<ValidPoolTransaction<T::Transaction>>> {
+    pub(crate) fn pop_worst(&mut self) -> Option<Arc<ValidPoolTransaction<T::Order>>> {
         let worst = self.best.iter().next().map(|tx| *tx.transaction.id())?;
         self.remove_transaction(&worst)
     }
@@ -125,7 +121,7 @@ impl<T: ParkedOrd> ParkedPool<T> {
     }
 }
 
-impl<T: PoolTransaction> ParkedPool<BasefeeOrd<T>> {
+impl<T: PoolOrder> ParkedPool<BasefeeOrd<T>> {
     /// Returns all transactions that satisfy the given basefee.
     ///
     /// Note: this does _not_ remove the transactions
@@ -244,37 +240,37 @@ impl<T: ParkedOrd> Ord for ParkedPoolTransaction<T> {
 pub(crate) trait ParkedOrd:
     Ord
     + Clone
-    + From<Arc<ValidPoolTransaction<Self::Transaction>>>
-    + Into<Arc<ValidPoolTransaction<Self::Transaction>>>
-    + Deref<Target = Arc<ValidPoolTransaction<Self::Transaction>>>
+    + From<Arc<ValidPoolTransaction<Self::Order>>>
+    + Into<Arc<ValidPoolTransaction<Self::Order>>>
+    + Deref<Target = Arc<ValidPoolTransaction<Self::Order>>>
 {
-    /// The wrapper transaction type.
-    type Transaction: PoolTransaction;
+    /// The wrapper order type.
+    type Order: PoolOrder;
 }
 
 /// Helper macro to implement necessary conversions for `ParkedOrd` trait
 macro_rules! impl_ord_wrapper {
     ($name:ident) => {
-        impl<T: PoolTransaction> Clone for $name<T> {
+        impl<T: PoolOrder> Clone for $name<T> {
             fn clone(&self) -> Self {
                 Self(self.0.clone())
             }
         }
 
-        impl<T: PoolTransaction> Eq for $name<T> {}
+        impl<T: PoolOrder> Eq for $name<T> {}
 
-        impl<T: PoolTransaction> PartialEq<Self> for $name<T> {
+        impl<T: PoolOrder> PartialEq<Self> for $name<T> {
             fn eq(&self, other: &Self) -> bool {
                 self.cmp(other) == Ordering::Equal
             }
         }
 
-        impl<T: PoolTransaction> PartialOrd<Self> for $name<T> {
+        impl<T: PoolOrder> PartialOrd<Self> for $name<T> {
             fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
                 Some(self.cmp(other))
             }
         }
-        impl<T: PoolTransaction> Deref for $name<T> {
+        impl<T: PoolOrder> Deref for $name<T> {
             type Target = Arc<ValidPoolTransaction<T>>;
 
             fn deref(&self) -> &Self::Target {
@@ -282,17 +278,17 @@ macro_rules! impl_ord_wrapper {
             }
         }
 
-        impl<T: PoolTransaction> ParkedOrd for $name<T> {
-            type Transaction = T;
+        impl<T: PoolOrder> ParkedOrd for $name<T> {
+            type Order = T;
         }
 
-        impl<T: PoolTransaction> From<Arc<ValidPoolTransaction<T>>> for $name<T> {
+        impl<T: PoolOrder> From<Arc<ValidPoolTransaction<T>>> for $name<T> {
             fn from(value: Arc<ValidPoolTransaction<T>>) -> Self {
                 Self(value)
             }
         }
 
-        impl<T: PoolTransaction> From<$name<T>> for Arc<ValidPoolTransaction<T>> {
+        impl<T: PoolOrder> From<$name<T>> for Arc<ValidPoolTransaction<T>> {
             fn from(value: $name<T>) -> Arc<ValidPoolTransaction<T>> {
                 value.0
             }
@@ -307,11 +303,11 @@ macro_rules! impl_ord_wrapper {
 /// Caution: This assumes all transaction in the `BaseFee` sub-pool have a fee
 /// value.
 #[derive(Debug)]
-pub(crate) struct BasefeeOrd<T: PoolTransaction>(Arc<ValidPoolTransaction<T>>);
+pub(crate) struct BasefeeOrd<T: PoolOrder>(Arc<ValidPoolTransaction<T>>);
 
 impl_ord_wrapper!(BasefeeOrd);
 
-impl<T: PoolTransaction> Ord for BasefeeOrd<T> {
+impl<T: PoolOrder> Ord for BasefeeOrd<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.0
             .transaction
@@ -331,12 +327,12 @@ impl<T: PoolTransaction> Ord for BasefeeOrd<T> {
 /// case these are equal, it compares the timestamps when the transactions were
 /// created.
 #[derive(Debug)]
-pub(crate) struct QueuedOrd<T: PoolTransaction>(Arc<ValidPoolTransaction<T>>);
+pub(crate) struct QueuedOrd<T: PoolOrder>(Arc<ValidPoolTransaction<T>>);
 
 impl_ord_wrapper!(QueuedOrd);
 
 // TODO: temporary solution for ordering the queued pool.
-impl<T: PoolTransaction> Ord for QueuedOrd<T> {
+impl<T: PoolOrder> Ord for QueuedOrd<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         // Higher price is better
         self.max_fee_per_gas()

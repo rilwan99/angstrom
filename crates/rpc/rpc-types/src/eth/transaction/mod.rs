@@ -1,8 +1,8 @@
 pub use access_list::{AccessList, AccessListItem, AccessListWithGasUsed};
 use alloy_primitives::{Address, Bytes, B256, U128, U256, U64};
 pub use common::TransactionInfo;
-pub use receipt::TransactionReceipt;
-pub use request::TransactionRequest;
+pub use receipT::OrderReceipt;
+pub use requesT::OrderRequest;
 use serde::{Deserialize, Serialize};
 pub use signature::{Parity, Signature};
 pub use typed::*;
@@ -70,7 +70,7 @@ pub struct Transaction {
     /// Transaction type, Some(2) for EIP-1559 transaction,
     /// Some(1) for AccessList transaction, None for Legacy
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    pub transaction_type: Option<U64>,
+    pub transaction_type: Option<U64>
 }
 
 #[cfg(test)]
@@ -93,10 +93,10 @@ mod tests {
             gas: U256::from(10),
             input: Bytes::from(vec![11, 12, 13]),
             signature: Some(Signature {
-                v: U256::from(14),
-                r: U256::from(14),
-                s: U256::from(14),
-                y_parity: None,
+                v:        U256::from(14),
+                r:        U256::from(14),
+                s:        U256::from(14),
+                y_parity: None
             }),
             chain_id: Some(U64::from(17)),
             blob_versioned_hashes: vec![],
@@ -104,7 +104,7 @@ mod tests {
             transaction_type: Some(U64::from(20)),
             max_fee_per_gas: Some(U128::from(21)),
             max_priority_fee_per_gas: Some(U128::from(22)),
-            max_fee_per_blob_gas: None,
+            max_fee_per_blob_gas: None
         };
         let serialized = serde_json::to_string(&transaction).unwrap();
         assert_eq!(
@@ -130,10 +130,10 @@ mod tests {
             gas: U256::from(10),
             input: Bytes::from(vec![11, 12, 13]),
             signature: Some(Signature {
-                v: U256::from(14),
-                r: U256::from(14),
-                s: U256::from(14),
-                y_parity: Some(Parity(true)),
+                v:        U256::from(14),
+                r:        U256::from(14),
+                s:        U256::from(14),
+                y_parity: Some(Parity(true))
             }),
             chain_id: Some(U64::from(17)),
             blob_versioned_hashes: vec![],
@@ -141,7 +141,7 @@ mod tests {
             transaction_type: Some(U64::from(20)),
             max_fee_per_gas: Some(U128::from(21)),
             max_priority_fee_per_gas: Some(U128::from(22)),
-            max_fee_per_blob_gas: None,
+            max_fee_per_blob_gas: None
         };
         let serialized = serde_json::to_string(&transaction).unwrap();
         assert_eq!(

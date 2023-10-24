@@ -19,22 +19,13 @@ bitflags::bitflags! {
         ///
         /// Set to 1 if `maxBlobFeePerGas` of the transaction meets the requirement of the pending block.
         const ENOUGH_FEE_CAP_BLOCK = 0b00001000;
-        /// Covers the dynamic blob fee requirement, only relevant for EIP-4844 blob transactions
-        ///
-        /// Set to 1 if `maxBlobFeePer` of the transaction meets the requirement of the pending block.
-        const ENOUGH_BLOB_FEE_CAP_BLOCK = 0b00000100;
-
-        /// Marks whether the transaction is a blob transaction
-        ///
-        /// We track this as part of the state for simplicity, since blob transactions are handled differently and are mutually exclusive with normal transactions.
-        const BLOB_TRANSACTION = 0b00000010;
 
         const PENDING_POOL_BITS = Self::NO_PARKED_ANCESTORS.bits()
             | Self::NO_NONCE_GAPS.bits()
             | Self::ENOUGH_BALANCE.bits()
             | Self::NOT_TOO_MUCH_GAS.bits()
-            |  Self::ENOUGH_FEE_CAP_BLOCK.bits()
-            | Self::ENOUGH_BLOB_FEE_CAP_BLOCK.bits();
+            | Self::ENOUGH_FEE_CAP_BLOCK.bits();
+
 
         const BASE_FEE_POOL_BITS = Self::NO_PARKED_ANCESTORS.bits()
             | Self::NO_NONCE_GAPS.bits()
@@ -43,7 +34,6 @@ bitflags::bitflags! {
 
         const QUEUED_POOL_BITS  = Self::NO_PARKED_ANCESTORS.bits();
 
-        const BLOB_POOL_BITS  = Self::BLOB_TRANSACTION.bits();
     }
 }
 
@@ -59,12 +49,6 @@ impl TxState {
     #[inline]
     pub(crate) fn is_pending(&self) -> bool {
         self.bits() >= TxState::PENDING_POOL_BITS.bits()
-    }
-
-    /// Whether this transaction is a blob transaction.
-    #[inline]
-    pub(crate) fn is_blob(&self) -> bool {
-        self.contains(TxState::BLOB_TRANSACTION)
     }
 
     /// Returns `true` if the transaction has a nonce gap.
@@ -86,9 +70,6 @@ pub enum SubPool {
     /// included in the next block because they don't meet the base fee
     /// requirement.
     BaseFee,
-    /// The blob sub-pool contains all blob transactions that are __not__
-    /// pending.
-    Blob,
     /// The pending sub-pool contains transactions that are ready to be included
     /// in the next block.
     Pending
@@ -115,12 +96,6 @@ impl SubPool {
         matches!(self, SubPool::BaseFee)
     }
 
-    /// Whether this transaction is in the blob pool.
-    #[inline]
-    pub fn is_blob(&self) -> bool {
-        matches!(self, SubPool::Blob)
-    }
-
     /// Returns whether this is a promotion depending on the current sub-pool
     /// location.
     #[inline]
@@ -133,10 +108,6 @@ impl From<TxState> for SubPool {
     fn from(value: TxState) -> Self {
         if value.is_pending() {
             return SubPool::Pending
-        }
-        if value.is_blob() {
-            // all _non-pending_ blob transactions are in the blob sub-pool
-            return SubPool::Blob
         }
         if value.bits() < TxState::BASE_FEE_POOL_BITS.bits() {
             return SubPool::Queued
@@ -193,16 +164,5 @@ mod tests {
         let state = TxState::from_bits(bits).unwrap();
         assert_eq!(SubPool::Pending, state.into());
         assert!(state.is_pending());
-    }
-
-    #[test]
-    fn test_blob() {
-        let mut state = TxState::PENDING_POOL_BITS;
-        state.insert(TxState::BLOB_TRANSACTION);
-        assert!(state.is_pending());
-
-        state.remove(TxState::ENOUGH_BLOB_FEE_CAP_BLOCK);
-        assert!(state.is_blob());
-        assert!(!state.is_pending());
     }
 }

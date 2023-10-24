@@ -24,7 +24,7 @@ use reth_primitives::{
 };
 use alloy_rlp::Encodable;
 use order_pool::{
-    error::PoolResult, GetPooledTransactionLimit, PoolTransaction, PropagateKind,
+    error::PoolResult, GetPooledTransactionLimit,  PoolOrder, PropagateKind,
     PropagatedTransactions, TransactionPool, ValidPoolTransaction,
 };
 use std::{
@@ -167,7 +167,7 @@ impl<Pool: TransactionPool> TransactionsManager<Pool> {
 
 impl<Pool> TransactionsManager<Pool>
 where
-    Pool: TransactionPool + 'static,
+    Pool: OrderPool + 'static,
 {
     /// Returns a new handle that can send commands to this type.
     pub fn handle(&self) -> TransactionsHandle {
@@ -568,7 +568,7 @@ where
 /// This should be spawned or used as part of `tokio::select!`.
 impl<Pool> Future for TransactionsManager<Pool>
 where
-    Pool: TransactionPool + Unpin + 'static,
+    Pool: OrderPool + Unpin + 'static,
     <Pool as TransactionPool>::Transaction: IntoRecoveredTransaction,
 {
     type Output = ();
@@ -711,7 +711,7 @@ enum PooledTransactionsHashesBuilder {
 
 impl PooledTransactionsHashesBuilder {
     /// Push a transaction from the pool to the list.
-    fn push_pooled<T: PoolTransaction>(&mut self, pooled_tx: Arc<ValidPoolTransaction<T>>) {
+    fn push_pooled<T:  PoolOrder>(&mut self, pooled_tx: Arc<ValidPoolTransaction<T>>) {
         match self {
             PooledTransactionsHashesBuilder::Eth66(msg) => msg.0.push(*pooled_tx.hash()),
             PooledTransactionsHashesBuilder::Eth68(msg) => {
@@ -1187,7 +1187,7 @@ mod tests {
         let tx = MockTransaction::eip1559();
         let _ = transactions
             .pool
-            .add_transaction(order_pool::TransactionOrigin::External, tx.clone())
+            .add_transaction(order_pool::OrderOrigin::External, tx.clone())
             .await;
 
         let request = GetPooledTransactions(vec![tx.get_hash()]);

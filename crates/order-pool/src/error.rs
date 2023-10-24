@@ -9,7 +9,7 @@ pub type PoolResult<T> = Result<T, PoolError>;
 ///
 /// For example during validation
 /// [OrderValidator::validate_transaction](crate::validate::OrderValidator::validate_transaction)
-pub trait PoolTransactionError: std::error::Error + Send + Sync {
+pub trait PoolOrderError: std::error::Error + Send + Sync {
     /// Returns `true` if the error was caused by a transaction that is
     /// considered bad in the context of the transaction pool and warrants
     /// peer penalization.
@@ -198,7 +198,7 @@ pub enum InvalidPoolTransactionError {
     /// Any other error that occurred while inserting/validating that is
     /// transaction specific
     #[error("{0:?}")]
-    Other(Box<dyn PoolTransactionError>),
+    Other(Box<dyn PoolOrderError>),
     /// The transaction is specified to use less gas than required to start the
     /// invocation.
     #[error("intrinsic gas too low")]

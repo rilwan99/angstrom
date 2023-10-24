@@ -11,7 +11,6 @@ use reth_primitives::{
         ETHEREUM_BLOCK_GAS_LIMIT
     },
     kzg::KzgSettings,
-    revm::compat::calculate_intrinsic_gas_after_merge,
     ChainSpec, InvalidTransactionError, SealedBlock, EIP1559_TX_TYPE_ID, EIP2930_TX_TYPE_ID,
     EIP4844_TX_TYPE_ID, LEGACY_TX_TYPE_ID
 };
@@ -20,12 +19,10 @@ use reth_tasks::TaskSpawner;
 use tokio::sync::Mutex;
 
 use crate::{
-    blobstore::BlobStore,
     error::{Eip4844PoolTransactionError, InvalidPoolTransactionError},
-    traits::TransactionOrigin,
-    validate::{ValidTransaction, ValidationTask, MAX_INIT_CODE_SIZE, TX_MAX_SIZE},
-    EthBlobTransactionSidecar, EthPoolTransaction, OrderValidator, PoolTransaction,
-    TransactionValidationOutcome, TransactionValidationTaskExecutor
+    traits::OrderOrigin,
+    validate::{ValidPoolTransaction, ValidationTask, MAX_INIT_CODE_SIZE, TX_MAX_SIZE},
+    OrderValidator, PoolOrder, TransactionValidationOutcome, TransactionValidationTaskExecutor
 };
 
 /// Validator for Ethereum transactions.
@@ -38,14 +35,14 @@ pub struct EthOrderValidator<Client, T> {
 impl<Client, Tx> EthOrderValidator<Client, Tx>
 where
     Client: StateProviderFactory,
-    Tx: EthPoolTransaction
+    Tx: PoolOrder
 {
     /// Validates a single transaction.
     ///
     /// See also [OrderValidator::validate_transaction]
     pub fn validate_one(
         &self,
-        origin: TransactionOrigin,
+        origin: OrderOrigin,
         transaction: Tx
     ) -> TransactionValidationOutcome<Tx> {
         self.inner.validate_one(origin, transaction)
@@ -58,7 +55,7 @@ where
     /// See also [Self::validate_one]
     pub fn validate_all(
         &self,
-        transactions: Vec<(TransactionOrigin, Tx)>
+        transactions: Vec<(OrderOrigin, Tx)>
     ) -> Vec<TransactionValidationOutcome<Tx>> {
         transactions
             .into_iter()
@@ -71,27 +68,23 @@ where
 impl<Client, Tx> OrderValidator for EthOrderValidator<Client, Tx>
 where
     Client: StateProviderFactory,
-    Tx: EthPoolTransaction
+    Tx: PoolOrder
 {
-    type Transaction = Tx;
+    type Order = Tx;
 
     async fn validate_transaction(
         &self,
-        origin: TransactionOrigin,
-        transaction: Self::Transaction
-    ) -> TransactionValidationOutcome<Self::Transaction> {
+        origin: OrderOrigin,
+        transaction: Self::Order
+    ) -> TransactionValidationOutcome<Self::Order> {
         self.validate_one(origin, transaction)
     }
 
     async fn validate_transactions(
         &self,
-        transactions: Vec<(TransactionOrigin, Self::Transaction)>
-    ) -> Vec<TransactionValidationOutcome<Self::Transaction>> {
+        transactions: Vec<(OrderOrigin, Self::Order)>
+    ) -> Vec<TransactionValidationOutcome<Self::Order>> {
         self.validate_all(transactions)
-    }
-
-    fn on_new_head_block(&self, new_tip_block: &SealedBlock) {
-        self.inner.on_new_head_block(new_tip_block)
     }
 }
 
@@ -103,21 +96,12 @@ pub(crate) struct OrderValidatorInner<Client, T> {
     /// This type fetches account info from the db
     client: Client,
     /// tracks activated forks relevant for transaction validation
-    fork_tracker: ForkTracker,
-    /// Fork indicator whether we are using EIP-2718 type transactions.
-    eip2718: bool,
-    /// Fork indicator whether we are using EIP-1559 type transactions.
-    eip1559: bool,
-    /// Fork indicator whether we are using EIP-4844 blob transactions.
-    eip4844: bool,
     /// The current max gas limit
     block_gas_limit: u64,
     /// Minimum priority fee to enforce for acceptance into the pool.
     minimum_priority_fee: Option<u128>,
     /// Toggle to determine if a local transaction should be propagated
     propagate_local_transactions: bool,
-    /// Stores the setup and parameters needed for validating KZG proofs.
-    kzg_settings: Arc<KzgSettings>,
     /// Marker for the transaction type
     _marker: PhantomData<T>
 }
@@ -131,15 +115,16 @@ impl<Client, Tx> OrderValidatorInner<Client, Tx> {
     }
 }
 
+//TODO(Ludwig): Implement specific order types and validity conditions
 impl<Client, Tx> OrderValidatorInner<Client, Tx>
 where
     Client: StateProviderFactory,
-    Tx: EthPoolTransaction
+    Tx: PoolOrder
 {
     /// Validates a single transaction.
     fn validate_one(
         &self,
-        origin: TransactionOrigin,
+        origin: OrderOrigin,
         mut transaction: Tx
     ) -> TransactionValidationOutcome<Tx> {
         // Checks for tx_type
@@ -147,34 +132,6 @@ where
             LEGACY_TX_TYPE_ID => {
                 // Accept legacy transactions
             }
-            EIP2930_TX_TYPE_ID => {
-                // Accept only legacy transactions until EIP-2718/2930 activates
-                if !self.eip2718 {
-                    return TransactionValidationOutcome::Invalid(
-                        transaction,
-                        InvalidTransactionError::Eip1559Disabled.into()
-                    )
-                }
-            }
-            EIP1559_TX_TYPE_ID => {
-                // Reject dynamic fee transactions until EIP-1559 activates.
-                if !self.eip1559 {
-                    return TransactionValidationOutcome::Invalid(
-                        transaction,
-                        InvalidTransactionError::Eip1559Disabled.into()
-                    )
-                }
-            }
-            EIP4844_TX_TYPE_ID => {
-                // Reject blob transactions.
-                if !self.eip4844 {
-                    return TransactionValidationOutcome::Invalid(
-                        transaction,
-                        InvalidTransactionError::Eip4844Disabled.into()
-                    )
-                }
-            }
-
             _ => {
                 return TransactionValidationOutcome::Invalid(
                     transaction,
@@ -190,13 +147,6 @@ where
                 transaction,
                 InvalidPoolTransactionError::OversizedData(size, TX_MAX_SIZE)
             )
-        }
-
-        // Check whether the init code size has been exceeded.
-        if self.fork_tracker.is_shanghai_activated() {
-            if let Err(err) = ensure_max_init_code_size(&transaction, MAX_INIT_CODE_SIZE) {
-                return TransactionValidationOutcome::Invalid(transaction, err)
-            }
         }
 
         // Checks for gas limit
@@ -219,9 +169,7 @@ where
 
         // Drop non-local transactions with a fee lower than the configured fee for
         // acceptance into the pool.
-        if !origin.is_local()
-            && transaction.is_eip1559()
-            && transaction.max_priority_fee_per_gas() < self.minimum_priority_fee
+        if !origin.is_local() && transaction.max_priority_fee_per_gas() < self.minimum_priority_fee
         {
             return TransactionValidationOutcome::Invalid(
                 transaction,
@@ -229,7 +177,9 @@ where
             )
         }
 
-        // Checks for chainid
+        // Checks for chain, we keep this check here in preparation of our multichain
+        // future. We could impl this in the domain separator, but that seems like
+        // unecessary complexity
         if let Some(chain_id) = transaction.chain_id() {
             if chain_id != self.chain_id() {
                 return TransactionValidationOutcome::Invalid(
@@ -244,102 +194,14 @@ where
             .access_list()
             .map(|list| list.flattened())
             .unwrap_or_default();
-        let is_shanghai = self.fork_tracker.is_shanghai_activated();
 
-        if transaction.gas_limit()
-            < calculate_intrinsic_gas_after_merge(
-                transaction.input(),
-                transaction.kind(),
-                &access_list,
-                is_shanghai
-            )
-        {
+        //TODO: Implement min gas cost for order types
+        /*if transaction.gas_limit() < calculate_intrinsic_gas(transaction.kind()) {
             return TransactionValidationOutcome::Invalid(
                 transaction,
                 InvalidPoolTransactionError::IntrinsicGasTooLow
             )
-        }
-
-        let mut maybe_blob_sidecar = None;
-
-        // blob tx checks
-        if transaction.is_eip4844() {
-            // Cancun fork is required for blob txs
-            if !self.fork_tracker.is_cancun_activated() {
-                return TransactionValidationOutcome::Invalid(
-                    transaction,
-                    InvalidTransactionError::TxTypeNotSupported.into()
-                )
-            }
-
-            let blob_count = transaction.blob_count();
-            if blob_count == 0 {
-                // no blobs
-                return TransactionValidationOutcome::Invalid(
-                    transaction,
-                    InvalidPoolTransactionError::Eip4844(
-                        Eip4844PoolTransactionError::NoEip4844Blobs
-                    )
-                )
-            }
-
-            if blob_count > MAX_BLOBS_PER_BLOCK {
-                // too many blobs
-                return TransactionValidationOutcome::Invalid(
-                    transaction,
-                    InvalidPoolTransactionError::Eip4844(
-                        Eip4844PoolTransactionError::TooManyEip4844Blobs {
-                            have:      blob_count,
-                            permitted: MAX_BLOBS_PER_BLOCK
-                        }
-                    )
-                )
-            }
-
-            // extract the blob from the transaction
-            match transaction.take_blob() {
-                EthBlobTransactionSidecar::None => {
-                    // this should not happen
-                    return TransactionValidationOutcome::Invalid(
-                        transaction,
-                        InvalidTransactionError::TxTypeNotSupported.into()
-                    )
-                }
-                EthBlobTransactionSidecar::Missing => {
-                    if let Ok(Some(_)) = self.blob_store.get(*transaction.hash()) {
-                        // validated transaction is already in the store
-                    } else {
-                        return TransactionValidationOutcome::Invalid(
-                            transaction,
-                            InvalidPoolTransactionError::Eip4844(
-                                Eip4844PoolTransactionError::MissingEip4844BlobSidecar
-                            )
-                        )
-                    }
-                }
-                EthBlobTransactionSidecar::Present(blob) => {
-                    if let Some(eip4844) = transaction.as_eip4844() {
-                        // validate the blob
-                        if let Err(err) = eip4844.validate_blob(&blob, &self.kzg_settings) {
-                            return TransactionValidationOutcome::Invalid(
-                                transaction,
-                                InvalidPoolTransactionError::Eip4844(
-                                    Eip4844PoolTransactionError::InvalidEip4844Blob(err)
-                                )
-                            )
-                        }
-                        // store the extracted blob
-                        maybe_blob_sidecar = Some(blob);
-                    } else {
-                        // this should not happen
-                        return TransactionValidationOutcome::Invalid(
-                            transaction,
-                            InvalidTransactionError::TxTypeNotSupported.into()
-                        )
-                    }
-                }
-            }
-        }
+        }*/
 
         let account = match self
             .client
@@ -361,13 +223,15 @@ where
             )
         }
 
-        // Checks for nonce
+        //TODO: Implement this for eip 712 order nonce
         if transaction.nonce() < account.nonce {
             return TransactionValidationOutcome::Invalid(
                 transaction,
                 InvalidTransactionError::NonceNotConsistent.into()
             )
         }
+
+        //TODO: Implement balance check for trade
 
         // Checks for max cost
         let cost = transaction.cost();
@@ -384,36 +248,15 @@ where
 
         // Return the valid transaction
         TransactionValidationOutcome::Valid {
-            balance:     account.balance,
+            balance: account.balance,
             state_nonce: account.nonce,
-            transaction: ValidTransaction::new(transaction, maybe_blob_sidecar),
+            transaction,
             // by this point assume all external transactions should be propagated
-            propagate:   match origin {
-                TransactionOrigin::External => true,
-                TransactionOrigin::Local => self.propagate_local_transactions,
-                TransactionOrigin::Private => false
+            propagate: match origin {
+                OrderOrigin::External => true,
+                OrderOrigin::Local => self.propagate_local_transactions,
+                OrderOrigin::Private => false
             }
-        }
-    }
-
-    fn on_new_head_block(&self, new_tip_block: &SealedBlock) {
-        // update all forks
-        if self
-            .chain_spec
-            .is_cancun_active_at_timestamp(new_tip_block.timestamp)
-        {
-            self.fork_tracker
-                .cancun
-                .store(true, std::sync::atomic::Ordering::Relaxed);
-        }
-
-        if self
-            .chain_spec
-            .is_shanghai_active_at_timestamp(new_tip_block.timestamp)
-        {
-            self.fork_tracker
-                .shanghai
-                .store(true, std::sync::atomic::Ordering::Relaxed);
         }
     }
 }
@@ -421,108 +264,30 @@ where
 /// A builder for [TransactionValidationTaskExecutor]
 #[derive(Debug, Clone)]
 pub struct EthOrderValidatorBuilder {
-    chain_spec: Arc<ChainSpec>,
-    /// Fork indicator whether we are in the Shanghai stage.
-    shanghai: bool,
-    /// Fork indicator whether we are in the Cancun hardfork.
-    cancun: bool,
-    /// Whether using EIP-2718 type transactions is allowed
-    eip2718: bool,
-    /// Whether using EIP-1559 type transactions is allowed
-    eip1559: bool,
-    /// Whether using EIP-4844 type transactions is allowed
-    eip4844: bool,
+    chain_spec:                   Arc<ChainSpec>,
     /// The current max gas limit
-    block_gas_limit: u64,
+    block_gas_limit:              u64,
     /// Minimum priority fee to enforce for acceptance into the pool.
-    minimum_priority_fee: Option<u128>,
+    minimum_priority_fee:         Option<u128>,
     /// Determines how many additional tasks to spawn
     ///
     /// Default is 1
-    additional_tasks: usize,
+    additional_tasks:             usize,
     /// Toggle to determine if a local transaction should be propagated
-    propagate_local_transactions: bool,
-
-    /// Stores the setup and parameters needed for validating KZG proofs.
-    kzg_settings: Arc<KzgSettings>
+    propagate_local_transactions: bool
 }
 
 impl EthOrderValidatorBuilder {
     /// Creates a new builder for the given [ChainSpec]
     pub fn new(chain_spec: Arc<ChainSpec>) -> Self {
-        // If cancun is enabled at genesis, enable it
-        let cancun = chain_spec.is_cancun_active_at_timestamp(chain_spec.genesis_timestamp());
-
         Self {
             chain_spec,
             block_gas_limit: ETHEREUM_BLOCK_GAS_LIMIT,
             minimum_priority_fee: None,
             additional_tasks: 1,
             // default to true, can potentially take this as a param in the future
-            propagate_local_transactions: true,
-            kzg_settings: Arc::clone(&MAINNET_KZG_TRUSTED_SETUP),
-
-            // by default all transaction types are allowed
-            eip2718: true,
-            eip1559: true,
-            eip4844: true,
-
-            // shanghai is activated by default
-            shanghai: true,
-
-            // TODO: can hard enable by default once mainnet transitioned
-            cancun
+            propagate_local_transactions: true
         }
-    }
-
-    /// Disables the Cancun fork.
-    pub fn no_cancun(self) -> Self {
-        self.set_cancun(false)
-    }
-
-    /// Set the Cancun fork.
-    pub fn set_cancun(mut self, cancun: bool) -> Self {
-        self.cancun = cancun;
-        self
-    }
-
-    /// Disables the Shanghai fork.
-    pub fn no_shanghai(self) -> Self {
-        self.set_shanghai(false)
-    }
-
-    /// Set the Shanghai fork.
-    pub fn set_shanghai(mut self, shanghai: bool) -> Self {
-        self.shanghai = shanghai;
-        self
-    }
-
-    /// Disables the eip2718 support.
-    pub fn no_eip2718(self) -> Self {
-        self.set_eip2718(false)
-    }
-
-    /// Set eip2718 support.
-    pub fn set_eip2718(mut self, eip2718: bool) -> Self {
-        self.eip2718 = eip2718;
-        self
-    }
-
-    /// Disables the eip1559 support.
-    pub fn no_eip1559(self) -> Self {
-        self.set_eip1559(false)
-    }
-
-    /// Set the eip1559 support.
-    pub fn set_eip1559(mut self, eip1559: bool) -> Self {
-        self.eip1559 = eip1559;
-        self
-    }
-
-    /// Sets the [KzgSettings] to use for validating KZG proofs.
-    pub fn kzg_settings(mut self, kzg_settings: Arc<KzgSettings>) -> Self {
-        self.kzg_settings = kzg_settings;
-        self
     }
 
     /// Sets toggle to propagate transactions received locally by this client
@@ -558,16 +323,6 @@ impl EthOrderValidatorBuilder {
         self
     }
 
-    /// Configures validation rules based on the head block's timestamp.
-    ///
-    /// For example, whether the Shanghai and Cancun hardfork is activated at
-    /// launch.
-    pub fn with_head_timestamp(mut self, timestamp: u64) -> Self {
-        self.cancun = self.chain_spec.is_cancun_active_at_timestamp(timestamp);
-        self.shanghai = self.chain_spec.is_shanghai_active_at_timestamp(timestamp);
-        self
-    }
-
     /// Builds a the [EthOrderValidator] and spawns validation tasks via the
     /// [TransactionValidationTaskExecutor]
     ///
@@ -575,45 +330,28 @@ impl EthOrderValidatorBuilder {
     /// validation.
     ///
     /// By default this will spawn 1 additional task.
-    pub fn build_with_tasks<Client, Tx, T, S>(
+    pub fn build_with_tasks<Client, Tx, T>(
         self,
         client: Client,
-        tasks: T,
-        blob_store: S
+        tasks: T
     ) -> TransactionValidationTaskExecutor<EthOrderValidator<Client, Tx>>
     where
-        T: TaskSpawner,
-        S: BlobStore
+        T: TaskSpawner
     {
         let Self {
             chain_spec,
-            shanghai,
-            cancun,
-            eip2718,
-            eip1559,
-            eip4844,
             block_gas_limit,
             minimum_priority_fee,
             additional_tasks,
-            propagate_local_transactions,
-            kzg_settings
+            propagate_local_transactions
         } = self;
-
-        let fork_tracker =
-            ForkTracker { shanghai: AtomicBool::new(shanghai), cancun: AtomicBool::new(cancun) };
 
         let inner = OrderValidatorInner {
             chain_spec,
             client,
-            eip2718,
-            eip1559,
-            fork_tracker,
-            eip4844,
             block_gas_limit,
             minimum_priority_fee,
             propagate_local_transactions,
-            blob_store: Box::new(blob_store),
-            kzg_settings,
             _marker: Default::default()
         };
 
@@ -667,7 +405,7 @@ impl ForkTracker {
 /// Ensure that the code size is not greater than `max_init_code_size`.
 /// `max_init_code_size` should be configurable so this will take it as an
 /// argument.
-pub fn ensure_max_init_code_size<T: PoolTransaction>(
+pub fn ensure_max_init_code_size<T: PoolOrder>(
     transaction: &T,
     max_init_code_size: usize
 ) -> Result<(), InvalidPoolTransactionError> {

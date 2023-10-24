@@ -19,8 +19,8 @@ use reth_primitives::{
 use crate::{
     identifier::{SenderIdentifiers, TransactionId},
     pool::txpool::TxPool,
-    traits::TransactionOrigin,
-    PoolTransaction, Priority, TransactionOrdering, ValidPoolTransaction
+    traits::OrderOrigin,
+    PoolOrder, Priority, TransactionOrdering, ValidPoolTransaction
 };
 
 pub type MockTxPool = TxPool<MockOrdering>;
@@ -427,7 +427,7 @@ impl MockTransaction {
     }
 }
 
-impl PoolTransaction for MockTransaction {
+impl FullOrderEvent for MockTransaction {
     fn hash(&self) -> &TxHash {
         match self {
             MockTransaction::Legacy { hash, .. } => hash,
@@ -887,7 +887,7 @@ impl MockTransactionFactory {
     }
 
     pub fn validated(&mut self, transaction: MockTransaction) -> MockValidTx {
-        self.validated_with_origin(TransactionOrigin::External, transaction)
+        self.validated_with_origin(OrderOrigin::External, transaction)
     }
 
     pub fn validated_arc(&mut self, transaction: MockTransaction) -> Arc<MockValidTx> {
@@ -897,7 +897,7 @@ impl MockTransactionFactory {
     /// Converts the transaction into a validated transaction
     pub fn validated_with_origin(
         &mut self,
-        origin: TransactionOrigin,
+        origin: OrderOrigin,
         transaction: MockTransaction
     ) -> MockValidTx {
         let transaction_id = self.tx_id(&transaction);
@@ -928,14 +928,10 @@ impl MockTransactionFactory {
 pub struct MockOrdering;
 
 impl TransactionOrdering for MockOrdering {
+    type Order = MockTransaction;
     type PriorityValue = U256;
-    type Transaction = MockTransaction;
 
-    fn priority(
-        &self,
-        transaction: &Self::Transaction,
-        base_fee: u64
-    ) -> Priority<Self::PriorityValue> {
+    fn priority(&self, transaction: &Self::Order, base_fee: u64) -> Priority<Self::PriorityValue> {
         transaction
             .effective_tip_per_gas(base_fee)
             .map(U256::from)

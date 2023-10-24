@@ -23,10 +23,9 @@ use tokio::sync::oneshot;
 use tracing::{debug, trace};
 
 use crate::{
-    blobstore::{BlobStoreCanonTracker, BlobStoreUpdates},
     metrics::MaintainPoolMetrics,
     traits::{CanonicalStateUpdate, ChangedAccount, TransactionPoolExt},
-    BlockInfo, TransactionPool
+    BlockInfo, OrderPool
 };
 
 /// Additional settings for maintaining the transaction pool
@@ -105,9 +104,6 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
         pool.set_block_info(info);
     }
 
-    // keeps track of mined blob transaction so we can clean finalized transactions
-    let mut blob_store_tracker = BlobStoreCanonTracker::default();
-
     // keeps track of the latest finalized block
     let mut last_finalized_block =
         FinalizedBlockTracker::new(client.finalized_block_number().ok().flatten());
@@ -173,19 +169,6 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
             };
             reload_accounts_fut = rx.fuse();
             task_spawner.spawn_blocking(fut);
-        }
-
-        // check if we have a new finalized block
-        if let Some(finalized) =
-            last_finalized_block.update(client.finalized_block_number().ok().flatten())
-        {
-            match blob_store_tracker.on_finalized_block(finalized) {
-                BlobStoreUpdates::None => {}
-                BlobStoreUpdates::Finalized(blobs) => {
-                    // remove all finalized blobs from the blob store
-                    pool.delete_blobs(blobs);
-                }
-            }
         }
 
         // outcomes of the futures we are waiting on
@@ -305,7 +288,7 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
                     .transactions()
                     .filter(|tx| !new_mined_transactions.contains(&tx.hash))
                     .filter_map(|tx| tx.clone().into_ecrecovered())
-                    .map(<P as TransactionPool>::Transaction::from_recovered_transaction)
+                    .map(<P as OrderPool>::Transaction::from_recovered_transaction)
                     .collect::<Vec<_>>();
 
                 // update the pool first
@@ -327,10 +310,6 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
                 let _ = pool
                     .add_external_transactions(pruned_old_transactions)
                     .await;
-
-                // keep track of mined blob transactions
-                // TODO(mattsse): handle reorged transactions
-                blob_store_tracker.add_new_chain_blocks(&new_blocks);
             }
             CanonStateNotification::Commit { new } => {
                 let (blocks, state) = new.inner();
@@ -366,9 +345,6 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
                     };
                     pool.set_block_info(info);
 
-                    // keep track of mined blob transactions
-                    blob_store_tracker.add_new_chain_blocks(&blocks);
-
                     continue
                 }
 
@@ -398,9 +374,6 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
                     mined_transactions
                 };
                 pool.on_canonical_state_change(update);
-
-                // keep track of mined blob transactions
-                blob_store_tracker.add_new_chain_blocks(&blocks);
             }
         }
     }

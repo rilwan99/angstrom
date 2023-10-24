@@ -12,8 +12,8 @@ pub use gen::*;
 pub use mock::*;
 
 use crate::{
-    blobstore::InMemoryBlobStore, noop::MockOrderValidator, OrderValidator, Pool, PoolTransaction,
-    TransactionOrigin, TransactionValidationOutcome
+    blobstore::InMemoryBlobStore, noop::MockOrderValidator, OrderOrigin, OrderValidator, Pool,
+    PoolOrder, TransactionValidationOutcome
 };
 
 /// A [Pool] used for testing

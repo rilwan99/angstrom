@@ -1,4 +1,5 @@
 use std::{
+    marker::PhantomData,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll}
@@ -12,13 +13,13 @@ use ethers_providers::{Middleware, PubsubClient};
 use futures::{Future, FutureExt};
 use futures_util::StreamExt;
 use guard_network::{NetworkConfig, PeerMessages, Swarm, SwarmEvent};
+use order_pool::Pool;
 use sim::Simulator;
 use tokio::sync::mpsc::Sender;
 use tracing::debug;
 use url::Url;
 
 use crate::{
-    bundle_builder::BundleBuilder,
     relay_sender::RelaySender,
     round_robin_sync::RoundRobinSync,
     submission_server::{Submission, SubmissionServerConfig, SubmissionServerInner},
@@ -56,8 +57,8 @@ where
     consensus:       ConsensusCore,
     /// deals with round robin sycning
     syncing:         Option<RoundRobinSync<M>>,
-    /// holds the threads that are currently building bundles
-    builder:         BundleBuilder<S> // TODO: txpool should go here
+    /// placeholder for txpool
+    _p:              PhantomData<S>
 }
 
 impl<M: Middleware + Unpin, S: Simulator + Unpin> Guard<M, S>
@@ -90,12 +91,7 @@ where
         let (consensus, current_height) = ConsensusCore::new().await;
         let syncing = RoundRobinSync::new(middleware, current_height).await;
 
-        Ok(Self {
-            consensus,
-            network_manager,
-            syncing: Some(syncing),
-            builder: BundleBuilder::new(general_config.simulator)
-        })
+        Ok(Self { consensus, network_manager, syncing: Some(syncing), _p: Default::default() })
     }
 
     fn on_submission(&mut self, msg: Submission) {

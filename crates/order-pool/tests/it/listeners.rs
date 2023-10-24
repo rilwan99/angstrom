@@ -4,8 +4,7 @@ use assert_matches::assert_matches;
 use order_pool::{
     noop::MockOrderValidator,
     test_utils::{testing_pool, testing_pool_with_validator, MockTransactionFactory},
-    FullTransactionEvent, TransactionEvent, TransactionListenerKind, TransactionOrigin,
-    TransactionPool
+    FullOrderEvent, OrderOrigin, TransactionEvent, TransactionListenerKind, TransactionPool
 };
 use tokio_stream::StreamExt;
 
@@ -16,7 +15,7 @@ async fn txpool_listener_by_hash() {
     let transaction = mock_tx_factory.create_eip1559();
 
     let result = txpool
-        .add_transaction_and_subscribe(TransactionOrigin::External, transaction.transaction.clone())
+        .add_transaction_and_subscribe(OrderOrigin::External, transaction.transaction.clone())
         .await;
     assert_matches!(result, Ok(_));
 
@@ -33,13 +32,13 @@ async fn txpool_listener_all() {
     let mut all_tx_events = txpool.all_transactions_event_listener();
 
     let added_result = txpool
-        .add_transaction(TransactionOrigin::External, transaction.transaction.clone())
+        .add_transaction(OrderOrigin::External, transaction.transaction.clone())
         .await;
     assert_matches!(added_result, Ok(hash) if hash == transaction.transaction.get_hash());
 
     assert_matches!(
         all_tx_events.next().await,
-        Some(FullTransactionEvent::Pending(hash)) if hash == transaction.transaction.get_hash()
+        Some(FullOrderEvent::Pending(hash)) if hash == transaction.transaction.get_hash()
     );
 }
 
@@ -52,7 +51,7 @@ async fn txpool_listener_propagate_only() {
     let mut listener_network = txpool.pending_transactions_listener();
     let mut listener_all = txpool.pending_transactions_listener_for(TransactionListenerKind::All);
     let result = txpool
-        .add_transaction(TransactionOrigin::Local, transaction.transaction.clone())
+        .add_transaction(OrderOrigin::Local, transaction.transaction.clone())
         .await;
     assert!(result.is_ok());
 
@@ -76,7 +75,7 @@ async fn txpool_listener_new_propagate_only() {
     let mut listener_network = txpool.new_transactions_listener();
     let mut listener_all = txpool.new_transactions_listener_for(TransactionListenerKind::All);
     let result = txpool
-        .add_transaction(TransactionOrigin::Local, transaction.transaction.clone())
+        .add_transaction(OrderOrigin::Local, transaction.transaction.clone())
         .await;
     assert!(result.is_ok());
 

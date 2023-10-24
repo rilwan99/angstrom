@@ -4,12 +4,12 @@ use reth_primitives::{TxHash, B256};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::{traits::PropagateKind, PoolTransaction, ValidPoolTransaction};
+use crate::{traits::PropagateKind, PoolOrder, ValidPoolTransaction};
 
 /// An event that happened to a transaction and contains its full body where
 /// possible.
 #[derive(Debug)]
-pub enum FullTransactionEvent<T: PoolTransaction> {
+pub enum FullOrderEvent<T: PoolOrder> {
     /// Transaction has been added to the pending pool.
     Pending(TxHash),
     /// Transaction has been added to the queued pool.
@@ -17,6 +17,9 @@ pub enum FullTransactionEvent<T: PoolTransaction> {
     /// Transaction has been included in the block belonging to this hash.
     Mined {
         /// The hash of the mined transaction.
+        // TODO: convert to type alias order hash
+        order_hash: TxHash,
+        /// The hash of the mined block that contains the transaction.
         tx_hash:    TxHash,
         /// The hash of the mined block that contains the transaction.
         block_hash: B256
@@ -38,14 +41,16 @@ pub enum FullTransactionEvent<T: PoolTransaction> {
     Propagated(Arc<Vec<PropagateKind>>)
 }
 
-impl<T: PoolTransaction> Clone for FullTransactionEvent<T> {
+impl<T: PoolOrder> Clone for FullOrderEvent<T> {
     fn clone(&self) -> Self {
         match self {
             Self::Pending(hash) => Self::Pending(*hash),
             Self::Queued(hash) => Self::Queued(*hash),
-            Self::Mined { tx_hash, block_hash } => {
-                Self::Mined { tx_hash: *tx_hash, block_hash: *block_hash }
-            }
+            Self::Mined { order_hash, tx_hash, block_hash } => Self::Mined {
+                order_hash: *order_hash,
+                tx_hash:    *tx_hash,
+                block_hash: *block_hash
+            },
             Self::Replaced { transaction, replaced_by } => {
                 Self::Replaced { transaction: Arc::clone(transaction), replaced_by: *replaced_by }
             }
@@ -64,7 +69,7 @@ pub enum TransactionEvent {
     Pending,
     /// Transaction has been added to the queued pool.
     Queued,
-    /// Transaction has been included in the block belonging to this hash.
+    /// Transaction has been included in the bundle belonging to this hash.
     Mined(B256),
     /// Transaction has been replaced by the transaction belonging to the hash.
     ///
@@ -74,7 +79,7 @@ pub enum TransactionEvent {
     Discarded,
     /// Transaction became invalid indefinitely.
     Invalid,
-    /// Transaction was propagated to peers.
+    /// Orders were propagated to peers.
     Propagated(Arc<Vec<PropagateKind>>)
 }
 

@@ -135,7 +135,7 @@ impl<T: TransactionOrdering> PendingPool<T> {
     /// if the transaction is already included
     pub(crate) fn best_with_unlocked(
         &self,
-        unlocked: Vec<Arc<ValidPoolTransaction<T::Transaction>>>,
+        unlocked: Vec<Arc<ValidPoolTransaction<T::Order>>>,
         base_fee: u64
     ) -> BestTransactions<T> {
         let mut best = self.best();
@@ -156,9 +156,7 @@ impl<T: TransactionOrdering> PendingPool<T> {
     }
 
     /// Returns an iterator over all transactions in the pool
-    pub(crate) fn all(
-        &self
-    ) -> impl Iterator<Item = Arc<ValidPoolTransaction<T::Transaction>>> + '_ {
+    pub(crate) fn all(&self) -> impl Iterator<Item = Arc<ValidPoolTransaction<T::Order>>> + '_ {
         self.by_id.values().map(|tx| tx.transaction.clone())
     }
 
@@ -175,7 +173,7 @@ impl<T: TransactionOrdering> PendingPool<T> {
     pub(crate) fn update_base_fee(
         &mut self,
         base_fee: u64
-    ) -> Vec<Arc<ValidPoolTransaction<T::Transaction>>> {
+    ) -> Vec<Arc<ValidPoolTransaction<T::Order>>> {
         // Create a collection for removed transactions.
         let mut removed = Vec::new();
 
@@ -230,7 +228,7 @@ impl<T: TransactionOrdering> PendingPool<T> {
     /// if the transaction is already included
     pub(crate) fn add_transaction(
         &mut self,
-        tx: Arc<ValidPoolTransaction<T::Transaction>>,
+        tx: Arc<ValidPoolTransaction<T::Order>>,
         base_fee: u64
     ) {
         assert!(
@@ -270,7 +268,7 @@ impl<T: TransactionOrdering> PendingPool<T> {
     pub(crate) fn prune_transaction(
         &mut self,
         id: &TransactionId
-    ) -> Option<Arc<ValidPoolTransaction<T::Transaction>>> {
+    ) -> Option<Arc<ValidPoolTransaction<T::Order>>> {
         // mark the next as independent if it exists
         if let Some(unlocked) = self.by_id.get(&id.descendant()) {
             self.independent_transactions.insert(unlocked.clone());
@@ -284,7 +282,7 @@ impl<T: TransactionOrdering> PendingPool<T> {
     pub(crate) fn remove_transaction(
         &mut self,
         id: &TransactionId
-    ) -> Option<Arc<ValidPoolTransaction<T::Transaction>>> {
+    ) -> Option<Arc<ValidPoolTransaction<T::Order>>> {
         let tx = self.by_id.remove(id)?;
         self.size_of -= tx.transaction.size();
         self.all.remove(&tx);
@@ -299,7 +297,7 @@ impl<T: TransactionOrdering> PendingPool<T> {
     }
 
     /// Removes the worst transaction from this pool.
-    pub(crate) fn pop_worst(&mut self) -> Option<Arc<ValidPoolTransaction<T::Transaction>>> {
+    pub(crate) fn pop_worst(&mut self) -> Option<Arc<ValidPoolTransaction<T::Order>>> {
         let worst = self.all.iter().next().map(|tx| *tx.transaction.id())?;
         self.remove_transaction(&worst)
     }
@@ -343,7 +341,7 @@ pub(crate) struct PendingTransaction<T: TransactionOrdering> {
     /// Identifier that tags when transaction was submitted in the pool.
     pub(crate) submission_id: u64,
     /// Actual transaction.
-    pub(crate) transaction:   Arc<ValidPoolTransaction<T::Transaction>>,
+    pub(crate) transaction:   Arc<ValidPoolTransaction<T::Order>>,
     /// The priority value assigned by the used `Ordering` function.
     pub(crate) priority:      Priority<T::PriorityValue>
 }
@@ -396,7 +394,7 @@ mod tests {
     use super::*;
     use crate::{
         test_utils::{MockOrdering, MockTransaction, MockTransactionFactory},
-        PoolTransaction
+        PoolOrder
     };
 
     #[test]

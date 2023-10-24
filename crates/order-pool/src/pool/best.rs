@@ -8,8 +8,8 @@ use tokio::sync::broadcast::{error::TryRecvError, Receiver};
 use tracing::debug;
 
 use crate::{
-    identifier::TransactionId, pool::pending::PendingTransaction, PoolTransaction,
-    TransactionOrdering, ValidPoolTransaction
+    identifier::TransactionId, pool::pending::PendingTransaction, PoolOrder, TransactionOrdering,
+    ValidPoolTransaction
 };
 
 /// An iterator that returns transactions that can be executed on the current
@@ -33,18 +33,10 @@ impl<T: TransactionOrdering> crate::traits::BestTransactions for BestTransaction
     fn no_updates(&mut self) {
         self.best.no_updates()
     }
-
-    fn skip_blobs(&mut self) {
-        self.set_skip_blobs(true)
-    }
-
-    fn set_skip_blobs(&mut self, skip_blobs: bool) {
-        self.best.set_skip_blobs(skip_blobs)
-    }
 }
 
 impl<T: TransactionOrdering> Iterator for BestTransactionsWithBasefee<T> {
-    type Item = Arc<ValidPoolTransaction<T::Transaction>>;
+    type Item = Arc<ValidPoolTransaction<T::Order>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // find the next transaction that satisfies the base fee
@@ -94,7 +86,7 @@ pub(crate) struct BestTransactions<T: TransactionOrdering> {
 
 impl<T: TransactionOrdering> BestTransactions<T> {
     /// Mark the transaction and it's descendants as invalid.
-    pub(crate) fn mark_invalid(&mut self, tx: &Arc<ValidPoolTransaction<T::Transaction>>) {
+    pub(crate) fn mark_invalid(&mut self, tx: &Arc<ValidPoolTransaction<T::Order>>) {
         self.invalid.insert(*tx.hash());
     }
 
@@ -154,18 +146,10 @@ impl<T: TransactionOrdering> crate::traits::BestTransactions for BestTransaction
     fn no_updates(&mut self) {
         self.new_transaction_receiver.take();
     }
-
-    fn skip_blobs(&mut self) {
-        self.set_skip_blobs(true);
-    }
-
-    fn set_skip_blobs(&mut self, skip_blobs: bool) {
-        self.skip_blobs = skip_blobs;
-    }
 }
 
 impl<T: TransactionOrdering> Iterator for BestTransactions<T> {
-    type Item = Arc<ValidPoolTransaction<T::Transaction>>;
+    type Item = Arc<ValidPoolTransaction<T::Order>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -177,7 +161,7 @@ impl<T: TransactionOrdering> Iterator for BestTransactions<T> {
             // skip transactions that were marked as invalid
             if self.invalid.contains(hash) {
                 debug!(
-                    target: "txpool",
+                    target: "order pool",
                     "[{:?}] skipping invalid transaction",
                     hash
                 );
@@ -189,13 +173,7 @@ impl<T: TransactionOrdering> Iterator for BestTransactions<T> {
                 self.independent.insert(unlocked.clone());
             }
 
-            if self.skip_blobs && best.transaction.transaction.is_eip4844() {
-                // blobs should be skipped, marking the as invalid will ensure that no dependent
-                // transactions are returned
-                self.mark_invalid(&best.transaction)
-            } else {
-                return Some(best.transaction)
-            }
+            return Some(best.transaction)
         }
     }
 }

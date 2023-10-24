@@ -12,10 +12,8 @@ use tokio::{
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
-    blobstore::BlobStore,
     validate::{EthOrderValidatorBuilder, OrderValidatorError},
-    EthOrderValidator, OrderValidator, PoolTransaction, TransactionOrigin,
-    TransactionValidationOutcome
+    EthOrderValidator, OrderOrigin, OrderValidator, PoolOrder, TransactionValidationOutcome
 };
 
 /// A service that performs validation jobs.
@@ -106,16 +104,11 @@ impl<Client, Tx> TransactionValidationTaskExecutor<EthOrderValidator<Client, Tx>
     /// This will spawn a single validation tasks that performs the actual
     /// validation.
     /// See [TransactionValidationTaskExecutor::eth_with_additional_tasks]
-    pub fn eth<T, S: BlobStore>(
-        client: Client,
-        chain_spec: Arc<ChainSpec>,
-        blob_store: S,
-        tasks: T
-    ) -> Self
+    pub fn eth<T>(client: Client, chain_spec: Arc<ChainSpec>, tasks: T) -> Self
     where
         T: TaskSpawner
     {
-        Self::eth_with_additional_tasks(client, chain_spec, blob_store, tasks, 0)
+        Self::eth_with_additional_tasks(client, chain_spec, tasks, 0)
     }
 
     /// Creates a new instance for the given [ChainSpec]
@@ -127,10 +120,9 @@ impl<Client, Tx> TransactionValidationTaskExecutor<EthOrderValidator<Client, Tx>
     ///
     /// This will always spawn a validation task that performs the actual
     /// validation. It will spawn `num_additional_tasks` additional tasks.
-    pub fn eth_with_additional_tasks<T, S: BlobStore>(
+    pub fn eth_with_additional_tasks<T>(
         client: Client,
         chain_spec: Arc<ChainSpec>,
-        blob_store: S,
         tasks: T,
         num_additional_tasks: usize
     ) -> Self
@@ -139,7 +131,7 @@ impl<Client, Tx> TransactionValidationTaskExecutor<EthOrderValidator<Client, Tx>
     {
         EthOrderValidatorBuilder::new(chain_spec)
             .with_additional_tasks(num_additional_tasks)
-            .build_with_tasks::<Client, Tx, T, S>(client, tasks, blob_store)
+            .build_with_tasks::<Client, Tx, T>(client, tasks)
     }
 }
 
@@ -160,13 +152,13 @@ impl<V> OrderValidator for TransactionValidationTaskExecutor<V>
 where
     V: OrderValidator + Clone + 'static
 {
-    type Transaction = <V as OrderValidator>::Transaction;
+    type Order = <V as OrderValidator>::Order;
 
     async fn validate_transaction(
         &self,
-        origin: TransactionOrigin,
-        transaction: Self::Transaction
-    ) -> TransactionValidationOutcome<Self::Transaction> {
+        origin: OrderOrigin,
+        transaction: Self::Order
+    ) -> TransactionValidationOutcome<Self::Order> {
         let hash = *transaction.hash();
         let (tx, rx) = oneshot::channel();
         {

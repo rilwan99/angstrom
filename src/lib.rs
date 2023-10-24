@@ -11,6 +11,7 @@ use common::{AtomicConsensus, IsLeader};
 use ethers_signers::LocalWallet;
 pub use guard::*;
 pub use network_manager::*;
+use order_pool::*;
 use sim::Simulator;
 pub use submission_server::SubmissionServerConfig;
 

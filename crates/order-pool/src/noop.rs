@@ -9,17 +9,14 @@ use reth_primitives::{Address, BlobTransactionSidecar, PooledTransactionsElement
 use tokio::sync::{mpsc, mpsc::Receiver};
 
 use crate::{
-    blobstore::BlobStoreError,
     error::PoolError,
     traits::{
         BestTransactionsAttributes, GetPooledTransactionLimit, NewBlobSidecar,
         TransactionListenerKind
     },
-    validate::ValidTransaction,
     AllPoolTransactions, AllTransactionsEvents, BestTransactions, BlockInfo, EthPooledTransaction,
-    NewTransactionEvent, OrderValidator, PoolResult, PoolSize, PoolTransaction,
-    PropagatedTransactions, TransactionEvents, TransactionOrigin, TransactionPool,
-    TransactionValidationOutcome, ValidPoolTransaction
+    NewTransactionEvent, OrderOrigin, OrderPool, OrderValidator, PoolOrder, PoolResult, PoolSize,
+    PropagatedTransactions, TransactionEvents, TransactionValidationOutcome, ValidPoolTransaction
 };
 
 /// A [`TransactionPool`] implementation that does nothing.
@@ -32,8 +29,8 @@ use crate::{
 pub struct NoopTransactionPool;
 
 #[async_trait::async_trait]
-impl TransactionPool for NoopTransactionPool {
-    type Transaction = EthPooledTransaction;
+impl OrderPool for NoopTransactionPool {
+    type Order = EthPooledTransaction;
 
     fn pool_size(&self) -> PoolSize {
         Default::default()
@@ -50,8 +47,8 @@ impl TransactionPool for NoopTransactionPool {
 
     async fn add_transaction_and_subscribe(
         &self,
-        _origin: TransactionOrigin,
-        transaction: Self::Transaction
+        _origin: OrderOrigin,
+        transaction: Self::Order
     ) -> PoolResult<TransactionEvents> {
         let hash = *transaction.hash();
         Err(PoolError::Other(hash, Box::new(NoopInsertError::new(transaction))))
@@ -59,8 +56,8 @@ impl TransactionPool for NoopTransactionPool {
 
     async fn add_transaction(
         &self,
-        _origin: TransactionOrigin,
-        transaction: Self::Transaction
+        _origin: OrderOrigin,
+        transaction: Self::Order
     ) -> PoolResult<TxHash> {
         let hash = *transaction.hash();
         Err(PoolError::Other(hash, Box::new(NoopInsertError::new(transaction))))
@@ -68,8 +65,8 @@ impl TransactionPool for NoopTransactionPool {
 
     async fn add_transactions(
         &self,
-        _origin: TransactionOrigin,
-        transactions: Vec<Self::Transaction>
+        _origin: OrderOrigin,
+        transactions: Vec<Self::Order>
     ) -> PoolResult<Vec<PoolResult<TxHash>>> {
         Ok(transactions
             .into_iter()
@@ -84,7 +81,7 @@ impl TransactionPool for NoopTransactionPool {
         None
     }
 
-    fn all_transactions_event_listener(&self) -> AllTransactionsEvents<Self::Transaction> {
+    fn all_transactions_event_listener(&self) -> AllTransactionsEvents<Self::Order> {
         AllTransactionsEvents { events: mpsc::channel(1).1 }
     }
 
@@ -95,18 +92,14 @@ impl TransactionPool for NoopTransactionPool {
         mpsc::channel(1).1
     }
 
-    fn blob_transaction_sidecars_listener(&self) -> Receiver<NewBlobSidecar> {
-        mpsc::channel(1).1
-    }
-
-    fn new_transactions_listener(&self) -> Receiver<NewTransactionEvent<Self::Transaction>> {
+    fn new_transactions_listener(&self) -> Receiver<NewTransactionEvent<Self::Order>> {
         mpsc::channel(1).1
     }
 
     fn new_transactions_listener_for(
         &self,
         _kind: TransactionListenerKind
-    ) -> Receiver<NewTransactionEvent<Self::Transaction>> {
+    ) -> Receiver<NewTransactionEvent<Self::Order>> {
         mpsc::channel(1).1
     }
 
@@ -118,14 +111,11 @@ impl TransactionPool for NoopTransactionPool {
         vec![]
     }
 
-    fn pooled_transactions(&self) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
+    fn pooled_transactions(&self) -> Vec<Arc<ValidPoolTransaction<Self::Order>>> {
         vec![]
     }
 
-    fn pooled_transactions_max(
-        &self,
-        _max: usize
-    ) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
+    fn pooled_transactions_max(&self, _max: usize) -> Vec<Arc<ValidPoolTransaction<Self::Order>>> {
         vec![]
     }
 
@@ -139,50 +129,43 @@ impl TransactionPool for NoopTransactionPool {
 
     fn best_transactions(
         &self
-    ) -> Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<Self::Transaction>>>> {
+    ) -> Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<Self::Order>>>> {
         Box::new(std::iter::empty())
     }
 
     fn best_transactions_with_base_fee(
         &self,
         _: u64
-    ) -> Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<Self::Transaction>>>> {
+    ) -> Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<Self::Order>>>> {
         Box::new(std::iter::empty())
     }
 
-    fn best_transactions_with_attributes(
-        &self,
-        _: BestTransactionsAttributes
-    ) -> Box<dyn BestTransactions<Item = Arc<ValidPoolTransaction<Self::Transaction>>>> {
-        Box::new(std::iter::empty())
-    }
-
-    fn pending_transactions(&self) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
+    fn pending_transactions(&self) -> Vec<Arc<ValidPoolTransaction<Self::Order>>> {
         vec![]
     }
 
-    fn queued_transactions(&self) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
+    fn queued_transactions(&self) -> Vec<Arc<ValidPoolTransaction<Self::Order>>> {
         vec![]
     }
 
-    fn all_transactions(&self) -> AllPoolTransactions<Self::Transaction> {
+    fn all_transactions(&self) -> AllPoolTransactions<Self::Order> {
         AllPoolTransactions::default()
     }
 
     fn remove_transactions(
         &self,
         _hashes: Vec<TxHash>
-    ) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
+    ) -> Vec<Arc<ValidPoolTransaction<Self::Order>>> {
         vec![]
     }
 
     fn retain_unknown(&self, _hashes: &mut Vec<TxHash>) {}
 
-    fn get(&self, _tx_hash: &TxHash) -> Option<Arc<ValidPoolTransaction<Self::Transaction>>> {
+    fn get(&self, _tx_hash: &TxHash) -> Option<Arc<ValidPoolTransaction<Self::Order>>> {
         None
     }
 
-    fn get_all(&self, _txs: Vec<TxHash>) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
+    fn get_all(&self, _txs: Vec<TxHash>) -> Vec<Arc<ValidPoolTransaction<Self::Order>>> {
         vec![]
     }
 
@@ -191,33 +174,12 @@ impl TransactionPool for NoopTransactionPool {
     fn get_transactions_by_sender(
         &self,
         _sender: Address
-    ) -> Vec<Arc<ValidPoolTransaction<Self::Transaction>>> {
+    ) -> Vec<Arc<ValidPoolTransaction<Self::Order>>> {
         vec![]
     }
 
     fn unique_senders(&self) -> HashSet<Address> {
         Default::default()
-    }
-
-    fn get_blob(&self, _tx_hash: TxHash) -> Result<Option<BlobTransactionSidecar>, BlobStoreError> {
-        Ok(None)
-    }
-
-    fn get_all_blobs(
-        &self,
-        _tx_hashes: Vec<TxHash>
-    ) -> Result<Vec<(TxHash, BlobTransactionSidecar)>, BlobStoreError> {
-        Ok(vec![])
-    }
-
-    fn get_all_blobs_exact(
-        &self,
-        tx_hashes: Vec<TxHash>
-    ) -> Result<Vec<BlobTransactionSidecar>, BlobStoreError> {
-        if tx_hashes.is_empty() {
-            return Ok(vec![])
-        }
-        Err(BlobStoreError::MissingSidecar(tx_hashes[0]))
     }
 }
 
@@ -230,22 +192,22 @@ pub struct MockOrderValidator<T> {
 }
 
 #[async_trait::async_trait]
-impl<T: PoolTransaction> OrderValidator for MockOrderValidator<T> {
-    type Transaction = T;
+impl<T: PoolOrder> OrderValidator for MockOrderValidator<T> {
+    type Order = T;
 
     async fn validate_transaction(
         &self,
-        origin: TransactionOrigin,
-        transaction: Self::Transaction
-    ) -> TransactionValidationOutcome<Self::Transaction> {
+        origin: OrderOrigin,
+        transaction: Self::Order
+    ) -> TransactionValidationOutcome<Self::Order> {
         TransactionValidationOutcome::Valid {
-            balance:     Default::default(),
+            balance: Default::default(),
             state_nonce: 0,
-            transaction: ValidTransaction::Valid(transaction),
-            propagate:   match origin {
-                TransactionOrigin::External => true,
-                TransactionOrigin::Local => self.propagate_local,
-                TransactionOrigin::Private => false
+            transaction,
+            propagate: match origin {
+                OrderOrigin::External => true,
+                OrderOrigin::Local => self.propagate_local,
+                OrderOrigin::Private => false
             }
         }
     }

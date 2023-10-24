@@ -3,7 +3,7 @@
 use order_pool::{
     error::PoolError,
     test_utils::{testing_pool, MockTransaction, MockTransactionFactory},
-    TransactionOrigin, TransactionPool
+    OrderOrigin, TransactionPool
 };
 
 #[tokio::test(flavor = "multi_thread")]
@@ -15,7 +15,7 @@ async fn blobs_exclusive() {
     let blob_tx = mock_tx_factory.create_eip4844();
 
     let hash = txpool
-        .add_transaction(TransactionOrigin::External, blob_tx.transaction.clone())
+        .add_transaction(OrderOrigin::External, blob_tx.transaction.clone())
         .await
         .unwrap();
     assert_eq!(hash, blob_tx.transaction.get_hash());
@@ -29,7 +29,7 @@ async fn blobs_exclusive() {
         .inc_price_by(10_000);
 
     let res = txpool
-        .add_transaction(TransactionOrigin::External, eip1559_tx.clone())
+        .add_transaction(OrderOrigin::External, eip1559_tx.clone())
         .await
         .unwrap_err();
 

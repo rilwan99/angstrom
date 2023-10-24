@@ -1,34 +1,37 @@
-use crate::{
-    constants,
-    constants::DEFAULT_MAX_LOGS_PER_RESPONSE,
-    error::{RpcError, ServerKind},
-    EthConfig,
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    time::{Duration, SystemTime, UNIX_EPOCH}
 };
+
 use hyper::header::AUTHORIZATION;
 pub use jsonrpsee::server::ServerBuilder;
 use jsonrpsee::{
     http_client::HeaderMap,
-    server::{RpcModule, ServerHandle},
+    server::{RpcModule, ServerHandle}
 };
 use reth_network_api::{NetworkInfo, Peers};
 use reth_provider::{
     BlockReaderIdExt, ChainSpecProvider, EvmEnvProvider, HeaderProvider, ReceiptProviderIdExt,
-    StateProviderFactory,
+    StateProviderFactory
 };
 use reth_rpc::{
     eth::{cache::EthStateCache, gas_oracle::GasPriceOracle},
     AuthLayer, BlockingTaskPool, Claims, EngineEthApi, EthApi, EthFilter,
-    EthSubscriptionIdProvider, JwtAuthValidator, JwtSecret,
+    EthSubscriptionIdProvider, JwtAuthValidator, JwtSecret
 };
 use reth_rpc_api::{servers::*, EngineApiServer};
 use reth_tasks::TaskSpawner;
 use reth_transaction_pool::TransactionPool;
-use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr},
-    time::{Duration, SystemTime, UNIX_EPOCH},
+
+use crate::{
+    constants,
+    constants::DEFAULT_MAX_LOGS_PER_RESPONSE,
+    error::{RpcError, ServerKind},
+    EthConfig
 };
 
-/// Configure and launch a _standalone_ auth server with `engine` and a _new_ `eth` namespace.
+/// Configure and launch a _standalone_ auth server with `engine` and a _new_
+/// `eth` namespace.
 #[allow(clippy::too_many_arguments)]
 pub async fn launch<Provider, Pool, Network, Tasks, EngineApi>(
     provider: Provider,
@@ -37,7 +40,7 @@ pub async fn launch<Provider, Pool, Network, Tasks, EngineApi>(
     executor: Tasks,
     engine_api: EngineApi,
     socket_addr: SocketAddr,
-    secret: JwtSecret,
+    secret: JwtSecret
 ) -> Result<AuthServerHandle, RpcError>
 where
     Provider: BlockReaderIdExt
@@ -49,10 +52,10 @@ where
         + Clone
         + Unpin
         + 'static,
-    Pool: TransactionPool + Clone + 'static,
+    Pool: OrderPool + Clone + 'static,
     Network: NetworkInfo + Peers + Clone + 'static,
     Tasks: TaskSpawner + Clone + 'static,
-    EngineApi: EngineApiServer,
+    EngineApi: EngineApiServer
 {
     // spawn a new cache task
     let eth_cache =
@@ -66,7 +69,7 @@ where
         gas_oracle,
         EthConfig::default().rpc_gas_cap,
         Box::new(executor.clone()),
-        BlockingTaskPool::build().expect("failed to build tracing pool"),
+        BlockingTaskPool::build().expect("failed to build tracing pool")
     );
     let eth_filter = EthFilter::new(
         provider,
@@ -74,18 +77,19 @@ where
         eth_cache.clone(),
         DEFAULT_MAX_LOGS_PER_RESPONSE,
         Box::new(executor.clone()),
-        EthConfig::default().stale_filter_ttl,
+        EthConfig::default().stale_filter_ttl
     );
     launch_with_eth_api(eth_api, eth_filter, engine_api, socket_addr, secret).await
 }
 
-/// Configure and launch a _standalone_ auth server with existing EthApi implementation.
+/// Configure and launch a _standalone_ auth server with existing EthApi
+/// implementation.
 pub async fn launch_with_eth_api<Provider, Pool, Network, EngineApi>(
     eth_api: EthApi<Provider, Pool, Network>,
     eth_filter: EthFilter<Provider, Pool>,
     engine_api: EngineApi,
     socket_addr: SocketAddr,
-    secret: JwtSecret,
+    secret: JwtSecret
 ) -> Result<AuthServerHandle, RpcError>
 where
     Provider: BlockReaderIdExt
@@ -96,15 +100,19 @@ where
         + Clone
         + Unpin
         + 'static,
-    Pool: TransactionPool + Clone + 'static,
+    Pool: OrderPool + Clone + 'static,
     Network: NetworkInfo + Peers + Clone + 'static,
-    EngineApi: EngineApiServer,
+    EngineApi: EngineApiServer
 {
     // Configure the module and start the server.
     let mut module = RpcModule::new(());
-    module.merge(engine_api.into_rpc()).expect("No conflicting methods");
+    module
+        .merge(engine_api.into_rpc())
+        .expect("No conflicting methods");
     let engine_eth = EngineEthApi::new(eth_api, eth_filter);
-    module.merge(engine_eth.into_rpc()).expect("No conflicting methods");
+    module
+        .merge(engine_eth.into_rpc())
+        .expect("No conflicting methods");
 
     // Create auth middleware.
     let middleware =
@@ -127,11 +135,11 @@ where
 #[derive(Debug)]
 pub struct AuthServerConfig {
     /// Where the server should listen.
-    pub(crate) socket_addr: SocketAddr,
+    pub(crate) socket_addr:   SocketAddr,
     /// The secrete for the auth layer of the server.
-    pub(crate) secret: JwtSecret,
+    pub(crate) secret:        JwtSecret,
     /// Configs for JSON-RPC Http.
-    pub(crate) server_config: ServerBuilder,
+    pub(crate) server_config: ServerBuilder
 }
 
 // === impl AuthServerConfig ===
@@ -156,10 +164,11 @@ impl AuthServerConfig {
             .layer(AuthLayer::new(JwtAuthValidator::new(secret.clone())));
 
         // By default, both http and ws are enabled.
-        let server =
-            server_config.set_middleware(middleware).build(socket_addr).await.map_err(|err| {
-                RpcError::from_jsonrpsee_error(err, ServerKind::Auth(socket_addr))
-            })?;
+        let server = server_config
+            .set_middleware(middleware)
+            .build(socket_addr)
+            .await
+            .map_err(|err| RpcError::from_jsonrpsee_error(err, ServerKind::Auth(socket_addr)))?;
 
         let local_addr = server.local_addr()?;
 
@@ -171,9 +180,9 @@ impl AuthServerConfig {
 /// Builder type for configuring an `AuthServerConfig`.
 #[derive(Debug)]
 pub struct AuthServerConfigBuilder {
-    socket_addr: Option<SocketAddr>,
-    secret: JwtSecret,
-    server_config: Option<ServerBuilder>,
+    socket_addr:   Option<SocketAddr>,
+    secret:        JwtSecret,
+    server_config: Option<ServerBuilder>
 }
 
 // === impl AuthServerConfigBuilder ===
@@ -214,10 +223,10 @@ impl AuthServerConfigBuilder {
     /// Build the `AuthServerConfig`.
     pub fn build(self) -> AuthServerConfig {
         AuthServerConfig {
-            socket_addr: self.socket_addr.unwrap_or_else(|| {
+            socket_addr:   self.socket_addr.unwrap_or_else(|| {
                 SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), constants::DEFAULT_AUTH_PORT)
             }),
-            secret: self.secret,
+            secret:        self.secret,
             server_config: self.server_config.unwrap_or_else(|| {
                 ServerBuilder::new()
                     // This needs to large enough to handle large eth_getLogs responses and maximum
@@ -233,7 +242,7 @@ impl AuthServerConfigBuilder {
                     // dynamic request params that can exceed this
                     .max_request_body_size(25 * 1024 * 1024)
                     .set_id_provider(EthSubscriptionIdProvider::default())
-            }),
+            })
         }
     }
 }
@@ -241,7 +250,7 @@ impl AuthServerConfigBuilder {
 /// Holds installed modules for the auth server.
 #[derive(Debug)]
 pub struct AuthRpcModule {
-    pub(crate) inner: RpcModule<()>,
+    pub(crate) inner: RpcModule<()>
 }
 
 // === impl TransportRpcModules ===
@@ -250,10 +259,12 @@ impl AuthRpcModule {
     /// Create a new `AuthRpcModule` with the given `engine_api`.
     pub fn new<EngineApi>(engine: EngineApi) -> Self
     where
-        EngineApi: EngineApiServer,
+        EngineApi: EngineApiServer
     {
         let mut module = RpcModule::new(());
-        module.merge(engine.into_rpc()).expect("No conflicting methods");
+        module
+            .merge(engine.into_rpc())
+            .expect("No conflicting methods");
         Self { inner: module }
     }
 
@@ -265,7 +276,7 @@ impl AuthRpcModule {
     /// Convenience function for starting a server
     pub async fn start_server(
         self,
-        config: AuthServerConfig,
+        config: AuthServerConfig
     ) -> Result<AuthServerHandle, RpcError> {
         config.start(self).await
     }
@@ -273,14 +284,14 @@ impl AuthRpcModule {
 
 /// A handle to the spawned auth server.
 ///
-/// When this type is dropped or [AuthServerHandle::stop] has been called the server will be
-/// stopped.
+/// When this type is dropped or [AuthServerHandle::stop] has been called the
+/// server will be stopped.
 #[derive(Clone, Debug)]
 #[must_use = "Server stops if dropped"]
 pub struct AuthServerHandle {
     local_addr: SocketAddr,
-    handle: ServerHandle,
-    secret: JwtSecret,
+    handle:     ServerHandle,
+    secret:     JwtSecret
 }
 
 // === impl AuthServerHandle ===
@@ -311,10 +322,10 @@ impl AuthServerHandle {
             "Bearer {}",
             self.secret
                 .encode(&Claims {
-                    iat: (SystemTime::now().duration_since(UNIX_EPOCH).unwrap() +
-                        Duration::from_secs(60))
+                    iat: (SystemTime::now().duration_since(UNIX_EPOCH).unwrap()
+                        + Duration::from_secs(60))
                     .as_secs(),
-                    exp: None,
+                    exp: None
                 })
                 .unwrap()
         )
