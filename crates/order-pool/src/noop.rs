@@ -26,10 +26,10 @@ use crate::{
 /// components together.
 #[derive(Debug, Clone, Default)]
 #[non_exhaustive]
-pub struct NoopTransactionPool;
+pub struct NoopOrderPool;
 
 #[async_trait::async_trait]
-impl OrderPool for NoopTransactionPool {
+impl OrderPool for NoopOrderPool {
     type Order = EthPooledTransaction;
 
     fn pool_size(&self) -> PoolSize {

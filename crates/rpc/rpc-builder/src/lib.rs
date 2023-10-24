@@ -164,7 +164,7 @@ pub use jsonrpsee::server::ServerBuilder;
 pub use reth_ipc::server::{Builder as IpcServerBuilder, Endpoint};
 use reth_network_api::noop::NoopNetwork;
 use reth_rpc::eth::EthBundle;
-use reth_transaction_pool::noop::NoopTransactionPool;
+use reth_transaction_pool::noop::NoopOrderPool;
 
 pub use crate::eth::{EthConfig, EthHandlers};
 
@@ -253,21 +253,21 @@ impl<Provider, Pool, Network, Tasks, Events>
         RpcModuleBuilder { provider, network, pool, executor, events }
     }
 
-    /// Configure a [NoopTransactionPool] instance.
+    /// Configure a [NoopOrderPool] instance.
     ///
     /// Caution: This will configure a pool API that does abosultely nothing.
     /// This is only intended for allow easier setup of namespaces that depend
     /// on the [EthApi] which requires a [TransactionPool] implementation.
     pub fn with_noop_pool(
         self
-    ) -> RpcModuleBuilder<Provider, NoopTransactionPool, Network, Tasks, Events> {
+    ) -> RpcModuleBuilder<Provider, NoopOrderPool, Network, Tasks, Events> {
         let Self { provider, executor, events, network, .. } = self;
         RpcModuleBuilder {
             provider,
             executor,
             events,
             network,
-            pool: NoopTransactionPool::default()
+            pool: NoopOrderPool::default()
         }
     }
 
