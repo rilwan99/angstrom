@@ -3,7 +3,9 @@ use std::sync::{
     Arc
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum ConsensusState {
     OrderAccumulation = 0,
