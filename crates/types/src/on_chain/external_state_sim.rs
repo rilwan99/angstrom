@@ -1,4 +1,4 @@
-use alloy_primitives::{keccak256, Address, Bytes};
+use alloy_primitives::{Address, Bytes};
 
 use super::SubmittedOrder;
 

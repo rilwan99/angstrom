@@ -10,6 +10,7 @@ pub struct SignedLowerBound {
     pub signatures:  Vec<Signature>
 }
 
+//TODO: Fix lower bound see, contracts update + recent issue.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 pub struct LowerBound {
     pub searcher_bids: Vec<PoolValue>,

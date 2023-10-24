@@ -94,9 +94,12 @@ impl Decodable for CurrencySettlement {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
 pub struct SignedVanillaBundle {
-    pub bundle:     VanillaBundle,
+    pub bundle:     Vec<VanillaBundle>,
     pub signatures: Vec<Signature>
 }
+
+//TODO: Will find a better way of doing this. We need a vec of vec here
+// logically bro
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable, Hash)]
 pub struct VanillaBundle {

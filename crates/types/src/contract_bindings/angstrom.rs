@@ -4,6 +4,7 @@ use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_macro::sol;
 use serde::{Deserialize, Serialize};
 
+use crate::contract_bindings::Angstrom::OrderType;
 sol! {
     #![sol(all_derives = true)]
 
@@ -14,6 +15,7 @@ sol! {
 
         type Currency is address;
 
+        #[derive(RlpEncodable, RlpDecodable)]
         struct Bundle {
             ExecutedOrder[] orders;
             bytes uniswapData;
@@ -36,7 +38,7 @@ sol! {
         #[derive(Serialize, Deserialize, RlpEncodable, RlpDecodable)]
         struct Order {
             uint256 nonce;
-            uint8 orderType;
+            OrderType orderType;
             address currencyIn;
             address currencyOut;
             uint128 amountIn;
@@ -45,7 +47,7 @@ sol! {
             bytes preHook;
             bytes postHook;
         }
-
+        #[derive(Serialize, Deserialize)]
         enum OrderType {
             User,
             Searcher,
@@ -179,5 +181,17 @@ impl Decodable for Angstrom::PoolKey {
         let hooks = Address::decode(buf)?;
 
         Ok(Self { hooks, fee, tickSpacing: tick_spacing, currency0: cur_0, currency1: cur_1 })
+    }
+}
+
+impl Encodable for OrderType {
+    fn encode(&self, out: &mut dyn bytes::BufMut) {
+        let byte: u8 = unsafe { std::mem::transmute(*self) };
+        out.put_u8(byte)
+    }
+}
+impl Decodable for OrderType {
+    fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
+        unsafe { std::mem::transmute(u8::decode(buf)) }
     }
 }

@@ -5,7 +5,8 @@ use crate::{
     contract_bindings::Angstrom::PoolKey,
     on_chain::{Signature, SubmittedOrder}
 };
-
+// TODO: change searcher bid to best bid or something that communicates
+// optimality of LP payoff.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, RlpDecodable, RlpEncodable)]
 pub struct PoolOrders {
     pub pool:         PoolKey,
