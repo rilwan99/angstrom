@@ -30,7 +30,7 @@ impl<T: Ord + Clone> From<Option<T>> for Priority<T> {
 /// `Priority` value.
 ///
 /// The returned priority must reflect [total order](https://en.wikipedia.org/wiki/Total_order).
-pub trait TransactionOrdering: Send + Sync + 'static {
+pub trait OrderSorting: Send + Sync + 'static {
     /// Priority of a transaction.
     ///
     /// Higher is better.
@@ -51,7 +51,7 @@ pub trait TransactionOrdering: Send + Sync + 'static {
 #[non_exhaustive]
 pub struct CoinbaseTipOrdering<T>(PhantomData<T>);
 
-impl<T> TransactionOrdering for CoinbaseTipOrdering<T>
+impl<T> OrderSorting for CoinbaseTipOrdering<T>
 where
     T: PoolOrder + 'static
 {

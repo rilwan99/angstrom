@@ -98,8 +98,7 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
             last_seen_block_number: latest.number,
             pending_basefee:        latest
                 .next_block_base_fee(chain_spec.base_fee_params)
-                .unwrap_or_default(),
-            pending_blob_fee:       latest.next_block_blob_fee()
+                .unwrap_or_default()
         };
         pool.set_block_info(info);
     }
@@ -295,7 +294,6 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
                 let update = CanonicalStateUpdate {
                     new_tip: &new_tip.block,
                     pending_block_base_fee,
-                    pending_block_blob_fee,
                     changed_accounts,
                     // all transactions mined in the new chain need to be removed from the pool
                     mined_transactions: new_mined_transactions.into_iter().collect()
@@ -338,8 +336,7 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
                     let info = BlockInfo {
                         last_seen_block_hash:   tip.hash,
                         last_seen_block_number: tip.number,
-                        pending_basefee:        pending_block_base_fee,
-                        pending_blob_fee:       pending_block_blob_fee
+                        pending_basefee:        pending_block_base_fee
                     };
                     pool.set_block_info(info);
 
@@ -367,7 +364,6 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
                 let update = CanonicalStateUpdate {
                     new_tip: &tip.block,
                     pending_block_base_fee,
-                    pending_block_blob_fee,
                     changed_accounts,
                     mined_transactions
                 };

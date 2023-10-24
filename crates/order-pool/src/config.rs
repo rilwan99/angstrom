@@ -86,9 +86,6 @@ impl PriceBumpConfig {
     /// Returns the price bump required to replace the given transaction type.
     #[inline]
     pub(crate) fn price_bump(&self, tx_type: u8) -> u128 {
-        if tx_type == EIP4844_TX_TYPE_ID {
-            return self.replace_blob_tx_price_bump
-        }
         self.default_price_bump
     }
 }

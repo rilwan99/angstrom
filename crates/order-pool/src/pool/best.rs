@@ -8,7 +8,7 @@ use tokio::sync::broadcast::{error::TryRecvError, Receiver};
 use tracing::debug;
 
 use crate::{
-    identifier::TransactionId, pool::pending::PendingTransaction, PoolOrder, TransactionOrdering,
+    identifier::TransactionId, pool::pending::PendingTransaction, OrderSorting, PoolOrder,
     ValidPoolTransaction
 };
 
@@ -20,12 +20,12 @@ use crate::{
 ///
 /// This iterator guarantees that all transaction it returns satisfy the base
 /// fee.
-pub(crate) struct BestTransactionsWithBasefee<T: TransactionOrdering> {
+pub(crate) struct BestTransactionsWithBasefee<T: OrderSorting> {
     pub(crate) best:     BestTransactions<T>,
     pub(crate) base_fee: u64
 }
 
-impl<T: TransactionOrdering> crate::traits::BestTransactions for BestTransactionsWithBasefee<T> {
+impl<T: OrderSorting> crate::traits::BestTransactions for BestTransactionsWithBasefee<T> {
     fn mark_invalid(&mut self, tx: &Self::Item) {
         BestTransactions::mark_invalid(&mut self.best, tx)
     }
@@ -35,7 +35,7 @@ impl<T: TransactionOrdering> crate::traits::BestTransactions for BestTransaction
     }
 }
 
-impl<T: TransactionOrdering> Iterator for BestTransactionsWithBasefee<T> {
+impl<T: OrderSorting> Iterator for BestTransactionsWithBasefee<T> {
     type Item = Arc<ValidPoolTransaction<T::Order>>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -60,7 +60,7 @@ impl<T: TransactionOrdering> Iterator for BestTransactionsWithBasefee<T> {
 /// transactions that are ready to be executed now. While it contains all
 /// gapless transactions of a sender, it _always_ only returns the transaction
 /// with the current on chain nonce.
-pub(crate) struct BestTransactions<T: TransactionOrdering> {
+pub(crate) struct BestTransactions<T: OrderSorting> {
     /// Contains a copy of _all_ transactions of the pending pool at the point
     /// in time this iterator was created.
     pub(crate) all: BTreeMap<TransactionId, PendingTransaction<T>>,
@@ -84,7 +84,7 @@ pub(crate) struct BestTransactions<T: TransactionOrdering> {
     pub(crate) skip_blobs: bool
 }
 
-impl<T: TransactionOrdering> BestTransactions<T> {
+impl<T: OrderSorting> BestTransactions<T> {
     /// Mark the transaction and it's descendants as invalid.
     pub(crate) fn mark_invalid(&mut self, tx: &Arc<ValidPoolTransaction<T::Order>>) {
         self.invalid.insert(*tx.hash());
@@ -138,7 +138,7 @@ impl<T: TransactionOrdering> BestTransactions<T> {
     }
 }
 
-impl<T: TransactionOrdering> crate::traits::BestTransactions for BestTransactions<T> {
+impl<T: OrderSorting> crate::traits::BestTransactions for BestTransactions<T> {
     fn mark_invalid(&mut self, tx: &Self::Item) {
         BestTransactions::mark_invalid(self, tx)
     }
@@ -148,7 +148,7 @@ impl<T: TransactionOrdering> crate::traits::BestTransactions for BestTransaction
     }
 }
 
-impl<T: TransactionOrdering> Iterator for BestTransactions<T> {
+impl<T: OrderSorting> Iterator for BestTransactions<T> {
     type Item = Arc<ValidPoolTransaction<T::Order>>;
 
     fn next(&mut self) -> Option<Self::Item> {

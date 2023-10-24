@@ -12,7 +12,7 @@ use crate::{
         best::{BestTransactions, BestTransactionsWithBasefee},
         size::SizeTracker
     },
-    Priority, TransactionOrdering, ValidPoolTransaction
+    OrderSorting, Priority, ValidPoolTransaction
 };
 
 /// A pool of validated and gapless transactions that are ready to be executed
@@ -28,7 +28,7 @@ use crate::{
 /// if this transaction is also pending, then this will be moved to the
 /// `independent` queue.
 #[derive(Clone)]
-pub(crate) struct PendingPool<T: TransactionOrdering> {
+pub(crate) struct PendingPool<T: OrderSorting> {
     /// How to order transactions.
     ordering: T,
     /// Keeps track of transactions inserted in the pool.
@@ -56,7 +56,7 @@ pub(crate) struct PendingPool<T: TransactionOrdering> {
 
 // === impl PendingPool ===
 
-impl<T: TransactionOrdering> PendingPool<T> {
+impl<T: OrderSorting> PendingPool<T> {
     /// Create a new pool instance.
     pub(crate) fn new(ordering: T) -> Self {
         let (new_transaction_notifier, _) = broadcast::channel(200);
@@ -337,7 +337,7 @@ impl<T: TransactionOrdering> PendingPool<T> {
 }
 
 /// A transaction that is ready to be included in a block.
-pub(crate) struct PendingTransaction<T: TransactionOrdering> {
+pub(crate) struct PendingTransaction<T: OrderSorting> {
     /// Identifier that tags when transaction was submitted in the pool.
     pub(crate) submission_id: u64,
     /// Actual transaction.
@@ -346,14 +346,14 @@ pub(crate) struct PendingTransaction<T: TransactionOrdering> {
     pub(crate) priority:      Priority<T::PriorityValue>
 }
 
-impl<T: TransactionOrdering> PendingTransaction<T> {
+impl<T: OrderSorting> PendingTransaction<T> {
     /// The next transaction of the sender: `nonce + 1`
     pub(crate) fn unlocks(&self) -> TransactionId {
         self.transaction.transaction_id.descendant()
     }
 }
 
-impl<T: TransactionOrdering> Clone for PendingTransaction<T> {
+impl<T: OrderSorting> Clone for PendingTransaction<T> {
     fn clone(&self) -> Self {
         Self {
             submission_id: self.submission_id,
@@ -363,21 +363,21 @@ impl<T: TransactionOrdering> Clone for PendingTransaction<T> {
     }
 }
 
-impl<T: TransactionOrdering> Eq for PendingTransaction<T> {}
+impl<T: OrderSorting> Eq for PendingTransaction<T> {}
 
-impl<T: TransactionOrdering> PartialEq<Self> for PendingTransaction<T> {
+impl<T: OrderSorting> PartialEq<Self> for PendingTransaction<T> {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == Ordering::Equal
     }
 }
 
-impl<T: TransactionOrdering> PartialOrd<Self> for PendingTransaction<T> {
+impl<T: OrderSorting> PartialOrd<Self> for PendingTransaction<T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T: TransactionOrdering> Ord for PendingTransaction<T> {
+impl<T: OrderSorting> Ord for PendingTransaction<T> {
     fn cmp(&self, other: &Self) -> Ordering {
         // This compares by `priority` and only if two tx have the exact same priority
         // this compares the unique `submission_id`. This ensures that

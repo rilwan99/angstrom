@@ -29,8 +29,7 @@ use crate::{
         AddedPendingTransaction, AddedTransaction, OnNewCanonicalStateOutcome
     },
     traits::{BestTransactionsAttributes, BlockInfo, PoolSize},
-    PoolConfig, PoolOrder, PoolResult, PriceBumpConfig, TransactionOrdering, ValidPoolTransaction,
-    U256
+    OrderSorting, PoolConfig, PoolOrder, PoolResult, PriceBumpConfig, ValidPoolTransaction, U256
 };
 
 /// A pool that manages transactions.
@@ -68,7 +67,7 @@ use crate::{
 ///   B3 -->  |promote| B2
 ///   new -->  |apply state changes| pool
 /// ```
-pub struct TxPool<T: TransactionOrdering> {
+pub struct TxPool<T: OrderSorting> {
     /// Contains the currently known information about the senders.
     sender_info:      FnvHashMap<SenderId, SenderInfo>,
     /// pending subpool
@@ -99,7 +98,7 @@ pub struct TxPool<T: TransactionOrdering> {
 
 // === impl TxPool ===
 
-impl<T: TransactionOrdering> TxPool<T> {
+impl<T: OrderSorting> TxPool<T> {
     /// Create a new graph pool instance.
     pub(crate) fn new(ordering: T, config: PoolConfig) -> Self {
         Self {
@@ -145,8 +144,7 @@ impl<T: TransactionOrdering> TxPool<T> {
         BlockInfo {
             last_seen_block_hash:   self.all_transactions.last_seen_block_hash,
             last_seen_block_number: self.all_transactions.last_seen_block_number,
-            pending_basefee:        self.all_transactions.pending_basefee,
-            pending_blob_fee:       Some(self.all_transactions.pending_blob_fee)
+            pending_basefee:        self.all_transactions.pending_basefee
         }
     }
 
@@ -206,12 +204,7 @@ impl<T: TransactionOrdering> TxPool<T> {
     ///
     /// This will also apply updates to the pool based on the new base fee
     pub(crate) fn set_block_info(&mut self, info: BlockInfo) {
-        let BlockInfo {
-            last_seen_block_hash,
-            last_seen_block_number,
-            pending_basefee,
-            pending_blob_fee
-        } = info;
+        let BlockInfo { last_seen_block_hash, last_seen_block_number, pending_basefee } = info;
         self.all_transactions.last_seen_block_hash = last_seen_block_hash;
         self.all_transactions.last_seen_block_number = last_seen_block_number;
         self.update_basefee(pending_basefee);
@@ -772,7 +765,7 @@ impl TxPool<crate::test_utils::MockOrdering> {
 }
 
 #[cfg(test)]
-impl<T: TransactionOrdering> Drop for TxPool<T> {
+impl<T: OrderSorting> Drop for TxPool<T> {
     fn drop(&mut self) {
         self.assert_invariants();
     }
@@ -781,7 +774,7 @@ impl<T: TransactionOrdering> Drop for TxPool<T> {
 // Additional test impls
 #[cfg(any(test, feature = "test-utils"))]
 #[allow(missing_docs)]
-impl<T: TransactionOrdering> TxPool<T> {
+impl<T: OrderSorting> TxPool<T> {
     pub(crate) fn pending(&self) -> &PendingPool<T> {
         &self.pending_pool
     }
@@ -795,7 +788,7 @@ impl<T: TransactionOrdering> TxPool<T> {
     }
 }
 
-impl<T: TransactionOrdering> fmt::Debug for TxPool<T> {
+impl<T: OrderSorting> fmt::Debug for TxPool<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TxPool")
             .field("config", &self.config)
@@ -891,18 +884,11 @@ impl<T: PoolOrder> AllTransactions<T> {
 
     /// Updates the block specific info
     fn set_block_info(&mut self, block_info: BlockInfo) {
-        let BlockInfo {
-            last_seen_block_hash,
-            last_seen_block_number,
-            pending_basefee,
-            pending_blob_fee
-        } = block_info;
+        let BlockInfo { last_seen_block_hash, last_seen_block_number, pending_basefee } =
+            block_info;
         self.last_seen_block_number = last_seen_block_number;
         self.last_seen_block_hash = last_seen_block_hash;
         self.pending_basefee = pending_basefee;
-        if let Some(pending_blob_fee) = pending_blob_fee {
-            self.pending_blob_fee = pending_blob_fee;
-        }
     }
 
     /// Rechecks all transactions in the pool against the changes.

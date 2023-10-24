@@ -25,7 +25,7 @@
 //!
 //! The pending pool contains transactions that can be mined on the current
 //! state. The order in which they're returned are determined by a `Priority`
-//! value returned by the `TransactionOrdering` type this pool is configured
+//! value returned by the `OrderSorting` type this pool is configured
 //! with.
 //!
 //! This is only used in the _pending_ pool to yield the best transactions for
@@ -160,7 +160,7 @@ pub use crate::{
         TXPOOL_SUBPOOL_MAX_TXS_DEFAULT
     },
     error::PoolResult,
-    ordering::{CoinbaseTipOrdering, Priority, TransactionOrdering},
+    ordering::{CoinbaseTipOrdering, OrderSorting, Priority},
     pool::{
         state::SubPool, AllTransactionsEvents, FullOrderEvent, TransactionEvent, TransactionEvents
     },
@@ -195,7 +195,7 @@ pub type EthTransactionPool<Client> = Pool<
 
 /// A shareable, generic, customizable `TransactionPool` implementation.
 #[derive(Debug)]
-pub struct Pool<V, T: TransactionOrdering> {
+pub struct Pool<V, T: OrderSorting> {
     /// Arc'ed instance of the pool internals
     pool: Arc<PoolInner<V, T>>
 }
@@ -205,7 +205,7 @@ pub struct Pool<V, T: TransactionOrdering> {
 impl<V, T> Pool<V, T>
 where
     V: OrderValidator,
-    T: TransactionOrdering<Order = <V as OrderValidator>::Order>
+    T: OrderSorting<Order = <V as OrderValidator>::Order>
 {
     /// Create a new transaction pool instance.
     pub fn new(validator: V, ordering: T, config: PoolConfig) -> Self {
@@ -309,7 +309,7 @@ where
 impl<V, T> OrderPool for Pool<V, T>
 where
     V: OrderValidator,
-    T: TransactionOrdering<Order = <V as OrderValidator>::Order>
+    T: OrderSorting<Order = <V as OrderValidator>::Order>
 {
     type Order = T::Order;
 
@@ -461,10 +461,10 @@ where
     }
 }
 
-impl<V: OrderValidator, T: TransactionOrdering> TransactionPoolExt for Pool<V, T>
+impl<V: OrderValidator, T: OrderSorting> TransactionPoolExt for Pool<V, T>
 where
     V: OrderValidator,
-    T: TransactionOrdering<Order = <V as OrderValidator>::Order>
+    T: OrderSorting<Order = <V as OrderValidator>::Order>
 {
     #[instrument(skip(self), target = "txpool")]
     fn set_block_info(&self, info: BlockInfo) {
@@ -481,7 +481,7 @@ where
     }
 }
 
-impl<V, T: TransactionOrdering> Clone for Pool<V, T> {
+impl<V, T: OrderSorting> Clone for Pool<V, T> {
     fn clone(&self) -> Self {
         Self { pool: Arc::clone(&self.pool) }
     }

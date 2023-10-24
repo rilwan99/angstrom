@@ -16,11 +16,11 @@ use crate::{
     test_utils::{
         MockOrdering, MockTransaction, MockTransactionDistribution, MockTransactionFactory
     },
-    TransactionOrdering
+    OrderSorting
 };
 
 /// A wrapped `TxPool` with additional helpers for testing
-pub struct MockPool<T: TransactionOrdering = MockOrdering> {
+pub struct MockPool<T: OrderSorting = MockOrdering> {
     // The wrapped pool.
     pool: TxPool<T>
 }
@@ -47,7 +47,7 @@ impl Default for MockPool {
     }
 }
 
-impl<T: TransactionOrdering> Deref for MockPool<T> {
+impl<T: OrderSorting> Deref for MockPool<T> {
     type Target = TxPool<T>;
 
     fn deref(&self) -> &Self::Target {
@@ -55,7 +55,7 @@ impl<T: TransactionOrdering> Deref for MockPool<T> {
     }
 }
 
-impl<T: TransactionOrdering> DerefMut for MockPool<T> {
+impl<T: OrderSorting> DerefMut for MockPool<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.pool
     }

@@ -15,7 +15,7 @@
 //!
 //! The transaction pool is responsible for storing new, valid transactions and
 //! providing the next best transactions sorted by their priority. Where
-//! priority is determined by the transaction's score ([`TransactionOrdering`]).
+//! priority is determined by the transaction's score ([`OrderSorting`]).
 //!
 //! Furthermore, the following characteristics fall under (3.):
 //!
@@ -105,7 +105,7 @@ use crate::{
         OrderOrigin, PoolOrder, PoolSize, PropagatedTransactions
     },
     validate::{TransactionValidationOutcome, ValidPoolTransaction},
-    CanonicalStateUpdate, ChangedAccount, OrderValidator, PoolConfig, TransactionOrdering
+    CanonicalStateUpdate, ChangedAccount, OrderSorting, OrderValidator, PoolConfig
 };
 mod events;
 pub use events::{FullOrderEvent, TransactionEvent};
@@ -134,7 +134,7 @@ const BLOB_SIDECAR_LISTENER_BUFFER_SIZE: usize = 512;
 /// Transaction pool internals.
 pub struct PoolInner<V, T>
 where
-    T: TransactionOrdering
+    T: OrderSorting
 {
     /// Internal mapping of addresses to plain ints.
     identifiers: RwLock<SenderIdentifiers>,
@@ -157,7 +157,7 @@ where
 impl<V, T> PoolInner<V, T>
 where
     V: OrderValidator,
-    T: TransactionOrdering<Order = <V as OrderValidator>::Order>
+    T: OrderSorting<Order = <V as OrderValidator>::Order>
 {
     /// Create a new transaction pool instance.
     pub(crate) fn new(validator: V, ordering: T, config: PoolConfig) -> Self {
@@ -663,7 +663,7 @@ where
     }
 }
 
-impl<V, T: TransactionOrdering> fmt::Debug for PoolInner<V, T> {
+impl<V, T: OrderSorting> fmt::Debug for PoolInner<V, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PoolInner")
             .field("config", &self.config)

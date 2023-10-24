@@ -20,7 +20,7 @@ use crate::{
     identifier::{SenderIdentifiers, TransactionId},
     pool::txpool::TxPool,
     traits::OrderOrigin,
-    PoolOrder, Priority, TransactionOrdering, ValidPoolTransaction
+    OrderSorting, PoolOrder, Priority, ValidPoolTransaction
 };
 
 pub type MockTxPool = TxPool<MockOrdering>;
@@ -927,7 +927,7 @@ impl MockTransactionFactory {
 #[non_exhaustive]
 pub struct MockOrdering;
 
-impl TransactionOrdering for MockOrdering {
+impl OrderSorting for MockOrdering {
     type Order = MockTransaction;
     type PriorityValue = U256;
 
