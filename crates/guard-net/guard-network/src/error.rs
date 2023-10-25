@@ -1,14 +1,12 @@
 //! Possible errors when interacting with the network.
 
-use std::{fmt, io, io::ErrorKind, net::SocketAddr};
-
-use guard_eth_wire::{
-    errors::{EthHandshakeError, EthStreamError, P2PHandshakeError, P2PStreamError},
-    DisconnectReason
-};
-use reth_dns_discovery::resolver::ResolveError;
-
 use crate::session::PendingSessionHandshakeError;
+use reth_dns_discovery::resolver::ResolveError;
+use reth_eth_wire::{
+    errors::{EthHandshakeError, EthStreamError, P2PHandshakeError, P2PStreamError},
+    DisconnectReason,
+};
+use std::{fmt, io, io::ErrorKind, net::SocketAddr};
 
 /// Service kind.
 #[derive(Debug, PartialEq)]
@@ -16,14 +14,14 @@ pub enum ServiceKind {
     /// Listener service.
     Listener(SocketAddr),
     /// Discovery service.
-    Discovery(SocketAddr)
+    Discovery(SocketAddr),
 }
 
 impl fmt::Display for ServiceKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ServiceKind::Listener(addr) => write!(f, "{addr} (listener service)"),
-            ServiceKind::Discovery(addr) => write!(f, "{addr} (discovery service)")
+            ServiceKind::Discovery(addr) => write!(f, "{addr} (discovery service)"),
         }
     }
 }
@@ -35,21 +33,21 @@ pub enum NetworkError {
     #[error(transparent)]
     Io(#[from] io::Error),
     /// Error when an address is already in use.
-    #[error("Address {kind} is already in use (os error 98)")]
+    #[error("address {kind} is already in use (os error 98)")]
     AddressAlreadyInUse {
         /// Service kind.
-        kind:  ServiceKind,
+        kind: ServiceKind,
         /// IO error.
-        error: io::Error
+        error: io::Error,
     },
     /// IO error when creating the discovery service
-    #[error("Failed to launch discovery service: {0}")]
+    #[error("failed to launch discovery service: {0}")]
     Discovery(io::Error),
     /// Error when setting up the DNS resolver failed
     ///
     /// See also [DnsResolver](reth_dns_discovery::DnsResolver::from_system_conf)
-    #[error("Failed to configure DNS resolver: {0}")]
-    DnsResolver(#[from] ResolveError)
+    #[error("failed to configure DNS resolver: {0}")]
+    DnsResolver(#[from] ResolveError),
 }
 
 impl NetworkError {
@@ -70,26 +68,23 @@ impl NetworkError {
 /// Abstraction over errors that can lead to a failed session
 #[auto_impl::auto_impl(&)]
 pub(crate) trait SessionError: fmt::Debug {
-    /// Returns true if the error indicates that the corresponding peer should
-    /// be removed from peer discovery, for example if it's using a
-    /// different genesis hash.
+    /// Returns true if the error indicates that the corresponding peer should be removed from peer
+    /// discovery, for example if it's using a different genesis hash.
     fn merits_discovery_ban(&self) -> bool;
 
-    /// Returns true if the error indicates that we'll never be able to
-    /// establish a connection to that peer. For example, not matching
-    /// capabilities or a mismatch in protocols.
+    /// Returns true if the error indicates that we'll never be able to establish a connection to
+    /// that peer. For example, not matching capabilities or a mismatch in protocols.
     ///
-    /// Note: This does not necessarily mean that either of the peers are in
-    /// violation of the protocol but rather that they'll never be able to
-    /// connect with each other. This check is a superset of
-    /// [`Self::merits_discovery_ban`] which checks if the peer should not be
-    /// part of the gossip network.
+    /// Note: This does not necessarily mean that either of the peers are in violation of the
+    /// protocol but rather that they'll never be able to connect with each other. This check is
+    /// a superset of [`Self::merits_discovery_ban`] which checks if the peer should not be part
+    /// of the gossip network.
     fn is_fatal_protocol_error(&self) -> bool;
 
     /// Whether we should backoff.
     ///
-    /// Returns the severity of the backoff that should be applied, or `None`,
-    /// if no backoff should be applied.
+    /// Returns the severity of the backoff that should be applied, or `None`, if no backoff should
+    /// be applied.
     ///
     /// In case of `Some(BackoffKind)` will temporarily prevent additional
     /// connection attempts.
@@ -101,18 +96,18 @@ pub(crate) trait SessionError: fmt::Debug {
 pub enum BackoffKind {
     /// Use the lowest configured backoff duration.
     ///
-    /// This applies to connection problems where there is a chance that they
-    /// will be resolved after the short duration.
+    /// This applies to connection problems where there is a chance that they will be resolved
+    /// after the short duration.
     Low,
     /// Use a slightly higher duration to put a peer in timeout
     ///
-    /// This applies to more severe connection problems where there is a lower
-    /// chance that they will be resolved.
+    /// This applies to more severe connection problems where there is a lower chance that they
+    /// will be resolved.
     Medium,
     /// Use the max configured backoff duration.
     ///
     /// This is intended for spammers, or bad peers in general.
-    High
+    High,
 }
 
 // === impl BackoffKind ===
@@ -128,13 +123,13 @@ impl SessionError for EthStreamError {
     fn merits_discovery_ban(&self) -> bool {
         match self {
             EthStreamError::P2PStreamError(P2PStreamError::HandshakeError(
-                P2PHandshakeError::HelloNotInHandshake
-            ))
-            | EthStreamError::P2PStreamError(P2PStreamError::HandshakeError(
-                P2PHandshakeError::NonHelloMessageInHandshake
+                P2PHandshakeError::HelloNotInHandshake,
+            )) |
+            EthStreamError::P2PStreamError(P2PStreamError::HandshakeError(
+                P2PHandshakeError::NonHelloMessageInHandshake,
             )) => true,
             EthStreamError::EthHandshakeError(err) => !matches!(err, EthHandshakeError::NoResponse),
-            _ => false
+            _ => false,
         }
     }
 
@@ -143,33 +138,33 @@ impl SessionError for EthStreamError {
             EthStreamError::P2PStreamError(err) => {
                 matches!(
                     err,
-                    P2PStreamError::HandshakeError(P2PHandshakeError::NoSharedCapabilities)
-                        | P2PStreamError::HandshakeError(P2PHandshakeError::HelloNotInHandshake)
-                        | P2PStreamError::HandshakeError(
+                    P2PStreamError::HandshakeError(P2PHandshakeError::NoSharedCapabilities) |
+                        P2PStreamError::HandshakeError(P2PHandshakeError::HelloNotInHandshake) |
+                        P2PStreamError::HandshakeError(
                             P2PHandshakeError::NonHelloMessageInHandshake
-                        )
-                        | P2PStreamError::HandshakeError(P2PHandshakeError::Disconnected(
+                        ) |
+                        P2PStreamError::HandshakeError(P2PHandshakeError::Disconnected(
                             DisconnectReason::UselessPeer
-                        ))
-                        | P2PStreamError::HandshakeError(P2PHandshakeError::Disconnected(
+                        )) |
+                        P2PStreamError::HandshakeError(P2PHandshakeError::Disconnected(
                             DisconnectReason::IncompatibleP2PProtocolVersion
-                        ))
-                        | P2PStreamError::HandshakeError(P2PHandshakeError::Disconnected(
+                        )) |
+                        P2PStreamError::HandshakeError(P2PHandshakeError::Disconnected(
                             DisconnectReason::ProtocolBreach
-                        ))
-                        | P2PStreamError::UnknownReservedMessageId(_)
-                        | P2PStreamError::EmptyProtocolMessage
-                        | P2PStreamError::ParseVersionError(_)
-                        | P2PStreamError::Disconnected(DisconnectReason::UselessPeer)
-                        | P2PStreamError::Disconnected(
+                        )) |
+                        P2PStreamError::UnknownReservedMessageId(_) |
+                        P2PStreamError::EmptyProtocolMessage |
+                        P2PStreamError::ParseVersionError(_) |
+                        P2PStreamError::Disconnected(DisconnectReason::UselessPeer) |
+                        P2PStreamError::Disconnected(
                             DisconnectReason::IncompatibleP2PProtocolVersion
-                        )
-                        | P2PStreamError::Disconnected(DisconnectReason::ProtocolBreach)
-                        | P2PStreamError::MismatchedProtocolVersion { .. }
+                        ) |
+                        P2PStreamError::Disconnected(DisconnectReason::ProtocolBreach) |
+                        P2PStreamError::MismatchedProtocolVersion { .. }
                 )
             }
             EthStreamError::EthHandshakeError(err) => !matches!(err, EthHandshakeError::NoResponse),
-            _ => false
+            _ => false,
         }
     }
 
@@ -180,26 +175,24 @@ impl SessionError for EthStreamError {
 
         if let Some(err) = self.as_disconnected() {
             return match err {
-                DisconnectReason::TooManyPeers
-                | DisconnectReason::AlreadyConnected
-                | DisconnectReason::PingTimeout
-                | DisconnectReason::DisconnectRequested
-                | DisconnectReason::TcpSubsystemError => Some(BackoffKind::Low),
+                DisconnectReason::TooManyPeers |
+                DisconnectReason::AlreadyConnected |
+                DisconnectReason::PingTimeout |
+                DisconnectReason::DisconnectRequested |
+                DisconnectReason::TcpSubsystemError => Some(BackoffKind::Low),
 
-                DisconnectReason::ProtocolBreach
-                | DisconnectReason::UselessPeer
-                | DisconnectReason::IncompatibleP2PProtocolVersion
-                | DisconnectReason::NullNodeIdentity
-                | DisconnectReason::ClientQuitting
-                | DisconnectReason::UnexpectedHandshakeIdentity
-                | DisconnectReason::ConnectedToSelf
-                | DisconnectReason::SubprotocolSpecific => {
+                DisconnectReason::ProtocolBreach |
+                DisconnectReason::UselessPeer |
+                DisconnectReason::IncompatibleP2PProtocolVersion |
+                DisconnectReason::NullNodeIdentity |
+                DisconnectReason::ClientQuitting |
+                DisconnectReason::UnexpectedHandshakeIdentity |
+                DisconnectReason::ConnectedToSelf |
+                DisconnectReason::SubprotocolSpecific => {
                     // These are considered fatal, and are handled by the
                     // [`SessionError::is_fatal_protocol_error`]
                     Some(BackoffKind::High)
                 }
-                // all non reth are because of sig failure
-                _ => Some(BackoffKind::High)
             }
         }
 
@@ -207,20 +200,20 @@ impl SessionError for EthStreamError {
         // [`SessionError::is_fatal_protocol_error`]
         match self {
             // timeouts
-            EthStreamError::EthHandshakeError(EthHandshakeError::NoResponse)
-            | EthStreamError::P2PStreamError(P2PStreamError::HandshakeError(
-                P2PHandshakeError::NoResponse
-            ))
-            | EthStreamError::P2PStreamError(P2PStreamError::PingTimeout) => Some(BackoffKind::Low),
+            EthStreamError::EthHandshakeError(EthHandshakeError::NoResponse) |
+            EthStreamError::P2PStreamError(P2PStreamError::HandshakeError(
+                P2PHandshakeError::NoResponse,
+            )) |
+            EthStreamError::P2PStreamError(P2PStreamError::PingTimeout) => Some(BackoffKind::Low),
             // malformed messages
-            EthStreamError::P2PStreamError(P2PStreamError::Rlp(_))
-            | EthStreamError::P2PStreamError(P2PStreamError::UnknownReservedMessageId(_))
-            | EthStreamError::P2PStreamError(P2PStreamError::UnknownDisconnectReason(_))
-            | EthStreamError::P2PStreamError(P2PStreamError::MessageTooBig { .. })
-            | EthStreamError::P2PStreamError(P2PStreamError::EmptyProtocolMessage)
-            | EthStreamError::P2PStreamError(P2PStreamError::PingerError(_))
-            | EthStreamError::P2PStreamError(P2PStreamError::Snap(_)) => Some(BackoffKind::Medium),
-            _ => None
+            EthStreamError::P2PStreamError(P2PStreamError::Rlp(_)) |
+            EthStreamError::P2PStreamError(P2PStreamError::UnknownReservedMessageId(_)) |
+            EthStreamError::P2PStreamError(P2PStreamError::UnknownDisconnectReason(_)) |
+            EthStreamError::P2PStreamError(P2PStreamError::MessageTooBig { .. }) |
+            EthStreamError::P2PStreamError(P2PStreamError::EmptyProtocolMessage) |
+            EthStreamError::P2PStreamError(P2PStreamError::PingerError(_)) |
+            EthStreamError::P2PStreamError(P2PStreamError::Snap(_)) => Some(BackoffKind::Medium),
+            _ => None,
         }
     }
 }
@@ -229,21 +222,21 @@ impl SessionError for PendingSessionHandshakeError {
     fn merits_discovery_ban(&self) -> bool {
         match self {
             PendingSessionHandshakeError::Eth(eth) => eth.merits_discovery_ban(),
-            PendingSessionHandshakeError::Ecies(_) => true
+            PendingSessionHandshakeError::Ecies(_) => true,
         }
     }
 
     fn is_fatal_protocol_error(&self) -> bool {
         match self {
             PendingSessionHandshakeError::Eth(eth) => eth.is_fatal_protocol_error(),
-            PendingSessionHandshakeError::Ecies(_) => true
+            PendingSessionHandshakeError::Ecies(_) => true,
         }
     }
 
     fn should_backoff(&self) -> Option<BackoffKind> {
         match self {
             PendingSessionHandshakeError::Eth(eth) => eth.should_backoff(),
-            PendingSessionHandshakeError::Ecies(_) => Some(BackoffKind::Low)
+            PendingSessionHandshakeError::Ecies(_) => Some(BackoffKind::Low),
         }
     }
 }
@@ -267,7 +260,7 @@ impl SessionError for io::Error {
                 // peer is unreachable, e.g. port not open or down
                 Some(BackoffKind::High)
             }
-            _ => Some(BackoffKind::Medium)
+            _ => Some(BackoffKind::Medium),
         }
     }
 }
@@ -280,8 +273,8 @@ mod tests {
     fn test_is_fatal_disconnect() {
         let err = PendingSessionHandshakeError::Eth(EthStreamError::P2PStreamError(
             P2PStreamError::HandshakeError(P2PHandshakeError::Disconnected(
-                DisconnectReason::UselessPeer
-            ))
+                DisconnectReason::UselessPeer,
+            )),
         ));
 
         assert!(err.is_fatal_protocol_error());
@@ -290,14 +283,14 @@ mod tests {
     #[test]
     fn test_should_backoff() {
         let err = EthStreamError::P2PStreamError(P2PStreamError::HandshakeError(
-            P2PHandshakeError::Disconnected(DisconnectReason::TooManyPeers)
+            P2PHandshakeError::Disconnected(DisconnectReason::TooManyPeers),
         ));
 
         assert_eq!(err.as_disconnected(), Some(DisconnectReason::TooManyPeers));
         assert_eq!(err.should_backoff(), Some(BackoffKind::Low));
 
         let err = EthStreamError::P2PStreamError(P2PStreamError::HandshakeError(
-            P2PHandshakeError::NoResponse
+            P2PHandshakeError::NoResponse,
         ));
         assert_eq!(err.should_backoff(), Some(BackoffKind::Low));
     }

@@ -1,13 +1,13 @@
 //! Contains connection-oriented interfaces.
 
+use futures::{ready, Stream};
+
 use std::{
     io,
     net::SocketAddr,
     pin::Pin,
-    task::{Context, Poll}
+    task::{Context, Poll},
 };
-
-use futures::{ready, Stream};
 use tokio::net::{TcpListener, TcpStream};
 
 /// A tcp connection listener.
@@ -21,7 +21,7 @@ pub struct ConnectionListener {
     local_address: SocketAddr,
     /// The active tcp listener for incoming connections.
     #[pin]
-    incoming:      TcpListenerStream
+    incoming: TcpListenerStream,
 }
 
 impl ConnectionListener {
@@ -42,6 +42,9 @@ impl ConnectionListener {
         let this = self.project();
         match ready!(this.incoming.poll_next(cx)) {
             Some(Ok((stream, remote_addr))) => {
+                if let Err(err) = stream.set_nodelay(true) {
+                    tracing::warn!(target : "net", "set nodelay failed: {:?}", err);
+                }
                 Poll::Ready(ListenerEvent::Incoming { stream, remote_addr })
             }
             Some(Err(err)) => Poll::Ready(ListenerEvent::Error(err)),
@@ -62,29 +65,28 @@ pub enum ListenerEvent {
     /// Received a new incoming.
     Incoming {
         /// Accepted connection
-        stream:      TcpStream,
+        stream: TcpStream,
         /// Address of the remote peer.
-        remote_addr: SocketAddr
+        remote_addr: SocketAddr,
     },
     /// Returned when the underlying connection listener has been closed.
     ///
     /// This is the case if the [`TcpListenerStream`] should ever return `None`
     ListenerClosed {
         /// Address of the closed listener.
-        local_address: SocketAddr
+        local_address: SocketAddr,
     },
     /// Encountered an error when accepting a connection.
     ///
-    /// This is non-fatal error as the listener continues to listen for new
-    /// connections to accept.
-    Error(io::Error)
+    /// This is non-fatal error as the listener continues to listen for new connections to accept.
+    Error(io::Error),
 }
 
 /// A stream of incoming [`TcpStream`]s.
 #[derive(Debug)]
 struct TcpListenerStream {
     /// listener for incoming connections.
-    inner: TcpListener
+    inner: TcpListener,
 }
 
 impl Stream for TcpListenerStream {
@@ -94,19 +96,17 @@ impl Stream for TcpListenerStream {
         match self.inner.poll_accept(cx) {
             Poll::Ready(Ok(conn)) => Poll::Ready(Some(Ok(conn))),
             Poll::Ready(Err(err)) => Poll::Ready(Some(Err(err))),
-            Poll::Pending => Poll::Pending
+            Poll::Pending => Poll::Pending,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::net::{Ipv4Addr, SocketAddrV4};
-
-    use futures::pin_mut;
-    use tokio::macros::support::poll_fn;
-
     use super::*;
+    use futures::pin_mut;
+    use std::net::{Ipv4Addr, SocketAddrV4};
+    use tokio::macros::support::poll_fn;
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_incoming_listener() {

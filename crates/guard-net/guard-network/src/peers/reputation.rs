@@ -23,21 +23,17 @@ const TIMEOUT_REPUTATION_CHANGE: i32 = 4 * REPUTATION_UNIT;
 /// The reputation change to apply to a peer that sent a bad message.
 const BAD_MESSAGE_REPUTATION_CHANGE: i32 = 16 * REPUTATION_UNIT;
 
-/// The reputation change applies to a peer that has sent a transaction (full or
-/// hash) that we already know about and have already previously received from
-/// that peer.
+/// The reputation change applies to a peer that has sent a transaction (full or hash) that we
+/// already know about and have already previously received from that peer.
 ///
-/// Note: this appears to be quite common in practice, so by default this is 0,
-/// which doesn't apply any changes to the peer's reputation, effectively
-/// ignoring it.
+/// Note: this appears to be quite common in practice, so by default this is 0, which doesn't
+/// apply any changes to the peer's reputation, effectively ignoring it.
 const ALREADY_SEEN_TRANSACTION_REPUTATION_CHANGE: i32 = 0;
 
-/// The reputation change to apply to a peer which violates protocol rules:
-/// minimal reputation
+/// The reputation change to apply to a peer which violates protocol rules: minimal reputation
 const BAD_PROTOCOL_REPUTATION_CHANGE: i32 = i32::MIN;
 
-/// Returns `true` if the given reputation is below the [`BANNED_REPUTATION`]
-/// threshold
+/// Returns `true` if the given reputation is below the [`BANNED_REPUTATION`] threshold
 #[inline]
 pub(crate) fn is_banned_reputation(reputation: i32) -> bool {
     reputation < BANNED_REPUTATION
@@ -48,28 +44,28 @@ pub(crate) fn is_banned_reputation(reputation: i32) -> bool {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReputationChangeWeights {
     /// Weight for [`ReputationChangeKind::BadMessage`]
-    pub bad_message:               Reputation,
+    pub bad_message: Reputation,
     /// Weight for [`ReputationChangeKind::BadBlock`]
-    pub bad_block:                 Reputation,
+    pub bad_block: Reputation,
     /// Weight for [`ReputationChangeKind::BadTransactions`]
-    pub bad_transactions:          Reputation,
+    pub bad_transactions: Reputation,
     /// Weight for [`ReputationChangeKind::AlreadySeenTransaction`]
     pub already_seen_transactions: Reputation,
     /// Weight for [`ReputationChangeKind::Timeout`]
-    pub timeout:                   Reputation,
+    pub timeout: Reputation,
     /// Weight for [`ReputationChangeKind::BadProtocol`]
-    pub bad_protocol:              Reputation,
+    pub bad_protocol: Reputation,
     /// Weight for [`ReputationChangeKind::FailedToConnect`]
-    pub failed_to_connect:         Reputation,
+    pub failed_to_connect: Reputation,
     /// Weight for [`ReputationChangeKind::Dropped`]
-    pub dropped:                   Reputation
+    pub dropped: Reputation,
 }
 
 // === impl ReputationChangeWeights ===
 
 impl ReputationChangeWeights {
-    /// Returns the quantifiable [`ReputationChange`] for the given
-    /// [`ReputationChangeKind`] using the configured weights
+    /// Returns the quantifiable [`ReputationChange`] for the given [`ReputationChangeKind`] using
+    /// the configured weights
     pub(crate) fn change(&self, kind: ReputationChangeKind) -> ReputationChange {
         match kind {
             ReputationChangeKind::BadMessage => self.bad_message.into(),
@@ -81,7 +77,7 @@ impl ReputationChangeWeights {
             ReputationChangeKind::FailedToConnect => self.failed_to_connect.into(),
             ReputationChangeKind::Dropped => self.dropped.into(),
             ReputationChangeKind::Reset => DEFAULT_REPUTATION.into(),
-            ReputationChangeKind::Other(val) => val.into()
+            ReputationChangeKind::Other(val) => val.into(),
         }
     }
 }
@@ -89,14 +85,14 @@ impl ReputationChangeWeights {
 impl Default for ReputationChangeWeights {
     fn default() -> Self {
         Self {
-            bad_block:                 BAD_MESSAGE_REPUTATION_CHANGE,
-            bad_transactions:          BAD_MESSAGE_REPUTATION_CHANGE,
+            bad_block: BAD_MESSAGE_REPUTATION_CHANGE,
+            bad_transactions: BAD_MESSAGE_REPUTATION_CHANGE,
             already_seen_transactions: ALREADY_SEEN_TRANSACTION_REPUTATION_CHANGE,
-            bad_message:               BAD_MESSAGE_REPUTATION_CHANGE,
-            timeout:                   TIMEOUT_REPUTATION_CHANGE,
-            bad_protocol:              BAD_PROTOCOL_REPUTATION_CHANGE,
-            failed_to_connect:         FAILED_TO_CONNECT_REPUTATION_CHANGE,
-            dropped:                   REMOTE_DISCONNECT_REPUTATION_CHANGE
+            bad_message: BAD_MESSAGE_REPUTATION_CHANGE,
+            timeout: TIMEOUT_REPUTATION_CHANGE,
+            bad_protocol: BAD_PROTOCOL_REPUTATION_CHANGE,
+            failed_to_connect: FAILED_TO_CONNECT_REPUTATION_CHANGE,
+            dropped: REMOTE_DISCONNECT_REPUTATION_CHANGE,
         }
     }
 }

@@ -22,8 +22,8 @@ use reth_primitives::{
     FromRecoveredPooledTransaction, IntoRecoveredTransaction, PeerId, PooledTransactionsElement,
     TransactionSigned, TxHash, B256,
 };
-use order_pool::{
-    error::PoolResult, GetPooledTransactionLimit,  PoolOrder, PropagateKind,
+use reth_transaction_pool::{
+    error::PoolResult, GetPooledTransactionLimit, PoolTransaction, PropagateKind,
     PropagatedTransactions, TransactionPool, ValidPoolTransaction,
 };
 use std::{
@@ -222,7 +222,7 @@ where
 
 impl<Pool> TransactionsManager<Pool>
 where
-    Pool: OrderPool + 'static,
+    Pool: TransactionPool + 'static,
 {
     #[inline]
     fn update_import_metrics(&self) {
@@ -751,7 +751,7 @@ where
 /// This should be spawned or used as part of `tokio::select!`.
 impl<Pool> Future for TransactionsManager<Pool>
 where
-    Pool: OrderPool + Unpin + 'static,
+    Pool: TransactionPool + Unpin + 'static,
     <Pool as TransactionPool>::Transaction: IntoRecoveredTransaction,
 {
     type Output = ();
@@ -811,10 +811,10 @@ where
                     // rules)
                     if err.is_bad_transaction() && !this.network.is_syncing() {
                         trace!(target: "net::tx", ?err, "Bad transaction import");
-                        this.on_bad_import(*err.hash());
+                        this.on_bad_import(err.hash);
                         continue
                     }
-                    this.on_good_import(*err.hash());
+                    this.on_good_import(err.hash);
                 }
             }
         }
@@ -850,7 +850,7 @@ impl PropagateTransaction {
     }
 
     /// Create a new instance from a pooled transaction
-    fn new<T:  PoolOrder>(tx: Arc<ValidPoolTransaction<T>>) -> Self {
+    fn new<T: PoolTransaction>(tx: Arc<ValidPoolTransaction<T>>) -> Self {
         let size = tx.encoded_length();
         let transaction = Arc::new(tx.transaction.to_recovered_transaction().into_signed());
         Self { size, transaction }
@@ -901,7 +901,7 @@ enum PooledTransactionsHashesBuilder {
 
 impl PooledTransactionsHashesBuilder {
     /// Push a transaction from the pool to the list.
-    fn push_pooled<T:  PoolOrder>(&mut self, pooled_tx: Arc<ValidPoolTransaction<T>>) {
+    fn push_pooled<T: PoolTransaction>(&mut self, pooled_tx: Arc<ValidPoolTransaction<T>>) {
         match self {
             PooledTransactionsHashesBuilder::Eth66(msg) => msg.0.push(*pooled_tx.hash()),
             PooledTransactionsHashesBuilder::Eth68(msg) => {
@@ -1061,7 +1061,7 @@ mod tests {
     use reth_network_api::NetworkInfo;
     use reth_primitives::hex;
     use reth_provider::test_utils::NoopProvider;
-    use order_pool::test_utils::{testing_pool, MockTransaction};
+    use reth_transaction_pool::test_utils::{testing_pool, MockTransaction};
     use secp256k1::SecretKey;
     use std::future::poll_fn;
 
@@ -1392,7 +1392,7 @@ mod tests {
         let tx = MockTransaction::eip1559();
         let _ = transactions
             .pool
-            .add_transaction(order_pool::OrderOrigin::External, tx.clone())
+            .add_transaction(reth_transaction_pool::TransactionOrigin::External, tx.clone())
             .await;
 
         let request = GetPooledTransactions(vec![tx.get_hash()]);

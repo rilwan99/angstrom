@@ -1,10 +1,9 @@
-use std::{
-    pin::Pin,
-    task::{Context, Poll}
-};
-
 use futures::Future;
 use pin_project::pin_project;
+use std::{
+    pin::Pin,
+    task::{Context, Poll},
+};
 use tokio::sync::oneshot::{error::RecvError, Receiver};
 
 /// Flatten a [Receiver] message in order to get rid of the [RecvError] result
@@ -12,12 +11,12 @@ use tokio::sync::oneshot::{error::RecvError, Receiver};
 #[pin_project]
 pub struct FlattenedResponse<T> {
     #[pin]
-    receiver: Receiver<T>
+    receiver: Receiver<T>,
 }
 
 impl<T, E> Future for FlattenedResponse<Result<T, E>>
 where
-    E: From<RecvError>
+    E: From<RecvError>,
 {
     type Output = Result<T, E>;
 
@@ -26,7 +25,7 @@ where
 
         this.receiver.poll(cx).map(|r| match r {
             Ok(r) => r,
-            Err(err) => Err(err.into())
+            Err(err) => Err(err.into()),
         })
     }
 }
