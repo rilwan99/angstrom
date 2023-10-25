@@ -1,5 +1,5 @@
 pub use alloy_primitives::*;
-use alloy_rlp::{Decodable, Encodable, Error};
+use alloy_rlp::{length_of_length, Decodable, Encodable, Error, Header};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_macro::sol;
 use serde::{Deserialize, Serialize};
@@ -144,6 +144,8 @@ sol! {
 
 impl Encodable for Angstrom::PoolKey {
     fn encode(&self, out: &mut dyn bytes::BufMut) {
+        Header { list: true, payload_length: 69 }.encode(out);
+
         self.currency0.encode(out);
         self.currency1.encode(out);
         self.fee.encode(out);
@@ -161,15 +163,28 @@ impl Encodable for Angstrom::PoolKey {
     }
 
     fn length(&self) -> usize {
-        68
+        let payload_length = 69;
+        payload_length + length_of_length(payload_length)
     }
 }
 
 impl Decodable for Angstrom::PoolKey {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+        let Header { list, payload_length } = Header::decode(buf)?;
+
+        if !list {
+            return Err(Error::UnexpectedString)
+        }
+
+        let started_len = buf.len();
+        if started_len < payload_length {
+            return Err(Error::InputTooShort)
+        }
+
         let cur_0 = Address::decode(buf)?;
         let cur_1 = Address::decode(buf)?;
         let fee = u32::decode(buf)?;
+
         let is_neg: bool = Decodable::decode(buf)?;
 
         let tick_spacing = if is_neg {
@@ -180,13 +195,21 @@ impl Decodable for Angstrom::PoolKey {
         };
         let hooks = Address::decode(buf)?;
 
+        let consumed = started_len - buf.len();
+        if consumed != payload_length {
+            return Err(alloy_rlp::Error::ListLengthMismatch {
+                expected: payload_length,
+                got:      consumed
+            })
+        }
+
         Ok(Self { hooks, fee, tickSpacing: tick_spacing, currency0: cur_0, currency1: cur_1 })
     }
 }
 
 impl Encodable for OrderType {
     fn encode(&self, out: &mut dyn bytes::BufMut) {
-        let byte: u8 = unsafe { std::mem::transmute(*self) };
+        let byte: u8 = (*self) as u8;
         out.put_u8(byte)
     }
 }
