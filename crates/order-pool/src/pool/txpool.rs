@@ -17,7 +17,7 @@ use reth_primitives::{
 
 use crate::{
     config::TXPOOL_MAX_ACCOUNT_SLOTS_PER_SENDER,
-    error::{Eip4844PoolTransactionError, InvalidPoolTransactionError, PoolError},
+    error::{InvalidPoolTransactionError, PoolError},
     identifier::{SenderId, TransactionId},
     metrics::OrderPoolMetrics,
     pool::{
@@ -28,7 +28,7 @@ use crate::{
         update::{Destination, PoolUpdate},
         AddedPendingTransaction, AddedTransaction, OnNewCanonicalStateOutcome
     },
-    traits::{BestTransactionsAttributes, BlockInfo, PoolSize},
+    traits::{BlockInfo, PoolSize},
     OrderSorting, PoolConfig, PoolOrder, PoolResult, PriceBumpConfig, ValidPoolTransaction, U256
 };
 
@@ -1279,7 +1279,7 @@ impl<T: PoolOrder> AllTransactions<T> {
     ) -> InsertResult<T> {
         assert!(on_chain_nonce <= transaction.nonce(), "Invalid transaction");
 
-        let mut transaction = self.ensure_valid(transaction)?;
+        let transaction = self.ensure_valid(transaction)?;
 
         let inserted_tx_id = *transaction.id();
         let mut state = TxState::default();

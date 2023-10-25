@@ -5,13 +5,13 @@
 
 use std::{collections::HashSet, marker::PhantomData, sync::Arc};
 
-use reth_primitives::{Address, BlobTransactionSidecar, PooledTransactionsElement, TxHash};
+use reth_primitives::{Address, PooledTransactionsElement, TxHash};
 use tokio::sync::{mpsc, mpsc::Receiver};
 
 use crate::{
     error::PoolError,
     traits::{
-        BestTransactionsAttributes, GetPooledTransactionLimit, NewBlobSidecar,
+        GetPooledTransactionLimit,
         TransactionListenerKind
     },
     AllPoolTransactions, AllTransactionsEvents, BestTransactions, BlockInfo, EthPooledTransaction,

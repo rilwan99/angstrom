@@ -7,21 +7,18 @@ use std::{
 
 use reth_primitives::{
     constants::{
-        eip4844::{MAINNET_KZG_TRUSTED_SETUP, MAX_BLOBS_PER_BLOCK},
         ETHEREUM_BLOCK_GAS_LIMIT
     },
-    kzg::KzgSettings,
-    ChainSpec, InvalidTransactionError, SealedBlock, EIP1559_TX_TYPE_ID, EIP2930_TX_TYPE_ID,
-    EIP4844_TX_TYPE_ID, LEGACY_TX_TYPE_ID
+    ChainSpec, InvalidTransactionError, LEGACY_TX_TYPE_ID
 };
 use reth_provider::{AccountReader, StateProviderFactory};
 use reth_tasks::TaskSpawner;
 use tokio::sync::Mutex;
 
 use crate::{
-    error::{Eip4844PoolTransactionError, InvalidPoolTransactionError},
+    error::{InvalidPoolTransactionError},
     traits::OrderOrigin,
-    validate::{ValidPoolTransaction, ValidationTask, MAX_INIT_CODE_SIZE, TX_MAX_SIZE},
+    validate::{ValidationTask, TX_MAX_SIZE},
     OrderValidator, PoolOrder, TransactionValidationOutcome, TransactionValidationTaskExecutor
 };
 
@@ -125,7 +122,7 @@ where
     fn validate_one(
         &self,
         origin: OrderOrigin,
-        mut transaction: Tx
+        transaction: Tx
     ) -> TransactionValidationOutcome<Tx> {
         // Checks for tx_type
         match transaction.tx_type() {
@@ -190,7 +187,7 @@ where
         }
 
         // intrinsic gas checks
-        let access_list = transaction
+        let _access_list = transaction
             .access_list()
             .map(|list| list.flattened())
             .unwrap_or_default();

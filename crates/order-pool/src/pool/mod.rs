@@ -86,11 +86,11 @@ use std::{
 use best::BestTransactions;
 use parking_lot::{Mutex, RwLock};
 use reth_primitives::{
-    Address, BlobTransaction, BlobTransactionSidecar, IntoRecoveredTransaction,
-    PooledTransactionsElement, TransactionSigned, TxHash, B256
+    Address, IntoRecoveredTransaction,
+    PooledTransactionsElement, TxHash, B256
 };
 use tokio::sync::mpsc;
-use tracing::{debug, trace, warn};
+use tracing::{debug, trace};
 
 use crate::{
     error::{PoolError, PoolResult},
@@ -101,7 +101,7 @@ use crate::{
         txpool::{SenderInfo, TxPool}
     },
     traits::{
-        AllPoolTransactions, BestTransactionsAttributes, BlockInfo, NewTransactionEvent,
+        AllPoolTransactions, BlockInfo, NewTransactionEvent,
         OrderOrigin, PoolOrder, PoolSize, PropagatedTransactions
     },
     validate::{TransactionValidationOutcome, ValidPoolTransaction},
@@ -116,7 +116,7 @@ pub use listener::{AllTransactionsEvents, TransactionEvents};
 
 use crate::{
     pool::txpool::UpdateOutcome,
-    traits::{GetPooledTransactionLimit, NewBlobSidecar, TransactionListenerKind}
+    traits::{GetPooledTransactionLimit, TransactionListenerKind}
 };
 
 mod best;
