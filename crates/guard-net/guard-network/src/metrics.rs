@@ -1,7 +1,7 @@
-use reth_eth_wire::DisconnectReason;
+use guard_eth_wire::DisconnectReason;
 use reth_metrics::{
     metrics::{Counter, Gauge},
-    Metrics,
+    Metrics
 };
 
 /// Scope for monitoring transactions sent from the manager to the tx manager
@@ -42,7 +42,7 @@ pub struct NetworkMetrics {
     pub(crate) invalid_messages_received: Counter,
 
     /// Number of Eth Requests dropped due to channel being at full capacity
-    pub(crate) total_dropped_eth_requests_at_full_capacity: Counter,
+    pub(crate) total_dropped_eth_requests_at_full_capacity: Counter
 }
 
 /// Metrics for SessionManager
@@ -50,7 +50,7 @@ pub struct NetworkMetrics {
 #[metrics(scope = "network")]
 pub struct SessionManagerMetrics {
     /// Number of dials that resulted in a peer being added to the peerset
-    pub(crate) total_dial_successes: Counter,
+    pub(crate) total_dial_successes: Counter
 }
 
 /// Metrics for the TransactionsManager
@@ -58,26 +58,27 @@ pub struct SessionManagerMetrics {
 #[metrics(scope = "network")]
 pub struct TransactionsManagerMetrics {
     /// Total number of propagated transactions
-    pub(crate) propagated_transactions: Counter,
+    pub(crate) propagated_transactions:                 Counter,
     /// Total number of reported bad transactions
-    pub(crate) reported_bad_transactions: Counter,
+    pub(crate) reported_bad_transactions:               Counter,
     /// Total number of messages with already seen hashes
-    pub(crate) messages_with_already_seen_hashes: Counter,
+    pub(crate) messages_with_already_seen_hashes:       Counter,
     /// Total number of messages with already seen full transactions
     pub(crate) messages_with_already_seen_transactions: Counter,
     /// Number of transactions about to be imported into the pool.
-    pub(crate) pending_pool_imports: Gauge,
+    pub(crate) pending_pool_imports:                    Gauge,
     /// Currently active outgoing GetPooledTransactions requests.
-    pub(crate) inflight_transaction_requests: Gauge,
-    /// How often we failed to send a request to the peer because the channel was full.
-    pub(crate) egress_peer_channel_full: Counter,
+    pub(crate) inflight_transaction_requests:           Gauge,
+    /// How often we failed to send a request to the peer because the channel
+    /// was full.
+    pub(crate) egress_peer_channel_full:                Counter
 }
 
 /// Metrics for Disconnection types
 ///
-/// These are just counters, and ideally we would implement these metrics on a peer-by-peer basis,
-/// in that we do not double-count peers for `TooManyPeers` if we make an outgoing connection and
-/// get disconnected twice
+/// These are just counters, and ideally we would implement these metrics on a
+/// peer-by-peer basis, in that we do not double-count peers for `TooManyPeers`
+/// if we make an outgoing connection and get disconnected twice
 #[derive(Metrics)]
 #[metrics(scope = "network")]
 pub struct DisconnectMetrics {
@@ -118,7 +119,7 @@ pub struct DisconnectMetrics {
     pub(crate) ping_timeout: Counter,
 
     /// Number of peer disconnects due to SubprotocolSpecific (0x10)
-    pub(crate) subprotocol_specific: Counter,
+    pub(crate) subprotocol_specific: Counter
 }
 
 impl DisconnectMetrics {
@@ -137,7 +138,7 @@ impl DisconnectMetrics {
             DisconnectReason::UnexpectedHandshakeIdentity => self.unexpected_identity.increment(1),
             DisconnectReason::ConnectedToSelf => self.connected_to_self.increment(1),
             DisconnectReason::PingTimeout => self.ping_timeout.increment(1),
-            DisconnectReason::SubprotocolSpecific => self.subprotocol_specific.increment(1),
+            DisconnectReason::SubprotocolSpecific => self.subprotocol_specific.increment(1)
         }
     }
 }
@@ -150,5 +151,5 @@ pub struct EthRequestHandlerMetrics {
     pub(crate) received_headers_requests: Counter,
 
     /// Number of received bodies requests
-    pub(crate) received_bodies_requests: Counter,
+    pub(crate) received_bodies_requests: Counter
 }

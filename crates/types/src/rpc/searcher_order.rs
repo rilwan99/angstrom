@@ -1,4 +1,3 @@
-
 use alloy_primitives::{Address, U256};
 use alloy_rlp::{Decodable, Encodable, Error};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};

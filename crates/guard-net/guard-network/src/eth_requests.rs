@@ -1,23 +1,25 @@
 //! Blocks/Headers management for the p2p network.
 
-use crate::{metrics::EthRequestHandlerMetrics, peers::PeersHandle};
-use futures::StreamExt;
-use reth_eth_wire::{
-    BlockBodies, BlockHeaders, GetBlockBodies, GetBlockHeaders, GetNodeData, GetReceipts, NodeData,
-    Receipts,
-};
-use reth_interfaces::p2p::error::RequestResult;
-use reth_primitives::{BlockBody, BlockHashOrNumber, Header, HeadersDirection, PeerId};
-use reth_provider::{BlockReader, HeaderProvider, ReceiptProvider};
 use std::{
     borrow::Borrow,
     future::Future,
     hash::Hash,
     pin::Pin,
-    task::{Context, Poll},
+    task::{Context, Poll}
 };
+
+use futures::StreamExt;
+use guard_eth_wire::{
+    BlockBodies, BlockHeaders, GetBlockBodies, GetBlockHeaders, GetNodeData, GetReceipts, NodeData,
+    Receipts
+};
+use reth_interfaces::p2p::error::RequestResult;
+use reth_primitives::{BlockBody, BlockHashOrNumber, Header, HeadersDirection, PeerId};
+use reth_provider::{BlockReader, HeaderProvider, ReceiptProvider};
 use tokio::sync::{mpsc::Receiver, oneshot};
 use tokio_stream::wrappers::ReceiverStream;
+
+use crate::{metrics::EthRequestHandlerMetrics, peers::PeersHandle};
 
 // Limits: <https://github.com/ethereum/go-ethereum/blob/b0d44338bbcefee044f1f635a84487cbbd8f0538/eth/protocols/eth/handler.go#L34-L56>
 
@@ -33,8 +35,8 @@ const MAX_HEADERS_SERVE: usize = 1024;
 
 /// Maximum number of block headers to serve.
 ///
-/// Used to limit lookups. With 24KB block sizes nowadays, the practical limit will always be
-/// SOFT_RESPONSE_LIMIT.
+/// Used to limit lookups. With 24KB block sizes nowadays, the practical limit
+/// will always be SOFT_RESPONSE_LIMIT.
 const MAX_BODIES_SERVE: usize = 1024;
 
 /// Estimated size in bytes of an RLP encoded receipt.
@@ -52,12 +54,13 @@ const APPROX_HEADER_SIZE: usize = 500;
 
 /// Manages eth related requests on top of the p2p network.
 ///
-/// This can be spawned to another task and is supposed to be run as background service.
+/// This can be spawned to another task and is supposed to be run as background
+/// service.
 #[derive(Debug)]
 #[must_use = "Manager does nothing unless polled."]
 pub struct EthRequestHandler<C> {
     /// The client type that can interact with the chain.
-    client: C,
+    client:            C,
     /// Used for reporting peers.
     #[allow(unused)]
     // TODO use to report spammers
@@ -65,7 +68,7 @@ pub struct EthRequestHandler<C> {
     /// Incoming request from the [NetworkManager](crate::NetworkManager).
     incoming_requests: ReceiverStream<IncomingEthRequest>,
     /// Metrics for the eth request handler.
-    metrics: EthRequestHandlerMetrics,
+    metrics:           EthRequestHandlerMetrics
 }
 
 // === impl EthRequestHandler ===
@@ -79,7 +82,7 @@ impl<C> EthRequestHandler<C> {
 
 impl<C> EthRequestHandler<C>
 where
-    C: BlockReader + HeaderProvider + ReceiptProvider,
+    C: BlockReader + HeaderProvider + ReceiptProvider
 {
     /// Returns the list of requested headers
     fn get_headers_response(&self, request: GetBlockHeaders) -> Vec<Header> {
@@ -101,7 +104,11 @@ where
         let mut total_bytes = APPROX_HEADER_SIZE;
 
         for _ in 0..limit {
-            if let Some(header) = self.client.header_by_hash_or_number(block).unwrap_or_default() {
+            if let Some(header) = self
+                .client
+                .header_by_hash_or_number(block)
+                .unwrap_or_default()
+            {
                 match direction {
                     HeadersDirection::Rising => {
                         if let Some(next) = (header.number + 1).checked_add(skip) {
@@ -114,8 +121,10 @@ where
                         if skip > 0 {
                             // prevent under flows for block.number == 0 and `block.number - skip <
                             // 0`
-                            if let Some(next) =
-                                header.number.checked_sub(1).and_then(|num| num.checked_sub(skip))
+                            if let Some(next) = header
+                                .number
+                                .checked_sub(1)
+                                .and_then(|num| num.checked_sub(skip))
                             {
                                 block = next.into()
                             } else {
@@ -150,7 +159,7 @@ where
         &mut self,
         _peer_id: PeerId,
         request: GetBlockHeaders,
-        response: oneshot::Sender<RequestResult<BlockHeaders>>,
+        response: oneshot::Sender<RequestResult<BlockHeaders>>
     ) {
         self.metrics.received_headers_requests.increment(1);
         let headers = self.get_headers_response(request);
@@ -161,7 +170,7 @@ where
         &mut self,
         _peer_id: PeerId,
         request: GetBlockBodies,
-        response: oneshot::Sender<RequestResult<BlockBodies>>,
+        response: oneshot::Sender<RequestResult<BlockBodies>>
     ) {
         self.metrics.received_bodies_requests.increment(1);
         let mut bodies = Vec::new();
@@ -172,8 +181,8 @@ where
             if let Some(block) = self.client.block_by_hash(hash).unwrap_or_default() {
                 let body = BlockBody {
                     transactions: block.body,
-                    ommers: block.ommers,
-                    withdrawals: block.withdrawals,
+                    ommers:       block.ommers,
+                    withdrawals:  block.withdrawals
                 };
 
                 bodies.push(body);
@@ -199,21 +208,23 @@ where
         &mut self,
         _peer_id: PeerId,
         request: GetReceipts,
-        response: oneshot::Sender<RequestResult<Receipts>>,
+        response: oneshot::Sender<RequestResult<Receipts>>
     ) {
         let mut receipts = Vec::new();
 
         let mut total_bytes = APPROX_RECEIPT_SIZE;
 
         for hash in request.0 {
-            if let Some(receipts_by_block) =
-                self.client.receipts_by_block(BlockHashOrNumber::Hash(hash)).unwrap_or_default()
+            if let Some(receipts_by_block) = self
+                .client
+                .receipts_by_block(BlockHashOrNumber::Hash(hash))
+                .unwrap_or_default()
             {
                 receipts.push(
                     receipts_by_block
                         .into_iter()
                         .map(|receipt| receipt.with_bloom())
-                        .collect::<Vec<_>>(),
+                        .collect::<Vec<_>>()
                 );
 
                 total_bytes += APPROX_RECEIPT_SIZE;
@@ -239,7 +250,7 @@ where
 /// This should be spawned or used as part of `tokio::select!`.
 impl<C> Future for EthRequestHandler<C>
 where
-    C: BlockReader + HeaderProvider + Unpin,
+    C: BlockReader + HeaderProvider + Unpin
 {
     type Output = ();
 
@@ -261,7 +272,7 @@ where
                     IncomingEthRequest::GetReceipts { peer_id, request, response } => {
                         this.on_receipts_request(peer_id, request, response)
                     }
-                },
+                }
             }
         }
     }
@@ -269,12 +280,12 @@ where
 
 /// Represents a handled [`GetBlockHeaders`] requests
 ///
-/// This is the key type for spam detection cache. The counter is ignored during `PartialEq` and
-/// `Hash`.
+/// This is the key type for spam detection cache. The counter is ignored during
+/// `PartialEq` and `Hash`.
 #[derive(Debug, PartialEq, Hash)]
 #[allow(unused)]
 struct RespondedGetBlockHeaders {
-    req: (PeerId, GetBlockHeaders),
+    req: (PeerId, GetBlockHeaders)
 }
 
 impl Borrow<(PeerId, GetBlockHeaders)> for RespondedGetBlockHeaders {
@@ -291,32 +302,32 @@ pub enum IncomingEthRequest {
     ///
     /// The response should be sent through the channel.
     GetBlockHeaders {
-        peer_id: PeerId,
-        request: GetBlockHeaders,
-        response: oneshot::Sender<RequestResult<BlockHeaders>>,
+        peer_id:  PeerId,
+        request:  GetBlockHeaders,
+        response: oneshot::Sender<RequestResult<BlockHeaders>>
     },
     /// Request Block headers from the peer.
     ///
     /// The response should be sent through the channel.
     GetBlockBodies {
-        peer_id: PeerId,
-        request: GetBlockBodies,
-        response: oneshot::Sender<RequestResult<BlockBodies>>,
+        peer_id:  PeerId,
+        request:  GetBlockBodies,
+        response: oneshot::Sender<RequestResult<BlockBodies>>
     },
     /// Request Node Data from the peer.
     ///
     /// The response should be sent through the channel.
     GetNodeData {
-        peer_id: PeerId,
-        request: GetNodeData,
-        response: oneshot::Sender<RequestResult<NodeData>>,
+        peer_id:  PeerId,
+        request:  GetNodeData,
+        response: oneshot::Sender<RequestResult<NodeData>>
     },
     /// Request Receipts from the peer.
     ///
     /// The response should be sent through the channel.
     GetReceipts {
-        peer_id: PeerId,
-        request: GetReceipts,
-        response: oneshot::Sender<RequestResult<Receipts>>,
-    },
+        peer_id:  PeerId,
+        request:  GetReceipts,
+        response: oneshot::Sender<RequestResult<Receipts>>
+    }
 }
