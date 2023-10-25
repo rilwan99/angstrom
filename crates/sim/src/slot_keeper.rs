@@ -9,7 +9,7 @@ use alloy_sol_types::SolCall;
 use ethers_providers::{JsonRpcClient, Middleware, ProviderError};
 use futures::Future;
 use futures_util::FutureExt;
-use guard_types::contract_bindings::ERC20;
+use guard_types::primitive::ERC20;
 use revm::new;
 use revm_primitives::{Address, Env, TransactTo, TxEnv, U256};
 use tokio::{runtime::Handle, task::JoinHandle};

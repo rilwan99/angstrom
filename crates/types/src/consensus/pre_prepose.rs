@@ -2,17 +2,16 @@ use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    contract_bindings::Angstrom::PoolKey,
-    on_chain::{Signature, SubmittedOrder}
+    primitive::{Angstrom::PoolKey, Signature},
+    rpc::SubmittedLimitOrder
 };
-// TODO: change searcher bid to best bid or something that communicates
-// optimality of LP payoff.
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, RlpDecodable, RlpEncodable)]
 pub struct PoolOrders {
     pub pool:         PoolKey,
-    pub searcher_bid: SubmittedOrder,
-    pub sorted_bids:  Vec<SubmittedOrder>,
-    pub sorted_asks:  Vec<SubmittedOrder>
+    pub searcher_bid: SubmittedLimitOrder,
+    pub sorted_bids:  Vec<SubmittedLimitOrder>,
+    pub sorted_asks:  Vec<SubmittedLimitOrder>
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, RlpEncodable, RlpDecodable)]

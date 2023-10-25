@@ -1,5 +1,5 @@
 use ethers_core::types::transaction::eip712::{Eip712Error, TypedData};
-use guard_types::on_chain::SubmittedOrder;
+use guard_types::rpc::SubmittedLimitOrder;
 use reth_primitives::Signature;
 use revm_primitives::{Account, Address, HashMap, TxEnv};
 use thiserror::Error;
@@ -41,7 +41,7 @@ pub enum SimError {
     #[error("Error Decoding EIP712 Transaction With Serde: {0:#?}")]
     SerdeEip712DecodingError(serde_json::error::Error),
     #[error("Error decoding signature: {0:#?}")]
-    DecodingSignatureError(SubmittedOrder),
+    DecodingSignatureError(SubmittedLimitOrder),
     #[error("No Transactions Decoded from EIP712 Tx: {0:#?}")]
     NoTransactionsInEip712(TxEnv),
     #[error("EVM Simulation Error: {0:#?}")]

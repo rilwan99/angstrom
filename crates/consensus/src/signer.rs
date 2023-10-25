@@ -2,7 +2,10 @@ use alloy_rlp::Encodable;
 use ethers_signers::{LocalWallet, Signer as ESigner, WalletError};
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
-    on_chain::{LowerBound, Signature, VanillaBundle}
+    primitive::{
+        Angstrom::{Bundle, LowerBound},
+        Signature
+    }
 };
 use reth_primitives::{keccak256, H256, H512};
 use revm_primitives::{bytes::BytesMut, Address};
@@ -19,7 +22,7 @@ impl Signer {
     pub fn sign_proposal(
         &self,
         ethereum_block: u64,
-        vanilla_bundle: VanillaBundle,
+        vanilla_bundle: Bundle,
         lower_bound: LowerBound
     ) -> Result<Proposal, WalletError> {
         todo!()
@@ -36,7 +39,7 @@ impl Signer {
     pub fn sign_pre_propose(
         &self,
         ethereum_block: u64,
-        bundle: VanillaBundle
+        bundle: Bundle
     ) -> Result<PreProposal, WalletError> {
         todo!()
     }

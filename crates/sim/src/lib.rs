@@ -3,8 +3,9 @@ use std::fmt::Debug;
 use client::RevmClient;
 use errors::{SimError, SimResult};
 use ethers_core::types::{transaction::eip2718::TypedTransaction, I256, U256};
-use guard_types::on_chain::{
-    CallerInfo, ExternalStateSim, MevBundle, SubmittedOrder, VanillaBundle
+use guard_types::{
+    primitive::{Angstrom::Bundle, ExternalStateSim},
+    rpc::{CallerInfo, SubmittedLimitOrder}
 };
 use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
 
@@ -35,12 +36,12 @@ pub fn spawn_revm_sim(db: lru_db::RevmLRU) -> Result<RevmClient, SimError> {
 pub enum BundleOrTransactionResult {
     /// We just return the bundle as we don't care about gas usage but rather
     /// it finishes execution
-    VanillaBundle(VanillaBundle),
+    Bundle(Bundle),
     /// We just return the bundle as we don't care about gas usage but rather
     /// it finishes execution
-    MevBundle(MevBundle),
+    MevBundle(Bundle),
     HookSimResult {
-        tx:            SubmittedOrder,
+        tx:            SubmittedLimitOrder,
         pre_hook_gas:  U256,
         post_hook_gas: U256
     },
@@ -74,14 +75,14 @@ pub trait Simulator: Send + Sync + Clone + Unpin {
     async fn simulate_vanilla_bundle(
         &self,
         caller_info: CallerInfo,
-        bundle: VanillaBundle
+        bundle: Bundle
     ) -> Result<SimResult, SimError>;
 
     /// simulates the full bundle in order to make sure it is valid and passes
     async fn simulate_composable_bundle(
         &self,
         caller_info: CallerInfo,
-        bundle: MevBundle
+        bundle: Bundle
     ) -> Result<SimResult, SimError>;
 }
 
@@ -89,7 +90,7 @@ pub trait Simulator: Send + Sync + Clone + Unpin {
 pub enum SimEvent {
     Hook(ExternalStateSim, CallerInfo, Sender<SimResult>),
     UniswapV4(TypedTransaction, Sender<SimResult>),
-    VanillaBundle(VanillaBundle, CallerInfo, Sender<SimResult>),
-    MevBundle(MevBundle, CallerInfo, Sender<SimResult>),
+    Bundle(Bundle, CallerInfo, Sender<SimResult>),
+    MevBundle(Bundle, CallerInfo, Sender<SimResult>),
     NewBlock(Sender<SimResult>)
 }

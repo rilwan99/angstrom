@@ -9,7 +9,9 @@ use ethers_flashbots::PendingBundleError;
 use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
 use futures_util::StreamExt;
 use guard_network::{PeerMessages, Swarm, SwarmEvent};
-use guard_types::on_chain::{SubmissionBundle, SubmittedOrder, VanillaBundle};
+use guard_types::{
+    primitive::Angstrom::Bundle, rpc::SubmittedLimitOrder, submission::SubmissionBundle
+};
 
 use crate::relay_sender::RelaySender;
 

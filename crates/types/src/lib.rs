@@ -4,11 +4,12 @@ use secp256k1::{
     Message, SECP256K1
 };
 
-use crate::on_chain::Signature;
+use crate::primitive::Signature;
 
 pub mod consensus;
-pub mod contract_bindings;
-pub mod on_chain;
+pub mod primitive;
+pub mod rpc;
+pub mod submission;
 
 pub fn validate_signature(signature: &Signature, message: B256, public_key: B512) -> bool {
     // let signature: [u8; 64] = signature.0.to_vec().try_into().unwrap();

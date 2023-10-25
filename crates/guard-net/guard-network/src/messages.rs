@@ -3,7 +3,8 @@ use std::sync::Arc;
 use guard_eth_wire::{message::RequestPair, EthMessage};
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
-    on_chain::{SubmittedOrder, VanillaBundle}
+    primitive::Angstrom::Bundle,
+    rpc::SubmittedLimitOrder
 };
 use reth_interfaces::p2p::error::RequestResult;
 
@@ -16,6 +17,6 @@ pub enum PeerMessages {
     Commit(Arc<Commit>),
 
     // default communication
-    PropagateOrder(Arc<SubmittedOrder>),
-    PropagateBundle(Arc<VanillaBundle>)
+    PropagateOrder(Arc<SubmittedLimitOrder>),
+    PropagateBundle(Arc<Bundle>)
 }

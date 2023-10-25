@@ -3,13 +3,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     consensus::order_buffer::OrderBuffer,
-    on_chain::{LowerBound, Signature, VanillaBundle}
+    primitive::{
+        Angstrom::{Bundle, LowerBound},
+        Signature
+    }
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 pub struct Proposal {
     pub ethereum_block:   u64,
-    pub vanilla_bundle:   VanillaBundle,
+    pub vanilla_bundle:   Bundle,
     pub lower_bound:      LowerBound,
     pub order_buffer:     Vec<OrderBuffer>,
     /// This signature is over (etheruem_block | hash(vanilla_bundle) |

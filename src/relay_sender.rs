@@ -10,7 +10,7 @@ use ethers_middleware::SignerMiddleware;
 use ethers_providers::Middleware;
 use ethers_signers::{LocalWallet, Signer};
 use futures::{Future, FutureExt};
-use guard_types::on_chain::SubmissionBundle;
+use guard_types::submission::SubmissionBundle;
 
 type StakedWallet = LocalWallet;
 type BundleKey = LocalWallet;

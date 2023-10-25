@@ -4,7 +4,7 @@ use std::{
 };
 
 use common::{ConsensusState, WAITING_NEXT_BLOCK};
-use guard_types::{consensus::Proposal, on_chain::VanillaBundle};
+use guard_types::{consensus::Proposal, primitive::Angstrom::Bundle};
 
 use super::{
     completed::CompletedState, GlobalStateContext, RoundAction, RoundStateMessage, StateTransition
@@ -18,13 +18,13 @@ pub enum CommitVote {
 pub struct CommitState {
     /// This is specifically vanilla as this is the only bundle we care about
     /// on this state path
-    best_bundle: VanillaBundle,
+    best_bundle: Bundle,
     waker:       Waker,
     vote:        Option<CommitVote>
 }
 
 impl CommitState {
-    pub fn new(waker: Waker, commited_bundle: VanillaBundle) -> Self {
+    pub fn new(waker: Waker, commited_bundle: Bundle) -> Self {
         Self { best_bundle: commited_bundle, waker, vote: None }
     }
 

@@ -4,7 +4,8 @@ use std::{fmt::Debug, sync::Arc};
 use alloy_rlp::{length_of_length, Decodable, Encodable, Header};
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
-    on_chain::{SubmittedOrder, VanillaBundle}
+    primitive::Angstrom::Bundle,
+    rpc::SubmittedLimitOrder
 };
 use reth_primitives::bytes::{Buf, BufMut};
 #[cfg(feature = "serde")]
@@ -28,11 +29,9 @@ impl ProtocolMessage {
 
         let message = match message_type {
             EthMessageID::Status => EthMessage::Status(Status::decode(buf)?),
-            EthMessageID::PropagateBundle => {
-                EthMessage::PropagateBundle(VanillaBundle::decode(buf)?)
-            }
+            EthMessageID::PropagateBundle => EthMessage::PropagateBundle(Bundle::decode(buf)?),
             EthMessageID::PropagateOrder => {
-                EthMessage::PropagateOrder(SubmittedOrder::decode(buf)?)
+                EthMessage::PropagateOrder(SubmittedLimitOrder::decode(buf)?)
             }
             EthMessageID::PrePropose => EthMessage::PrePropose(PreProposal::decode(buf)?),
             EthMessageID::Proposal => EthMessage::Proposal(Proposal::decode(buf)?),
@@ -119,10 +118,10 @@ pub enum EthMessage {
     Commit(Commit),
 
     // default communication
-    PropagateOrder(SubmittedOrder),
-    PropagateBundle(VanillaBundle) /*TODO: Implement Searcher order wrapper type and request
-                                    * for best searcher orders
-                                    * GetBestSearcherOrders(RequestPair<Vec<SearcherOrder>>), */
+    PropagateOrder(SubmittedLimitOrder),
+    PropagateBundle(Bundle) /*TODO: Implement Searcher order wrapper type and request
+                             * for best searcher orders
+                             * GetBestSearcherOrders(RequestPair<Vec<SearcherOrder>>), */
 }
 //TODO: Will, you have to implement the request pair model so that you can have
 //TODO: the message & request pair is rlp encode/decodable but the type that
@@ -180,8 +179,8 @@ pub enum EthBroadcastMessage {
     Commit(Arc<Commit>),
 
     // default communication
-    PropagateOrder(Arc<SubmittedOrder>),
-    PropagateBundle(Arc<VanillaBundle>)
+    PropagateOrder(Arc<SubmittedLimitOrder>),
+    PropagateBundle(Arc<Bundle>)
 }
 
 // === impl EthBroadcastMessage ===
