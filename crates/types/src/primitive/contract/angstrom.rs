@@ -5,7 +5,7 @@ use alloy_sol_macro::sol;
 use alloy_sol_types::{eip712_domain, Eip712Domain};
 use serde::{Deserialize, Serialize};
 
-use crate::primitive::Angstrom::{CurrencySettlement, OrderType};
+use crate::primitive::contract::Angstrom::{CurrencySettlement, OrderType};
 
 sol! {
     #![sol(all_derives = true)]
@@ -250,10 +250,7 @@ impl Decodable for Angstrom::PoolKey {
 
         let consumed = started_len - buf.len();
         if consumed != payload_length {
-            return Err(alloy_rlp::Error::ListLengthMismatch {
-                expected: payload_length,
-                got:      consumed
-            })
+            return Err(Error::ListLengthMismatch { expected: payload_length, got: consumed })
         }
 
         Ok(Self { hooks, fee, tickSpacing: tick_spacing, currency0: cur_0, currency1: cur_1 })
@@ -274,10 +271,13 @@ impl Decodable for OrderType {
 
 impl Encodable for CurrencySettlement {
     fn length(&self) -> usize {
-        56
+        let length = 53;
+        length + length_of_length(length)
     }
 
     fn encode(&self, out: &mut dyn bytes::BufMut) {
+        Header { list: true, payload_length: 53 }.encode(out);
+
         self.currency.encode(out);
         if self.amountNet.is_negative() {
             1_u8.encode(out);
@@ -289,6 +289,17 @@ impl Encodable for CurrencySettlement {
 }
 impl Decodable for CurrencySettlement {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+        let Header { list, payload_length } = Header::decode(buf)?;
+
+        if !list {
+            return Err(Error::UnexpectedString)
+        }
+
+        let started_len = buf.len();
+        if started_len < payload_length {
+            return Err(Error::InputTooShort)
+        }
+
         let currency = Address::decode(buf)?;
         let side: bool = Decodable::decode(buf)?;
         let amount_net = Uint::<256, 4>::decode(buf)?;
@@ -298,6 +309,11 @@ impl Decodable for CurrencySettlement {
         } else {
             Signed::from_raw(amount_net)
         };
+
+        let consumed = started_len - buf.len();
+        if consumed != payload_length {
+            return Err(Error::ListLengthMismatch { expected: payload_length, got: consumed })
+        }
 
         Ok(Self { amountNet: res, currency })
     }
