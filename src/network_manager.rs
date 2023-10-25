@@ -10,7 +10,7 @@ use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
 use futures_util::StreamExt;
 use guard_network::{PeerMessages, Swarm, SwarmEvent};
 use guard_types::{
-    primitive::Angstrom::Bundle, rpc::SubmittedLimitOrder, submission::SubmissionBundle
+    primitive::Angstrom::Bundle, rpc::SignedLimitOrder, submission::SubmissionBundle
 };
 
 use crate::relay_sender::RelaySender;

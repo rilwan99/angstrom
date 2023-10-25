@@ -9,7 +9,7 @@ use reth_primitives::{
 
 use crate::{
     test_utils::{MockTransactionFactory, MockValidTx},
-    EthPooledTransaction
+    AngstromPooledOrder
 };
 
 /// A generator for transactions for testing purposes
@@ -91,9 +91,9 @@ impl<R: Rng> TransactionGenerator<R> {
         self.transaction().into_eip1559()
     }
 
-    pub fn gen_eip1559_pooled(&mut self) -> EthPooledTransaction {
+    pub fn gen_eip1559_pooled(&mut self) -> AngstromPooledOrder {
         let tx = self.gen_eip1559().into_ecrecovered().unwrap();
-        EthPooledTransaction::from_recovered_transaction(tx)
+        AngstromPooledOrder::from_recovered_transaction(tx)
     }
 }
 

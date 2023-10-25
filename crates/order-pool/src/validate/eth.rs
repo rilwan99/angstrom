@@ -1,4 +1,4 @@
-//! Ethereum transaction validator.
+//! Angstrom Order Validator
 
 use std::{
     marker::PhantomData,
@@ -19,19 +19,19 @@ use crate::{
     OrderValidator, PoolOrder, TransactionValidationOutcome, TransactionValidationTaskExecutor
 };
 
-/// Validator for Ethereum transactions.
+/// Validator for Angstrom Orders.
 #[derive(Debug, Clone)]
-pub struct EthOrderValidator<Client, T> {
+pub struct AngstromOrderValidator<Client, T> {
     /// The type that performs the actual validation.
     inner: Arc<OrderValidatorInner<Client, T>>
 }
 
-impl<Client, Tx> EthOrderValidator<Client, Tx>
+impl<Client, Tx> AngstromOrderValidator<Client, Tx>
 where
     Client: StateProviderFactory,
     Tx: PoolOrder
 {
-    /// Validates a single transaction.
+    /// Validates a single order
     ///
     /// See also [OrderValidator::validate_transaction]
     pub fn validate_one(
@@ -42,9 +42,9 @@ where
         self.inner.validate_one(origin, transaction)
     }
 
-    /// Validates all given transactions.
+    /// Validates all given orders
     ///
-    /// Returns all outcomes for the given transactions in the same order.
+    /// Returns all outcomes for the given orders, in the same order
     ///
     /// See also [Self::validate_one]
     pub fn validate_all(
@@ -59,7 +59,7 @@ where
 }
 
 #[async_trait::async_trait]
-impl<Client, Tx> OrderValidator for EthOrderValidator<Client, Tx>
+impl<Client, Tx> OrderValidator for AngstromOrderValidator<Client, Tx>
 where
     Client: StateProviderFactory,
     Tx: PoolOrder
@@ -121,53 +121,12 @@ where
         origin: OrderOrigin,
         transaction: Tx
     ) -> TransactionValidationOutcome<Tx> {
-        // Checks for tx_type
-        match transaction.tx_type() {
-            LEGACY_TX_TYPE_ID => {
-                // Accept legacy transactions
-            }
-            _ => {
-                return TransactionValidationOutcome::Invalid(
-                    transaction,
-                    InvalidTransactionError::TxTypeNotSupported.into()
-                )
-            }
-        };
-
         // Reject transactions over defined size to prevent DOS attacks
         if transaction.size() > TX_MAX_SIZE {
             let size = transaction.size();
             return TransactionValidationOutcome::Invalid(
                 transaction,
                 InvalidPoolTransactionError::OversizedData(size, TX_MAX_SIZE)
-            )
-        }
-
-        // Checks for gas limit
-        if transaction.gas_limit() > self.block_gas_limit {
-            let gas_limit = transaction.gas_limit();
-            return TransactionValidationOutcome::Invalid(
-                transaction,
-                InvalidPoolTransactionError::ExceedsGasLimit(gas_limit, self.block_gas_limit)
-            )
-        }
-
-        // Ensure max_priority_fee_per_gas (if EIP1559) is less than max_fee_per_gas if
-        // any.
-        if transaction.max_priority_fee_per_gas() > Some(transaction.max_fee_per_gas()) {
-            return TransactionValidationOutcome::Invalid(
-                transaction,
-                InvalidTransactionError::TipAboveFeeCap.into()
-            )
-        }
-
-        // Drop non-local transactions with a fee lower than the configured fee for
-        // acceptance into the pool.
-        if !origin.is_local() && transaction.max_priority_fee_per_gas() < self.minimum_priority_fee
-        {
-            return TransactionValidationOutcome::Invalid(
-                transaction,
-                InvalidPoolTransactionError::Underpriced
             )
         }
 
@@ -183,14 +142,15 @@ where
             }
         }
 
-        // intrinsic gas checks
+        //TODO: Implement min gas cost for order types
+        /*
         let _access_list = transaction
             .access_list()
             .map(|list| list.flattened())
             .unwrap_or_default();
 
-        //TODO: Implement min gas cost for order types
-        /*if transaction.gas_limit() < calculate_intrinsic_gas(transaction.kind()) {
+
+        if transaction.gas_limit() < calculate_intrinsic_gas(transaction.kind()) {
             return TransactionValidationOutcome::Invalid(
                 transaction,
                 InvalidPoolTransactionError::IntrinsicGasTooLow
@@ -257,7 +217,7 @@ where
 
 /// A builder for [TransactionValidationTaskExecutor]
 #[derive(Debug, Clone)]
-pub struct EthOrderValidatorBuilder {
+pub struct AngstromOrderValidatorBuilder {
     chain_spec:                   Arc<ChainSpec>,
     /// The current max gas limit
     block_gas_limit:              u64,
@@ -271,7 +231,7 @@ pub struct EthOrderValidatorBuilder {
     propagate_local_transactions: bool
 }
 
-impl EthOrderValidatorBuilder {
+impl AngstromOrderValidatorBuilder {
     /// Creates a new builder for the given [ChainSpec]
     pub fn new(chain_spec: Arc<ChainSpec>) -> Self {
         Self {
@@ -317,8 +277,8 @@ impl EthOrderValidatorBuilder {
         self
     }
 
-    /// Builds a the [EthOrderValidator] and spawns validation tasks via the
-    /// [TransactionValidationTaskExecutor]
+    /// Builds a the [AngstromOrderValidator] and spawns validation tasks via
+    /// the [TransactionValidationTaskExecutor]
     ///
     /// The validator will spawn `additional_tasks` additional tasks for
     /// validation.
@@ -328,7 +288,7 @@ impl EthOrderValidatorBuilder {
         self,
         client: Client,
         tasks: T
-    ) -> TransactionValidationTaskExecutor<EthOrderValidator<Client, Tx>>
+    ) -> TransactionValidationTaskExecutor<AngstromOrderValidator<Client, Tx>>
     where
         T: TaskSpawner
     {
@@ -369,7 +329,7 @@ impl EthOrderValidatorBuilder {
         let to_validation_task = Arc::new(Mutex::new(tx));
 
         TransactionValidationTaskExecutor {
-            validator: EthOrderValidator { inner: Arc::new(inner) },
+            validator: AngstromOrderValidator { inner: Arc::new(inner) },
             to_validation_task
         }
     }

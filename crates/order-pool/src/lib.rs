@@ -166,7 +166,7 @@ pub use crate::{
     },
     traits::*,
     validate::{
-        EthOrderValidator, OrderValidator, TransactionValidationOutcome,
+        AngstromOrderValidator, OrderValidator, TransactionValidationOutcome,
         TransactionValidationTaskExecutor, ValidPoolTransaction
     }
 };
@@ -189,8 +189,8 @@ pub mod test_utils;
 
 /// Type alias for default ethereum transaction pool
 pub type EthTransactionPool<Client> = Pool<
-    TransactionValidationTaskExecutor<EthOrderValidator<Client, EthPooledTransaction>>,
-    CoinbaseTipOrdering<EthPooledTransaction>
+    TransactionValidationTaskExecutor<AngstromOrderValidator<Client, AngstromPooledOrder>>,
+    CoinbaseTipOrdering<AngstromPooledOrder>
 >;
 
 /// A shareable, generic, customizable `TransactionPool` implementation.
@@ -274,7 +274,7 @@ where
 {
     /// Returns a new [Pool] that uses the default
     /// [TransactionValidationTaskExecutor] when validating
-    /// [EthPooledTransaction]s and ords via [CoinbaseTipOrdering]
+    /// [AngstromPooledOrder]s and ords via [CoinbaseTipOrdering]
     ///
     /// # Example
     ///
@@ -295,7 +295,7 @@ where
     /// ```
     pub fn eth_pool(
         validator: TransactionValidationTaskExecutor<
-            EthOrderValidator<Client, EthPooledTransaction>
+            AngstromOrderValidator<Client, AngstromPooledOrder>
         >,
         config: PoolConfig
     ) -> Self {
@@ -461,7 +461,7 @@ where
     }
 }
 
-impl<V: OrderValidator, T: OrderSorting> TransactionPoolExt for Pool<V, T>
+impl<V: OrderValidator, T: OrderSorting> OrderPoolExt for Pool<V, T>
 where
     V: OrderValidator,
     T: OrderSorting<Order = <V as OrderValidator>::Order>

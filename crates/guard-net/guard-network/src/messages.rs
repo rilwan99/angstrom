@@ -4,7 +4,7 @@ use guard_eth_wire::{message::RequestPair, EthMessage};
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
     primitive::Angstrom::Bundle,
-    rpc::SubmittedLimitOrder
+    rpc::SignedLimitOrder
 };
 use reth_interfaces::p2p::error::RequestResult;
 
@@ -17,6 +17,6 @@ pub enum PeerMessages {
     Commit(Arc<Commit>),
 
     // default communication
-    PropagateOrder(Arc<SubmittedLimitOrder>),
+    PropagateOrder(Arc<SignedLimitOrder>),
     PropagateBundle(Arc<Bundle>)
 }

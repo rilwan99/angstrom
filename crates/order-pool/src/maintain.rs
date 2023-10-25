@@ -24,7 +24,7 @@ use tracing::{debug, trace};
 
 use crate::{
     metrics::MaintainPoolMetrics,
-    traits::{CanonicalStateUpdate, ChangedAccount, TransactionPoolExt},
+    traits::{CanonicalStateUpdate, ChangedAccount, OrderPoolExt},
     BlockInfo, OrderPool
 };
 
@@ -60,7 +60,7 @@ pub fn maintain_transaction_pool_future<Client, P, St, Tasks>(
 ) -> BoxFuture<'static, ()>
 where
     Client: StateProviderFactory + BlockReaderIdExt + ChainSpecProvider + Clone + Send + 'static,
-    P: TransactionPoolExt + 'static,
+    P: OrderPoolExt + 'static,
     St: Stream<Item = CanonStateNotification> + Send + Unpin + 'static,
     Tasks: TaskSpawner + 'static
 {
@@ -83,7 +83,7 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
     config: MaintainPoolConfig
 ) where
     Client: StateProviderFactory + BlockReaderIdExt + ChainSpecProvider + Clone + Send + 'static,
-    P: TransactionPoolExt + 'static,
+    P: OrderPoolExt + 'static,
     St: Stream<Item = CanonStateNotification> + Send + Unpin + 'static,
     Tasks: TaskSpawner + 'static
 {

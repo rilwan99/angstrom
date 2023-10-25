@@ -1,67 +1,47 @@
-use std::ops::{Deref, DerefMut};
-
-use alloy_rlp::{Decodable, Encodable, Error};
-use bytes::BytesMut;
-use ethers_core::{
-    abi::{AbiArrayType, AbiType, ParamType, Token, Tokenizable, TokenizableItem},
-    types::{Signature as ESignature, U256}
+use std::{
+    collections::HashMap,
+    ops::{Deref, DerefMut}
 };
+
+use alloy_primitives::{Address, U256};
+use alloy_rlp::{Decodable, Encodable, Error};
+use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
+use reth_primitives::{recover_signer, Signature as ESignature};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, ethers_contract::EthAbiCodec,
-)]
+use crate::primitive::ANGSTROM_DOMAIN;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct Signature(pub ESignature);
 
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct CallerInfo {
+    pub address:   Address,
+    pub nonce:     u64,
+    pub overrides: HashMap<Address, HashMap<U256, U256>>
+}
+
 impl Default for Signature {
     fn default() -> Self {
-        Signature(ESignature {
-            r: Default::default(),
-            s: Default::default(),
-            v: Default::default()
-        })
+        Signature(ESignature::default())
     }
 }
 
-impl AbiType for Signature {
-    fn param_type() -> ethers_core::abi::ParamType {
-        ParamType::Bytes
+impl Encodable for Signature {
+    fn encode(&self, out: &mut dyn open_fastrlp::BufMut) {
+        self.0.encode(out);
     }
 
-    fn minimum_size() -> usize {
-        72
+    fn length(&self) -> usize {
+        self.0.payload_len()
     }
 }
-
-impl TokenizableItem for Signature {}
-
-impl AbiArrayType for Signature {}
-
-impl Tokenizable for Signature {
-    fn into_token(self) -> ethers_core::abi::Token {
-        let mut buf = BytesMut::new();
-        U256::from(self.v).to_big_endian(&mut buf);
-        self.r.to_big_endian(&mut buf);
-        self.s.to_big_endian(&mut buf);
-        buf.freeze().into_token()
-    }
-
-    fn from_token(
-        token: ethers_core::abi::Token
-    ) -> Result<Self, ethers_core::abi::InvalidOutputType>
-    where
-        Self: Sized
-    {
-        let Token::Bytes(bytes) = token else {
-            return Err(ethers_core::abi::InvalidOutputType("not bytes".to_string()))
-        };
-        let v = U256::from_big_endian(&bytes[0..32]).as_u64();
-        let r = U256::from_big_endian(&bytes[32..63]);
-        let s = U256::from_big_endian(&bytes[64..95]);
-
-        Ok(Self(ESignature { v, s, r }))
+impl Decodable for Signature {
+    fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
+        let sig = ESignature::decode(buf)?;
+        Ok(Signature(sig))
     }
 }
 
@@ -75,24 +55,6 @@ impl Deref for Signature {
 impl DerefMut for Signature {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
-    }
-}
-
-impl Encodable for Signature {
-    fn encode(&self, out: &mut dyn open_fastrlp::BufMut) {
-        open_fastrlp::Encodable::encode(&self.0, out);
-    }
-
-    fn length(&self) -> usize {
-        open_fastrlp::Encodable::length(&self.0)
-    }
-}
-impl Decodable for Signature {
-    fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
-        let sig = open_fastrlp::Decodable::decode(buf)
-            .map_err(|_| Error::Custom("failed to decode sig"))?;
-
-        Ok(Signature(sig))
     }
 }
 

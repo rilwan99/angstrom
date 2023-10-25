@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use guard_types::{
-    consensus::*, contract_bindings::Angstrom::PoolKey, primitive::SubmittedLimitOrder
+    consensus::*, contract_bindings::Angstrom::PoolKey, primitive::SignedLimitOrder
 };
 use serde::{Deserialize, Serialize};
 
@@ -50,7 +50,7 @@ pub enum OrderSubscriptionKind {
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum OrderSubscriptionResult {
-    Order(Arc<SubmittedLimitOrder>)
+    Order(Arc<SignedLimitOrder>)
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Default)]

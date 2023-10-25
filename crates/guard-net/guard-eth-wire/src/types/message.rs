@@ -5,7 +5,7 @@ use alloy_rlp::{length_of_length, Decodable, Encodable, Header};
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
     primitive::Angstrom::Bundle,
-    rpc::SubmittedLimitOrder
+    rpc::SignedLimitOrder
 };
 use reth_primitives::bytes::{Buf, BufMut};
 #[cfg(feature = "serde")]
@@ -31,7 +31,7 @@ impl ProtocolMessage {
             EthMessageID::Status => EthMessage::Status(Status::decode(buf)?),
             EthMessageID::PropagateBundle => EthMessage::PropagateBundle(Bundle::decode(buf)?),
             EthMessageID::PropagateOrder => {
-                EthMessage::PropagateOrder(SubmittedLimitOrder::decode(buf)?)
+                EthMessage::PropagateOrder(SignedLimitOrder::decode(buf)?)
             }
             EthMessageID::PrePropose => EthMessage::PrePropose(PreProposal::decode(buf)?),
             EthMessageID::Proposal => EthMessage::Proposal(Proposal::decode(buf)?),
@@ -118,7 +118,7 @@ pub enum EthMessage {
     Commit(Commit),
 
     // default communication
-    PropagateOrder(SubmittedLimitOrder),
+    PropagateOrder(SignedLimitOrder),
     PropagateBundle(Bundle) /*TODO: Implement Searcher order wrapper type and request
                              * for best searcher orders
                              * GetBestSearcherOrders(RequestPair<Vec<SearcherOrder>>), */
@@ -179,7 +179,7 @@ pub enum EthBroadcastMessage {
     Commit(Arc<Commit>),
 
     // default communication
-    PropagateOrder(Arc<SubmittedLimitOrder>),
+    PropagateOrder(Arc<SignedLimitOrder>),
     PropagateBundle(Arc<Bundle>)
 }
 

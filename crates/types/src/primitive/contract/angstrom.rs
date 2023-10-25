@@ -2,6 +2,7 @@ pub use alloy_primitives::*;
 use alloy_rlp::{Decodable, Encodable, Error};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_macro::sol;
+use alloy_sol_types::{eip712_domain, Eip712Domain};
 use serde::{Deserialize, Serialize};
 
 use crate::primitive::Angstrom::{CurrencySettlement, OrderType};
@@ -280,3 +281,10 @@ impl Decodable for CurrencySettlement {
         Ok(Self { amountNet: res, currency })
     }
 }
+
+// The `eip712_domain` macro lets you easily define an EIP-712 domain
+// object :)
+pub const ANGSTROM_DOMAIN: Eip712Domain = eip712_domain!(
+   name: "Angstrom",
+   version: "1",
+);
