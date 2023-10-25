@@ -21,7 +21,7 @@ use jsonrpsee::{
     Methods, RpcModule
 };
 use metrics::RpcServerMetrics;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize, Serializer};
 use strum::{AsRefStr, EnumString, EnumVariantNames, ParseError, VariantNames};
 use tower::layer::util::{Identity, Stack};
 use tower_http::cors::CorsLayer;
@@ -908,7 +908,7 @@ impl RpcModuleSelection {
     /// All modules that are available by default on IPC.
     ///
     /// By default all modules are available on IPC.
-    pub fn default_ipc_modules() -> Vec<Guard> {
+    pub fn default_ipc_modules() -> Vec<GuardRpcModule> {
         Self::all_modules()
     }
 
@@ -942,7 +942,7 @@ impl RpcModuleSelection {
     pub fn try_from_selection<I, T>(selection: I) -> Result<Self, T::Error>
     where
         I: IntoIterator<Item = T>,
-        T: TryInto<RethRpcModule>
+        T: TryInto<GuardRpcModule>
     {
         let mut unique = HashSet::new();
 
@@ -1044,4 +1044,26 @@ pub enum GuardRpcModule {
     Consensus,
     Order,
     Quoting
+}
+
+impl GuardRpcModule {
+    /// Returns all variants of the enum
+    pub const fn all_variants() -> &'static [&'static str] {
+        Self::VARIANTS
+    }
+}
+
+impl fmt::Display for GuardRpcModule {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.pad(self.as_ref())
+    }
+}
+
+impl Serialize for GuardRpcModule {
+    fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer
+    {
+        s.serialize_str(self.as_ref())
+    }
 }
