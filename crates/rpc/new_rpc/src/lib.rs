@@ -8,8 +8,10 @@ pub mod metrics;
 pub mod types;
 
 use std::{
+    collections::HashSet,
     fmt,
-    net::{Ipv4Addr, SocketAddr, SocketAddrV4}
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    str::FromStr
 };
 
 use errors::RpcError;
@@ -20,7 +22,7 @@ use jsonrpsee::{
 };
 use metrics::RpcServerMetrics;
 use serde::Deserialize;
-use strum::{AsRefStr, EnumString, EnumVariantNames};
+use strum::{AsRefStr, EnumString, EnumVariantNames, ParseError, VariantNames};
 use tower::layer::util::{Identity, Stack};
 use tower_http::cors::CorsLayer;
 use tracing::{instrument, trace};
@@ -882,6 +884,154 @@ pub enum RpcModuleSelection {
     Standard,
     /// Only use the configured modules.
     Selection(Vec<GuardRpcModule>)
+}
+
+impl RpcModuleSelection {
+    pub const STANDARD_MODULES: [GuardRpcModule; 3] =
+        [GuardRpcModule::Consensus, GuardRpcModule::Order, GuardRpcModule::Quoting];
+
+    /// Returns a selection of [RethRpcModule] with all
+    /// [RethRpcModule::VARIANTS].
+    pub fn all_modules() -> Vec<GuardRpcModule> {
+        RpcModuleSelection::try_from_selection(GuardRpcModule::VARIANTS.iter().copied())
+            .expect("valid selection")
+            .into_selection()
+    }
+
+    /// Returns the [RpcModuleSelection::STANDARD_MODULES] as a selection.
+    pub fn standard_modules() -> Vec<GuardRpcModule> {
+        RpcModuleSelection::try_from_selection(RpcModuleSelection::STANDARD_MODULES.iter().copied())
+            .expect("valid selection")
+            .into_selection()
+    }
+
+    /// All modules that are available by default on IPC.
+    ///
+    /// By default all modules are available on IPC.
+    pub fn default_ipc_modules() -> Vec<Guard> {
+        Self::all_modules()
+    }
+
+    /// Creates a new _unique_ [RpcModuleSelection::Selection] from the given
+    /// items.
+    ///
+    /// # Note
+    ///
+    /// This will dedupe the selection and remove duplicates while preserving
+    /// the order.
+    ///
+    /// # Example
+    ///
+    /// Create a selection from the [RethRpcModule] string identifiers
+    ///
+    /// ```
+    ///  use reth_rpc_builder::{RethRpcModule, RpcModuleSelection};
+    /// let selection = vec!["eth", "admin"];
+    /// let config = RpcModuleSelection::try_from_selection(selection).unwrap();
+    /// assert_eq!(config, RpcModuleSelection::Selection(vec![RethRpcModule::Eth, RethRpcModule::Admin]));
+    /// ```
+    ///
+    /// Create a unique selection from the [RethRpcModule] string identifiers
+    ///
+    /// ```
+    ///  use reth_rpc_builder::{RethRpcModule, RpcModuleSelection};
+    /// let selection = vec!["eth", "admin", "eth", "admin"];
+    /// let config = RpcModuleSelection::try_from_selection(selection).unwrap();
+    /// assert_eq!(config, RpcModuleSelection::Selection(vec![RethRpcModule::Eth, RethRpcModule::Admin]));
+    /// ```
+    pub fn try_from_selection<I, T>(selection: I) -> Result<Self, T::Error>
+    where
+        I: IntoIterator<Item = T>,
+        T: TryInto<RethRpcModule>
+    {
+        let mut unique = HashSet::new();
+
+        let mut s = Vec::new();
+        for item in selection.into_iter() {
+            let item = item.try_into()?;
+            if unique.insert(item) {
+                s.push(item);
+            }
+        }
+        Ok(RpcModuleSelection::Selection(s))
+    }
+
+    /// Returns true if no selection is configured
+    pub fn is_empty(&self) -> bool {
+        match self {
+            RpcModuleSelection::Selection(sel) => sel.is_empty(),
+            _ => false
+        }
+    }
+
+    /// Returns an iterator over all configured [GuardRpcModule]
+    pub fn iter_selection(&self) -> Box<dyn Iterator<Item = GuardRpcModule> + '_> {
+        match self {
+            RpcModuleSelection::All => Box::new(Self::all_modules().into_iter()),
+            RpcModuleSelection::Standard => Box::new(Self::STANDARD_MODULES.iter().copied()),
+            RpcModuleSelection::Selection(s) => Box::new(s.iter().copied())
+        }
+    }
+
+    /// Returns the list of configured [GuardRpcModule]
+    pub fn into_selection(self) -> Vec<GuardRpcModule> {
+        match self {
+            RpcModuleSelection::All => Self::all_modules(),
+            RpcModuleSelection::Selection(s) => s,
+            RpcModuleSelection::Standard => Self::STANDARD_MODULES.to_vec()
+        }
+    }
+
+    /// Returns true if both selections are identical.
+    fn are_identical(http: Option<&RpcModuleSelection>, ws: Option<&RpcModuleSelection>) -> bool {
+        match (http, ws) {
+            (Some(http), Some(ws)) => {
+                let http = http.clone().iter_selection().collect::<HashSet<_>>();
+                let ws = ws.clone().iter_selection().collect::<HashSet<_>>();
+
+                http == ws
+            }
+            (Some(http), None) => http.is_empty(),
+            (None, Some(ws)) => ws.is_empty(),
+            _ => true
+        }
+    }
+}
+
+impl<I, T> From<I> for RpcModuleSelection
+where
+    I: IntoIterator<Item = T>,
+    T: Into<GuardRpcModule>
+{
+    fn from(value: I) -> Self {
+        RpcModuleSelection::Selection(value.into_iter().map(Into::into).collect())
+    }
+}
+
+impl FromStr for RpcModuleSelection {
+    type Err = ParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut modules = s.split(',').map(str::trim).peekable();
+        let first = modules.peek().copied().ok_or(ParseError::VariantNotFound)?;
+        match first {
+            "all" | "All" => Ok(RpcModuleSelection::All),
+            _ => RpcModuleSelection::try_from_selection(modules)
+        }
+    }
+}
+
+impl fmt::Display for RpcModuleSelection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "[{}]",
+            self.iter_selection()
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
 }
 
 /// Represents RPC modules that are supported by the guard
