@@ -37,7 +37,6 @@ use reth_metrics::common::mpsc::UnboundedMeteredSender;
 use reth_net_common::bandwidth_meter::BandwidthMeter;
 use reth_network_api::ReputationChangeKind;
 use reth_primitives::{ForkId, NodeRecord, PeerId, B256};
-use reth_provider::{BlockNumReader, BlockReader};
 use reth_rpc_types::{EthProtocolInfo, NetworkStatus};
 use reth_tokio_util::EventListeners;
 use tokio::sync::mpsc::{self, error::TrySendError};
@@ -59,7 +58,7 @@ use crate::{
     state::NetworkState,
     swarm::{NetworkConnectionState, Swarm, SwarmEvent},
     transactions::NetworkTransactionEvent,
-    FetchClient, NetworkBuilder
+    NetworkBuilder
 };
 
 /// Manages the _entire_ state of the network.
@@ -103,8 +102,6 @@ pub struct NetworkManager {
     /// Receiver half of the command channel set up between this type and the
     /// [`NetworkHandle`]
     from_handle_rx:          UnboundedReceiverStream<NetworkHandleMessage>,
-    /// Handles block imports according to the `eth` protocol.
-    block_import:            Box<dyn BlockImport>,
     /// All listeners for high level network events.
     event_listeners:         EventListeners<NetworkEvent>,
     /// Sender half to send events to the
@@ -246,7 +243,6 @@ impl NetworkManager {
             to_manager_tx,
             local_peer_id,
             peers_handle,
-            network_mode,
             bandwidth_meter,
             Arc::new(AtomicU64::new(chain_spec.chain.id()))
         );
@@ -255,7 +251,6 @@ impl NetworkManager {
             swarm,
             handle,
             from_handle_rx: UnboundedReceiverStream::new(from_handle_rx),
-            block_import,
             event_listeners: Default::default(),
             to_transactions_manager: None,
             to_eth_request_handler: None,
@@ -333,14 +328,6 @@ impl NetworkManager {
     /// The [`PeersHandle`] can be used to interact with the network's peer set.
     pub fn peers_handle(&self) -> PeersHandle {
         self.swarm.state().peers().handle()
-    }
-
-    /// Returns a new [`FetchClient`] that can be cloned and shared.
-    ///
-    /// The [`FetchClient`] is the entrypoint for sending requests to the
-    /// network.
-    pub fn fetch_client(&self) -> FetchClient {
-        self.swarm.state().fetch_client()
     }
 
     /// Returns the current [`NetworkStatus`] for the local node.
@@ -591,9 +578,6 @@ impl NetworkManager {
             NetworkHandleMessage::GetReputationById(peer_id, tx) => {
                 let _ = tx.send(self.swarm.state_mut().peers().get_reputation(&peer_id));
             }
-            NetworkHandleMessage::FetchClient(tx) => {
-                let _ = tx.send(self.fetch_client());
-            }
             NetworkHandleMessage::GetStatus(tx) => {
                 let _ = tx.send(self.status());
             }
@@ -612,10 +596,7 @@ impl NetworkManager {
     }
 }
 
-impl<C> Future for NetworkManager<C>
-where
-    C: BlockReader + Unpin
-{
+impl Future for NetworkManager {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
