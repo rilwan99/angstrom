@@ -7,7 +7,7 @@ pub(crate) enum CorsDomainError {
     #[error("{domain} is an invalid header value")]
     InvalidHeader { domain: String },
     #[error("Wildcard origin (`*`) cannot be passed as part of a list: {input}")]
-    WildCardNotAllowed { input: String },
+    WildCardNotAllowed { input: String }
 }
 
 /// Creates a [CorsLayer] from the given domains
@@ -21,7 +21,7 @@ pub(crate) fn create_cors_layer(http_cors_domains: &str) -> Result<CorsLayer, Co
             let iter = http_cors_domains.split(',');
             if iter.clone().any(|o| o == "*") {
                 return Err(CorsDomainError::WildCardNotAllowed {
-                    input: http_cors_domains.to_string(),
+                    input: http_cors_domains.to_string()
                 })
             }
 

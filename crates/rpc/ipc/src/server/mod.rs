@@ -1,34 +1,34 @@
 //! JSON-RPC IPC server implementation
 
-use crate::server::{
-    connection::{Incoming, IpcConn, JsonRpcStream},
-    future::{ConnectionGuard, FutureDriver, StopHandle},
-};
-use futures::{FutureExt, Stream, StreamExt};
-use jsonrpsee::{
-    core::{Error, TEN_MB_SIZE_BYTES},
-    server::{logger::Logger, IdProvider, RandomIntegerIdProvider, ServerHandle},
-    BoundedSubscriptions, MethodSink, Methods,
-};
 use std::{
     future::Future,
     io,
     pin::Pin,
     sync::Arc,
-    task::{Context, Poll},
+    task::{Context, Poll}
 };
+
+use futures::{FutureExt, Stream, StreamExt};
+use jsonrpsee::{
+    core::{Error, TEN_MB_SIZE_BYTES},
+    server::{logger::Logger, IdProvider, RandomIntegerIdProvider, ServerHandle},
+    BoundedSubscriptions, MethodSink, Methods
+};
+pub use parity_tokio_ipc::Endpoint;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
-    sync::{oneshot, watch, OwnedSemaphorePermit},
+    sync::{mpsc, oneshot, watch, OwnedSemaphorePermit}
 };
+use tokio_stream::wrappers::ReceiverStream;
 use tower::{layer::util::Identity, Service};
 use tracing::{debug, trace, warn};
 
 // re-export so can be used during builder setup
 use crate::server::connection::IpcConnDriver;
-pub use parity_tokio_ipc::Endpoint;
-use tokio::sync::mpsc;
-use tokio_stream::wrappers::ReceiverStream;
+use crate::server::{
+    connection::{Incoming, IpcConn, JsonRpcStream},
+    future::{ConnectionGuard, FutureDriver, StopHandle}
+};
 
 mod connection;
 mod future;
@@ -39,11 +39,11 @@ mod ipc;
 // This is an adapted `jsonrpsee` Server, but for `Ipc` connections.
 pub struct IpcServer<B = Identity, L = ()> {
     /// The endpoint we listen for incoming transactions
-    endpoint: Endpoint,
-    logger: L,
-    id_provider: Arc<dyn IdProvider>,
-    cfg: Settings,
-    service_builder: tower::ServiceBuilder<B>,
+    endpoint:        Endpoint,
+    logger:          L,
+    id_provider:     Arc<dyn IdProvider>,
+    cfg:             Settings,
+    service_builder: tower::ServiceBuilder<B>
 }
 
 impl IpcServer {
@@ -54,8 +54,8 @@ impl IpcServer {
 
     /// Start responding to connections requests.
     ///
-    /// This will run on the tokio runtime until the server is stopped or the ServerHandle is
-    /// dropped.
+    /// This will run on the tokio runtime until the server is stopped or the
+    /// ServerHandle is dropped.
     ///
     /// ```
     /// use jsonrpsee::RpcModule;
@@ -84,7 +84,7 @@ impl IpcServer {
 
         match self.cfg.tokio_runtime.take() {
             Some(rt) => rt.spawn(self.start_inner(methods, stop_handle, tx)),
-            None => tokio::spawn(self.start_inner(methods, stop_handle, tx)),
+            None => tokio::spawn(self.start_inner(methods, stop_handle, tx))
         };
         rx.await.expect("channel is open").map_err(Error::Custom)?;
 
@@ -96,7 +96,7 @@ impl IpcServer {
         self,
         methods: Methods,
         stop_handle: StopHandle,
-        on_ready: oneshot::Sender<Result<(), String>>,
+        on_ready: oneshot::Sender<Result<(), String>>
     ) -> io::Result<()> {
         trace!( endpoint = ?self.endpoint.path(), "starting ipc server");
 
@@ -165,10 +165,10 @@ impl IpcServer {
                             logger,
                             conn: Arc::new(conn),
                             bounded_subscriptions: BoundedSubscriptions::new(
-                                max_subscriptions_per_connection,
+                                max_subscriptions_per_connection
                             ),
-                            method_sink,
-                        },
+                            method_sink
+                        }
                     };
 
                     let service = self.service_builder.service(tower_service);
@@ -176,7 +176,7 @@ impl IpcServer {
                         ipc,
                         service,
                         stop_handle.clone(),
-                        rx,
+                        rx
                     )));
 
                     id = id.wrapping_add(1);
@@ -184,7 +184,7 @@ impl IpcServer {
                 Err(MonitoredError::Selector(err)) => {
                     tracing::error!("Error while awaiting a new IPC connection: {:?}", err);
                 }
-                Err(MonitoredError::Shutdown) => break,
+                Err(MonitoredError::Shutdown) => break
             }
         }
 
@@ -203,7 +203,8 @@ impl std::fmt::Debug for IpcServer {
     }
 }
 
-/// Data required by the server to handle requests received via an IPC connection
+/// Data required by the server to handle requests received via an IPC
+/// connection
 #[derive(Debug, Clone)]
 #[allow(unused)]
 pub(crate) struct ServiceData<L: Logger> {
@@ -234,7 +235,7 @@ pub(crate) struct ServiceData<L: Logger> {
     /// Sink that is used to send back responses to the connection.
     ///
     /// This is used for subscriptions.
-    pub(crate) method_sink: MethodSink,
+    pub(crate) method_sink: MethodSink
 }
 
 /// JsonRPSee service compatible with `tower`.
@@ -243,20 +244,19 @@ pub(crate) struct ServiceData<L: Logger> {
 /// This is similar to [`hyper::service::service_fn`](https://docs.rs/hyper/latest/hyper/service/fn.service_fn.html).
 #[derive(Debug)]
 pub struct TowerService<L: Logger> {
-    inner: ServiceData<L>,
+    inner: ServiceData<L>
 }
 
 impl<L: Logger> Service<String> for TowerService<L> {
+    type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
+    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
     /// The response of a handled RPC call
     ///
-    /// This is an `Option` because subscriptions and call responses are handled differently.
-    /// This will be `Some` for calls, and `None` for subscriptions, because the subscription
-    /// response will be emitted via the `method_sink`.
+    /// This is an `Option` because subscriptions and call responses are handled
+    /// differently. This will be `Some` for calls, and `None` for
+    /// subscriptions, because the subscription response will be emitted via
+    /// the `method_sink`.
     type Response = Option<String>;
-
-    type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
-
-    type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
     /// Opens door for back pressure implementation.
     fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
@@ -268,23 +268,24 @@ impl<L: Logger> Service<String> for TowerService<L> {
 
         // handle the request
         let data = ipc::HandleRequest {
-            methods: self.inner.methods.clone(),
-            max_request_body_size: self.inner.max_request_body_size,
-            max_response_body_size: self.inner.max_response_body_size,
-            max_log_length: self.inner.max_log_length,
+            methods:                  self.inner.methods.clone(),
+            max_request_body_size:    self.inner.max_request_body_size,
+            max_response_body_size:   self.inner.max_response_body_size,
+            max_log_length:           self.inner.max_log_length,
             batch_requests_supported: true,
-            logger: self.inner.logger.clone(),
-            conn: self.inner.conn.clone(),
-            bounded_subscriptions: self.inner.bounded_subscriptions.clone(),
-            method_sink: self.inner.method_sink.clone(),
-            id_provider: self.inner.id_provider.clone(),
+            logger:                   self.inner.logger.clone(),
+            conn:                     self.inner.conn.clone(),
+            bounded_subscriptions:    self.inner.bounded_subscriptions.clone(),
+            method_sink:              self.inner.method_sink.clone(),
+            id_provider:              self.inner.id_provider.clone()
         };
 
         // an ipc connection needs to handle read+write concurrently
-        // even if the underlying rpc handler spawns the actual work or is does a lot of async any
-        // additional overhead performed by `handle_request` can result in I/O latencies, for
-        // example tracing calls are relatively CPU expensive on serde::serialize alone, moving this
-        // work to a separate task takes the pressure off the connection so all concurrent responses
+        // even if the underlying rpc handler spawns the actual work or is does a lot of
+        // async any additional overhead performed by `handle_request` can
+        // result in I/O latencies, for example tracing calls are relatively CPU
+        // expensive on serde::serialize alone, moving this work to a separate
+        // task takes the pressure off the connection so all concurrent responses
         // are also serialized concurrently and the connection can focus on read+write
         let f = tokio::task::spawn(async move { ipc::handle_request(request, data).await });
         Box::pin(async move { f.await.map_err(|err| err.into()) })
@@ -296,12 +297,12 @@ async fn spawn_connection<S, T>(
     conn: IpcConn<JsonRpcStream<T>>,
     service: S,
     mut stop_handle: StopHandle,
-    rx: mpsc::Receiver<String>,
+    rx: mpsc::Receiver<String>
 ) where
     S: Service<String, Response = Option<String>> + Send + 'static,
     S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     S::Future: Send + Unpin,
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static
 {
     let task = tokio::task::spawn(async move {
         let rx_item = ReceiverStream::new(rx);
@@ -309,7 +310,7 @@ async fn spawn_connection<S, T>(
             conn,
             service,
             pending_calls: Default::default(),
-            items: Default::default(),
+            items: Default::default()
         };
         tokio::pin!(conn, rx_item);
 
@@ -334,11 +335,11 @@ async fn spawn_connection<S, T>(
     task.await.ok();
 }
 
-/// This is a glorified select listening for new messages, while also checking the `stop_receiver`
-/// signal.
+/// This is a glorified select listening for new messages, while also checking
+/// the `stop_receiver` signal.
 struct Monitored<'a, F> {
-    future: F,
-    stop_monitor: &'a StopHandle,
+    future:       F,
+    stop_monitor: &'a StopHandle
 }
 
 impl<'a, F> Monitored<'a, F> {
@@ -349,13 +350,13 @@ impl<'a, F> Monitored<'a, F> {
 
 enum MonitoredError<E> {
     Shutdown,
-    Selector(E),
+    Selector(E)
 }
 
 impl<'a, T, Item> Future for Monitored<'a, Incoming<T, Item>>
 where
     T: Stream<Item = io::Result<Item>> + Unpin + 'static,
-    Item: AsyncRead + AsyncWrite,
+    Item: AsyncRead + AsyncWrite
 {
     type Output = Result<IpcConn<JsonRpcStream<Item>>, MonitoredError<io::Error>>;
 
@@ -366,7 +367,9 @@ where
             return Poll::Ready(Err(MonitoredError::Shutdown))
         }
 
-        this.future.poll_accept(cx).map_err(MonitoredError::Selector)
+        this.future
+            .poll_accept(cx)
+            .map_err(MonitoredError::Selector)
     }
 }
 
@@ -374,33 +377,34 @@ where
 #[derive(Debug, Clone)]
 pub struct Settings {
     /// Maximum size in bytes of a request.
-    max_request_body_size: u32,
+    max_request_body_size:            u32,
     /// Maximum size in bytes of a response.
-    max_response_body_size: u32,
+    max_response_body_size:           u32,
     /// Max length for logging for requests and responses
     ///
     /// Logs bigger than this limit will be truncated.
-    max_log_length: u32,
+    max_log_length:                   u32,
     /// Maximum number of incoming connections allowed.
-    max_connections: u32,
+    max_connections:                  u32,
     /// Maximum number of subscriptions per connection.
     max_subscriptions_per_connection: u32,
-    /// Number of messages that server is allowed `buffer` until backpressure kicks in.
-    message_buffer_capacity: u32,
+    /// Number of messages that server is allowed `buffer` until backpressure
+    /// kicks in.
+    message_buffer_capacity:          u32,
     /// Custom tokio runtime to run the server on.
-    tokio_runtime: Option<tokio::runtime::Handle>,
+    tokio_runtime:                    Option<tokio::runtime::Handle>
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
-            max_request_body_size: TEN_MB_SIZE_BYTES,
-            max_response_body_size: TEN_MB_SIZE_BYTES,
-            max_log_length: 4096,
-            max_connections: 100,
+            max_request_body_size:            TEN_MB_SIZE_BYTES,
+            max_response_body_size:           TEN_MB_SIZE_BYTES,
+            max_log_length:                   4096,
+            max_connections:                  100,
             max_subscriptions_per_connection: 1024,
-            message_buffer_capacity: 1024,
-            tokio_runtime: None,
+            message_buffer_capacity:          1024,
+            tokio_runtime:                    None
         }
     }
 }
@@ -408,20 +412,20 @@ impl Default for Settings {
 /// Builder to configure and create a JSON-RPC server
 #[derive(Debug)]
 pub struct Builder<B = Identity, L = ()> {
-    settings: Settings,
-    logger: L,
+    settings:        Settings,
+    logger:          L,
     /// Subscription ID provider.
-    id_provider: Arc<dyn IdProvider>,
-    service_builder: tower::ServiceBuilder<B>,
+    id_provider:     Arc<dyn IdProvider>,
+    service_builder: tower::ServiceBuilder<B>
 }
 
 impl Default for Builder {
     fn default() -> Self {
         Builder {
-            settings: Settings::default(),
-            logger: (),
-            id_provider: Arc::new(RandomIntegerIdProvider),
-            service_builder: tower::ServiceBuilder::new(),
+            settings:        Settings::default(),
+            logger:          (),
+            id_provider:     Arc::new(RandomIntegerIdProvider),
+            service_builder: tower::ServiceBuilder::new()
         }
     }
 }
@@ -485,7 +489,7 @@ impl<B, L> Builder<B, L> {
             settings: self.settings,
             logger,
             id_provider: self.id_provider,
-            service_builder: self.service_builder,
+            service_builder: self.service_builder
         }
     }
 
@@ -522,8 +526,8 @@ impl<B, L> Builder<B, L> {
         self
     }
 
-    /// Configure a custom [`tower::ServiceBuilder`] middleware for composing layers to be applied
-    /// to the RPC service.
+    /// Configure a custom [`tower::ServiceBuilder`] middleware for composing
+    /// layers to be applied to the RPC service.
     ///
     /// Default: No tower layers are applied to the RPC service.
     ///
@@ -546,7 +550,7 @@ impl<B, L> Builder<B, L> {
             settings: self.settings,
             logger: self.logger,
             id_provider: self.id_provider,
-            service_builder,
+            service_builder
         }
     }
 
@@ -563,27 +567,28 @@ impl<B, L> Builder<B, L> {
             cfg: self.settings,
             logger: self.logger,
             id_provider: self.id_provider,
-            service_builder: self.service_builder,
+            service_builder: self.service_builder
         })
     }
 }
 
 #[cfg(all(test, unix))]
 mod tests {
-    use super::*;
-    use crate::client::IpcClientBuilder;
     use futures::future::{select, Either};
     use jsonrpsee::{
         core::client::{ClientT, Subscription, SubscriptionClientT},
-        rpc_params, PendingSubscriptionSink, RpcModule, SubscriptionMessage,
+        rpc_params, PendingSubscriptionSink, RpcModule, SubscriptionMessage
     };
     use parity_tokio_ipc::dummy_endpoint;
     use tokio::sync::broadcast;
     use tokio_stream::wrappers::BroadcastStream;
 
+    use super::*;
+    use crate::client::IpcClientBuilder;
+
     async fn pipe_from_stream_with_bounded_buffer(
         pending: PendingSubscriptionSink,
-        stream: BroadcastStream<usize>,
+        stream: BroadcastStream<usize>
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let sink = pending.accept().await.unwrap();
         let closed = sink.closed();
@@ -593,7 +598,7 @@ mod tests {
         loop {
             match select(closed, stream.next()).await {
                 // subscription closed.
-                Either::Left((_, _)) => break Ok(()),
+                Either::Left((..)) => break Ok(()),
 
                 // received new item from the stream.
                 Either::Right((Some(Ok(item)), c)) => {
@@ -613,7 +618,7 @@ mod tests {
                 Either::Right((Some(Err(e)), _)) => break Err(e.into()),
 
                 // Stream is closed.
-                Either::Right((None, _)) => break Ok(()),
+                Either::Right((None, _)) => break Ok(())
             }
         }
     }
@@ -632,7 +637,9 @@ mod tests {
         let server = Builder::default().build(&endpoint).unwrap();
         let mut module = RpcModule::new(());
         let msg = r#"{"jsonrpc":"2.0","id":83,"result":"0x7a69"}"#;
-        module.register_method("eth_chainId", move |_, _| msg).unwrap();
+        module
+            .register_method("eth_chainId", move |_, _| msg)
+            .unwrap();
         let handle = server.start(module).await.unwrap();
         tokio::spawn(handle.stopped());
 
@@ -647,7 +654,9 @@ mod tests {
         let server = Builder::default().build(&endpoint).unwrap();
         let mut module = RpcModule::new(());
         let msg = r#"{"admin":"1.0","debug":"1.0","engine":"1.0","eth":"1.0","ethash":"1.0","miner":"1.0","net":"1.0","rpc":"1.0","txpool":"1.0","web3":"1.0"}"#;
-        module.register_method("rpc_modules", move |_, _| msg).unwrap();
+        module
+            .register_method("rpc_modules", move |_, _| msg)
+            .unwrap();
         let handle = server.start(module).await.unwrap();
         tokio::spawn(handle.stopped());
 
@@ -675,7 +684,7 @@ mod tests {
                     let stream = BroadcastStream::new(rx);
                     pipe_from_stream_with_bounded_buffer(pending, stream).await?;
                     Ok(())
-                },
+                }
             )
             .unwrap();
 
@@ -683,8 +692,10 @@ mod tests {
         tokio::spawn(handle.stopped());
 
         let client = IpcClientBuilder::default().build(endpoint).await.unwrap();
-        let sub: Subscription<usize> =
-            client.subscribe("subscribe_hello", rpc_params![], "unsubscribe_hello").await.unwrap();
+        let sub: Subscription<usize> = client
+            .subscribe("subscribe_hello", rpc_params![], "unsubscribe_hello")
+            .await
+            .unwrap();
 
         let items = sub.take(16).collect::<Vec<_>>().await;
         assert_eq!(items.len(), 16);

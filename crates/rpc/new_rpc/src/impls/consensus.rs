@@ -6,17 +6,25 @@ use crate::{
     types::ConsensusSubscriptionKind
 };
 
-pub struct ConsensusApi {}
+pub struct ConsensusApi<C> {
+    consensus: C
+}
 
 #[async_trait::async_trait]
-impl ConsensusApiServer for ConsensusApi {
+impl<C> ConsensusApiServer for ConsensusApi<C>
+where
+    C: Send + Sync + 'static
+{
     async fn consensus_state(&self) -> RpcResult<ConsensusState> {
         todo!()
     }
 }
 
 #[async_trait::async_trait]
-impl ConsensusPubSubApiServer for ConsensusApi {
+impl<C> ConsensusPubSubApiServer for ConsensusApi<C>
+where
+    C: Send + Sync + 'static
+{
     async fn subscribe(
         &self,
         pending: PendingSubscriptionSink,

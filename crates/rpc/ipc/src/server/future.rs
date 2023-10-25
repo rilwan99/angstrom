@@ -26,30 +26,31 @@
 
 //! Utilities for handling async code.
 
-use futures::FutureExt;
 use std::{
     future::Future,
     pin::Pin,
     sync::Arc,
-    task::{Context, Poll},
+    task::{Context, Poll}
 };
+
+use futures::FutureExt;
 use tokio::{
     sync::{watch, OwnedSemaphorePermit, Semaphore, TryAcquireError},
-    time::{self, Duration, Interval},
+    time::{self, Duration, Interval}
 };
 
 /// Polling for server stop monitor interval in milliseconds.
 const STOP_MONITOR_POLLING_INTERVAL: Duration = Duration::from_millis(1000);
 
-/// This is a flexible collection of futures that need to be driven to completion
-/// alongside some other future, such as connection handlers that need to be
-/// handled along with a listener for new connections.
+/// This is a flexible collection of futures that need to be driven to
+/// completion alongside some other future, such as connection handlers that
+/// need to be handled along with a listener for new connections.
 ///
 /// In order to `.await` on these futures and drive them to completion, call
 /// `select_with` providing some other future, the result of which you need.
 pub(crate) struct FutureDriver<F> {
-    futures: Vec<F>,
-    stop_monitor_heartbeat: Interval,
+    futures:                Vec<F>,
+    stop_monitor_heartbeat: Interval
 }
 
 impl<F> Default for FutureDriver<F> {
@@ -71,7 +72,7 @@ impl<F> FutureDriver<F> {
 
 impl<F> FutureDriver<F>
 where
-    F: Future + Unpin,
+    F: Future + Unpin
 {
     pub(crate) async fn select_with<S: Future>(&mut self, selector: S) -> S::Output {
         tokio::pin!(selector);
@@ -106,7 +107,7 @@ where
 
 impl<F> Future for FutureDriver<F>
 where
-    F: Future + Unpin,
+    F: Future + Unpin
 {
     type Output = ();
 
@@ -128,13 +129,13 @@ where
 /// handling incoming connections.
 struct DriverSelect<'a, S, F> {
     selector: S,
-    driver: &'a mut FutureDriver<F>,
+    driver:   &'a mut FutureDriver<F>
 }
 
 impl<'a, R, F> Future for DriverSelect<'a, R, F>
 where
     R: Future + Unpin,
-    F: Future + Unpin,
+    F: Future + Unpin
 {
     type Output = R::Output;
 
@@ -197,7 +198,7 @@ impl ConnectionGuard {
             Err(TryAcquireError::Closed) => {
                 unreachable!("Semaphore::Close is never called and can't be closed; qed")
             }
-            Err(TryAcquireError::NoPermits) => None,
+            Err(TryAcquireError::NoPermits) => None
         }
     }
 

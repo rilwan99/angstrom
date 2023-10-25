@@ -6,10 +6,15 @@ use crate::{
     types::{QuotingSubscriptionKind, QuotingSubscriptionParam}
 };
 
-pub struct QuotingApi {}
+pub struct QuotingApi<OrderPool> {
+    order_pool: OrderPool
+}
 
 #[async_trait::async_trait]
-impl QuotingApiServer for QuotingApi {
+impl<OrderPool> QuotingApiServer for QuotingApi<OrderPool>
+where
+    OrderPool: Send + Sync + 'static
+{
     async fn quote_transaction(
         &self,
         token_in: Address,
@@ -22,7 +27,10 @@ impl QuotingApiServer for QuotingApi {
 }
 
 #[async_trait::async_trait]
-impl QuotingPubSubApiServer for QuotingApi {
+impl<OrderPool> QuotingPubSubApiServer for QuotingApi<OrderPool>
+where
+    OrderPool: Send + Sync + 'static
+{
     async fn subscribe(
         &self,
         pending: PendingSubscriptionSink,

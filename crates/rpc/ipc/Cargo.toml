@@ -1,5 +1,5 @@
 [package]
-name = "reth-ipc"
+name = "guard-ipc"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,7 +7,7 @@ license.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = """
-IPC support for reth
+IPC support for gaurd 
 """
 
 [dependencies]

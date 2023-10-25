@@ -5,17 +5,25 @@ use crate::{
     types::OrderSubscriptionKind
 };
 
-pub struct OrderApi {}
+pub struct OrderApi<OrderPool> {
+    order: OrderPool
+}
 
 #[async_trait::async_trait]
-impl OrderApiServer for OrderApi {
+impl<OrderPool> OrderApiServer for OrderApi<OrderPool>
+where
+    OrderPool: Send + Sync + 'static
+{
     async fn submit_order(&self) -> RpcResult<bool> {
         todo!()
     }
 }
 
 #[async_trait::async_trait]
-impl OrderPubSubApiServer for OrderApi {
+impl<OrderPool> OrderPubSubApiServer for OrderApi<OrderPool>
+where
+    OrderPool: Send + Sync + 'static
+{
     async fn subscribe(
         &self,
         pending: PendingSubscriptionSink,
