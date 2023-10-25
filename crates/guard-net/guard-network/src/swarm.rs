@@ -68,41 +68,38 @@ use crate::{
 /// ```
 #[derive(Debug)]
 #[must_use = "Swarm does nothing unless polled"]
-pub(crate) struct Swarm<C> {
+pub(crate) struct Swarm {
     /// Listens for new incoming connections.
     incoming:             ConnectionListener,
     /// All sessions.
     sessions:             SessionManager,
     /// Tracks the entire state of the network and handles events received from
     /// the sessions.
-    state:                NetworkState<C>,
+    state:                NetworkState,
     /// Tracks the connection state of the node
     net_connection_state: NetworkConnectionState
 }
 
 // === impl Swarm ===
 
-impl<C> Swarm<C>
-where
-    C: BlockNumReader
-{
+impl Swarm {
     /// Configures a new swarm instance.
     pub(crate) fn new(
         incoming: ConnectionListener,
         sessions: SessionManager,
-        state: NetworkState<C>,
+        state: NetworkState,
         net_connection_state: NetworkConnectionState
     ) -> Self {
         Self { incoming, sessions, state, net_connection_state }
     }
 
     /// Access to the state.
-    pub(crate) fn state(&self) -> &NetworkState<C> {
+    pub(crate) fn state(&self) -> &NetworkState {
         &self.state
     }
 
     /// Mutable access to the state.
-    pub(crate) fn state_mut(&mut self) -> &mut NetworkState<C> {
+    pub(crate) fn state_mut(&mut self) -> &mut NetworkState {
         &mut self.state
     }
 
@@ -300,10 +297,7 @@ where
     }
 }
 
-impl<C> Stream for Swarm<C>
-where
-    C: BlockReader + Unpin
-{
+impl Stream for Swarm {
     type Item = SwarmEvent;
 
     /// This advances all components.

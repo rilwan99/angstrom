@@ -1,19 +1,26 @@
 //! Network config support
 
-use std::{collections::HashSet, net::SocketAddr, sync::Arc};
+use std::{
+    collections::HashSet,
+    net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    sync::Arc
+};
 
-use guard_discv4::{Discv4Config, Discv4ConfigBuilder, DEFAULT_DISCOVERY_ADDRESS};
-use guard_eth_wire::{HelloMessage, Status};
+use ethers_core::utils::keccak256;
+use guard_discv4::{
+    Discv4Config, Discv4ConfigBuilder, DEFAULT_DISCOVERY_ADDRESS, DEFAULT_DISCOVERY_PORT
+};
+use guard_eth_wire::{HelloMessage, Status, DEFAULT_HELLO_VERIFICATION_MESSAGE};
 use reth_dns_discovery::DnsDiscoveryConfig;
 use reth_ecies::util::pk2id;
 use reth_primitives::{
-    mainnet_nodes, sepolia_nodes, ChainSpec, ForkFilter, Head, NodeRecord, PeerId, MAINNET
+    mainnet_nodes, sepolia_nodes, ChainSpec, ForkFilter, Head, NodeRecord, PeerId, H256, MAINNET
 };
 use reth_provider::{BlockReader, HeaderProvider};
 use reth_tasks::{TaskSpawner, TokioTaskExecutor};
 // re-export for convenience
 pub use secp256k1::SecretKey;
-use secp256k1::SECP256K1;
+use secp256k1::{ecdsa::RecoverableSignature, Message, Secp256k1, SECP256K1};
 
 use crate::{
     error::NetworkError,
@@ -29,15 +36,11 @@ pub fn rng_secret_key() -> SecretKey {
 }
 
 /// All network related initialization settings.
-#[derive(Debug)]
-pub struct NetworkConfig<C> {
-    /// The client type that can interact with the chain.
-    ///
-    /// This type is used to fetch the block number after we established a
-    /// session and received the [Status] block hash.
-    pub client:               C,
+pub struct NetworkConfig {
     /// The node's secret key, from which the node's identity is derived.
     pub secret_key:           SecretKey,
+    /// The node's public key
+    pub pub_key:              PeerId,
     /// All boot nodes to start network discovery with.
     pub boot_nodes:           HashSet<NodeRecord>,
     /// How to set up discovery over DNS.
@@ -54,39 +57,30 @@ pub struct NetworkConfig<C> {
     pub sessions_config:      SessionsConfig,
     /// The chain spec
     pub chain_spec:           Arc<ChainSpec>,
-    /// The [`ForkFilter`] to use at launch for authenticating sessions.
-    ///
-    /// See also <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-2124.md#stale-software-examples>
-    ///
-    /// For sync from block `0`, this should be the default chain [`ForkFilter`]
-    /// beginning at the first hardfork, `Frontier` for mainnet.
-    pub fork_filter:          ForkFilter,
-    /// The block importer type.
-    pub block_import:         Box<dyn BlockImport>,
-    /// The default mode of the network.
-    pub network_mode:         NetworkMode,
     /// The executor to use for spawning tasks.
     pub executor:             Box<dyn TaskSpawner>,
     /// The `Status` message to send to peers at the beginning.
     pub status:               Status,
     /// Sets the hello message for the p2p handshake in RLPx
-    pub hello_message:        HelloMessage
+    pub hello_message:        HelloMessage,
+    /// The [`ForkFilter`] used to validate the peer's `Status` message.
+    pub fork_filter:          ForkFilter
 }
 
 // === impl NetworkConfig ===
 
-impl NetworkConfig<()> {
+impl NetworkConfig {
     /// Convenience method for creating the corresponding builder type
-    pub fn builder(secret_key: SecretKey) -> NetworkConfigBuilder {
-        NetworkConfigBuilder::new(secret_key)
+    pub fn builder(secret_key: SecretKey, pub_key: PeerId) -> NetworkConfigBuilder {
+        NetworkConfigBuilder::new(secret_key, DEFAULT_HELLO_VERIFICATION_MESSAGE, pub_key)
     }
 }
 
-impl<C> NetworkConfig<C> {
+impl NetworkConfig {
     /// Create a new instance with all mandatory fields set, rest is field with
     /// defaults.
-    pub fn new(client: C, secret_key: SecretKey) -> Self {
-        NetworkConfig::builder(secret_key).build(client)
+    pub fn new(secret_key: SecretKey, pub_key: PeerId) -> Self {
+        NetworkConfig::builder(secret_key, pub_key).build()
     }
 
     /// Sets the config to use for the discovery v4 protocol.
@@ -102,26 +96,6 @@ impl<C> NetworkConfig<C> {
     }
 }
 
-impl<C> NetworkConfig<C>
-where
-    C: BlockReader + HeaderProvider + Clone + Unpin + 'static
-{
-    /// Starts the networking stack given a [NetworkConfig] and returns a handle
-    /// to the network.
-    pub async fn start_network(self) -> Result<NetworkHandle, NetworkError> {
-        let client = self.client.clone();
-        let (handle, network, _txpool, eth) = NetworkManager::builder(self)
-            .await?
-            .request_handler(client)
-            .split_with_handle();
-
-        tokio::task::spawn(network);
-        // TODO: tokio::task::spawn(txpool);
-        tokio::task::spawn(eth);
-        Ok(handle)
-    }
-}
-
 /// Builder for [`NetworkConfig`](struct.NetworkConfig.html).
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -129,6 +103,10 @@ where
 pub struct NetworkConfigBuilder {
     /// The node's secret key, from which the node's identity is derived.
     secret_key:           SecretKey,
+    /// the nodes pub key
+    pub_key:              PeerId,
+    /// signed verification message
+    verification_msg:     &'static str,
     /// How to configure discovery over DNS.
     dns_discovery_config: Option<DnsDiscoveryConfig>,
     /// How to set up discovery.
@@ -145,8 +123,6 @@ pub struct NetworkConfigBuilder {
     sessions_config:      Option<SessionsConfig>,
     /// The network's chain spec
     chain_spec:           Arc<ChainSpec>,
-    /// The default mode of the network.
-    network_mode:         NetworkMode,
     /// The executor to use for spawning tasks.
     #[serde(skip)]
     executor:             Option<Box<dyn TaskSpawner>>,
@@ -160,9 +136,11 @@ pub struct NetworkConfigBuilder {
 
 #[allow(missing_docs)]
 impl NetworkConfigBuilder {
-    pub fn new(secret_key: SecretKey) -> Self {
+    pub fn new(secret_key: SecretKey, verification_msg: &'static str, pub_key: PeerId) -> Self {
         Self {
             secret_key,
+            pub_key,
+            verification_msg,
             dns_discovery_config: Some(Default::default()),
             discovery_v4_builder: Some(Default::default()),
             boot_nodes: Default::default(),
@@ -171,7 +149,6 @@ impl NetworkConfigBuilder {
             peers_config: None,
             sessions_config: None,
             chain_spec: MAINNET.clone(),
-            network_mode: Default::default(),
             executor: None,
             hello_message: None,
             head: None
@@ -366,6 +343,17 @@ impl NetworkConfigBuilder {
         }
     }
 
+    /// Gets the signed hello message
+    pub fn get_signed_hello(&self) -> (RecoverableSignature, H256) {
+        let hashed_msg = keccak256(self.verification_msg);
+        let msg: Message = Message::from_slice(hashed_msg.as_ref() as &[u8]).unwrap();
+
+        let scp = Secp256k1::new();
+        let signature = scp.sign_ecdsa_recoverable(&msg, &self.secret_key);
+
+        (signature, hashed_msg)
+    }
+
     /// Consumes the type and creates the actual [`NetworkConfig`]
     /// for the given client type that can interact with the chain.
     ///
@@ -373,10 +361,11 @@ impl NetworkConfigBuilder {
     /// example fetching the corresponding block for a given block hash we
     /// receive from a peer in the status message when establishing a
     /// connection.
-    pub fn build<C>(self, client: C) -> NetworkConfig<C> {
-        let peer_id = self.get_peer_id();
+    pub fn build(self) -> NetworkConfig {
+        let (sig, signed_hello) = self.get_signed_hello();
         let Self {
             secret_key,
+            verification_msg: _,
             mut dns_discovery_config,
             discovery_v4_builder,
             boot_nodes,
@@ -385,16 +374,19 @@ impl NetworkConfigBuilder {
             peers_config,
             sessions_config,
             chain_spec,
-            network_mode,
             executor,
             hello_message,
-            head
+            head,
+            pub_key
         } = self;
 
-        let listener_addr = listener_addr.unwrap_or(DEFAULT_DISCOVERY_ADDRESS);
+        let listener_addr = listener_addr.unwrap_or_else(|| {
+            SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, DEFAULT_DISCOVERY_PORT))
+        });
 
-        let mut hello_message =
-            hello_message.unwrap_or_else(|| HelloMessage::builder(peer_id).build());
+        let mut hello_message = hello_message
+            .unwrap_or_else(|| HelloMessage::builder(sig, signed_hello, pub_key).build());
+
         hello_message.port = listener_addr.port();
 
         let head = head.unwrap_or(Head {
@@ -425,22 +417,22 @@ impl NetworkConfigBuilder {
         }
 
         NetworkConfig {
-            client,
             secret_key,
             boot_nodes,
             dns_discovery_config,
             discovery_v4_config: discovery_v4_builder.map(|builder| builder.build()),
-            discovery_addr: discovery_addr.unwrap_or(DEFAULT_DISCOVERY_ADDRESS),
+            discovery_addr: discovery_addr.unwrap_or_else(|| {
+                SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, DEFAULT_DISCOVERY_PORT))
+            }),
             listener_addr,
             peers_config: peers_config.unwrap_or_default(),
             sessions_config: sessions_config.unwrap_or_default(),
             chain_spec,
-            block_import: Box::<ProofOfStakeBlockImport>::default(),
-            network_mode,
             executor: executor.unwrap_or_else(|| Box::<TokioTaskExecutor>::default()),
             status,
             hello_message,
-            fork_filter
+            fork_filter,
+            pub_key
         }
     }
 }

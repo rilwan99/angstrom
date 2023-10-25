@@ -22,7 +22,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::{
     config::NetworkMode, discovery::DiscoveryEvent, manager::NetworkEvent, message::PeerRequest,
-    peers::PeersHandle, FetchClient
+    peers::PeersHandle
 };
 
 /// A _shareable_ network frontend. Used to interact with the network.
@@ -96,16 +96,6 @@ impl NetworkHandle {
             .manager()
             .send(NetworkHandleMessage::DiscoveryListener(tx));
         UnboundedReceiverStream::new(rx)
-    }
-
-    /// Returns a new [`FetchClient`] that can be cloned and shared.
-    ///
-    /// The [`FetchClient`] is the entrypoint for sending requests to the
-    /// network.
-    pub async fn fetch_client(&self) -> Result<FetchClient, oneshot::error::RecvError> {
-        let (tx, rx) = oneshot::channel();
-        let _ = self.manager().send(NetworkHandleMessage::FetchClient(tx));
-        rx.await
     }
 
     /// Returns [`PeerInfo`] for a given peer.

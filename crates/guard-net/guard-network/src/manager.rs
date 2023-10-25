@@ -94,10 +94,10 @@ use crate::{
 /// ```
 #[derive(Debug)]
 #[must_use = "The NetworkManager does nothing unless polled"]
-pub struct NetworkManager<C> {
+pub struct NetworkManager {
     /// The type that manages the actual network part, which includes
     /// connections.
-    swarm:                   Swarm<C>,
+    swarm:                   Swarm,
     /// Underlying network handle that can be shared.
     handle:                  NetworkHandle,
     /// Receiver half of the command channel set up between this type and the
@@ -141,7 +141,7 @@ pub struct NetworkManager<C> {
 }
 
 // === impl NetworkManager ===
-impl<C> NetworkManager<C> {
+impl NetworkManager {
     /// Sets the dedicated channel for events indented for the
     /// [`TransactionsManager`](crate::transactions::TransactionsManager).
     pub fn set_transactions(&mut self, tx: mpsc::UnboundedSender<NetworkTransactionEvent>) {
@@ -170,15 +170,12 @@ impl<C> NetworkManager<C> {
     }
 }
 
-impl<C> NetworkManager<C>
-where
-    C: BlockNumReader
-{
+impl NetworkManager {
     /// Creates the manager of a new network.
     ///
     /// The [`NetworkManager`] is an endless future that needs to be polled in
     /// order to advance the state of the entire network.
-    pub async fn new(config: NetworkConfig<C>) -> Result<Self, NetworkError> {
+    pub async fn new(config: NetworkConfig) -> Result<Self, NetworkError> {
         let NetworkConfig {
             client,
             secret_key,

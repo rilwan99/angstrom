@@ -23,7 +23,6 @@ use tracing::debug;
 use crate::{
     cache::LruCache,
     discovery::{Discovery, DiscoveryEvent},
-    fetch::{BlockResponseOutcome, FetchAction, StateFetcher},
     manager::DiscoveredEvent,
     message::{
         BlockRequest, NewBlockMessage, PeerRequest, PeerRequestSender, PeerResponse,
@@ -48,37 +47,22 @@ const PEER_BLOCK_CACHE_LIMIT: usize = 512;
 ///
 /// This type is also responsible for responding for received request.
 #[derive(Debug)]
-pub struct NetworkState<C> {
+pub struct NetworkState {
     /// All active peers and their state.
     active_peers:    HashMap<PeerId, ActivePeer>,
     /// Manages connections to peers.
     peers_manager:   PeersManager,
     /// Buffered messages until polled.
     queued_messages: VecDeque<StateAction>,
-    /// The client type that can interact with the chain.
-    ///
-    /// This type is used to fetch the block number after we established a
-    /// session and received the [Status] block hash.
-    client:          C,
     /// Network discovery.
     discovery:       Discovery,
     /// The genesis hash of the network we're on
-    genesis_hash:    B256,
-    /// The type that handles requests.
-    ///
-    /// The fetcher streams RLPx related requests on a per-peer basis to this
-    /// type. This type will then queue in the request and notify the
-    /// fetcher once the result has been received.
-    state_fetcher:   StateFetcher
+    genesis_hash:    B256
 }
 
-impl<C> NetworkState<C>
-where
-    C: BlockNumReader
-{
+impl NetworkState {
     /// Create a new state instance with the given params
     pub(crate) fn new(
-        client: C,
         discovery: Discovery,
         peers_manager: PeersManager,
         genesis_hash: B256,
@@ -89,10 +73,8 @@ where
             active_peers: Default::default(),
             peers_manager,
             queued_messages: Default::default(),
-            client,
             discovery,
-            genesis_hash,
-            state_fetcher
+            genesis_hash
         }
     }
 
@@ -109,11 +91,6 @@ where
     /// Returns access to the [`PeersManager`]
     pub(crate) fn peers(&self) -> &PeersManager {
         &self.peers_manager
-    }
-
-    /// Returns a new [`FetchClient`]
-    pub(crate) fn fetch_client(&self) -> FetchClient {
-        self.state_fetcher.client()
     }
 
     /// Configured genesis hash.
