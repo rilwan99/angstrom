@@ -24,12 +24,8 @@ use crate::{
     cache::LruCache,
     discovery::{Discovery, DiscoveryEvent},
     manager::DiscoveredEvent,
-    message::{
-        BlockRequest, NewBlockMessage, PeerRequest, PeerRequestSender, PeerResponse,
-        PeerResponseResult
-    },
-    peers::{PeerAction, PeersManager},
-    FetchClient
+    message::{NewBlockMessage, PeerRequest, PeerRequestSender, PeerResponse, PeerResponseResult},
+    peers::{PeerAction, PeersManager}
 };
 
 /// Cache limit of blocks to keep track of for a single peer.
@@ -68,7 +64,6 @@ impl NetworkState {
         genesis_hash: B256,
         num_active_peers: Arc<AtomicUsize>
     ) -> Self {
-        let state_fetcher = StateFetcher::new(peers_manager.handle(), num_active_peers);
         Self {
             active_peers: Default::default(),
             peers_manager,
@@ -117,16 +112,6 @@ impl NetworkState {
     ) {
         debug_assert!(!self.active_peers.contains_key(&peer), "Already connected; not possible");
 
-        // find the corresponding block number
-        let block_number = self
-            .client
-            .block_number(status.blockhash)
-            .ok()
-            .flatten()
-            .unwrap_or_default();
-        self.state_fetcher
-            .new_active_peer(peer, status.blockhash, block_number, timeout);
-
         self.active_peers.insert(
             peer,
             ActivePeer {
@@ -145,7 +130,6 @@ impl NetworkState {
     /// inflight requests.
     pub(crate) fn on_session_closed(&mut self, peer: PeerId) {
         self.active_peers.remove(&peer);
-        self.state_fetcher.on_session_closed(&peer);
     }
 
     /// Starts propagating the new block to peers that haven't reported the
@@ -176,14 +160,6 @@ impl NetworkState {
                 self.queued_messages
                     .push_back(StateAction::NewBlock { peer_id: *peer_id, block: msg.clone() });
 
-                // update peer block info
-                if self
-                    .state_fetcher
-                    .update_peer_block(peer_id, msg.hash, number)
-                {
-                    peer.best_hash = msg.hash;
-                }
-
                 // mark the block as seen by the peer
                 peer.blocks.insert(msg.hash);
 
@@ -208,26 +184,11 @@ impl NetworkState {
                 continue
             }
 
-            if self
-                .state_fetcher
-                .update_peer_block(peer_id, msg.hash, number)
-            {
-                peer.best_hash = msg.hash;
-            }
-
             self.queued_messages.push_back(StateAction::NewBlockHashes {
                 peer_id: *peer_id,
                 hashes:  hashes.clone()
             });
         }
-    }
-
-    /// Updates the block information for the peer.
-    pub(crate) fn update_peer_block(&mut self, peer_id: &PeerId, hash: B256, number: u64) {
-        if let Some(peer) = self.active_peers.get_mut(peer_id) {
-            peer.best_hash = hash;
-        }
-        self.state_fetcher.update_peer_block(peer_id, hash, number);
     }
 
     /// Invoked when a new [`ForkId`] is activated.
@@ -306,12 +267,10 @@ impl NetworkState {
                     .push_back(StateAction::Connect { peer_id, remote_addr });
             }
             PeerAction::Disconnect { peer_id, reason } => {
-                self.state_fetcher.on_pending_disconnect(&peer_id);
                 self.queued_messages
                     .push_back(StateAction::Disconnect { peer_id, reason });
             }
             PeerAction::DisconnectBannedIncoming { peer_id } => {
-                self.state_fetcher.on_pending_disconnect(&peer_id);
                 self.queued_messages
                     .push_back(StateAction::Disconnect { peer_id, reason: None });
             }
@@ -330,45 +289,30 @@ impl NetworkState {
         }
     }
 
-    /// Sends The message to the peer's session and queues in a response.
-    ///
-    /// Caution: this will replace an already pending response. It's the
-    /// responsibility of the caller to select the peer.
-    fn handle_block_request(&mut self, peer: PeerId, request: BlockRequest) {
-        if let Some(ref mut peer) = self.active_peers.get_mut(&peer) {
-            let (request, response) = match request {
-                BlockRequest::GetBlockHeaders(request) => {
-                    let (response, rx) = oneshot::channel();
-                    let request = PeerRequest::GetBlockHeaders { request, response };
-                    let response = PeerResponse::BlockHeaders { response: rx };
-                    (request, response)
-                }
-                BlockRequest::GetBlockBodies(request) => {
-                    let (response, rx) = oneshot::channel();
-                    let request = PeerRequest::GetBlockBodies { request, response };
-                    let response = PeerResponse::BlockBodies { response: rx };
-                    (request, response)
-                }
-            };
-            let _ = peer.request_tx.to_session_tx.try_send(request);
-            peer.pending_response = Some(response);
-        }
-    }
-
-    /// Handle the outcome of processed response, for example directly queue
-    /// another request.
-    fn on_block_response_outcome(&mut self, outcome: BlockResponseOutcome) -> Option<StateAction> {
-        match outcome {
-            BlockResponseOutcome::Request(peer, request) => {
-                self.handle_block_request(peer, request);
-            }
-            BlockResponseOutcome::BadResponse(peer, reputation_change) => {
-                self.peers_manager
-                    .apply_reputation_change(&peer, reputation_change);
-            }
-        }
-        None
-    }
+    // /// Sends The message to the peer's session and queues in a response.
+    // ///
+    // /// Caution: this will replace an already pending response. It's the
+    // /// responsibility of the caller to select the peer.
+    // fn handle_block_request(&mut self, peer: PeerId, request: BlockRequest) {
+    //     if let Some(ref mut peer) = self.active_peers.get_mut(&peer) {
+    //         let (request, response) = match request {
+    //             BlockRequest::GetBlockHeaders(request) => {
+    //                 let (response, rx) = oneshot::channel();
+    //                 let request = PeerRequest::GetBlockHeaders { request,
+    // response };                 let response = PeerResponse::BlockHeaders {
+    // response: rx };                 (request, response)
+    //             }
+    //             BlockRequest::GetBlockBodies(request) => {
+    //                 let (response, rx) = oneshot::channel();
+    //                 let request = PeerRequest::GetBlockBodies { request, response
+    // };                 let response = PeerResponse::BlockBodies { response:
+    // rx };                 (request, response)
+    //             }
+    //         };
+    //         let _ = peer.request_tx.to_session_tx.try_send(request);
+    //         peer.pending_response = Some(response);
+    //     }
+    // }
 
     /// Invoked when received a response from a connected peer.
     ///
@@ -377,17 +321,20 @@ impl NetworkState {
     /// [Self::on_block_response_outcome]. This could be a follow-up request
     /// or an instruction to slash the peer's reputation.
     fn on_eth_response(&mut self, peer: PeerId, resp: PeerResponseResult) -> Option<StateAction> {
-        match resp {
-            PeerResponseResult::BlockHeaders(res) => {
-                let outcome = self.state_fetcher.on_block_headers_response(peer, res)?;
-                self.on_block_response_outcome(outcome)
-            }
-            PeerResponseResult::BlockBodies(res) => {
-                let outcome = self.state_fetcher.on_block_bodies_response(peer, res)?;
-                self.on_block_response_outcome(outcome)
-            }
-            _ => None
-        }
+        None
+        // match resp {
+        //     PeerResponseResult::BlockHeaders(res) => {
+        //         let outcome =
+        // self.state_fetcher.on_block_headers_response(peer, res)?;
+        //         self.on_block_response_outcome(outcome)
+        //     }
+        //     PeerResponseResult::BlockBodies(res) => {
+        //         let outcome =
+        // self.state_fetcher.on_block_bodies_response(peer, res)?;
+        //         self.on_block_response_outcome(outcome)
+        //     }
+        //     _ => None
+        // }
     }
 
     /// Advances the state
@@ -402,13 +349,13 @@ impl NetworkState {
                 self.on_discovery_event(discovery);
             }
 
-            while let Poll::Ready(action) = self.state_fetcher.poll(cx) {
-                match action {
-                    FetchAction::BlockRequest { peer_id, request } => {
-                        self.handle_block_request(peer_id, request)
-                    }
-                }
-            }
+            // while let Poll::Ready(action) = self.state_fetcher.poll(cx) {
+            //     match action {
+            //         FetchAction::BlockRequest { peer_id, request } => {
+            //             self.handle_block_request(peer_id, request)
+            //         }
+            //     }
+            // }
 
             // need to buffer results here to make borrow checker happy
             let mut closed_sessions = Vec::new();

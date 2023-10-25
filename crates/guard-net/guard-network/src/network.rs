@@ -110,11 +110,6 @@ impl NetworkHandle {
         rx.await
     }
 
-    /// Returns the mode of the network, either pow, or pos
-    pub fn mode(&self) -> &NetworkMode {
-        &self.inner.network_mode
-    }
-
     /// Sends a [`NetworkHandleMessage`] to the manager
     pub(crate) fn send_message(&self, msg: NetworkHandleMessage) {
         let _ = self.inner.to_manager_tx.send(msg);

@@ -166,12 +166,6 @@ impl NetworkConfigBuilder {
         self
     }
 
-    /// Sets the [`NetworkMode`].
-    pub fn network_mode(mut self, network_mode: NetworkMode) -> Self {
-        self.network_mode = network_mode;
-        self
-    }
-
     /// Sets the highest synced block.
     ///
     /// This is used to construct the appropriate [`ForkFilter`] and [`Status`]
@@ -351,7 +345,7 @@ impl NetworkConfigBuilder {
         let scp = Secp256k1::new();
         let signature = scp.sign_ecdsa_recoverable(&msg, &self.secret_key);
 
-        (signature, hashed_msg)
+        (signature, hashed_msg.into())
     }
 
     /// Consumes the type and creates the actual [`NetworkConfig`]

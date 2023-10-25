@@ -75,8 +75,10 @@ pub struct SessionManager {
     secret_key: SecretKey,
     /// The `Status` message to send to peers.
     status: Status,
-    /// THe `HelloMessage` message to send to peers.
+    /// The `HelloMessage` message to send to peers.
     hello_message: HelloMessage,
+    /// A set of current stakers
+    valid_stakers: Vec<PeerId>,
     /// The [`ForkFilter`] used to validate the peer's `Status` message.
     fork_filter: ForkFilter,
     /// Size of the command buffer per session.
@@ -131,6 +133,7 @@ impl SessionManager {
         let active_session_tx = PollSender::new(active_session_tx);
 
         Self {
+            valid_stakers: Vec::new(),
             next_id: 0,
             counter: SessionCounter::new(config.limits),
             initial_internal_request_timeout: config.initial_internal_request_timeout,
@@ -233,7 +236,8 @@ impl SessionManager {
             secret_key,
             hello_message,
             status,
-            fork_filter
+            fork_filter,
+            self.valid_stakers
         ));
 
         let handle = PendingSessionHandle {
@@ -269,7 +273,8 @@ impl SessionManager {
                 hello_message,
                 status,
                 fork_filter,
-                band_with_meter
+                band_with_meter,
+                self.valid_stakers
             ));
 
             let handle = PendingSessionHandle {
@@ -753,7 +758,8 @@ pub(crate) async fn start_pending_incoming_session(
     secret_key: SecretKey,
     hello: HelloMessage,
     status: Status,
-    fork_filter: ForkFilter
+    fork_filter: ForkFilter,
+    valid_stakers: Vec<PeerId>
 ) {
     authenticate(
         disconnect_rx,
@@ -765,7 +771,8 @@ pub(crate) async fn start_pending_incoming_session(
         Direction::Incoming,
         hello,
         status,
-        fork_filter
+        fork_filter,
+        valid_stakers
     )
     .await
 }
@@ -784,15 +791,11 @@ async fn start_pending_outbound_session(
     hello: HelloMessage,
     status: Status,
     fork_filter: ForkFilter,
-    bandwidth_meter: BandwidthMeter
+    bandwidth_meter: BandwidthMeter,
+    valid_stakers: Vec<PeerId>
 ) {
     let stream = match TcpStream::connect(remote_addr).await {
-        Ok(stream) => {
-            if let Err(err) = stream.set_nodelay(true) {
-                tracing::warn!(target : "net::session", "set nodelay failed: {:?}", err);
-            }
-            MeteredStream::new_with_meter(stream, bandwidth_meter)
-        }
+        Ok(stream) => MeteredStream::new_with_meter(stream, bandwidth_meter),
         Err(error) => {
             let _ = events
                 .send(PendingSessionEvent::OutgoingConnectionError {
@@ -815,7 +818,8 @@ async fn start_pending_outbound_session(
         Direction::Outgoing(remote_peer_id),
         hello,
         status,
-        fork_filter
+        fork_filter,
+        valid_stakers
     )
     .await
 }
@@ -832,7 +836,8 @@ async fn authenticate(
     direction: Direction,
     hello: HelloMessage,
     status: Status,
-    fork_filter: ForkFilter
+    fork_filter: ForkFilter,
+    valid_stakers: Vec<PeerId>
 ) {
     let local_addr = stream.inner().local_addr().ok();
     let stream = match get_eciess_stream(stream, secret_key, direction).await {
@@ -856,11 +861,12 @@ async fn authenticate(
         unauthed,
         session_id,
         remote_addr,
-        local_addr,
         direction,
         hello,
         status,
-        fork_filter
+        fork_filter,
+        valid_stakers,
+        local_addr
     )
     .boxed();
 
@@ -904,14 +910,15 @@ async fn authenticate_stream(
     stream: UnauthedP2PStream<ECIESStream<MeteredStream<TcpStream>>>,
     session_id: SessionId,
     remote_addr: SocketAddr,
-    local_addr: Option<SocketAddr>,
     direction: Direction,
     hello: HelloMessage,
     status: Status,
-    fork_filter: ForkFilter
+    fork_filter: ForkFilter,
+    valid_stakers: Vec<PeerId>,
+    local_addr: Option<SocketAddr>
 ) -> PendingSessionEvent {
     // conduct the p2p handshake and return the authenticated stream
-    let (p2p_stream, their_hello) = match stream.handshake(hello).await {
+    let (p2p_stream, their_hello) = match stream.handshake(hello, valid_stakers).await {
         Ok(stream_res) => stream_res,
         Err(err) => {
             return PendingSessionEvent::Disconnected {
@@ -941,8 +948,8 @@ async fn authenticate_stream(
     };
     PendingSessionEvent::Established {
         session_id,
-        remote_addr,
         local_addr,
+        remote_addr,
         peer_id: their_hello.id,
         capabilities: Arc::new(Capabilities::from(their_hello.capabilities)),
         status: their_status,
