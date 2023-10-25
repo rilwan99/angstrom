@@ -45,7 +45,6 @@ impl NetworkHandle {
         to_manager_tx: UnboundedSender<NetworkHandleMessage>,
         local_peer_id: PeerId,
         peers: PeersHandle,
-        network_mode: NetworkMode,
         bandwidth_meter: BandwidthMeter,
         chain_id: Arc<AtomicU64>
     ) -> Self {
@@ -55,7 +54,6 @@ impl NetworkHandle {
             listener_address,
             local_peer_id,
             peers,
-            network_mode,
             bandwidth_meter,
             is_syncing: Arc::new(AtomicBool::new(false)),
             initial_sync_done: Arc::new(AtomicBool::new(false)),
@@ -310,8 +308,6 @@ struct NetworkInner {
     local_peer_id:     PeerId,
     /// Access to the all the nodes.
     peers:             PeersHandle,
-    /// The mode of the network
-    network_mode:      NetworkMode,
     /// Used to measure inbound & outbound bandwidth across network streams
     /// (currently unused)
     bandwidth_meter:   BandwidthMeter,
@@ -351,8 +347,6 @@ pub(crate) enum NetworkHandleMessage {
     },
     /// Apply a reputation change to the given peer.
     ReputationChange(PeerId, ReputationChangeKind),
-    /// Returns the client that can be used to interact with the network.
-    FetchClient(oneshot::Sender<FetchClient>),
     /// Apply a status update.
     StatusUpdate { head: Head },
     /// Get the current status

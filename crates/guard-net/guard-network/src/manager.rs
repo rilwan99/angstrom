@@ -177,7 +177,6 @@ impl NetworkManager {
     /// order to advance the state of the entire network.
     pub async fn new(config: NetworkConfig) -> Result<Self, NetworkError> {
         let NetworkConfig {
-            client,
             secret_key,
             mut discovery_v4_config,
             discovery_addr,
@@ -185,8 +184,6 @@ impl NetworkManager {
             peers_config,
             sessions_config,
             chain_spec,
-            block_import,
-            network_mode,
             boot_nodes,
             executor,
             hello_message,
@@ -233,7 +230,6 @@ impl NetworkManager {
         );
 
         let state = NetworkState::new(
-            client,
             discovery,
             peers_manager,
             chain_spec.genesis_hash(),
@@ -297,15 +293,13 @@ impl NetworkManager {
     ///         .split_with_handle();
     /// }
     /// ```
-    pub async fn builder(
-        config: NetworkConfig<C>
-    ) -> Result<NetworkBuilder<C, (), ()>, NetworkError> {
+    pub async fn builder(config: NetworkConfig) -> Result<NetworkBuilder<(), ()>, NetworkError> {
         let network = Self::new(config).await?;
         Ok(network.into_builder())
     }
 
     /// Create a [`NetworkBuilder`] to configure all components of the network
-    pub fn into_builder(self) -> NetworkBuilder<C, (), ()> {
+    pub fn into_builder(self) -> NetworkBuilder<(), ()> {
         NetworkBuilder { network: self, transactions: (), request_handler: () }
     }
 
