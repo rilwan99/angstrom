@@ -1,15 +1,10 @@
 use std::collections::HashMap;
 
-use alloy_primitives::{Address, B256, U256};
+use alloy_primitives::{Address, U256};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
-use bytes::{Bytes, BytesMut};
-use hex_literal::hex;
 use serde::{Deserialize, Serialize};
 
-use crate::primitive::{
-    Angstrom::{Currency, Order},
-    ExternalStateSim, Signature
-};
+use crate::primitive::{Angstrom::Order, Signature};
 
 /// Submitted order pre-processing
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, RlpEncodable, RlpDecodable)]

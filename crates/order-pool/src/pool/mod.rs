@@ -85,10 +85,7 @@ use std::{
 
 use best::BestTransactions;
 use parking_lot::{Mutex, RwLock};
-use reth_primitives::{
-    Address, IntoRecoveredTransaction,
-    PooledTransactionsElement, TxHash, B256
-};
+use reth_primitives::{Address, IntoRecoveredTransaction, PooledTransactionsElement, TxHash, B256};
 use tokio::sync::mpsc;
 use tracing::{debug, trace};
 
@@ -101,8 +98,8 @@ use crate::{
         txpool::{SenderInfo, TxPool}
     },
     traits::{
-        AllPoolTransactions, BlockInfo, NewTransactionEvent,
-        OrderOrigin, PoolOrder, PoolSize, PropagatedTransactions
+        AllPoolTransactions, BlockInfo, NewTransactionEvent, OrderOrigin, PoolOrder, PoolSize,
+        PropagatedTransactions
     },
     validate::{TransactionValidationOutcome, ValidPoolTransaction},
     CanonicalStateUpdate, ChangedAccount, OrderSorting, OrderValidator, PoolConfig

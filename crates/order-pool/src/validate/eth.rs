@@ -6,17 +6,14 @@ use std::{
 };
 
 use reth_primitives::{
-    constants::{
-        ETHEREUM_BLOCK_GAS_LIMIT
-    },
-    ChainSpec, InvalidTransactionError, LEGACY_TX_TYPE_ID
+    constants::ETHEREUM_BLOCK_GAS_LIMIT, ChainSpec, InvalidTransactionError, LEGACY_TX_TYPE_ID
 };
 use reth_provider::{AccountReader, StateProviderFactory};
 use reth_tasks::TaskSpawner;
 use tokio::sync::Mutex;
 
 use crate::{
-    error::{InvalidPoolTransactionError},
+    error::InvalidPoolTransactionError,
     traits::OrderOrigin,
     validate::{ValidationTask, TX_MAX_SIZE},
     OrderValidator, PoolOrder, TransactionValidationOutcome, TransactionValidationTaskExecutor

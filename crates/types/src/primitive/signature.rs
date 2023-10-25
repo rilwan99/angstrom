@@ -1,16 +1,10 @@
 use std::ops::{Deref, DerefMut};
 
 use alloy_rlp::{Decodable, Encodable, Error};
-use bytes::{Bytes, BytesMut};
+use bytes::BytesMut;
 use ethers_core::{
     abi::{AbiArrayType, AbiType, ParamType, Token, Tokenizable, TokenizableItem},
-    types::{Signature as ESignature, H256, U256}
-};
-use reth_codecs::{main_codec, Compact};
-use reth_primitives::{PeerId, H512};
-use secp256k1::{
-    ecdsa::{RecoverableSignature, RecoveryId},
-    Message, SECP256K1
+    types::{Signature as ESignature, U256}
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;

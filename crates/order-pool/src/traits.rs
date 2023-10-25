@@ -8,10 +8,10 @@ use std::{
 
 use futures_util::{ready, Stream};
 use reth_primitives::{
-    AccessList, Address, BlobTransactionSidecar,
-    FromRecoveredPooledTransaction, FromRecoveredTransaction, IntoRecoveredTransaction, PeerId,
-    PooledTransactionsElement, PooledTransactionsElementEcRecovered, SealedBlock, Transaction,
-    TransactionKind, TransactionSignedEcRecovered, TxHash, B256, U256
+    AccessList, Address, BlobTransactionSidecar, FromRecoveredPooledTransaction,
+    FromRecoveredTransaction, IntoRecoveredTransaction, PeerId, PooledTransactionsElement,
+    PooledTransactionsElementEcRecovered, SealedBlock, Transaction, TransactionKind,
+    TransactionSignedEcRecovered, TxHash, B256, U256
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};

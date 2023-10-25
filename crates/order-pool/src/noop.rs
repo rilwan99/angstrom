@@ -10,10 +10,7 @@ use tokio::sync::{mpsc, mpsc::Receiver};
 
 use crate::{
     error::PoolError,
-    traits::{
-        GetPooledTransactionLimit,
-        TransactionListenerKind
-    },
+    traits::{GetPooledTransactionLimit, TransactionListenerKind},
     AllPoolTransactions, AllTransactionsEvents, BestTransactions, BlockInfo, EthPooledTransaction,
     NewTransactionEvent, OrderOrigin, OrderPool, OrderValidator, PoolOrder, PoolResult, PoolSize,
     PropagatedTransactions, TransactionEvents, TransactionValidationOutcome, ValidPoolTransaction

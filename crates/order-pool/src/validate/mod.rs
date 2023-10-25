@@ -3,8 +3,7 @@
 use std::{fmt, time::Instant};
 
 use reth_primitives::{
-    Address, IntoRecoveredTransaction, SealedBlock,
-    TransactionSignedEcRecovered, TxHash, U256
+    Address, IntoRecoveredTransaction, SealedBlock, TransactionSignedEcRecovered, TxHash, U256
 };
 
 use crate::{

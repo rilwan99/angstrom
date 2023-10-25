@@ -1,19 +1,13 @@
-use std::{collections::HashMap, hash::Hash};
+use std::hash::Hash;
 
-use alloy_primitives::{Address, Signed, Uint, U256};
 use alloy_rlp::{Decodable, Encodable, Error};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
-use bytes::Bytes;
-use ethers_core::{
-    abi::{AbiArrayType, AbiType, ParamType, Token, Tokenizable, TokenizableItem},
-    types::H256,
-    utils::keccak256
-};
+use ethers_core::abi::{AbiArrayType, AbiType, ParamType, Tokenizable, TokenizableItem};
 use revm::primitives::TxEnv;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    primitive::Angstrom::{Bundle, ComposableOrder, LowerBound, Order, PoolKey, UniswapData},
+    primitive::Angstrom::{Bundle, LowerBound},
     Signature
 };
 
@@ -74,7 +68,7 @@ impl Tokenizable for SubmissionType {
     }
 
     fn from_token(
-        token: ethers_core::abi::Token
+        _token: ethers_core::abi::Token
     ) -> Result<Self, ethers_core::abi::InvalidOutputType>
     where
         Self: Sized
@@ -90,12 +84,12 @@ pub enum SubmissionPayload {
 }
 
 impl Encodable for SubmissionPayload {
-    fn encode(&self, out: &mut dyn bytes::BufMut) {
+    fn encode(&self, _out: &mut dyn bytes::BufMut) {
         todo!()
     }
 }
 impl Decodable for SubmissionPayload {
-    fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
+    fn decode(_buf: &mut &[u8]) -> Result<Self, Error> {
         todo!()
     }
 }
@@ -120,7 +114,7 @@ impl Tokenizable for SubmissionPayload {
     }
 
     fn from_token(
-        token: ethers_core::abi::Token
+        _token: ethers_core::abi::Token
     ) -> Result<Self, ethers_core::abi::InvalidOutputType>
     where
         Self: Sized
@@ -150,7 +144,7 @@ pub struct SignedVanillaBundle {
 }*/
 
 impl From<Bundle> for TxEnv {
-    fn from(value: Bundle) -> Self {
+    fn from(_value: Bundle) -> Self {
         todo!()
     }
 }
