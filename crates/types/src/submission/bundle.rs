@@ -2,7 +2,6 @@ use std::hash::Hash;
 
 use alloy_rlp::{Decodable, Encodable, Error};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
-use ethers_core::abi::{AbiArrayType, AbiType, ParamType, Tokenizable, TokenizableItem};
 use revm::primitives::TxEnv;
 use serde::{Deserialize, Serialize};
 
@@ -48,35 +47,6 @@ impl Decodable for SubmissionType {
     }
 }
 
-impl AbiType for SubmissionType {
-    fn param_type() -> ethers_core::abi::ParamType {
-        ParamType::Bool
-    }
-
-    fn minimum_size() -> usize {
-        1
-    }
-}
-
-impl TokenizableItem for SubmissionType {}
-
-impl AbiArrayType for SubmissionType {}
-
-impl Tokenizable for SubmissionType {
-    fn into_token(self) -> ethers_core::abi::Token {
-        ethers_core::abi::Token::Bool(unsafe { std::mem::transmute(self) })
-    }
-
-    fn from_token(
-        _token: ethers_core::abi::Token
-    ) -> Result<Self, ethers_core::abi::InvalidOutputType>
-    where
-        Self: Sized
-    {
-        unreachable!("don't think we every abi decode this");
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SubmissionPayload {
     Vanilla(SignedVanillaBundle),
@@ -94,54 +64,11 @@ impl Decodable for SubmissionPayload {
     }
 }
 
-impl AbiType for SubmissionPayload {
-    fn param_type() -> ethers_core::abi::ParamType {
-        todo!()
-    }
-
-    fn minimum_size() -> usize {
-        120
-    }
-}
-
-impl TokenizableItem for SubmissionPayload {}
-
-impl AbiArrayType for SubmissionPayload {}
-
-impl Tokenizable for SubmissionPayload {
-    fn into_token(self) -> ethers_core::abi::Token {
-        todo!()
-    }
-
-    fn from_token(
-        _token: ethers_core::abi::Token
-    ) -> Result<Self, ethers_core::abi::InvalidOutputType>
-    where
-        Self: Sized
-    {
-        unreachable!("don't think we every abi decode this");
-    }
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
 pub struct SignedVanillaBundle {
     pub bundle:     Bundle,
     pub signatures: Signature
 }
-
-/*impl SignedVanillaBundle {
-    pub fn new(orders: Vec<Order>, uniswap_data: UniswapData) -> anyhow::Result<Self> {
-        let mev_bundle = orders
-            .iter()
-            .find(|order| !order.preHook.is_empty() || !order.postHook.is_empty());
-
-        if mev_bundle.is_some() {
-            anyhow::bail!("found a non_villa order: {:?}", mev_bundle);
-        }
-
-        Ok(Self { orders, uniswap_data })
-    }
-}*/
 
 impl From<Bundle> for TxEnv {
     fn from(_value: Bundle) -> Self {
