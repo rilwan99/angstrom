@@ -2,6 +2,7 @@ pub mod api;
 pub mod constants;
 pub mod cors;
 mod errors;
+pub mod id_provider;
 pub mod impls;
 pub mod metrics;
 pub mod types;
@@ -24,7 +25,7 @@ use tower::layer::util::{Identity, Stack};
 use tower_http::cors::CorsLayer;
 use tracing::{instrument, trace};
 
-use crate::{constants::*, errors::*};
+use crate::{constants::*, errors::*, id_provider::EthSubscriptionIdProvider};
 
 pub async fn launch<Consensus, OrderPool, Tasks>(
     consensus: Consensus,
