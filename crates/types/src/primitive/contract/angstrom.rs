@@ -42,8 +42,6 @@ sol! {
             User,
             Searcher,
             Limit,
-            UserFallible,
-            SearcherFallible
         }
 
         #[derive(Serialize, Deserialize, RlpEncodable, RlpDecodable)]
