@@ -27,18 +27,20 @@
 // This basis of this file has been taken from the deprecated jsonrpc codebase:
 // https://github.com/paritytech/jsonrpc
 
-use bytes::BytesMut;
 use std::{io, str};
+
+use bytes::BytesMut;
 
 /// Separator for enveloping messages in streaming codecs
 #[derive(Debug, Clone)]
 pub enum Separator {
     /// No envelope is expected between messages. Decoder will try to figure out
-    /// message boundaries by accumulating incoming bytes until valid JSON is formed.
-    /// Encoder will send messages without any boundaries between requests.
+    /// message boundaries by accumulating incoming bytes until valid JSON is
+    /// formed. Encoder will send messages without any boundaries between
+    /// requests.
     Empty,
     /// Byte is used as a sentinel between messages
-    Byte(u8),
+    Byte(u8)
 }
 
 impl Default for Separator {
@@ -51,11 +53,12 @@ impl Default for Separator {
 #[derive(Debug, Default)]
 pub struct StreamCodec {
     incoming_separator: Separator,
-    outgoing_separator: Separator,
+    outgoing_separator: Separator
 }
 
 impl StreamCodec {
-    /// Default codec with streaming input data. Input can be both enveloped and not.
+    /// Default codec with streaming input data. Input can be both enveloped and
+    /// not.
     pub fn stream_incoming() -> Self {
         StreamCodec::new(Separator::Empty, Default::default())
     }
@@ -72,8 +75,8 @@ fn is_whitespace(byte: u8) -> bool {
 }
 
 impl tokio_util::codec::Decoder for StreamCodec {
-    type Item = String;
     type Error = io::Error;
+    type Item = String;
 
     fn decode(&mut self, buf: &mut BytesMut) -> io::Result<Option<Self::Item>> {
         if let Separator::Byte(separator) = self.incoming_separator {
@@ -83,7 +86,7 @@ impl tokio_util::codec::Decoder for StreamCodec {
 
                 match str::from_utf8(line.as_ref()) {
                     Ok(s) => Ok(Some(s.to_string())),
-                    Err(_) => Err(io::Error::new(io::ErrorKind::Other, "invalid UTF-8")),
+                    Err(_) => Err(io::Error::new(io::ErrorKind::Other, "invalid UTF-8"))
                 }
             } else {
                 Ok(None)
@@ -116,7 +119,7 @@ impl tokio_util::codec::Decoder for StreamCodec {
                     let bts = buf.split_to(idx + 1);
                     return match String::from_utf8(bts.as_ref().to_vec()) {
                         Ok(val) => Ok(Some(val)),
-                        Err(_) => Ok(None),
+                        Err(_) => Ok(None)
                     }
                 }
             }
@@ -140,9 +143,10 @@ impl tokio_util::codec::Encoder<String> for StreamCodec {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use bytes::{BufMut, BytesMut};
     use tokio_util::codec::Decoder;
+
+    use super::*;
 
     #[test]
     fn simple_encode() {
@@ -219,7 +223,9 @@ mod tests {
             .expect("There should be a request in 3rd whitespace test");
         assert_eq!(request3, "\n\r{\n test: 3 }");
 
-        let request4 = codec.decode(&mut buf).expect("There should be no error in first 4th test");
+        let request4 = codec
+            .decode(&mut buf)
+            .expect("There should be no error in first 4th test");
         assert!(
             request4.is_none(),
             "There should be no 4th request because it contains only whitespaces"

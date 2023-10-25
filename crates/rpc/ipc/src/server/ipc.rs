@@ -1,25 +1,26 @@
 //! IPC request handling adapted from [`jsonrpsee`] http request handling
+use std::sync::Arc;
+
 use futures::{stream::FuturesOrdered, StreamExt};
 use jsonrpsee::{
     core::{
         server::helpers::{prepare_error, BatchResponseBuilder, MethodResponse},
         tracing::{rx_log_from_json, tx_log_from_str},
-        JsonRawValue,
+        JsonRawValue
     },
     helpers::{batch_response_error, MethodResponseResult},
     server::{
         logger,
         logger::{Logger, TransportProtocol},
-        IdProvider,
+        IdProvider
     },
     types::{
         error::{reject_too_many_subscriptions, ErrorCode},
-        ErrorObject, Id, InvalidRequest, Notification, Params, Request,
+        ErrorObject, Id, InvalidRequest, Notification, Params, Request
     },
     BoundedSubscriptions, CallOrSubscription, MethodCallback, MethodSink, Methods,
-    SubscriptionState,
+    SubscriptionState
 };
-use std::sync::Arc;
 use tokio::sync::OwnedSemaphorePermit;
 use tokio_util::either::Either;
 use tracing::instrument;
@@ -29,29 +30,30 @@ type Notif<'a> = Notification<'a, Option<&'a JsonRawValue>>;
 #[derive(Debug, Clone)]
 pub(crate) struct Batch<'a, L: Logger> {
     data: Vec<u8>,
-    call: CallData<'a, L>,
+    call: CallData<'a, L>
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct CallData<'a, L: Logger> {
-    conn_id: usize,
-    logger: &'a L,
-    methods: &'a Methods,
-    id_provider: &'a dyn IdProvider,
-    sink: &'a MethodSink,
+    conn_id:                usize,
+    logger:                 &'a L,
+    methods:                &'a Methods,
+    id_provider:            &'a dyn IdProvider,
+    sink:                   &'a MethodSink,
     max_response_body_size: u32,
-    max_log_length: u32,
-    request_start: L::Instant,
-    bounded_subscriptions: BoundedSubscriptions,
+    max_log_length:         u32,
+    request_start:          L::Instant,
+    bounded_subscriptions:  BoundedSubscriptions
 }
 
-// Batch responses must be sent back as a single message so we read the results from each
-// request in the batch and read the results off of a new channel, `rx_batch`, and then send the
-// complete batch response back to the client over `tx`.
+// Batch responses must be sent back as a single message so we read the results
+// from each request in the batch and read the results off of a new channel,
+// `rx_batch`, and then send the complete batch response back to the client over
+// `tx`.
 #[instrument(name = "batch", skip(b), level = "TRACE")]
 pub(crate) async fn process_batch_request<L>(b: Batch<'_, L>) -> Option<String>
 where
-    L: Logger,
+    L: Logger
 {
     let Batch { data, call } = b;
 
@@ -75,7 +77,7 @@ where
                     // valid JSON but could be not parsable as `InvalidRequest`
                     let id = match serde_json::from_str::<InvalidRequest<'_>>(v.get()) {
                         Ok(err) => err.id,
-                        Err(_) => Id::Null,
+                        Err(_) => Id::Null
                     };
 
                     Some(Either::Left(async {
@@ -103,7 +105,7 @@ where
 
 pub(crate) async fn process_single_request<L: Logger>(
     data: Vec<u8>,
-    call: CallData<'_, L>,
+    call: CallData<'_, L>
 ) -> Option<CallOrSubscription> {
     if let Ok(req) = serde_json::from_slice::<Request<'_>>(&data) {
         Some(execute_call_with_tracing(req, call).await)
@@ -118,14 +120,14 @@ pub(crate) async fn process_single_request<L: Logger>(
 #[instrument(name = "method_call", fields(method = req.method.as_ref()), skip(call, req), level = "TRACE")]
 pub(crate) async fn execute_call_with_tracing<'a, L: Logger>(
     req: Request<'a>,
-    call: CallData<'_, L>,
+    call: CallData<'_, L>
 ) -> CallOrSubscription {
     execute_call(req, call).await
 }
 
 pub(crate) async fn execute_call<L: Logger>(
     req: Request<'_>,
-    call: CallData<'_, L>,
+    call: CallData<'_, L>
 ) -> CallOrSubscription {
     let CallData {
         methods,
@@ -136,7 +138,7 @@ pub(crate) async fn execute_call<L: Logger>(
         sink,
         logger,
         request_start,
-        bounded_subscriptions,
+        bounded_subscriptions
     } = call;
 
     rx_log_from_json(&req, call.max_log_length);
@@ -151,7 +153,7 @@ pub(crate) async fn execute_call<L: Logger>(
                 name,
                 params.clone(),
                 logger::MethodKind::Unknown,
-                TransportProtocol::Http,
+                TransportProtocol::Http
             );
             let response = MethodResponse::error(id, ErrorObject::from(ErrorCode::MethodNotFound));
             CallOrSubscription::Call(response)
@@ -162,7 +164,7 @@ pub(crate) async fn execute_call<L: Logger>(
                     name,
                     params.clone(),
                     logger::MethodKind::MethodCall,
-                    TransportProtocol::Http,
+                    TransportProtocol::Http
                 );
                 let response = (callback)(id, params, max_response_body_size as usize);
                 CallOrSubscription::Call(response)
@@ -172,7 +174,7 @@ pub(crate) async fn execute_call<L: Logger>(
                     name,
                     params.clone(),
                     logger::MethodKind::MethodCall,
-                    TransportProtocol::Http,
+                    TransportProtocol::Http
                 );
                 let id = id.into_owned();
                 let params = params.into_owned();
@@ -189,7 +191,7 @@ pub(crate) async fn execute_call<L: Logger>(
                         Err(id) => {
                             let response = MethodResponse::error(
                                 id,
-                                ErrorObject::from(ErrorCode::InternalError),
+                                ErrorObject::from(ErrorCode::InternalError)
                             );
                             CallOrSubscription::Call(response)
                         }
@@ -197,7 +199,7 @@ pub(crate) async fn execute_call<L: Logger>(
                 } else {
                     let response = MethodResponse::error(
                         id,
-                        reject_too_many_subscriptions(bounded_subscriptions.max()),
+                        reject_too_many_subscriptions(bounded_subscriptions.max())
                     );
                     CallOrSubscription::Call(response)
                 }
@@ -207,7 +209,7 @@ pub(crate) async fn execute_call<L: Logger>(
                     name,
                     params.clone(),
                     logger::MethodKind::Unsubscription,
-                    TransportProtocol::WebSocket,
+                    TransportProtocol::WebSocket
                 );
 
                 // Don't adhere to any resource or subscription limits; always let unsubscribing
@@ -215,7 +217,7 @@ pub(crate) async fn execute_call<L: Logger>(
                 let result = callback(id, params, conn_id, max_response_body_size as usize);
                 CallOrSubscription::Call(result)
             }
-        },
+        }
     };
 
     tx_log_from_str(&response.as_response().result, max_log_length);
@@ -223,7 +225,7 @@ pub(crate) async fn execute_call<L: Logger>(
         name,
         response.as_response().success_or_error,
         request_start,
-        TransportProtocol::Http,
+        TransportProtocol::Http
     );
     response
 }
@@ -231,29 +233,31 @@ pub(crate) async fn execute_call<L: Logger>(
 #[instrument(name = "notification", fields(method = notif.method.as_ref()), skip(notif, max_log_length), level = "TRACE")]
 fn execute_notification(notif: Notif<'_>, max_log_length: u32) -> MethodResponse {
     rx_log_from_json(&notif, max_log_length);
-    let response =
-        MethodResponse { result: String::new(), success_or_error: MethodResponseResult::Success };
+    let response = MethodResponse {
+        result:           String::new(),
+        success_or_error: MethodResponseResult::Success
+    };
     tx_log_from_str(&response.result, max_log_length);
     response
 }
 
 #[allow(unused)]
 pub(crate) struct HandleRequest<L: Logger> {
-    pub(crate) methods: Methods,
-    pub(crate) max_request_body_size: u32,
-    pub(crate) max_response_body_size: u32,
-    pub(crate) max_log_length: u32,
+    pub(crate) methods:                  Methods,
+    pub(crate) max_request_body_size:    u32,
+    pub(crate) max_response_body_size:   u32,
+    pub(crate) max_log_length:           u32,
     pub(crate) batch_requests_supported: bool,
-    pub(crate) logger: L,
-    pub(crate) conn: Arc<OwnedSemaphorePermit>,
-    pub(crate) bounded_subscriptions: BoundedSubscriptions,
-    pub(crate) method_sink: MethodSink,
-    pub(crate) id_provider: Arc<dyn IdProvider>,
+    pub(crate) logger:                   L,
+    pub(crate) conn:                     Arc<OwnedSemaphorePermit>,
+    pub(crate) bounded_subscriptions:    BoundedSubscriptions,
+    pub(crate) method_sink:              MethodSink,
+    pub(crate) id_provider:              Arc<dyn IdProvider>
 }
 
 pub(crate) async fn handle_request<L: Logger>(
     request: String,
-    input: HandleRequest<L>,
+    input: HandleRequest<L>
 ) -> Option<String> {
     let HandleRequest {
         methods,
@@ -269,7 +273,7 @@ pub(crate) async fn handle_request<L: Logger>(
 
     enum Kind {
         Single,
-        Batch,
+        Batch
     }
 
     let request_kind = request
@@ -277,7 +281,7 @@ pub(crate) async fn handle_request<L: Logger>(
         .find_map(|c| match c {
             '{' => Some(Kind::Single),
             '[' => Some(Kind::Batch),
-            _ => None,
+            _ => None
         })
         .unwrap_or(Kind::Single);
 
@@ -292,7 +296,7 @@ pub(crate) async fn handle_request<L: Logger>(
         max_response_body_size,
         max_log_length,
         request_start,
-        bounded_subscriptions,
+        bounded_subscriptions
     };
     // Single request or notification
     let res = if matches!(request_kind, Kind::Single) {
@@ -300,11 +304,12 @@ pub(crate) async fn handle_request<L: Logger>(
         match response {
             Some(CallOrSubscription::Call(response)) => Some(response.result),
             Some(CallOrSubscription::Subscription(_)) => {
-                // subscription responses are sent directly over the sink, return a response here
-                // would lead to duplicate responses for the subscription response
+                // subscription responses are sent directly over the sink, return a response
+                // here would lead to duplicate responses for the subscription
+                // response
                 None
             }
-            None => None,
+            None => None
         }
     } else {
         process_batch_request(Batch { data: request.into_bytes(), call }).await

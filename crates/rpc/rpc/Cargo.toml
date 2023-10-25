@@ -1,77 +1,40 @@
 [package]
-name = "reth-rpc"
+name = "guard-rpc"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
-description = """
-Reth RPC implementation
-"""
+exclude.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
 [dependencies]
-# reth
-reth-interfaces.workspace = true
+guard-types.workspace = true
+common.workspace = true
+
 reth-primitives.workspace = true
-reth-rpc-api = { path = "../rpc-api" }
-reth-rpc-types.workspace = true
-reth-provider = { workspace = true, features = ["test-utils"] }
-reth-transaction-pool = { workspace = true, features = ["test-utils"] }
-reth-network-api.workspace = true
-reth-rpc-engine-api = { path = "../rpc-engine-api" }
-reth-revm = { path = "../../revm" }
-reth-tasks.workspace = true
-reth-consensus-common = { path = "../../consensus/common" }
-reth-rpc-types-compat.workspace = true
-lazy_static = "*"
-
-# eth
-alloy-rlp.workspace = true
-alloy-dyn-abi = { workspace = true, features = ["eip712"] }
-alloy-primitives.workspace = true
-alloy-sol-types.workspace = true
-revm = { workspace = true, features = [
-    "optional_block_gas_limit",
-    "optional_eip3607",
-    "optional_no_base_fee",
-] }
-revm-primitives = { workspace = true, features = ["serde"] }
-
-# rpc
-jsonrpsee.workspace = true
-http = "0.2.8"
-http-body = "0.4.5"
-hyper = "0.14.24"
-jsonwebtoken = "8"
-
-# async
-async-trait.workspace = true
-tokio = { workspace = true, features = ["sync"] }
-tower = "0.4"
-tokio-stream = { workspace = true, features = ["sync"] }
-tokio-util = "0.7"
-pin-project.workspace = true
-rayon.workspace = true
-
-# metrics
-reth-metrics.workspace = true
-metrics.workspace = true
 
 # misc
-bytes.workspace = true
-secp256k1 = { workspace = true, features = ["global-context", "rand-std", "recovery"] }
-serde = { workspace = true, features = ["derive"] }
+jsonrpsee = { workspace = true, features = ["server", "macros"] }
 serde_json.workspace = true
+serde.workspace = true
+alloy-primitives = { workspace = true, features = ["serde"] }
+async-trait.workspace = true
 thiserror.workspace = true
-rand.workspace = true
-tracing.workspace = true
-tracing-futures = "0.2"
-schnellru = "0.2"
-futures.workspace = true
-derive_more = "0.99"
+rand = "0.8.5"
 
-[dev-dependencies]
-jsonrpsee = { workspace = true, features = ["client"] }
-assert_matches.workspace = true
-tempfile.workspace = true
-reth-interfaces = { workspace = true, features = ["test-utils"] }
+reth-metrics = { workspace = true, features = ["common"] }
+metrics.workspace = true
+
+strum = { workspace = true, features = ["derive"] }
+tracing.workspace = true
+guard-ipc = { path = "../ipc/" }
+
+tower-http = { version = "0.4", features = ["full"] }
+tower = { version = "0.4", features = ["full"] }
+hyper = "0.14"
+
+[features]
+client = ["jsonrpsee/client", "jsonrpsee/async-client"]
