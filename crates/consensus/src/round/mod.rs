@@ -9,7 +9,7 @@ use common::{return_if, AtomicConsensus, ConsensusState, IsLeader, PollExt, ORDE
 use futures::{Future, Stream, StreamExt};
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
-    on_chain::BestBundles
+    submission::BestBundles
 };
 use reth_primitives::H512;
 

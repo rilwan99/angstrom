@@ -8,11 +8,10 @@ use std::{
 
 use futures_util::{ready, Stream};
 use reth_primitives::{
-    kzg::KzgSettings, AccessList, Address, BlobTransactionSidecar, BlobTransactionValidationError,
-    FromRecoveredPooledTransaction, FromRecoveredTransaction, IntoRecoveredTransaction, PeerId,
-    PooledTransactionsElement, PooledTransactionsElementEcRecovered, SealedBlock, Transaction,
-    TransactionKind, TransactionSignedEcRecovered, TxEip4844, TxHash, B256, EIP1559_TX_TYPE_ID,
-    EIP4844_TX_TYPE_ID, U256
+    AccessList, Address, BlobTransactionSidecar, FromRecoveredPooledTransaction,
+    FromRecoveredTransaction, IntoRecoveredTransaction, PeerId, PooledTransactionsElement,
+    PooledTransactionsElementEcRecovered, SealedBlock, Transaction, TransactionKind,
+    TransactionSignedEcRecovered, TxHash, B256, U256
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -310,7 +309,7 @@ pub trait OrderPool: Send + Sync + Clone {
 /// Extension for [TransactionPool] trait that allows to set the current block
 /// info.
 #[auto_impl::auto_impl(Arc)]
-pub trait TransactionPoolExt: OrderPool {
+pub trait OrderPoolExt: OrderPool {
     /// Sets the current block info for the pool.
     fn set_block_info(&self, info: BlockInfo);
 
@@ -437,17 +436,6 @@ impl<T: PoolOrder> Clone for NewTransactionEvent<T> {
     fn clone(&self) -> Self {
         Self { subpool: self.subpool, transaction: self.transaction.clone() }
     }
-}
-
-/// This type represents a new blob sidecar that has been stored in the
-/// transaction pool's blobstore; it includes the TransasctionHash of the blob
-/// transaction along with the assoc. sidecar (blobs, commitments, proofs)
-#[derive(Debug, Clone)]
-pub struct NewBlobSidecar {
-    /// hash of the EIP-4844 transaction.
-    pub tx_hash: TxHash,
-    /// the blob transaction sidecar.
-    pub sidecar: BlobTransactionSidecar
 }
 
 /// Where the transaction originates from.
@@ -718,8 +706,9 @@ pub trait PoolOrder:
 /// This type is essentially a wrapper around [TransactionSignedEcRecovered]
 /// with additional fields derived from the transaction that are frequently used
 /// by the pools for ordering.
+
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct EthPooledTransaction {
+pub struct AngstromPooledOrder {
     /// EcRecovered transaction info
     pub(crate) transaction: TransactionSignedEcRecovered,
 
@@ -734,7 +723,7 @@ pub struct EthPooledTransaction {
     pub(crate) encoded_length: usize
 }
 
-impl EthPooledTransaction {
+impl AngstromPooledOrder {
     /// Create new instance of [Self].
     //TODO: modify order types
     pub fn new(transaction: TransactionSignedEcRecovered, encoded_length: usize) -> Self {
@@ -762,15 +751,15 @@ impl EthPooledTransaction {
 }
 
 /// Conversion from the network transaction type to the pool transaction type.
-impl From<PooledTransactionsElementEcRecovered> for EthPooledTransaction {
+impl From<PooledTransactionsElementEcRecovered> for AngstromPooledOrder {
     fn from(tx: PooledTransactionsElementEcRecovered) -> Self {
         let encoded_length = tx.length_without_header();
         let (tx, signer) = tx.into_components();
-        EthPooledTransaction::new(tx.into_ecrecovered_transaction(signer), encoded_length)
+        AngstromPooledOrder::new(tx.into_ecrecovered_transaction(signer), encoded_length)
     }
 }
 
-impl PoolOrder for EthPooledTransaction {
+impl PoolOrder for AngstromPooledOrder {
     /// Returns hash of the transaction.
     fn hash(&self) -> &TxHash {
         self.transaction.hash_ref()
@@ -881,22 +870,22 @@ impl PoolOrder for EthPooledTransaction {
     }
 }
 
-impl FromRecoveredTransaction for EthPooledTransaction {
+impl FromRecoveredTransaction for AngstromPooledOrder {
     fn from_recovered_transaction(tx: TransactionSignedEcRecovered) -> Self {
         // CAUTION: this should not be done for EIP-4844 transactions, as the blob
         // sidecar is missing.
         let encoded_length = tx.length_without_header();
-        EthPooledTransaction::new(tx, encoded_length)
+        AngstromPooledOrder::new(tx, encoded_length)
     }
 }
 
-impl FromRecoveredPooledTransaction for EthPooledTransaction {
+impl FromRecoveredPooledTransaction for AngstromPooledOrder {
     fn from_recovered_transaction(tx: PooledTransactionsElementEcRecovered) -> Self {
-        EthPooledTransaction::from(tx)
+        AngstromPooledOrder::from(tx)
     }
 }
 
-impl IntoRecoveredTransaction for EthPooledTransaction {
+impl IntoRecoveredTransaction for AngstromPooledOrder {
     fn to_recovered_transaction(&self) -> TransactionSignedEcRecovered {
         self.transaction.clone()
     }

@@ -5,16 +5,13 @@
 
 use std::{collections::HashSet, marker::PhantomData, sync::Arc};
 
-use reth_primitives::{Address, BlobTransactionSidecar, PooledTransactionsElement, TxHash};
+use reth_primitives::{Address, PooledTransactionsElement, TxHash};
 use tokio::sync::{mpsc, mpsc::Receiver};
 
 use crate::{
     error::PoolError,
-    traits::{
-        BestTransactionsAttributes, GetPooledTransactionLimit, NewBlobSidecar,
-        TransactionListenerKind
-    },
-    AllPoolTransactions, AllTransactionsEvents, BestTransactions, BlockInfo, EthPooledTransaction,
+    traits::{GetPooledTransactionLimit, TransactionListenerKind},
+    AllPoolTransactions, AllTransactionsEvents, AngstromPooledOrder, BestTransactions, BlockInfo,
     NewTransactionEvent, OrderOrigin, OrderPool, OrderValidator, PoolOrder, PoolResult, PoolSize,
     PropagatedTransactions, TransactionEvents, TransactionValidationOutcome, ValidPoolTransaction
 };
@@ -30,7 +27,7 @@ pub struct NoopOrderPool;
 
 #[async_trait::async_trait]
 impl OrderPool for NoopOrderPool {
-    type Order = EthPooledTransaction;
+    type Order = AngstromPooledOrder;
 
     fn pool_size(&self) -> PoolSize {
         Default::default()
@@ -231,16 +228,16 @@ impl<T> Default for MockOrderValidator<T> {
 #[derive(Debug, Clone, thiserror::Error)]
 #[error("Can't insert transaction into the noop pool that does nothing.")]
 pub struct NoopInsertError {
-    tx: EthPooledTransaction
+    tx: AngstromPooledOrder
 }
 
 impl NoopInsertError {
-    fn new(tx: EthPooledTransaction) -> Self {
+    fn new(tx: AngstromPooledOrder) -> Self {
         Self { tx }
     }
 
     /// Returns the transaction that failed to be inserted.
-    pub fn into_inner(self) -> EthPooledTransaction {
+    pub fn into_inner(self) -> AngstromPooledOrder {
         self.tx
     }
 }

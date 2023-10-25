@@ -5,7 +5,7 @@ use std::{
 
 use common::{ConsensusState, COMMIT, PROPOSE};
 use futures::FutureExt;
-use guard_types::on_chain::BestBundles;
+use guard_types::submission::BestBundles;
 
 use super::{
     commit::CommitState, propose::ProposeState, GlobalStateContext, RoundAction, RoundStateMessage,

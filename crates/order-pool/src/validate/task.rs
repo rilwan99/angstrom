@@ -12,8 +12,8 @@ use tokio::{
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
-    validate::{EthOrderValidatorBuilder, OrderValidatorError},
-    EthOrderValidator, OrderOrigin, OrderValidator, PoolOrder, TransactionValidationOutcome
+    validate::{AngstromOrderValidatorBuilder, OrderValidatorError},
+    AngstromOrderValidator, OrderOrigin, OrderValidator, PoolOrder, TransactionValidationOutcome
 };
 
 /// A service that performs validation jobs.
@@ -92,13 +92,13 @@ pub struct TransactionValidationTaskExecutor<V> {
 // === impl TransactionValidationTaskExecutor ===
 
 impl TransactionValidationTaskExecutor<()> {
-    /// Convenience method to create a [EthOrderValidatorBuilder]
-    pub fn eth_builder(chain_spec: Arc<ChainSpec>) -> EthOrderValidatorBuilder {
-        EthOrderValidatorBuilder::new(chain_spec)
+    /// Convenience method to create a [AngstromOrderValidatorBuilder]
+    pub fn eth_builder(chain_spec: Arc<ChainSpec>) -> AngstromOrderValidatorBuilder {
+        AngstromOrderValidatorBuilder::new(chain_spec)
     }
 }
 
-impl<Client, Tx> TransactionValidationTaskExecutor<EthOrderValidator<Client, Tx>> {
+impl<Client, Tx> TransactionValidationTaskExecutor<AngstromOrderValidator<Client, Tx>> {
     /// Creates a new instance for the given [ChainSpec]
     ///
     /// This will spawn a single validation tasks that performs the actual
@@ -129,7 +129,7 @@ impl<Client, Tx> TransactionValidationTaskExecutor<EthOrderValidator<Client, Tx>
     where
         T: TaskSpawner
     {
-        EthOrderValidatorBuilder::new(chain_spec)
+        AngstromOrderValidatorBuilder::new(chain_spec)
             .with_additional_tasks(num_additional_tasks)
             .build_with_tasks::<Client, Tx, T>(client, tasks)
     }

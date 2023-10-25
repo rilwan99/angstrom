@@ -8,8 +8,8 @@ use std::{
 use ethers_core::types::{Block, H256};
 use futures::{Stream, StreamExt};
 use guard_types::{
-    consensus::{Commit, PreProposal, Proposal},
-    on_chain::{BestBundles, Evidence, EvidenceError, SubmissionBundle}
+    consensus::{Commit, Evidence, EvidenceError, PreProposal, Proposal},
+    submission::{BestBundles, SubmissionBundle}
 };
 use thiserror::Error;
 use tracing::error;

@@ -24,7 +24,7 @@ use tracing::{debug, trace};
 
 use crate::{
     metrics::MaintainPoolMetrics,
-    traits::{CanonicalStateUpdate, ChangedAccount, TransactionPoolExt},
+    traits::{CanonicalStateUpdate, ChangedAccount, OrderPoolExt},
     BlockInfo, OrderPool
 };
 
@@ -60,7 +60,7 @@ pub fn maintain_transaction_pool_future<Client, P, St, Tasks>(
 ) -> BoxFuture<'static, ()>
 where
     Client: StateProviderFactory + BlockReaderIdExt + ChainSpecProvider + Clone + Send + 'static,
-    P: TransactionPoolExt + 'static,
+    P: OrderPoolExt + 'static,
     St: Stream<Item = CanonStateNotification> + Send + Unpin + 'static,
     Tasks: TaskSpawner + 'static
 {
@@ -83,7 +83,7 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
     config: MaintainPoolConfig
 ) where
     Client: StateProviderFactory + BlockReaderIdExt + ChainSpecProvider + Clone + Send + 'static,
-    P: TransactionPoolExt + 'static,
+    P: OrderPoolExt + 'static,
     St: Stream<Item = CanonStateNotification> + Send + Unpin + 'static,
     Tasks: TaskSpawner + 'static
 {
@@ -104,7 +104,7 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
     }
 
     // keeps track of the latest finalized block
-    let mut last_finalized_block =
+    let _last_finalized_block =
         FinalizedBlockTracker::new(client.finalized_block_number().ok().flatten());
 
     // keeps track of any dirty accounts that we know of are out of sync with the
@@ -236,7 +236,7 @@ pub async fn maintain_transaction_pool<Client, P, St, Tasks>(
                 let pending_block_base_fee = new_tip
                     .next_block_base_fee(chain_spec.base_fee_params)
                     .unwrap_or_default();
-                let pending_block_blob_fee = new_tip.next_block_blob_fee();
+                let _pending_block_blob_fee = new_tip.next_block_blob_fee();
 
                 // we know all changed account in the new chain
                 let new_changed_accounts: HashSet<_> = changed_accounts_iter(new_state)

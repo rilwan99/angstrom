@@ -2,7 +2,7 @@ use alloy_primitives::B256;
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use serde::{Deserialize, Serialize};
 
-use crate::on_chain::Signature;
+use crate::primitive::Signature;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 pub struct Commit {

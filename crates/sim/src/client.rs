@@ -1,7 +1,10 @@
 use std::fmt::Debug;
 
 use ethers_core::types::transaction::eip2718::TypedTransaction;
-use guard_types::on_chain::{CallerInfo, ExternalStateSim, MevBundle, VanillaBundle};
+use guard_types::{
+    primitive::{Angstrom::Bundle, ExternalStateSim},
+    rpc::CallerInfo
+};
 use tokio::sync::{mpsc::UnboundedSender, oneshot::channel};
 
 use crate::{
@@ -51,11 +54,11 @@ impl Simulator for RevmClient {
     async fn simulate_vanilla_bundle(
         &self,
         caller_info: CallerInfo,
-        bundle: VanillaBundle
+        bundle: Bundle
     ) -> Result<SimResult, SimError> {
         let (tx, rx) = channel();
         self.transaction_tx
-            .send(SimEvent::VanillaBundle(bundle, caller_info, tx))?;
+            .send(SimEvent::Bundle(bundle, caller_info, tx))?;
 
         Ok(rx.await.unwrap())
     }
@@ -64,7 +67,7 @@ impl Simulator for RevmClient {
     async fn simulate_composable_bundle(
         &self,
         caller_info: CallerInfo,
-        bundle: MevBundle
+        bundle: Bundle
     ) -> Result<SimResult, SimError> {
         let (tx, rx) = channel();
         self.transaction_tx

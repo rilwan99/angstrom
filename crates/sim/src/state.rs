@@ -4,7 +4,10 @@ use alloy_primitives::{Address, Bytes, U256};
 use byteorder::{ByteOrder, LittleEndian};
 use ethers_core::types::{transaction::eip2718::TypedTransaction, I256, U256 as EU256};
 use eyre::Result;
-use guard_types::on_chain::*;
+use guard_types::{
+    primitive::{Angstrom::Bundle, *},
+    rpc::CallerInfo
+};
 use revm::EVM;
 use revm_primitives::{
     db::DatabaseRef, Account, Bytecode, ExecutionResult, Log, TransactTo, TxEnv
@@ -124,7 +127,7 @@ impl RevmState {
     /// simulates a bundle of transactions
     pub fn simulate_vanilla_bundle(
         &self,
-        bundle: VanillaBundle,
+        bundle: Bundle,
         caller_info: CallerInfo
     ) -> Result<SimResult, SimError> {
         let mut evm_db = self.db.clone();
@@ -143,7 +146,7 @@ impl RevmState {
             .transact_ref()
             .map_err(|_| SimError::RevmEVMTransactionError(tx_env.clone()))?;
 
-        let result = SimResult::ExecutionResult(BundleOrTransactionResult::VanillaBundle(bundle));
+        let result = SimResult::ExecutionResult(BundleOrTransactionResult::Bundle(bundle));
 
         Ok(result)
     }
@@ -151,7 +154,7 @@ impl RevmState {
     /// simulates a bundle of transactions
     pub fn simulate_composable_bundle(
         &self,
-        bundle: MevBundle,
+        bundle: Bundle,
         caller_info: CallerInfo
     ) -> Result<SimResult, SimError> {
         let mut evm_db = self.db.clone();

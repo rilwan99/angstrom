@@ -1,5 +1,3 @@
-use reth_primitives::EIP4844_TX_TYPE_ID;
-
 /// Guarantees max transactions for one sender, compatible with geth/erigon
 pub const TXPOOL_MAX_ACCOUNT_SLOTS_PER_SENDER: usize = 16;
 
@@ -85,7 +83,7 @@ pub struct PriceBumpConfig {
 impl PriceBumpConfig {
     /// Returns the price bump required to replace the given transaction type.
     #[inline]
-    pub(crate) fn price_bump(&self, tx_type: u8) -> u128 {
+    pub(crate) fn price_bump(&self, _tx_type: u8) -> u128 {
         self.default_price_bump
     }
 }

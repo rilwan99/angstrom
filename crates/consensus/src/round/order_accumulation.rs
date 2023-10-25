@@ -6,7 +6,7 @@ use std::{
 
 use common::{ConsensusState, IsLeader, PRE_PROPOSE};
 use futures::FutureExt;
-use guard_types::on_chain::BestBundles;
+use guard_types::submission::BestBundles;
 
 use super::{
     pre_propose::PreProposeState, GlobalStateContext, RoundAction, RoundStateMessage,

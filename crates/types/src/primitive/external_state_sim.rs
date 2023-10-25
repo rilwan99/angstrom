@@ -1,12 +1,12 @@
 use alloy_primitives::{Address, Bytes};
 
-use super::SubmittedOrder;
+use crate::rpc::SignedLimitOrder;
 
 pub type ExternalStateCall = (Address, Bytes);
 
 #[derive(Debug)]
 pub struct ExternalStateSim {
-    pub tx:               SubmittedOrder,
+    pub tx:               SignedLimitOrder,
     // the address of the user.
     pub addr:             Address,
     // gas in
@@ -33,11 +33,11 @@ impl ExternalStateSim {
     }
 }
 
-impl TryInto<ExternalStateSim> for SubmittedOrder {
+impl TryInto<ExternalStateSim> for SignedLimitOrder {
     type Error = anyhow::Error;
 
     fn try_into(self) -> Result<ExternalStateSim, Self::Error> {
-        let addr: Address = self.get_ethereum_address().into();
+        let addr: Address = self.recover_signer().unwrap();
 
         Ok(ExternalStateSim {
             tx: self.clone(),

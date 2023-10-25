@@ -2,9 +2,11 @@ pub use alloy_primitives::*;
 use alloy_rlp::{length_of_length, Decodable, Encodable, Error, Header};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_macro::sol;
+use alloy_sol_types::{eip712_domain, Eip712Domain};
 use serde::{Deserialize, Serialize};
 
-use crate::contract_bindings::Angstrom::OrderType;
+use crate::primitive::Angstrom::{CurrencySettlement, OrderType};
+
 sol! {
     #![sol(all_derives = true)]
 
@@ -15,13 +17,7 @@ sol! {
 
         type Currency is address;
 
-        #[derive(RlpEncodable, RlpDecodable)]
-        struct Bundle {
-            ExecutedOrder[] orders;
-            bytes uniswapData;
-        }
-
-        #[derive(RlpEncodable, RlpDecodable)]
+        #[derive(Serialize, Deserialize, RlpEncodable, RlpDecodable)]
         struct ExecutedOrder {
             Order order;
             bytes signature;
@@ -29,10 +25,23 @@ sol! {
             uint256 amountOutActual;
         }
 
-        struct SwapParams {
-            bool zeroForOne;
-            int256 amountSpecified;
-            uint160 sqrtPriceLimitX96;
+        #[derive(Serialize, Deserialize, RlpEncodable, RlpDecodable)]
+        struct ExecutedComposableOrder {
+            /// @member The original composable order from the user.
+            ComposableOrder order;
+            /// @member The user's signature over the Order.
+            bytes signature;
+            /// @member The actual executed input amount.
+            uint256 amountInActual;
+            /// @member The actual executed output amount.
+            uint256 amountOutActual;
+        }
+
+        #[derive(Serialize, Deserialize)]
+        enum OrderType {
+            User,
+            Searcher,
+            Limit,
         }
 
         #[derive(Serialize, Deserialize, RlpEncodable, RlpDecodable)]
@@ -47,13 +56,44 @@ sol! {
             bytes preHook;
             bytes postHook;
         }
-        #[derive(Serialize, Deserialize)]
-        enum OrderType {
-            User,
-            Searcher,
-            Limit,
-            UserFallible,
-            SearcherFallible
+
+        #[derive(Serialize, Deserialize, RlpEncodable, RlpDecodable)]
+        struct ComposableOrder {
+            /// @member The user provided nonce, can only be used once.
+            uint256 nonce;
+            /// @member The order's type, can enable partial fills.
+            OrderType orderType;
+            /// @member The input currency for the order.
+            Currency currencyIn;
+            /// @member The output currency for the order.
+            Currency currencyOut;
+            /// @member The (maximum) amount of input currency.
+            uint128 amountIn;
+            /// @member The minimum amount of output currency.
+            uint128 amountOutMin;
+            /// @member The order cannot be executed after this timestamp.
+            uint256 deadline;
+            /// @member An optional user provided hook to run before collecting input
+            ///         payment.
+            bytes preHook;
+            /// @member An optional user provided hook to run after paying the output.
+            bytes postHook;
+        }
+
+        #[derive(Serialize, Deserialize, RlpEncodable, RlpDecodable)]
+        struct Bundle {
+            /// @member All executed user orders.
+            ExecutedOrder[] orders;
+            /// @member All executed composable orders.
+            ExecutedComposableOrder[] composableOrders;
+            /// @member Abi-encoded UniswapData.
+            bytes uniswapData;
+        }
+
+        struct SwapParams {
+            bool zeroForOne;
+            int256 amountSpecified;
+            uint160 sqrtPriceLimitX96;
         }
 
         #[derive(Serialize, Deserialize)]
@@ -105,6 +145,19 @@ sol! {
             uint256 fees0;
             /// @member The amount1 fee.
             uint256 fees1;
+        }
+
+        #[derive(Serialize, Deserialize, RlpEncodable, RlpDecodable)]
+        struct LowerBound {
+            address proposer;  // Address of the proposer, used to verify the sender
+            Lvr[] lvr_comp;      // Array of LVR structures representing lower bound constraints
+        }
+
+        #[derive(Serialize, Deserialize, RlpEncodable, RlpDecodable)]
+        struct Lvr {
+            uint256 postArbPrice; // The price post lower bound arbitrage Optimization pending.
+            uint256 lvrComp;     // The bribe amount, inclusive of trading fees from the vanilla bundle.
+            uint64 proportion;    // The percentage of arbitrage volume bribed to LPs, precomputed for efficiency.
         }
 
 
@@ -218,3 +271,41 @@ impl Decodable for OrderType {
         unsafe { std::mem::transmute(u8::decode(buf)) }
     }
 }
+
+impl Encodable for CurrencySettlement {
+    fn length(&self) -> usize {
+        56
+    }
+
+    fn encode(&self, out: &mut dyn bytes::BufMut) {
+        self.currency.encode(out);
+        if self.amountNet.is_negative() {
+            1_u8.encode(out);
+        } else {
+            0_u8.encode(out);
+        }
+        self.amountNet.twos_complement().encode(out);
+    }
+}
+impl Decodable for CurrencySettlement {
+    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+        let currency = Address::decode(buf)?;
+        let side: bool = Decodable::decode(buf)?;
+        let amount_net = Uint::<256, 4>::decode(buf)?;
+
+        let res = if side {
+            Signed::from_raw((!amount_net).overflowing_add(Uint::from(1)).0)
+        } else {
+            Signed::from_raw(amount_net)
+        };
+
+        Ok(Self { amountNet: res, currency })
+    }
+}
+
+// The `eip712_domain` macro lets you easily define an EIP-712 domain
+// object :)
+pub const ANGSTROM_DOMAIN: Eip712Domain = eip712_domain!(
+   name: "Angstrom",
+   version: "1",
+);

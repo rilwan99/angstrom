@@ -235,7 +235,7 @@ impl Simulator for AnvilSimulator {
     async fn simulate_vanilla_bundle(
         &self,
         caller_info: CallerInfo,
-        bundle: VanillaBundle
+        bundle: Bundle
     ) -> Result<SimResult, SimError> {
         let mut data = Vec::new();
         data.extend(hex!("ac8a9f85"));
@@ -251,7 +251,7 @@ impl Simulator for AnvilSimulator {
             return Err(SimError::V4Failed)
         }
 
-        Ok(SimResult::ExecutionResult(BundleOrTransactionResult::VanillaBundle(bundle)))
+        Ok(SimResult::ExecutionResult(BundleOrTransactionResult::Bundle(bundle)))
     }
 
     /// simulates the full bundle in order to make sure it is valid and passes

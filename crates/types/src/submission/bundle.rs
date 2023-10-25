@@ -1,14 +1,21 @@
+use std::hash::Hash;
+
 use alloy_rlp::{Decodable, Encodable, Error};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
-use bytes::Bytes;
-use ethers_core::{
-    abi::{AbiArrayType, AbiType, ParamType, Token, Tokenizable, TokenizableItem},
-    types::{H256, U256},
-    utils::keccak256
-};
+use ethers_core::abi::{AbiArrayType, AbiType, ParamType, Tokenizable, TokenizableItem};
+use revm::primitives::TxEnv;
 use serde::{Deserialize, Serialize};
 
-use super::{MevBundle, Signature, SignedLowerBound, SignedVanillaBundle, VanillaBundle};
+use crate::{
+    primitive::Angstrom::{Bundle, LowerBound},
+    Signature
+};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignedLowerBound {
+    pub lower_bound: LowerBound,
+    pub signatures:  Vec<Signature>
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SubmissionBundle {
@@ -18,7 +25,7 @@ pub struct SubmissionBundle {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LowerBoundBundle {
-    pub bundle:             MevBundle,
+    pub bundle:             Bundle,
     pub signed_lower_bound: SignedLowerBound
 }
 
@@ -61,7 +68,7 @@ impl Tokenizable for SubmissionType {
     }
 
     fn from_token(
-        token: ethers_core::abi::Token
+        _token: ethers_core::abi::Token
     ) -> Result<Self, ethers_core::abi::InvalidOutputType>
     where
         Self: Sized
@@ -77,12 +84,12 @@ pub enum SubmissionPayload {
 }
 
 impl Encodable for SubmissionPayload {
-    fn encode(&self, out: &mut dyn bytes::BufMut) {
+    fn encode(&self, _out: &mut dyn bytes::BufMut) {
         todo!()
     }
 }
 impl Decodable for SubmissionPayload {
-    fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
+    fn decode(_buf: &mut &[u8]) -> Result<Self, Error> {
         todo!()
     }
 }
@@ -107,11 +114,51 @@ impl Tokenizable for SubmissionPayload {
     }
 
     fn from_token(
-        token: ethers_core::abi::Token
+        _token: ethers_core::abi::Token
     ) -> Result<Self, ethers_core::abi::InvalidOutputType>
     where
         Self: Sized
     {
         unreachable!("don't think we every abi decode this");
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
+pub struct SignedVanillaBundle {
+    pub bundle:     Bundle,
+    pub signatures: Signature
+}
+
+/*impl SignedVanillaBundle {
+    pub fn new(orders: Vec<Order>, uniswap_data: UniswapData) -> anyhow::Result<Self> {
+        let mev_bundle = orders
+            .iter()
+            .find(|order| !order.preHook.is_empty() || !order.postHook.is_empty());
+
+        if mev_bundle.is_some() {
+            anyhow::bail!("found a non_villa order: {:?}", mev_bundle);
+        }
+
+        Ok(Self { orders, uniswap_data })
+    }
+}*/
+
+impl From<Bundle> for TxEnv {
+    fn from(_value: Bundle) -> Self {
+        todo!()
+    }
+}
+
+// TODO: Finish type reorganisation to logically isolate them
+#[derive(Debug, Clone)]
+pub struct BestBundles {
+    pub vanilla:     Option<Bundle>,
+    pub lower_bound: Option<LowerBound>,
+    pub mev_bundle:  Option<Bundle>
+}
+
+impl BestBundles {
+    pub fn get_weight(&self) -> u128 {
+        todo!()
     }
 }
