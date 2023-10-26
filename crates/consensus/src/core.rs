@@ -9,7 +9,7 @@ use ethers_core::types::{Block, H256};
 use futures::{Stream, StreamExt};
 use guard_types::{
     consensus::{Commit, Evidence, EvidenceError, PreProposal, Proposal},
-    submission::{BestBundles, SubmissionBundle}
+    submission::BestBundles
 };
 use thiserror::Error;
 use tracing::error;
@@ -29,9 +29,7 @@ pub enum ConsensusMessage {
     /// lower-bound commit for the round
     Proposal(Proposal),
     /// the commit or nil vote the the lower-bound + vanilla proposal
-    Commit(Commit),
-    /// if leader. then the finalized bundle that is sent to builders
-    RelaySubmission(SubmissionBundle)
+    Commit(Commit)
 }
 
 #[derive(Debug, Error)]

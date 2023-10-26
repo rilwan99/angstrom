@@ -262,14 +262,14 @@ impl NetworkManager {
     ///         .split_with_handle();
     /// }
     /// ```
-    pub async fn builder(config: NetworkConfig) -> Result<NetworkBuilder<(), ()>, NetworkError> {
+    pub async fn builder(config: NetworkConfig) -> Result<NetworkBuilder<()>, NetworkError> {
         let network = Self::new(config).await?;
         Ok(network.into_builder())
     }
 
     /// Create a [`NetworkBuilder`] to configure all components of the network
-    pub fn into_builder(self) -> NetworkBuilder<(), ()> {
-        NetworkBuilder { network: self, transactions: (), request_handler: () }
+    pub fn into_builder(self) -> NetworkBuilder<()> {
+        NetworkBuilder { network: self, transactions: () }
     }
 
     /// Returns the [`SocketAddr`] that listens for incoming connections.
