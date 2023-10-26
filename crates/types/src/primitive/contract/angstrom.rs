@@ -4,9 +4,7 @@ use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_macro::sol;
 use alloy_sol_types::{eip712_domain, Eip712Domain};
 use serde::{Deserialize, Serialize};
-
-use crate::primitive::contract::Angstrom::{CurrencySettlement, OrderType, PoolKey};
-
+use Angstrom::*;
 sol! {
     #![sol(all_derives = true)]
 

@@ -9,10 +9,7 @@ use std::{
 };
 
 use futures::{stream::FuturesUnordered, Future, FutureExt, StreamExt};
-use guard_eth_wire::{
-    EthVersion, GetPooledTransactions, NewPooledTransactionHashes, NewPooledTransactionHashes66,
-    NewPooledTransactionHashes68, PooledTransactions, Transactions
-};
+use guard_eth_wire::{EthVersion, GetSearcherOrders, SearcherOrders};
 use reth_interfaces::{
     p2p::error::{RequestError, RequestResult},
     sync::SyncStateProvider
@@ -244,26 +241,13 @@ where
             .set(self.inflight_requests.len() as f64);
     }
 
-    /// Request handler for an incoming request for transactions
-    fn on_get_pooled_transactions(
+    fn on_get_searcher_orders(
         &mut self,
         peer_id: PeerId,
-        request: GetPooledTransactions,
-        response: oneshot::Sender<RequestResult<PooledTransactions>>
+        request: GetSearcherOrders,
+        response: oneshot::Sender<RequestResult<SearcherOrders>>
     ) {
-        if let Some(peer) = self.peers.get_mut(&peer_id) {
-            let transactions = self
-                .pool
-                .get_pooled_transaction_elements(request.0, GET_POOLED_TRANSACTION_SOFT_LIMIT_SIZE);
-
-            // we sent a response at which point we assume that the peer is aware of the
-            // transactions
-            peer.transactions
-                .extend(transactions.iter().map(|tx| *tx.hash()));
-
-            let resp = PooledTransactions(transactions);
-            let _ = response.send(Ok(resp));
-        }
+        if let Some(peer) = self.peers.get_mut(&peer_id) {}
     }
 
     /// Invoked when a new transaction is pending in the local pool.
