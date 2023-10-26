@@ -10,6 +10,7 @@ use ethers_middleware::SignerMiddleware;
 use ethers_providers::Middleware;
 use ethers_signers::{LocalWallet, Signer};
 use futures::{Future, FutureExt};
+use guard_types::submission::SubmissionBundle;
 
 type StakedWallet = LocalWallet;
 type BundleKey = LocalWallet;
@@ -32,7 +33,7 @@ impl<M: Middleware + 'static> RelaySender<M> {
         self.future.is_some()
     }
 
-    pub fn submit_bundle(&mut self, bundle: ()) {
+    pub fn submit_bundle(&mut self, bundle: SubmissionBundle) {
         let client = self.signer.clone();
 
         self.future = Some(Box::pin(async move {

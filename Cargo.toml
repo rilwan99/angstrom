@@ -6,6 +6,7 @@ members = [
   "crates/common",
   "crates/order-pool",
   "crates/rpc/*",
+  "crates/eth/",
   "it-harness",
 ]
 

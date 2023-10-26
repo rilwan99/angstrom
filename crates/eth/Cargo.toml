@@ -1,0 +1,26 @@
+[package]
+name = "eth"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+guard-types.workspace = true
+common.workspace = true
+tokio.workspace = true
+anyhow.workspace = true
+futures.workspace = true
+ethers-core.workspace = true
+tokio-stream.workspace = true
+ethers-middleware.workspace = true
+ethers-signers.workspace = true
+ethers-providers.workspace = true
+ethers-flashbots = "0.14.0"
+
+futures-util = "0.3.28"
