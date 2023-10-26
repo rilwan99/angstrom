@@ -17,7 +17,8 @@ use guard_eth_wire::{
     capability::Capabilities,
     errors::{EthHandshakeError, EthStreamError, P2PStreamError},
     message::{EthBroadcastMessage, RequestPair},
-    DisconnectReason, EthMessage, EthStream, P2PStream
+    DisconnectReason, EthMessage, EthStream, GetLimitOrders, GetSearcherOrders, GetUsersOrders,
+    LimitOrders, P2PStream, SearcherOrders, UserOrders
 };
 use reth_ecies::stream::ECIESStream;
 use reth_interfaces::p2p::error::RequestError;
@@ -34,7 +35,7 @@ use tokio_util::sync::PollSender;
 use tracing::{debug, trace};
 
 use crate::{
-    message::{NewBlockMessage, PeerMessage, PeerRequest, PeerResponse, PeerResponseResult},
+    message::{PeerMessage, PeerRequest, PeerResponse, PeerResponseResult},
     session::{
         config::INITIAL_REQUEST_TIMEOUT,
         handle::{ActiveSessionMessage, SessionCommand},
@@ -184,14 +185,18 @@ impl ActiveSession {
                 error: EthStreamError::EthHandshakeError(EthHandshakeError::StatusNotInHandshake),
                 message
             },
-            EthMessage::Commit(msg) => self.try_emit_broadcast(PeerMessage::Commit(msg.into())),
-            EthMessage::Proposal(msg) => self.try_emit_broadcast(PeerMessage::Proposal(msg.into())),
-            EthMessage::PrePropose(msg) => {
-                self.try_emit_broadcast(PeerMessage::PrePropose(msg.into()))
-            }
-            EthMessage::PropagateOrder(msg) => {
-                self.try_emit_broadcast(PeerMessage::PropagateOrder(msg))
-            }
+            EthMessage::Commit(msg) => self
+                .try_emit_broadcast(PeerMessage::Commit(msg.into()))
+                .into(),
+            EthMessage::Proposal(msg) => self
+                .try_emit_broadcast(PeerMessage::Proposal(msg.into()))
+                .into(),
+            EthMessage::PrePropose(msg) => self
+                .try_emit_broadcast(PeerMessage::PrePropose(msg.into()))
+                .into(),
+            EthMessage::PropagateOrder(msg) => self
+                .try_emit_broadcast(PeerMessage::PropagateOrder(msg.into()))
+                .into(),
             EthMessage::SearcherOrders(req) => {
                 on_response!(req, GetSearcherOrders)
             }
@@ -229,29 +234,21 @@ impl ActiveSession {
     /// Handle a message received from the internal network
     fn on_internal_peer_message(&mut self, msg: PeerMessage) {
         match msg {
-            PeerMessage::NewBlockHashes(msg) => {
-                self.queued_outgoing
-                    .push_back(EthMessage::NewBlockHashes(msg).into());
-            }
-            PeerMessage::NewBlock(msg) => {
-                self.queued_outgoing
-                    .push_back(EthBroadcastMessage::NewBlock(msg.block).into());
-            }
-            PeerMessage::PooledTransactions(msg) => {
-                if msg.is_valid_for_version(self.conn.version()) {
-                    self.queued_outgoing.push_back(EthMessage::from(msg).into());
-                }
-            }
+            PeerMessage::PropagateOrder(msg) => self
+                .queued_outgoing
+                .push_back(EthBroadcastMessage::PropagateOrder(msg).into()),
+            PeerMessage::Proposal(msg) => self
+                .queued_outgoing
+                .push_back(EthBroadcastMessage::Proposal(msg).into()),
+            PeerMessage::PrePropose(msg) => self
+                .queued_outgoing
+                .push_back(EthBroadcastMessage::PrePropose(msg).into()),
+            PeerMessage::Commit(msg) => self
+                .queued_outgoing
+                .push_back(EthBroadcastMessage::Commit(msg).into()),
             PeerMessage::EthRequest(req) => {
                 let deadline = self.request_deadline();
                 self.on_internal_peer_request(req, deadline);
-            }
-            PeerMessage::SendTransactions(msg) => {
-                self.queued_outgoing
-                    .push_back(EthBroadcastMessage::Transactions(msg).into());
-            }
-            PeerMessage::ReceivedTransaction(_) => {
-                unreachable!("Not emitted by network")
             }
             PeerMessage::Other(other) => {
                 debug!(target : "net::session", message_id=%other.id, "Ignoring unsupported message");

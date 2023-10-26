@@ -123,9 +123,9 @@ impl PeerRequest {
 /// Corresponding variant for [`PeerRequest`].
 #[derive(Debug)]
 pub enum PeerResponse {
-    SearcherOrder { response: oneshot::Receiver<RequestResult<SignedSearcherOrder>> },
-    LimitOrder { response: oneshot::Receiver<RequestResult<SignedLimitOrder>> },
-    UserOrder { response: oneshot::Receiver<RequestResult<SignedSearcherOrder>> }
+    SearcherOrder { response: oneshot::Receiver<RequestResult<SearcherOrders>> },
+    LimitOrder { response: oneshot::Receiver<RequestResult<LimitOrders>> },
+    UserOrder { response: oneshot::Receiver<RequestResult<UserOrders>> }
 }
 
 // === impl PeerResponse ===
@@ -144,13 +144,13 @@ impl PeerResponse {
 
         let res = match self {
             PeerResponse::LimitOrder { response } => {
-                poll_request!(response, LimitOrders, cx)
+                poll_request!(response, Limit, cx)
             }
             PeerResponse::SearcherOrder { response } => {
-                poll_request!(response, SearcherOrders, cx)
+                poll_request!(response, Searcher, cx)
             }
             PeerResponse::UserOrder { response } => {
-                poll_request!(response, UserOrder, cx)
+                poll_request!(response, User, cx)
             }
         };
         Poll::Ready(res)
@@ -161,9 +161,9 @@ impl PeerResponse {
 #[derive(Debug)]
 #[allow(missing_docs)]
 pub enum PeerResponseResult {
-    LimitOrders(RequestResult<Vec<SignedLimitOrder>>),
-    SearcherOrders(RequestResult<Vec<SignedSearcherOrder>>),
-    UserOrder(RequestResult<Vec<SignedSearcherOrder>>)
+    Limit(RequestResult<Vec<SignedLimitOrder>>),
+    Searcher(RequestResult<Vec<SignedSearcherOrder>>),
+    User(RequestResult<Vec<SignedSearcherOrder>>)
 }
 
 // === impl PeerResponseResult ===
@@ -184,13 +184,13 @@ impl PeerResponseResult {
             };
         }
         match self {
-            PeerResponseResult::UserOrder(resp) => {
+            PeerResponseResult::User(resp) => {
                 to_message!(resp, UserOrders, id)
             }
-            PeerResponseResult::LimitOrders(resp) => {
+            PeerResponseResult::Limit(resp) => {
                 to_message!(resp, LimitOrders, id)
             }
-            PeerResponseResult::SearcherOrders(resp) => {
+            PeerResponseResult::Searcher(resp) => {
                 to_message!(resp, SearcherOrders, id)
             }
         }
@@ -199,9 +199,9 @@ impl PeerResponseResult {
     /// Returns the `Err` value if the result is an error.
     pub fn err(&self) -> Option<&RequestError> {
         match self {
-            PeerResponseResult::UserOrder(res) => res.as_ref().err(),
-            PeerResponseResult::LimitOrders(res) => res.as_ref().err(),
-            PeerResponseResult::SearcherOrders(res) => res.as_ref().err()
+            PeerResponseResult::User(res) => res.as_ref().err(),
+            PeerResponseResult::Limit(res) => res.as_ref().err(),
+            PeerResponseResult::Searcher(res) => res.as_ref().err()
         }
     }
 
@@ -209,9 +209,9 @@ impl PeerResponseResult {
     #[allow(unused)]
     pub fn is_err(&self) -> bool {
         match self {
-            PeerResponseResult::UserOrder(res) => res.is_err(),
-            PeerResponseResult::LimitOrders(res) => res.is_err(),
-            PeerResponseResult::SearcherOrders(res) => res.is_err()
+            PeerResponseResult::User(res) => res.is_err(),
+            PeerResponseResult::Limit(res) => res.is_err(),
+            PeerResponseResult::Searcher(res) => res.is_err()
         }
     }
 }
