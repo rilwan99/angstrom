@@ -32,7 +32,6 @@ impl ProtocolMessage {
 
         let message = match message_type {
             EthMessageID::Status => EthMessage::Status(Status::decode(buf)?),
-            EthMessageID::PropagateBundle => EthMessage::PropagateBundle(Bundle::decode(buf)?),
             EthMessageID::PropagateOrder => {
                 EthMessage::PropagateOrder(SignedLimitOrder::decode(buf)?)
             }
@@ -140,9 +139,7 @@ pub enum EthMessage {
 
     // default communication
     PropagateOrder(SignedLimitOrder),
-    PropagateBundle(Bundle), /*TODO: Implement Searcher order wrapper type and request
-                              * for best searcher orders
-                              * GetBestSearcherOrders(RequestPair<Vec<SearcherOrder>>), */
+
     UserOrders(RequestPair<UserOrders>),
     SearcherOrders(RequestPair<SearcherOrders>),
     LimitOrders(RequestPair<LimitOrders>),
@@ -162,7 +159,6 @@ impl EthMessage {
     pub fn message_id(&self) -> EthMessageID {
         match self {
             EthMessage::Status(_) => EthMessageID::Status,
-            EthMessage::PropagateBundle(_) => EthMessageID::PropagateBundle,
             EthMessage::PropagateOrder(_) => EthMessageID::PropagateOrder,
             EthMessage::PrePropose(_) => EthMessageID::PrePropose,
             EthMessage::Proposal(_) => EthMessageID::Proposal,
@@ -199,7 +195,6 @@ encodable_enum!(
     EthMessage,
     Status,
     PropagateOrder,
-    PropagateBundle,
     Commit,
     Proposal,
     PrePropose,
@@ -254,7 +249,6 @@ encodable_enum!(EthBroadcastMessage, PropagateBundle, PropagateOrder, PrePropose
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum EthMessageID {
     Status           = 0,
-    PropagateBundle  = 1,
     PropagateOrder   = 2,
     PrePropose       = 3,
     Proposal         = 4,
@@ -282,7 +276,6 @@ impl Decodable for EthMessageID {
         let id = buf.first().ok_or(alloy_rlp::Error::InputTooShort)?;
         let id = match id {
             0 => EthMessageID::Status,
-            1 => EthMessageID::PropagateBundle,
             2 => EthMessageID::PropagateOrder,
             3 => EthMessageID::PrePropose,
             4 => EthMessageID::Proposal,
@@ -300,7 +293,6 @@ impl TryFrom<usize> for EthMessageID {
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(EthMessageID::Status),
-            1 => Ok(EthMessageID::PropagateBundle),
             2 => Ok(EthMessageID::PropagateOrder),
             3 => Ok(EthMessageID::PrePropose),
             4 => Ok(EthMessageID::Proposal),

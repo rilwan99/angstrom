@@ -184,9 +184,11 @@ impl ActiveSession {
                 error: EthStreamError::EthHandshakeError(EthHandshakeError::StatusNotInHandshake),
                 message
             },
-            EthMessage::Commit(msg) => self.try_emit_broadcast(PeerMessage::Commit(msg)),
-            EthMessage::Proposal(msg) => self.try_emit_broadcast(PeerMessage::Proposal(msg)),
-            EthMessage::PrePropose(msg) => self.try_emit_broadcast(PeerMessage::PrePropose(msg)),
+            EthMessage::Commit(msg) => self.try_emit_broadcast(PeerMessage::Commit(msg.into())),
+            EthMessage::Proposal(msg) => self.try_emit_broadcast(PeerMessage::Proposal(msg.into())),
+            EthMessage::PrePropose(msg) => {
+                self.try_emit_broadcast(PeerMessage::PrePropose(msg.into()))
+            }
             EthMessage::PropagateOrder(msg) => {
                 self.try_emit_broadcast(PeerMessage::PropagateOrder(msg))
             }
