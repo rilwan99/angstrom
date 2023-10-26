@@ -222,8 +222,7 @@ pub enum EthBroadcastMessage {
     Commit(Arc<Commit>),
 
     // default communication
-    PropagateOrder(Arc<SignedLimitOrder>),
-    PropagateBundle(Arc<Bundle>)
+    PropagateOrder(Arc<SignedLimitOrder>)
 }
 
 // === impl EthBroadcastMessage ===
@@ -232,7 +231,6 @@ impl EthBroadcastMessage {
     /// Returns the message's ID.
     pub fn message_id(&self) -> EthMessageID {
         match self {
-            EthBroadcastMessage::PropagateBundle(_) => EthMessageID::PropagateBundle,
             EthBroadcastMessage::PropagateOrder(_) => EthMessageID::PropagateOrder,
             EthBroadcastMessage::PrePropose(_) => EthMessageID::PrePropose,
             EthBroadcastMessage::Proposal(_) => EthMessageID::Proposal,
@@ -241,7 +239,7 @@ impl EthBroadcastMessage {
     }
 }
 
-encodable_enum!(EthBroadcastMessage, PropagateBundle, PropagateOrder, PrePropose, Proposal, Commit);
+encodable_enum!(EthBroadcastMessage, PropagateOrder, PrePropose, Proposal, Commit);
 
 /// Represents message IDs for eth protocol messages.
 #[repr(u8)]
