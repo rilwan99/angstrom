@@ -35,7 +35,7 @@ pub enum NetworkError {
     #[error(transparent)]
     Io(#[from] io::Error),
     /// Error when an address is already in use.
-    #[error("Address {kind} is already in use (os error 98)")]
+    #[error("address {kind} is already in use (os error 98)")]
     AddressAlreadyInUse {
         /// Service kind.
         kind:  ServiceKind,
@@ -43,12 +43,12 @@ pub enum NetworkError {
         error: io::Error
     },
     /// IO error when creating the discovery service
-    #[error("Failed to launch discovery service: {0}")]
+    #[error("failed to launch discovery service: {0}")]
     Discovery(io::Error),
     /// Error when setting up the DNS resolver failed
     ///
     /// See also [DnsResolver](reth_dns_discovery::DnsResolver::from_system_conf)
-    #[error("Failed to configure DNS resolver: {0}")]
+    #[error("failed to configure DNS resolver: {0}")]
     DnsResolver(#[from] ResolveError)
 }
 
@@ -193,13 +193,15 @@ impl SessionError for EthStreamError {
                 | DisconnectReason::ClientQuitting
                 | DisconnectReason::UnexpectedHandshakeIdentity
                 | DisconnectReason::ConnectedToSelf
+                | DisconnectReason::StakerRemoved
+                | DisconnectReason::SignerNotStaked
+                | DisconnectReason::NoRecoveredSigner
+                | DisconnectReason::UnreadableSignature
                 | DisconnectReason::SubprotocolSpecific => {
                     // These are considered fatal, and are handled by the
                     // [`SessionError::is_fatal_protocol_error`]
                     Some(BackoffKind::High)
                 }
-                // all non reth are because of sig failure
-                _ => Some(BackoffKind::High)
             }
         }
 

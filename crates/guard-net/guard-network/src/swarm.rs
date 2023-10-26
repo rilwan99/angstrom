@@ -2,7 +2,7 @@ use std::{
     io,
     net::SocketAddr,
     pin::Pin,
-    sync::{atomic::AtomicUsize, Arc},
+    sync::Arc,
     task::{Context, Poll}
 };
 
@@ -12,22 +12,15 @@ use guard_eth_wire::{
     errors::EthStreamError,
     DisconnectReason, EthVersion, Status
 };
-use parking_lot::Mutex;
-use reth_net_common::bandwidth_meter::BandwidthMeter;
-use reth_network_api::ReputationChangeKind;
-use reth_primitives::{ForkId, NodeRecord, PeerId, H256};
-use reth_tokio_util::EventListeners;
-use tokio_stream::wrappers::ReceiverStream;
+use reth_primitives::PeerId;
 use tracing::{debug, trace};
 
 use crate::{
-    error::{NetworkError, ServiceKind},
     listener::{ConnectionListener, ListenerEvent},
-    messages::PeerMessages,
-    peers::{InboundConnectionError, PeersHandle, PeersManager},
+    message::{PeerMessage, PeerRequestSender},
+    peers::InboundConnectionError,
     session::{Direction, PendingSessionHandshakeError, SessionEvent, SessionId, SessionManager},
-    state::{NetworkState, StateAction},
-    Discovery, NetworkConfig
+    state::{NetworkState, StateAction}
 };
 
 /// Contains the connectivity related state of the network.
@@ -72,8 +65,9 @@ use crate::{
 ///   fetchRequest --> |request Headers, Bodies| StateFetch
 ///   State --> |poll pending requests| StateFetch
 /// ```
+#[derive(Debug)]
 #[must_use = "Swarm does nothing unless polled"]
-pub struct Swarm {
+pub(crate) struct Swarm {
     /// Listens for new incoming connections.
     incoming:             ConnectionListener,
     /// All sessions.
@@ -89,83 +83,13 @@ pub struct Swarm {
 
 impl Swarm {
     /// Configures a new swarm instance.
-    pub async fn new(config: NetworkConfig) -> Result<Self, NetworkError> {
-        let NetworkConfig {
-            secret_key,
-            mut discovery_v4_config,
-            discovery_addr,
-            listener_addr,
-            peers_config,
-            sessions_config,
-            chain_spec,
-            boot_nodes,
-            executor,
-            hello_message,
-            status,
-            fork_filter,
-            ..
-        } = config;
-
-        let peers_manager = PeersManager::new(peers_config);
-        let _peers_handle = peers_manager.handle();
-
-        let incoming = ConnectionListener::bind(listener_addr)
-            .await
-            .map_err(|err| {
-                NetworkError::from_io_error(err, ServiceKind::Listener(listener_addr))
-            })?;
-        let _listener_address = Arc::new(Mutex::new(incoming.local_address()));
-
-        discovery_v4_config = discovery_v4_config.map(|mut disc_config| {
-            // merge configured boot nodes
-            disc_config.bootstrap_nodes.extend(boot_nodes.clone());
-            disc_config.add_eip868_pair("eth", status.forkid);
-            disc_config
-        });
-
-        let discovery = Discovery::new(discovery_addr, secret_key, discovery_v4_config).await?;
-        // need to retrieve the addr here since provided port could be `0`
-        let _local_peer_id = discovery.local_id();
-
-        let num_active_peers = Arc::new(AtomicUsize::new(0));
-        let bandwidth_meter: BandwidthMeter = BandwidthMeter::default();
-
-        let sessions = SessionManager::new(
-            secret_key,
-            sessions_config,
-            executor,
-            status,
-            hello_message,
-            fork_filter,
-            bandwidth_meter.clone()
-        );
-
-        let state = NetworkState::new(
-            discovery,
-            peers_manager,
-            chain_spec.genesis_hash(),
-            Arc::clone(&num_active_peers)
-        );
-
-        Ok(Self {
-            incoming,
-            sessions,
-            state,
-            net_connection_state: NetworkConnectionState::default()
-        })
-    }
-
-    /// propagates a message to the guard network
-    pub fn propagate_msg(&mut self, msg: PeerMessages) {
-        self.sessions_mut().propagate_msg(msg)
-    }
-
-    /// On a addition/removal of a staker --> update vec
-    pub fn on_staker_change(&mut self, event: GuardStakingEvent) {
-        match event {
-            GuardStakingEvent::NewStaker(address) => self.sessions.add_valid_staker(address),
-            GuardStakingEvent::RemovedStaker(address) => self.sessions.remove_staker(address)
-        }
+    pub(crate) fn new(
+        incoming: ConnectionListener,
+        sessions: SessionManager,
+        state: NetworkState,
+        net_connection_state: NetworkConnectionState
+    ) -> Self {
+        Self { incoming, sessions, state, net_connection_state }
     }
 
     /// Access to the state.
@@ -198,139 +122,84 @@ impl Swarm {
         self.sessions.dial_outbound(remote_addr, remote_id)
     }
 
-    /// Returns the [`SocketAddr`] that listens for incoming connections.
-    pub fn local_addr(&self) -> SocketAddr {
-        self.listener().local_address()
-    }
-
-    /// Returns the configured genesis hash
-    pub fn genesis_hash(&self) -> H256 {
-        self.state().genesis_hash()
-    }
-
-    /// How many peers we're currently connected to.
-    pub fn num_connected_peers(&self) -> usize {
-        self.state().num_active_peers()
-    }
-
-    /// Returns an iterator over all peers in the peer set.
-    pub fn all_peers(&self) -> impl Iterator<Item = NodeRecord> + '_ {
-        self.state().peers().iter_peers()
-    }
-
-    /// Returns a new [`PeersHandle`] that can be cloned and shared.
-    ///
-    /// The [`PeersHandle`] can be used to interact with the network's peer set.
-    pub fn peers_handle(&self) -> PeersHandle {
-        self.state().peers().handle()
-    }
-
     /// Handles a polled [`SessionEvent`]
     fn on_session_event(&mut self, event: SessionEvent) -> Option<SwarmEvent> {
         match event {
-            SessionEvent::Message { request, peer_id } => {
-                Some(SwarmEvent::ValidMessage { peer_id, request })
-            }
-
             SessionEvent::SessionEstablished {
                 peer_id,
                 remote_addr,
+                client_version,
                 capabilities,
+                version,
+                status,
+                messages,
                 direction,
-                timeout,
-                ..
+                timeout
             } => {
-                if direction.is_incoming() {
-                    self.state
-                        .peers_mut()
-                        .on_incoming_session_established(peer_id, remote_addr);
-                }
-                self.state
-                    .on_session_activated(peer_id, capabilities.clone(), timeout);
-                None
+                self.state.on_session_activated(
+                    peer_id,
+                    capabilities.clone(),
+                    status,
+                    messages.clone(),
+                    timeout
+                );
+                Some(SwarmEvent::SessionEstablished {
+                    peer_id,
+                    remote_addr,
+                    client_version,
+                    capabilities,
+                    version,
+                    messages,
+                    status,
+                    direction
+                })
             }
             SessionEvent::AlreadyConnected { peer_id, remote_addr, direction } => {
                 trace!( target: "net", ?peer_id, ?remote_addr, ?direction, "already connected");
                 self.state.peers_mut().on_already_connected(direction);
-
-                Some(SwarmEvent::AlreadyConnected { peer_id })
-            }
-            SessionEvent::InvalidMessage { peer_id, .. } => {
-                self.state
-                    .peers_mut()
-                    .apply_reputation_change(&peer_id, ReputationChangeKind::BadProtocol);
-
                 None
+            }
+            SessionEvent::ValidMessage { peer_id, message } => {
+                Some(SwarmEvent::ValidMessage { peer_id, message })
+            }
+            SessionEvent::InvalidMessage { peer_id, capabilities, message } => {
+                Some(SwarmEvent::InvalidCapabilityMessage { peer_id, capabilities, message })
             }
             SessionEvent::IncomingPendingSessionClosed { remote_addr, error } => {
-                if let Some(ref err) = error {
-                    self.state
-                        .peers_mut()
-                        .on_incoming_pending_session_dropped(remote_addr, err);
-                } else {
-                    self.state
-                        .peers_mut()
-                        .on_incoming_pending_session_gracefully_closed();
-                }
-                None
+                Some(SwarmEvent::IncomingPendingSessionClosed { remote_addr, error })
             }
             SessionEvent::OutgoingPendingSessionClosed { remote_addr, peer_id, error } => {
-                if let Some(ref err) = error {
-                    self.state
-                        .peers_mut()
-                        .on_pending_session_dropped(&remote_addr, &peer_id, err);
-                } else {
-                    self.state
-                        .peers_mut()
-                        .on_pending_session_gracefully_closed(&peer_id);
-                }
-                None
+                Some(SwarmEvent::OutgoingPendingSessionClosed { remote_addr, peer_id, error })
             }
-            SessionEvent::Disconnected { peer_id, .. } => {
+            SessionEvent::Disconnected { peer_id, remote_addr } => {
                 self.state.on_session_closed(peer_id);
-                self.state
-                    .peers_mut()
-                    .on_active_session_gracefully_closed(peer_id);
-
-                None
+                Some(SwarmEvent::SessionClosed { peer_id, remote_addr, error: None })
             }
             SessionEvent::SessionClosedOnConnectionError { peer_id, remote_addr, error } => {
                 self.state.on_session_closed(peer_id);
-
-                // If the connection was closed due to an error, we report the peer
-                self.state
-                    .peers_mut()
-                    .on_active_session_dropped(&remote_addr, &peer_id, &error);
-
-                None
+                Some(SwarmEvent::SessionClosed { peer_id, remote_addr, error: Some(error) })
             }
             SessionEvent::OutgoingConnectionError { remote_addr, peer_id, error } => {
-                self.state.peers_mut().on_outgoing_connection_failure(
-                    &remote_addr,
-                    &peer_id,
-                    &error
-                );
-
-                None
+                Some(SwarmEvent::OutgoingConnectionError { peer_id, remote_addr, error })
             }
-            SessionEvent::BadMessage { peer_id } | SessionEvent::ProtocolBreach { peer_id } => {
-                self.state
-                    .peers_mut()
-                    .apply_reputation_change(&peer_id, ReputationChangeKind::BadMessage);
-                None
-            }
+            SessionEvent::BadMessage { peer_id } => Some(SwarmEvent::BadMessage { peer_id }),
+            SessionEvent::ProtocolBreach { peer_id } => Some(SwarmEvent::ProtocolBreach { peer_id })
         }
     }
 
     /// Callback for events produced by [`ConnectionListener`].
     ///
     /// Depending on the event, this will produce a new [`SwarmEvent`].
-    fn on_connection(&mut self, event: ListenerEvent) {
+    fn on_connection(&mut self, event: ListenerEvent) -> Option<SwarmEvent> {
         match event {
+            ListenerEvent::Error(err) => return Some(SwarmEvent::TcpListenerError(err)),
+            ListenerEvent::ListenerClosed { local_address: address } => {
+                return Some(SwarmEvent::TcpListenerClosed { remote_addr: address })
+            }
             ListenerEvent::Incoming { stream, remote_addr } => {
                 // Reject incoming connection if node is shutting down.
                 if self.is_shutting_down() {
-                    return
+                    return None
                 }
                 // ensure we can handle an incoming connection from this address
                 if let Err(err) = self
@@ -350,13 +219,13 @@ impl Swarm {
                             );
                         }
                     }
-                    return
+                    return None
                 }
 
                 match self.sessions.on_incoming(stream, remote_addr) {
-                    Ok(_) => {
+                    Ok(session_id) => {
                         trace!(target: "net", ?remote_addr, "Incoming connection");
-                        return
+                        return Some(SwarmEvent::IncomingTcpConnection { session_id, remote_addr })
                     }
                     Err(err) => {
                         debug!(target: "net", ?err, "Incoming connection rejected, capacity already reached.");
@@ -366,24 +235,34 @@ impl Swarm {
                     }
                 }
             }
-            _ => {}
         }
+        None
     }
 
     /// Hook for actions pulled from the state
-    fn on_state_action(&mut self, event: StateAction) {
+    fn on_state_action(&mut self, event: StateAction) -> Option<SwarmEvent> {
         match event {
             StateAction::Connect { remote_addr, peer_id } => {
                 self.dial_outbound(remote_addr, peer_id);
-                return
+                return Some(SwarmEvent::OutgoingTcpConnection { remote_addr, peer_id })
             }
             StateAction::Disconnect { peer_id, reason } => {
                 self.sessions.disconnect(peer_id, reason);
             }
+            // StateAction::NewBlock { peer_id, block: msg } => {
+            //     let msg = PeerMessage::NewBlock(msg);
+            //     self.sessions.send_message(&peer_id, msg);
+            // }
+            // StateAction::NewBlockHashes { peer_id, hashes } => {
+            //     let msg = PeerMessage::NewBlockHashes(hashes);
+            //     self.sessions.send_message(&peer_id, msg);
+            // }
+            StateAction::PeerAdded(peer_id) => return Some(SwarmEvent::PeerAdded(peer_id)),
+            StateAction::PeerRemoved(peer_id) => return Some(SwarmEvent::PeerRemoved(peer_id)),
             StateAction::DiscoveredNode { peer_id, socket_addr, fork_id } => {
                 // Don't try to connect to peer if node is shutting down
                 if self.is_shutting_down() {
-                    return
+                    return None
                 }
                 // Insert peer only if no fork id or a valid fork id
                 if fork_id.map_or_else(|| true, |f| self.sessions.is_valid_fork_id(f)) {
@@ -401,8 +280,8 @@ impl Swarm {
                     self.state_mut().peers_mut().remove_peer(peer_id);
                 }
             }
-            _ => {}
         }
+        None
     }
 
     /// Set network connection state to `ShuttingDown`
@@ -433,7 +312,9 @@ impl Stream for Swarm {
 
         loop {
             while let Poll::Ready(action) = this.state.poll(cx) {
-                this.on_state_action(action)
+                if let Some(event) = this.on_state_action(action) {
+                    return Poll::Ready(Some(event))
+                }
             }
 
             // poll all sessions
@@ -450,7 +331,12 @@ impl Stream for Swarm {
             // poll listener for incoming connections
             match Pin::new(&mut this.incoming).poll(cx) {
                 Poll::Pending => {}
-                Poll::Ready(event) => this.on_connection(event)
+                Poll::Ready(event) => {
+                    if let Some(event) = this.on_connection(event) {
+                        return Poll::Ready(Some(event))
+                    }
+                    continue
+                }
             }
 
             return Poll::Pending
@@ -460,19 +346,13 @@ impl Stream for Swarm {
 
 /// All events created or delegated by the [`Swarm`] that represents changes to
 /// the state of the network.
-#[derive(Debug)]
-pub enum SwarmEvent {
+pub(crate) enum SwarmEvent {
     /// Events related to the actual network protocol.
     ValidMessage {
         /// The peer that sent the message
         peer_id: PeerId,
-        /// the request the peer is making
-        request: PeerMessages
-    },
-    /// Events related to the actual network protocol.
-    AlreadyConnected {
-        /// The peer that sent the message
-        peer_id: PeerId
+        /// Message received from the peer
+        message: PeerMessage
     },
     /// Received a message that does not match the announced capabilities of the
     /// peer.
@@ -525,6 +405,7 @@ pub enum SwarmEvent {
         capabilities:   Arc<Capabilities>,
         /// negotiated eth version
         version:        EthVersion,
+        messages:       PeerRequestSender,
         status:         Status,
         direction:      Direction
     },
@@ -555,146 +436,9 @@ pub enum SwarmEvent {
 
 /// Represents the state of the connection of the node. If shutting down,
 /// new connections won't be established.
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub(crate) enum NetworkConnectionState {
     #[default]
     Active,
     ShuttingDown
-}
-
-/// (Non-exhaustive) Events emitted by the network that are of interest for
-/// subscribers.
-///
-/// This includes any event types that may be relevant to tasks, for metrics,
-/// keep track of peers etc.
-#[derive(Debug, Clone)]
-pub enum NetworkEvent {
-    /// Closed the peer session.
-    SessionClosed {
-        /// The identifier of the peer to which a session was closed.
-        peer_id: PeerId,
-        /// Why the disconnect was triggered
-        reason:  Option<DisconnectReason>
-    },
-    /// Established a new session with the given peer.
-    SessionEstablished {
-        /// The identifier of the peer to which a session was established.
-        peer_id:        PeerId,
-        /// The remote addr of the peer to which a session was established.
-        remote_addr:    SocketAddr,
-        /// The client version of the peer to which a session was established.
-        client_version: Arc<String>,
-        /// Capabilities the peer announced
-        capabilities:   Arc<Capabilities>,
-        /// The status of the peer to which a session was established.
-        status:         Status,
-        /// negotiated eth version of the session
-        version:        EthVersion
-    },
-    /// Event emitted when a new peer is added
-    PeerAdded(PeerId),
-    /// Event emitted when a new peer is removed
-    PeerRemoved(PeerId)
-}
-
-#[derive(Debug, Clone)]
-pub enum DiscoveredEvent {
-    EventQueued { peer_id: PeerId, socket_addr: SocketAddr, fork_id: Option<ForkId> }
-}
-
-#[derive(Debug, Clone)]
-/// event triggered on addition or deletion of a staked gaurd from the network
-pub enum GuardStakingEvent {
-    NewStaker(PeerId),
-    RemovedStaker(PeerId)
-}
-
-#[cfg(feature = "test_harness")]
-pub mod test_harness {
-    use futures::{Future, StreamExt};
-    use tokio::{
-        sync::{
-            mpsc::{channel, Receiver, Sender},
-            oneshot::{channel as one_channel, Sender as OneSender}
-        },
-        task::JoinHandle
-    };
-
-    use super::*;
-    pub enum NetworkRequests {
-        PeerMsgs(PeerMessages),
-        DialOutbund(SocketAddr, PeerId),
-        PeerHandle(OneSender<PeersHandle>)
-    }
-
-    pub struct NetworkTestClient {
-        sender:  Sender<NetworkRequests>,
-        _handle: JoinHandle<()>
-    }
-
-    impl NetworkTestClient {
-        pub async fn new(
-            network_config: NetworkConfig,
-            swarm_sender: Sender<SwarmEvent>
-        ) -> anyhow::Result<Self> {
-            let (network_tx, network_rx) = channel(10);
-
-            let swarm = Swarm::new(network_config).await?;
-            let wrapper = NetworkWrapper { swarm, receiver: network_rx, sender: swarm_sender };
-            let _handle = tokio::spawn(wrapper);
-
-            Ok(Self { sender: network_tx, _handle })
-        }
-
-        pub async fn dial_outbound(&self, addr: SocketAddr, id: PeerId) {
-            let _ = self
-                .sender
-                .send(NetworkRequests::DialOutbund(addr, id))
-                .await;
-        }
-
-        pub async fn get_peer_handle(&self) -> PeersHandle {
-            let (tx, rx) = one_channel();
-            let _ = self.sender.send(NetworkRequests::PeerHandle(tx)).await;
-            rx.await.unwrap()
-        }
-
-        pub async fn send_message(&self, msg: PeerMessages) {
-            let _ = self.sender.send(NetworkRequests::PeerMsgs(msg)).await;
-        }
-    }
-
-    pub struct NetworkWrapper {
-        swarm:    Swarm,
-        receiver: Receiver<NetworkRequests>,
-        sender:   Sender<SwarmEvent>
-    }
-
-    impl Future for NetworkWrapper {
-        type Output = ();
-
-        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-            while let Poll::Ready(msg) = self.swarm.poll_next_unpin(cx) {
-                let Some(msg) = msg else { return Poll::Ready(()) };
-                let _ = self.sender.try_send(msg);
-            }
-
-            while let Poll::Ready(msg) = self.receiver.poll_recv(cx) {
-                let Some(msg) = msg else { return Poll::Ready(()) };
-                match msg {
-                    NetworkRequests::PeerMsgs(msg) => {
-                        self.swarm.propagate_msg(msg);
-                    }
-                    NetworkRequests::PeerHandle(sender) => {
-                        let _ = sender.send(self.swarm.peers_handle());
-                    }
-                    NetworkRequests::DialOutbund(addr, id) => {
-                        self.swarm.dial_outbound(addr, id);
-                    }
-                }
-            }
-
-            Poll::Pending
-        }
-    }
 }

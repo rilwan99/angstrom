@@ -16,7 +16,7 @@ use guard_eth_wire::{
     DisconnectReason, EthVersion, HelloMessage, Status, UnauthedEthStream, UnauthedP2PStream
 };
 use reth_ecies::{stream::ECIESStream, ECIESError};
-use reth_metrics::common::mpsc::MeteredSender;
+use reth_metrics::common::mpsc::MeteredPollSender;
 use reth_net_common::{
     bandwidth_meter::{BandwidthMeter, MeteredStream},
     stream::HasRemoteAddr
@@ -30,10 +30,11 @@ use tokio::{
     sync::{mpsc, oneshot}
 };
 use tokio_stream::wrappers::ReceiverStream;
+use tokio_util::sync::PollSender;
 use tracing::{instrument, trace};
 
 use crate::{
-    messages::PeerMessages,
+    message::PeerMessage,
     metrics::SessionManagerMetrics,
     session::{active::ActiveSession, config::SessionCounter}
 };
@@ -46,8 +47,9 @@ pub use handle::{
     ActiveSessionHandle, ActiveSessionMessage, PendingSessionEvent, PendingSessionHandle,
     SessionCommand
 };
+pub use reth_network_api::{Direction, PeerInfo};
 
-use self::handle::PeerInfo;
+pub use crate::message::PeerRequestSender;
 
 /// Internal identifier for active sessions.
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq, Eq, Hash)]
@@ -103,7 +105,7 @@ pub struct SessionManager {
     ///
     /// When active session state is reached, the corresponding
     /// [`ActiveSessionHandle`] will get a clone of this sender half.
-    active_session_tx: MeteredSender<ActiveSessionMessage>,
+    active_session_tx: MeteredPollSender<ActiveSessionMessage>,
     /// Receiver half that listens for [`ActiveSessionMessage`] produced by
     /// pending sessions.
     active_session_rx: ReceiverStream<ActiveSessionMessage>,
@@ -128,8 +130,10 @@ impl SessionManager {
     ) -> Self {
         let (pending_sessions_tx, pending_sessions_rx) = mpsc::channel(config.session_event_buffer);
         let (active_session_tx, active_session_rx) = mpsc::channel(config.session_event_buffer);
+        let active_session_tx = PollSender::new(active_session_tx);
 
         Self {
+            valid_stakers: Vec::new(),
             next_id: 0,
             counter: SessionCounter::new(config.limits),
             initial_internal_request_timeout: config.initial_internal_request_timeout,
@@ -137,7 +141,6 @@ impl SessionManager {
             secret_key,
             status,
             hello_message,
-            valid_stakers: Vec::new(),
             fork_filter,
             session_command_buffer: config.session_command_buffer,
             executor,
@@ -145,19 +148,11 @@ impl SessionManager {
             active_sessions: Default::default(),
             pending_sessions_tx,
             pending_session_rx: ReceiverStream::new(pending_sessions_rx),
-            active_session_tx: MeteredSender::new(active_session_tx, "network_active_session"),
+            active_session_tx: MeteredPollSender::new(active_session_tx, "network_active_session"),
             active_session_rx: ReceiverStream::new(active_session_rx),
             bandwidth_meter,
             metrics: Default::default()
         }
-    }
-
-    pub fn propagate_msg(&mut self, msg: PeerMessages) {
-        self.active_sessions.values_mut().for_each(|peer| {
-            let _ = peer
-                .commands_to_session
-                .try_send(SessionCommand::Message(msg.clone()));
-        });
     }
 
     /// Check whether the provided [`ForkId`] is compatible based on the
@@ -178,25 +173,6 @@ impl SessionManager {
         self.status
     }
 
-    /// Adds a valid stakers to the set
-    pub fn add_valid_staker(&mut self, pubkey: PeerId) {
-        self.valid_stakers.push(pubkey);
-    }
-
-    /// Removes a valid stakers to the set
-    pub fn remove_staker(&mut self, pubkey: PeerId) {
-        // removes the staker from the tracked list
-        let index = self
-            .valid_stakers
-            .iter()
-            .position(|staker| *staker == pubkey)
-            .unwrap();
-        self.valid_stakers.remove(index);
-
-        // drops the peer connection (if it exists)
-        self.disconnect(pubkey, Some(DisconnectReason::StakerRemoved))
-    }
-
     /// Returns the session hello message.
     pub fn hello_message(&self) -> HelloMessage {
         self.hello_message.clone()
@@ -214,12 +190,14 @@ impl SessionManager {
     /// Invoked on a received status update.
     ///
     /// If the updated activated another fork, this will return a
-    /// [`ForkTransition`] and updates the active [`ForkId`](ForkId). See
-    /// also [`ForkFilter::set_head`].
+    /// [ForkTransition] and updates the active [ForkId]. See also
+    /// [ForkFilter::set_head].
     pub(crate) fn on_status_update(&mut self, head: Head) -> Option<ForkTransition> {
         self.status.blockhash = head.hash;
         self.status.total_difficulty = head.total_difficulty;
-        self.fork_filter.set_head(head)
+        let transition = self.fork_filter.set_head(head);
+        self.status.forkid = self.fork_filter.current();
+        transition
     }
 
     /// An incoming TCP connection was received. This starts the authentication
@@ -351,6 +329,15 @@ impl SessionManager {
         }
     }
 
+    /// Sends a message to the peer's session
+    pub fn send_message(&mut self, peer_id: &PeerId, msg: PeerMessage) {
+        if let Some(session) = self.active_sessions.get_mut(peer_id) {
+            let _ = session
+                .commands_to_session
+                .try_send(SessionCommand::Message(msg));
+        }
+    }
+
     /// Removes the [`PendingSessionHandle`] if it exists.
     fn remove_pending_session(&mut self, id: &SessionId) -> Option<PendingSessionHandle> {
         let session = self.pending_sessions.remove(id)?;
@@ -377,14 +364,6 @@ impl SessionManager {
             }
             Poll::Ready(Some(event)) => {
                 return match event {
-                    ActiveSessionMessage::ValidMessage { message, peer_id } => {
-                        trace!(
-                            target : "net::session",
-                            ?peer_id,
-                            "got a request from session"
-                        );
-                        Poll::Ready(SessionEvent::Message { request: message, peer_id })
-                    }
                     ActiveSessionMessage::Disconnected { peer_id, remote_addr } => {
                         trace!(
                             target : "net::session",
@@ -406,6 +385,9 @@ impl SessionManager {
                             peer_id,
                             error
                         })
+                    }
+                    ActiveSessionMessage::ValidMessage { peer_id, message } => {
+                        Poll::Ready(SessionEvent::ValidMessage { peer_id, message })
                     }
                     ActiveSessionMessage::InvalidMessage { peer_id, capabilities, message } => {
                         Poll::Ready(SessionEvent::InvalidMessage { peer_id, message, capabilities })
@@ -430,6 +412,7 @@ impl SessionManager {
             PendingSessionEvent::Established {
                 session_id,
                 remote_addr,
+                local_addr,
                 peer_id,
                 capabilities,
                 conn,
@@ -468,6 +451,10 @@ impl SessionManager {
 
                 let (commands_to_session, commands_rx) = mpsc::channel(self.session_command_buffer);
 
+                let (to_session_tx, messages_rx) = mpsc::channel(self.session_command_buffer);
+
+                let messages = PeerRequestSender::new(peer_id, to_session_tx);
+
                 let timeout = Arc::new(AtomicU64::new(
                     self.initial_internal_request_timeout.as_millis() as u64
                 ));
@@ -484,19 +471,24 @@ impl SessionManager {
                     commands_rx: ReceiverStream::new(commands_rx),
                     to_session_manager: self.active_session_tx.clone(),
                     pending_message_to_session: None,
+                    internal_request_tx: ReceiverStream::new(messages_rx).fuse(),
+                    inflight_requests: Default::default(),
                     conn,
                     queued_outgoing: Default::default(),
+                    received_requests_from_remote: Default::default(),
                     internal_request_timeout_interval: tokio::time::interval(
                         self.initial_internal_request_timeout
                     ),
                     internal_request_timeout: Arc::clone(&timeout),
-                    protocol_breach_request_timeout: self.protocol_breach_request_timeout
+                    protocol_breach_request_timeout: self.protocol_breach_request_timeout,
+                    terminate_message: None
                 };
 
                 self.spawn(session);
 
                 let client_version = Arc::new(client_id);
                 let handle = ActiveSessionHandle {
+                    status,
                     direction,
                     session_id,
                     remote_id: peer_id,
@@ -505,7 +497,8 @@ impl SessionManager {
                     capabilities: Arc::clone(&capabilities),
                     commands_to_session,
                     client_version: Arc::clone(&client_version),
-                    remote_addr
+                    remote_addr,
+                    local_addr
                 };
 
                 self.active_sessions.insert(peer_id, handle);
@@ -522,6 +515,7 @@ impl SessionManager {
                     version,
                     capabilities,
                     status,
+                    messages,
                     direction,
                     timeout
                 })
@@ -596,40 +590,11 @@ impl SessionManager {
             }
         }
     }
-
-    /// Returns [`PeerInfo`] for all connected peers
-    pub fn get_peer_info(&self) -> Vec<PeerInfo> {
-        self.active_sessions
-            .values()
-            .map(|session| PeerInfo {
-                remote_id:      session.remote_id,
-                direction:      session.direction,
-                remote_addr:    session.remote_addr,
-                capabilities:   session.capabilities.clone(),
-                client_version: session.client_version.clone()
-            })
-            .collect()
-    }
-
-    /// Returns [`PeerInfo`] for a given peer.
-    ///
-    /// Returns `None` if there's no active session to the peer.
-    pub fn get_peer_info_by_id(&self, peer_id: PeerId) -> Option<PeerInfo> {
-        self.active_sessions.get(&peer_id).map(|session| PeerInfo {
-            remote_id:      session.remote_id,
-            direction:      session.direction,
-            remote_addr:    session.remote_addr,
-            capabilities:   session.capabilities.clone(),
-            client_version: session.client_version.clone()
-        })
-    }
 }
 
 /// Events produced by the [`SessionManager`]
 #[derive(Debug)]
 pub enum SessionEvent {
-    /// Request for data by peer
-    Message { request: PeerMessages, peer_id: PeerId },
     /// A new session was successfully authenticated.
     ///
     /// This session is now able to exchange data.
@@ -647,6 +612,8 @@ pub enum SessionEvent {
         version:        EthVersion,
         /// The Status message the peer sent during the `eth` handshake
         status:         Status,
+        /// The channel for sending messages to the peer with the session
+        messages:       PeerRequestSender,
         /// The direction of the session, either `Inbound` or `Outgoing`
         direction:      Direction,
         /// The maximum time that the session waits for a response from the peer
@@ -661,6 +628,13 @@ pub enum SessionEvent {
         remote_addr: SocketAddr,
         /// The direction of the session, either `Inbound` or `Outgoing`
         direction:   Direction
+    },
+    /// A session received a valid message via RLPx.
+    ValidMessage {
+        /// The remote node's public key
+        peer_id: PeerId,
+        /// Message received from the peer.
+        message: PeerMessage
     },
     /// Received a message that does not match the announced capabilities of the
     /// peer.
@@ -747,40 +721,10 @@ impl PendingSessionHandshakeError {
     }
 }
 
-/// The direction of the connection.
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum Direction {
-    /// Incoming connection.
-    Incoming,
-    /// Outgoing connection to a specific node.
-    Outgoing(PeerId)
-}
-
-impl Direction {
-    /// Returns `true` if this an incoming connection.
-    pub fn is_incoming(&self) -> bool {
-        matches!(self, Direction::Incoming)
-    }
-
-    /// Returns `true` if this an outgoing connection.
-    pub(crate) fn is_outgoing(&self) -> bool {
-        matches!(self, Direction::Outgoing(_))
-    }
-}
-
-impl std::fmt::Display for Direction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Direction::Incoming => write!(f, "incoming"),
-            Direction::Outgoing(_) => write!(f, "outgoing")
-        }
-    }
-}
-
 /// The error thrown when the max configured limit has been reached and no more
 /// connections are accepted.
 #[derive(Debug, Clone, thiserror::Error)]
-#[error("Session limit reached {0}")]
+#[error("session limit reached {0}")]
 pub struct ExceedsSessionLimit(pub(crate) u32);
 
 /// Starts the authentication process for a connection initiated by a remote
@@ -878,6 +822,7 @@ async fn authenticate(
     fork_filter: ForkFilter,
     valid_stakers: Vec<PeerId>
 ) {
+    let local_addr = stream.inner().local_addr().ok();
     let stream = match get_eciess_stream(stream, secret_key, direction).await {
         Ok(stream) => stream,
         Err(error) => {
@@ -903,7 +848,8 @@ async fn authenticate(
         hello,
         status,
         fork_filter,
-        valid_stakers
+        valid_stakers,
+        local_addr
     )
     .boxed();
 
@@ -951,7 +897,8 @@ async fn authenticate_stream(
     hello: HelloMessage,
     status: Status,
     fork_filter: ForkFilter,
-    valid_stakers: Vec<PeerId>
+    valid_stakers: Vec<PeerId>,
+    local_addr: Option<SocketAddr>
 ) -> PendingSessionEvent {
     // conduct the p2p handshake and return the authenticated stream
     let (p2p_stream, their_hello) = match stream.handshake(hello, valid_stakers).await {
@@ -984,6 +931,7 @@ async fn authenticate_stream(
     };
     PendingSessionEvent::Established {
         session_id,
+        local_addr,
         remote_addr,
         peer_id: their_hello.id,
         capabilities: Arc::new(Capabilities::from(their_hello.capabilities)),

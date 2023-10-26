@@ -4,8 +4,7 @@ use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_macro::sol;
 use alloy_sol_types::{eip712_domain, Eip712Domain};
 use serde::{Deserialize, Serialize};
-
-use crate::primitive::contract::Angstrom::{CurrencySettlement, OrderType};
+pub use Angstrom::*;
 
 sol! {
     #![sol(all_derives = true)]
@@ -195,7 +194,7 @@ sol! {
     }
 }
 
-impl Encodable for Angstrom::PoolKey {
+impl Encodable for PoolKey {
     fn encode(&self, out: &mut dyn bytes::BufMut) {
         Header { list: true, payload_length: 69 }.encode(out);
 
@@ -221,7 +220,7 @@ impl Encodable for Angstrom::PoolKey {
     }
 }
 
-impl Decodable for Angstrom::PoolKey {
+impl Decodable for PoolKey {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let Header { list, payload_length } = Header::decode(buf)?;
 

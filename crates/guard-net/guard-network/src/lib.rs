@@ -1,16 +1,3 @@
-#![cfg_attr(docsrs, feature(doc_cfg))]
-#![doc(
-    html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/reth/main/assets/reth-docs.png",
-    html_favicon_url = "https://avatars0.githubusercontent.com/u/97369466?s=256",
-    issue_tracker_base_url = "https://github.com/paradigmxzy/reth/issues/"
-)]
-#![deny(unused_must_use, rust_2018_idioms, rustdoc::broken_intra_doc_links)]
-#![allow(rustdoc::private_intra_doc_links)]
-#![doc(test(
-    no_crate_inject,
-    attr(deny(warnings, rust_2018_idioms), allow(dead_code, unused_variables))
-))]
-
 //! reth P2P networking.
 //!
 //! Ethereum's networking protocol is specified in [devp2p](https://github.com/ethereum/devp2p).
@@ -32,7 +19,8 @@
 //!        * Responds to incoming transaction related requests
 //!        * Requests missing transactions from the `Network`
 //!        * Broadcasts new transactions received from the
-//!          [`TransactionPool`](order_pool::TransactionPool) over the `Network`
+//!          [`TransactionPool`](reth_transaction_pool::TransactionPool) over
+//!          the `Network`
 //!
 //!    - `ETH request Task`: is a spawned
 //!      [`EthRequestHandler`](crate::eth_requests::EthRequestHandler) future
@@ -91,7 +79,7 @@
 //!
 //! ```
 //! use reth_provider::test_utils::NoopProvider;
-//! use order_pool::TransactionPool;
+//! use reth_transaction_pool::TransactionPool;
 //! use reth_primitives::mainnet_nodes;
 //! use reth_network::config::rng_secret_key;
 //! use reth_network::{NetworkConfig, NetworkManager};
@@ -121,27 +109,46 @@
 //! - `test-utils`: Various utilities helpful for writing tests
 //! - `geth-tests`: Runs tests that require Geth to be installed locally.
 
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/reth/main/assets/reth-docs.png",
+    html_favicon_url = "https://avatars0.githubusercontent.com/u/97369466?s=256",
+    issue_tracker_base_url = "https://github.com/paradigmxyz/reth/issues/"
+)]
+#![warn(missing_debug_implementations, missing_docs, rustdoc::all)] // TODO(danipopes): unreachable_pub
+#![deny(unused_must_use, rust_2018_idioms)]
+#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+
+#[cfg(any(test, feature = "test-utils"))]
+/// Common helpers for network testing.
+pub mod test_utils;
+
+mod builder;
 mod cache;
 pub mod config;
 mod discovery;
 pub mod error;
 mod flattened_response;
 mod listener;
-mod messages;
+mod manager;
+mod message;
 mod metrics;
+mod network;
 pub mod peers;
 mod session;
-pub mod state;
+mod state;
 mod swarm;
+pub mod transactions;
 
+pub use builder::NetworkBuilder;
 pub use config::{NetworkConfig, NetworkConfigBuilder};
-pub use discovery::Discovery;
+pub use discovery::{Discovery, DiscoveryEvent};
 pub use guard_eth_wire::{DisconnectReason, HelloBuilder, HelloMessage};
-pub use messages::*;
+pub use manager::{NetworkEvent, NetworkManager};
+pub use message::PeerRequest;
+pub use network::NetworkHandle;
 pub use peers::PeersConfig;
 pub use session::{
-    ActiveSessionHandle, ActiveSessionMessage, Direction, PendingSessionEvent,
+    ActiveSessionHandle, ActiveSessionMessage, Direction, PeerInfo, PendingSessionEvent,
     PendingSessionHandle, PendingSessionHandshakeError, SessionCommand, SessionEvent, SessionId,
     SessionLimits, SessionManager, SessionsConfig
 };
-pub use swarm::*;

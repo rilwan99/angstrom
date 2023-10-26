@@ -18,7 +18,7 @@ use tokio::{
 };
 
 use crate::{
-    messages::PeerMessages,
+    message::PeerMessage,
     session::{Direction, SessionId}
 };
 
@@ -57,7 +57,6 @@ impl PendingSessionHandle {
 /// high-level tasks can be performed: chain synchronization, block propagation
 /// and transaction exchange.
 #[derive(Debug)]
-#[allow(unused)]
 pub struct ActiveSessionHandle {
     /// The direction of the session
     pub(crate) direction:           Direction,
@@ -77,7 +76,11 @@ pub struct ActiveSessionHandle {
     /// The client's name and version
     pub(crate) client_version:      Arc<String>,
     /// The address we're connected to
-    pub(crate) remote_addr:         SocketAddr
+    pub(crate) remote_addr:         SocketAddr,
+    /// The local address of the connection.
+    pub(crate) local_addr:          Option<SocketAddr>,
+    /// The Status message the peer sent for the `eth` handshake
+    pub(crate) status:              Status
 }
 
 // === impl ActiveSessionHandle ===
@@ -146,21 +149,6 @@ impl ActiveSessionHandle {
     }
 }
 
-/// Info about an active peer session.
-#[derive(Debug, Clone)]
-pub struct PeerInfo {
-    /// Announced capabilities of the peer
-    pub capabilities:   Arc<Capabilities>,
-    /// The identifier of the remote peer
-    pub remote_id:      PeerId,
-    /// The client's name and version
-    pub client_version: Arc<String>,
-    /// The address we're connected to
-    pub remote_addr:    SocketAddr,
-    /// The direction of the session
-    pub direction:      Direction
-}
-
 /// Events a pending session can produce.
 ///
 /// This represents the state changes a session can undergo until it is ready to send capability messages <https://github.com/ethereum/devp2p/blob/6b0abc3d956a626c28dce1307ee9f546db17b6bd/rlpx.md>.
@@ -174,6 +162,8 @@ pub enum PendingSessionEvent {
         session_id:   SessionId,
         /// The remote node's socket address
         remote_addr:  SocketAddr,
+        /// The local address of the connection
+        local_addr:   Option<SocketAddr>,
         /// The remote node's public key
         peer_id:      PeerId,
         /// All capabilities the peer announced
@@ -228,27 +218,19 @@ pub enum PendingSessionEvent {
 /// Commands that can be sent to the spawned session.
 #[derive(Debug)]
 pub enum SessionCommand {
-    /// Sends a message to the peers
-    Message(PeerMessages),
-
     /// Disconnect the connection
     Disconnect {
         /// Why the disconnect was initiated
         reason: Option<DisconnectReason>
-    }
+    },
+    /// Sends a message to the peer
+    Message(PeerMessage)
 }
 
 /// Message variants an active session can produce and send back to the
 /// [`SessionManager`](crate::session::SessionManager)
 #[derive(Debug)]
 pub enum ActiveSessionMessage {
-    /// A session received a valid message via RLPx.
-    ValidMessage {
-        /// Identifier of the remote peer.
-        peer_id: PeerId,
-        /// Message received from the peer.
-        message: PeerMessages
-    },
     /// Session was gracefully disconnected.
     Disconnected {
         /// The remote node's public key
@@ -264,6 +246,13 @@ pub enum ActiveSessionMessage {
         remote_addr: SocketAddr,
         /// The error that caused the session to close
         error:       EthStreamError
+    },
+    /// A session received a valid message via RLPx.
+    ValidMessage {
+        /// Identifier of the remote peer.
+        peer_id: PeerId,
+        /// Message received from the peer.
+        message: PeerMessage
     },
     /// Received a message that does not match the announced capabilities of the
     /// peer.

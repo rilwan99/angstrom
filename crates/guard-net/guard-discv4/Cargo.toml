@@ -16,9 +16,9 @@ reth-primitives.workspace = true
 alloy-rlp.workspace = true
 alloy-rlp-derive.workspace = true
 
-rlp = "0.5" # needed for enr
-reth-net-common = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
-reth-net-nat = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
+rlp = "0.5"                                                                                                         # needed for enr
+reth-net-common = { git = "https://github.com/paradigmxyz/reth", rev = "3a8fe5a734bb04ceef3e47c577524b0b30875a99" }
+reth-net-nat = { git = "https://github.com/paradigmxyz/reth", rev = "3a8fe5a734bb04ceef3e47c577524b0b30875a99" }
 
 # ethereum
 discv5 = { git = "https://github.com/sigp/discv5" }
@@ -48,7 +48,7 @@ serde = { workspace = true, optional = true }
 [dev-dependencies]
 rand.workspace = true
 tokio = { workspace = true, features = ["macros"] }
-reth-tracing = { git = "https://github.com/paradigmxyz/reth", version = "0.1.0-alpha.10" }
+reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "3a8fe5a734bb04ceef3e47c577524b0b30875a99"  }
 
 [features]
 default = ["serde"]

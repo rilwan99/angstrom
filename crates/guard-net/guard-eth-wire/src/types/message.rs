@@ -12,7 +12,10 @@ use reth_primitives::bytes::{Buf, BufMut};
 use serde::{Deserialize, Serialize};
 
 use super::Status;
-use crate::{errors::EthStreamError, EthVersion};
+use crate::{
+    errors::EthStreamError, EthVersion, GetLimitOrders, GetSearcherOrders, GetUsersOrders,
+    LimitOrders, SearcherOrders, UserOrders
+};
 
 /// An `eth` protocol message, containing a message ID and payload.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -29,13 +32,30 @@ impl ProtocolMessage {
 
         let message = match message_type {
             EthMessageID::Status => EthMessage::Status(Status::decode(buf)?),
-            EthMessageID::PropagateBundle => EthMessage::PropagateBundle(Bundle::decode(buf)?),
             EthMessageID::PropagateOrder => {
                 EthMessage::PropagateOrder(SignedLimitOrder::decode(buf)?)
             }
             EthMessageID::PrePropose => EthMessage::PrePropose(PreProposal::decode(buf)?),
             EthMessageID::Proposal => EthMessage::Proposal(Proposal::decode(buf)?),
-            EthMessageID::Commit => EthMessage::Commit(Commit::decode(buf)?)
+            EthMessageID::Commit => EthMessage::Commit(Commit::decode(buf)?),
+            EthMessageID::UserOrder => {
+                EthMessage::UserOrders(RequestPair::<UserOrders>::decode(buf)?)
+            }
+            EthMessageID::LimitOrder => {
+                EthMessage::LimitOrders(RequestPair::<LimitOrders>::decode(buf)?)
+            }
+            EthMessageID::SearcherOrder => {
+                EthMessage::SearcherOrders(RequestPair::<SearcherOrders>::decode(buf)?)
+            }
+            EthMessageID::GetUserOrder => {
+                EthMessage::GetUserOrders(RequestPair::<GetUsersOrders>::decode(buf)?)
+            }
+            EthMessageID::GetLimitOrder => {
+                EthMessage::GetLimitOrders(RequestPair::<GetLimitOrders>::decode(buf)?)
+            }
+            EthMessageID::GetSearcherOrder => {
+                EthMessage::GetSearcherOrders(RequestPair::<GetSearcherOrders>::decode(buf)?)
+            }
         };
         Ok(ProtocolMessage { message_type, message })
     }
@@ -119,9 +139,14 @@ pub enum EthMessage {
 
     // default communication
     PropagateOrder(SignedLimitOrder),
-    PropagateBundle(Bundle) /*TODO: Implement Searcher order wrapper type and request
-                             * for best searcher orders
-                             * GetBestSearcherOrders(RequestPair<Vec<SearcherOrder>>), */
+
+    UserOrders(RequestPair<UserOrders>),
+    SearcherOrders(RequestPair<SearcherOrders>),
+    LimitOrders(RequestPair<LimitOrders>),
+
+    GetUserOrders(RequestPair<GetUsersOrders>),
+    GetSearcherOrders(RequestPair<GetSearcherOrders>),
+    GetLimitOrders(RequestPair<GetLimitOrders>)
 }
 //TODO: Will, you have to implement the request pair model so that you can have
 //TODO: the message & request pair is rlp encode/decodable but the type that
@@ -134,11 +159,16 @@ impl EthMessage {
     pub fn message_id(&self) -> EthMessageID {
         match self {
             EthMessage::Status(_) => EthMessageID::Status,
-            EthMessage::PropagateBundle(_) => EthMessageID::PropagateBundle,
             EthMessage::PropagateOrder(_) => EthMessageID::PropagateOrder,
             EthMessage::PrePropose(_) => EthMessageID::PrePropose,
             EthMessage::Proposal(_) => EthMessageID::Proposal,
-            EthMessage::Commit(_) => EthMessageID::Commit
+            EthMessage::Commit(_) => EthMessageID::Commit,
+            EthMessage::UserOrders(_) => EthMessageID::UserOrder,
+            EthMessage::LimitOrders(_) => EthMessageID::LimitOrder,
+            EthMessage::SearcherOrders(_) => EthMessageID::SearcherOrder,
+            EthMessage::GetUserOrders(_) => EthMessageID::GetUserOrder,
+            EthMessage::GetLimitOrders(_) => EthMessageID::GetLimitOrder,
+            EthMessage::GetSearcherOrders(_) => EthMessageID::GetSearcherOrder
         }
     }
 }
@@ -160,8 +190,21 @@ macro_rules! encodable_enum {
         }
     };
 }
-//TODO: see how they do it in ethereum
-encodable_enum!(EthMessage, Status, PropagateOrder, PropagateBundle, Commit, Proposal, PrePropose);
+
+encodable_enum!(
+    EthMessage,
+    Status,
+    PropagateOrder,
+    Commit,
+    Proposal,
+    PrePropose,
+    UserOrders,
+    SearcherOrders,
+    LimitOrders,
+    GetUserOrders,
+    GetLimitOrders,
+    GetSearcherOrders
+);
 
 /// Represents broadcast messages of [`EthMessage`] with the same object that
 /// can be sent to multiple peers.
@@ -179,8 +222,7 @@ pub enum EthBroadcastMessage {
     Commit(Arc<Commit>),
 
     // default communication
-    PropagateOrder(Arc<SignedLimitOrder>),
-    PropagateBundle(Arc<Bundle>)
+    PropagateOrder(Arc<SignedLimitOrder>)
 }
 
 // === impl EthBroadcastMessage ===
@@ -189,7 +231,6 @@ impl EthBroadcastMessage {
     /// Returns the message's ID.
     pub fn message_id(&self) -> EthMessageID {
         match self {
-            EthBroadcastMessage::PropagateBundle(_) => EthMessageID::PropagateBundle,
             EthBroadcastMessage::PropagateOrder(_) => EthMessageID::PropagateOrder,
             EthBroadcastMessage::PrePropose(_) => EthMessageID::PrePropose,
             EthBroadcastMessage::Proposal(_) => EthMessageID::Proposal,
@@ -198,19 +239,24 @@ impl EthBroadcastMessage {
     }
 }
 
-encodable_enum!(EthBroadcastMessage, PropagateBundle, PropagateOrder, PrePropose, Proposal, Commit);
+encodable_enum!(EthBroadcastMessage, PropagateOrder, PrePropose, Proposal, Commit);
 
 /// Represents message IDs for eth protocol messages.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum EthMessageID {
-    Status          = 0,
-    PropagateBundle = 1,
-    PropagateOrder  = 2,
-    PrePropose      = 3,
-    Proposal        = 4,
-    Commit          = 5
+    Status           = 0,
+    PropagateOrder   = 2,
+    PrePropose       = 3,
+    Proposal         = 4,
+    Commit           = 5,
+    UserOrder        = 6,
+    SearcherOrder    = 7,
+    LimitOrder       = 8,
+    GetUserOrder     = 9,
+    GetSearcherOrder = 10,
+    GetLimitOrder    = 11
 }
 
 impl Encodable for EthMessageID {
@@ -228,7 +274,6 @@ impl Decodable for EthMessageID {
         let id = buf.first().ok_or(alloy_rlp::Error::InputTooShort)?;
         let id = match id {
             0 => EthMessageID::Status,
-            1 => EthMessageID::PropagateBundle,
             2 => EthMessageID::PropagateOrder,
             3 => EthMessageID::PrePropose,
             4 => EthMessageID::Proposal,
@@ -246,7 +291,6 @@ impl TryFrom<usize> for EthMessageID {
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(EthMessageID::Status),
-            1 => Ok(EthMessageID::PropagateBundle),
             2 => Ok(EthMessageID::PropagateOrder),
             3 => Ok(EthMessageID::PrePropose),
             4 => Ok(EthMessageID::Proposal),

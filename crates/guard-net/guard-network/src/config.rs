@@ -6,19 +6,25 @@ use std::{
     sync::Arc
 };
 
-use guard_discv4::{Discv4Config, Discv4ConfigBuilder, DEFAULT_DISCOVERY_PORT};
+use ethers_core::utils::keccak256;
+use guard_discv4::{
+    Discv4Config, Discv4ConfigBuilder, DEFAULT_DISCOVERY_ADDRESS, DEFAULT_DISCOVERY_PORT
+};
 use guard_eth_wire::{HelloMessage, Status, DEFAULT_HELLO_VERIFICATION_MESSAGE};
 use reth_dns_discovery::DnsDiscoveryConfig;
+use reth_ecies::util::pk2id;
 use reth_primitives::{
-    keccak256, mainnet_nodes, sepolia_nodes, ChainSpec, ForkFilter, Head, NodeRecord, PeerId, H256,
-    MAINNET
+    mainnet_nodes, sepolia_nodes, ChainSpec, ForkFilter, Head, NodeRecord, PeerId, H256, MAINNET
 };
+use reth_provider::{BlockReader, HeaderProvider};
 use reth_tasks::{TaskSpawner, TokioTaskExecutor};
 // re-export for convenience
 pub use secp256k1::SecretKey;
-use secp256k1::{ecdsa::RecoverableSignature, Message, Secp256k1};
+use secp256k1::{ecdsa::RecoverableSignature, Message, Secp256k1, SECP256K1};
 
-use crate::{peers::PeersConfig, session::SessionsConfig};
+use crate::{
+    error::NetworkError, peers::PeersConfig, session::SessionsConfig, NetworkHandle, NetworkManager
+};
 
 /// Convenience function to create a new random [`SecretKey`]
 pub fn rng_secret_key() -> SecretKey {
@@ -93,9 +99,9 @@ impl NetworkConfig {
 pub struct NetworkConfigBuilder {
     /// The node's secret key, from which the node's identity is derived.
     secret_key:           SecretKey,
-    /// The node's public key
+    /// the nodes pub key
     pub_key:              PeerId,
-    /// Signed verification messages so that pubkey can be derived
+    /// signed verification message
     verification_msg:     &'static str,
     /// How to configure discovery over DNS.
     dns_discovery_config: Option<DnsDiscoveryConfig>,
@@ -146,19 +152,8 @@ impl NetworkConfigBuilder {
     }
 
     /// Returns the configured [`PeerId`]
-    pub fn get_signed_hello(&self) -> (RecoverableSignature, H256) {
-        let hashed_msg = keccak256(self.verification_msg);
-        let msg: Message = Message::from_slice(hashed_msg.as_ref() as &[u8]).unwrap();
-
-        let scp = Secp256k1::new();
-        let signature = scp.sign_ecdsa_recoverable(&msg, &self.secret_key);
-
-        /*
-        println!(
-            "PUB KEY: {:?}\nPRIVATE KEY: {:?}\nHASHED MESSAGE: {:?}\nSIGNED MESSAGE: {:?}\n",
-            self.pub_key, self.secret_key, hashed_msg, signature
-        );*/
-        (signature, hashed_msg)
+    pub fn get_peer_id(&self) -> PeerId {
+        pk2id(&self.secret_key.public_key(SECP256K1))
     }
 
     /// Sets the chain spec.
@@ -222,14 +217,15 @@ impl NetworkConfigBuilder {
     /// [NetworkConfigBuilder::listener_addr] and
     /// [NetworkConfigBuilder::discovery_addr].
     ///
-    /// By default, both are on the same port: [DEFAULT_DISCOVERY_PORT]
+    /// By default, both are on the same port:
+    /// [DEFAULT_DISCOVERY_PORT](reth_discv4::DEFAULT_DISCOVERY_PORT)
     pub fn set_addrs(self, addr: SocketAddr) -> Self {
         self.listener_addr(addr).discovery_addr(addr)
     }
 
     /// Sets the socket address the network will listen on.
     ///
-    /// By default, this is [Ipv4Addr::UNSPECIFIED] on [DEFAULT_DISCOVERY_PORT]
+    /// By default, this is [DEFAULT_DISCOVERY_ADDRESS]
     pub fn listener_addr(mut self, listener_addr: SocketAddr) -> Self {
         self.listener_addr = Some(listener_addr);
         self
@@ -237,10 +233,11 @@ impl NetworkConfigBuilder {
 
     /// Sets the port of the address the network will listen on.
     ///
-    /// By default, this is [DEFAULT_DISCOVERY_PORT]
+    /// By default, this is
+    /// [DEFAULT_DISCOVERY_PORT](reth_discv4::DEFAULT_DISCOVERY_PORT)
     pub fn listener_port(mut self, port: u16) -> Self {
         self.listener_addr
-            .get_or_insert(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, DEFAULT_DISCOVERY_PORT).into())
+            .get_or_insert(DEFAULT_DISCOVERY_ADDRESS)
             .set_port(port);
         self
     }
@@ -248,6 +245,17 @@ impl NetworkConfigBuilder {
     /// Sets the socket address the discovery network will listen on
     pub fn discovery_addr(mut self, discovery_addr: SocketAddr) -> Self {
         self.discovery_addr = Some(discovery_addr);
+        self
+    }
+
+    /// Sets the port of the address the discovery network will listen on.
+    ///
+    /// By default, this is
+    /// [DEFAULT_DISCOVERY_PORT](reth_discv4::DEFAULT_DISCOVERY_PORT)
+    pub fn discovery_port(mut self, port: u16) -> Self {
+        self.discovery_addr
+            .get_or_insert(DEFAULT_DISCOVERY_ADDRESS)
+            .set_port(port);
         self
     }
 
@@ -323,6 +331,17 @@ impl NetworkConfigBuilder {
         } else {
             self
         }
+    }
+
+    /// Gets the signed hello message
+    pub fn get_signed_hello(&self) -> (RecoverableSignature, H256) {
+        let hashed_msg = keccak256(self.verification_msg);
+        let msg: Message = Message::from_slice(hashed_msg.as_ref() as &[u8]).unwrap();
+
+        let scp = Secp256k1::new();
+        let signature = scp.sign_ecdsa_recoverable(&msg, &self.secret_key);
+
+        (signature, hashed_msg.into())
     }
 
     /// Consumes the type and creates the actual [`NetworkConfig`]
@@ -408,6 +427,30 @@ impl NetworkConfigBuilder {
     }
 }
 
+/// Describes the mode of the network wrt. POS or POW.
+///
+/// This affects block propagation in the `eth` sub-protocol [EIP-3675](https://eips.ethereum.org/EIPS/eip-3675#devp2p)
+///
+/// In POS `NewBlockHashes` and `NewBlock` messages become invalid.
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum NetworkMode {
+    /// Network is in proof-of-work mode.
+    Work,
+    /// Network is in proof-of-stake mode
+    #[default]
+    Stake
+}
+
+// === impl NetworkMode ===
+
+impl NetworkMode {
+    /// Returns true if network has entered proof-of-stake
+    pub fn is_stake(&self) -> bool {
+        matches!(self, NetworkMode::Stake)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -419,15 +462,14 @@ mod tests {
 
     use super::*;
 
-    /*
-        fn builder() -> NetworkConfigBuilder {
-            let secret_key = SecretKey::new(&mut thread_rng());
-            NetworkConfigBuilder::new(secret_key);
-        }
-    */
+    fn builder() -> NetworkConfigBuilder {
+        let secret_key = SecretKey::new(&mut thread_rng());
+        NetworkConfigBuilder::new(secret_key)
+    }
+
     #[test]
     fn test_network_dns_defaults() {
-        let config = builder().build();
+        let config = builder().build(NoopProvider::default());
 
         let dns = config.dns_discovery_config.unwrap();
         let bootstrap_nodes = dns.bootstrap_dns_networks.unwrap();
@@ -452,7 +494,9 @@ mod tests {
 
         // enforce that the fork_id set in the status is consistent with the generated
         // fork filter
-        let config = builder().chain_spec(chain_spec).build();
+        let config = builder()
+            .chain_spec(chain_spec)
+            .build(NoopProvider::default());
 
         let status = config.status;
         let fork_filter = config.fork_filter;

@@ -3,6 +3,7 @@
 use std::{
     collections::{HashMap, VecDeque},
     net::{IpAddr, SocketAddr},
+    num::NonZeroUsize,
     sync::{
         atomic::{AtomicU64, AtomicUsize},
         Arc
@@ -10,15 +11,17 @@ use std::{
     task::{Context, Poll}
 };
 
-use guard_eth_wire::{capability::Capabilities, DisconnectReason};
+use guard_eth_wire::{capability::Capabilities, DisconnectReason, Status};
 use reth_network_api::PeerKind;
-use reth_primitives::{ForkId, PeerId, H256};
+use reth_primitives::{ForkId, PeerId, B256};
 use tracing::debug;
 
 use crate::{
+    cache::LruCache,
     discovery::{Discovery, DiscoveryEvent},
-    peers::{PeerAction, PeersManager},
-    swarm::DiscoveredEvent
+    manager::DiscoveredEvent,
+    message::{PeerRequestSender, PeerResponse, PeerResponseResult},
+    peers::{PeerAction, PeersManager}
 };
 
 /// Cache limit of blocks to keep track of for a single peer.
@@ -35,6 +38,7 @@ const PEER_BLOCK_CACHE_LIMIT: usize = 512;
 ///     channel) which are then send to the session of the peer.
 ///
 /// This type is also responsible for responding for received request.
+#[derive(Debug)]
 pub struct NetworkState {
     /// All active peers and their state.
     active_peers:    HashMap<PeerId, ActivePeer>,
@@ -42,14 +46,10 @@ pub struct NetworkState {
     peers_manager:   PeersManager,
     /// Buffered messages until polled.
     queued_messages: VecDeque<StateAction>,
-    /// The client type that can interact with the chain.
-    ///
-    /// This type is used to fetch the block number after we established a
-    /// session and received the [Status] block hash.
     /// Network discovery.
     discovery:       Discovery,
     /// The genesis hash of the network we're on
-    genesis_hash:    H256
+    genesis_hash:    B256
 }
 
 impl NetworkState {
@@ -57,8 +57,8 @@ impl NetworkState {
     pub(crate) fn new(
         discovery: Discovery,
         peers_manager: PeersManager,
-        genesis_hash: H256,
-        _num_active_peers: Arc<AtomicUsize>
+        genesis_hash: B256,
+        num_active_peers: Arc<AtomicUsize>
     ) -> Self {
         Self {
             active_peers: Default::default(),
@@ -85,7 +85,7 @@ impl NetworkState {
     }
 
     /// Configured genesis hash.
-    pub fn genesis_hash(&self) -> H256 {
+    pub fn genesis_hash(&self) -> B256 {
         self.genesis_hash
     }
 
@@ -102,11 +102,22 @@ impl NetworkState {
         &mut self,
         peer: PeerId,
         capabilities: Arc<Capabilities>,
-        _timeout: Arc<AtomicU64>
+        status: Status,
+        request_tx: PeerRequestSender,
+        timeout: Arc<AtomicU64>
     ) {
         debug_assert!(!self.active_peers.contains_key(&peer), "Already connected; not possible");
 
-        self.active_peers.insert(peer, ActivePeer { capabilities });
+        self.active_peers.insert(
+            peer,
+            ActivePeer {
+                best_hash: status.blockhash,
+                capabilities,
+                request_tx,
+                pending_response: None,
+                blocks: LruCache::new(NonZeroUsize::new(PEER_BLOCK_CACHE_LIMIT).unwrap())
+            }
+        );
     }
 
     /// Event hook for a disconnected session for the given peer.
@@ -197,6 +208,54 @@ impl NetworkState {
         }
     }
 
+    // /// Sends The message to the peer's session and queues in a response.
+    // ///
+    // /// Caution: this will replace an already pending response. It's the
+    // /// responsibility of the caller to select the peer.
+    // fn handle_block_request(&mut self, peer: PeerId, request: BlockRequest) {
+    //     if let Some(ref mut peer) = self.active_peers.get_mut(&peer) {
+    //         let (request, response) = match request {
+    //             BlockRequest::GetBlockHeaders(request) => {
+    //                 let (response, rx) = oneshot::channel();
+    //                 let request = PeerRequest::GetBlockHeaders { request,
+    // response };                 let response = PeerResponse::BlockHeaders {
+    // response: rx };                 (request, response)
+    //             }
+    //             BlockRequest::GetBlockBodies(request) => {
+    //                 let (response, rx) = oneshot::channel();
+    //                 let request = PeerRequest::GetBlockBodies { request, response
+    // };                 let response = PeerResponse::BlockBodies { response:
+    // rx };                 (request, response)
+    //             }
+    //         };
+    //         let _ = peer.request_tx.to_session_tx.try_send(request);
+    //         peer.pending_response = Some(response);
+    //     }
+    // }
+
+    /// Invoked when received a response from a connected peer.
+    ///
+    /// Delegates the response result to the fetcher which may return an outcome
+    /// specific instruction that needs to be handled in
+    /// [Self::on_block_response_outcome]. This could be a follow-up request
+    /// or an instruction to slash the peer's reputation.
+    fn on_eth_response(&mut self, peer: PeerId, resp: PeerResponseResult) -> Option<StateAction> {
+        None
+        // match resp {
+        //     PeerResponseResult::BlockHeaders(res) => {
+        //         let outcome =
+        // self.state_fetcher.on_block_headers_response(peer, res)?;
+        //         self.on_block_response_outcome(outcome)
+        //     }
+        //     PeerResponseResult::BlockBodies(res) => {
+        //         let outcome =
+        // self.state_fetcher.on_block_bodies_response(peer, res)?;
+        //         self.on_block_response_outcome(outcome)
+        //     }
+        //     _ => None
+        // }
+    }
+
     /// Advances the state
     pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<StateAction> {
         loop {
@@ -218,10 +277,50 @@ impl NetworkState {
             // }
 
             // need to buffer results here to make borrow checker happy
-            let closed_sessions = Vec::new();
+            let mut closed_sessions = Vec::new();
+            let mut received_responses = Vec::new();
+
+            // poll all connected peers for responses
+            for (id, peer) in self.active_peers.iter_mut() {
+                if let Some(mut response) = peer.pending_response.take() {
+                    match response.poll(cx) {
+                        Poll::Ready(res) => {
+                            // check if the error is due to a closed channel to the session
+                            if res
+                                .err()
+                                .map(|err| err.is_channel_closed())
+                                .unwrap_or_default()
+                            {
+                                debug!(
+                                    target : "net",
+                                    ?id,
+                                    "Request canceled, response channel from session closed."
+                                );
+                                // if the channel is closed, this means the peer session is also
+                                // closed, in which case we can invoke the [Self::on_closed_session]
+                                // immediately, preventing followup requests and propagate the
+                                // connection dropped error
+                                closed_sessions.push(*id);
+                            } else {
+                                received_responses.push((*id, res));
+                            }
+                        }
+                        Poll::Pending => {
+                            // not ready yet, store again.
+                            peer.pending_response = Some(response);
+                        }
+                    };
+                }
+            }
 
             for peer in closed_sessions {
                 self.on_session_closed(peer)
+            }
+
+            for (peer_id, resp) in received_responses {
+                if let Some(action) = self.on_eth_response(peer_id, resp) {
+                    self.queued_messages.push_back(action);
+                }
             }
 
             // poll peer manager
@@ -239,14 +338,37 @@ impl NetworkState {
 /// Tracks the state of a Peer with an active Session.
 ///
 /// For example known blocks,so we can decide what to announce.
+#[derive(Debug)]
 pub(crate) struct ActivePeer {
+    /// Best block of the peer.
+    pub(crate) best_hash:        B256,
     /// The capabilities of the remote peer.
     #[allow(unused)]
-    pub(crate) capabilities: Arc<Capabilities>
+    pub(crate) capabilities:     Arc<Capabilities>,
+    /// A communication channel directly to the session task.
+    pub(crate) request_tx:       PeerRequestSender,
+    /// The response receiver for a currently active request to that peer.
+    pub(crate) pending_response: Option<PeerResponse>,
+    /// Blocks we know the peer has.
+    pub(crate) blocks:           LruCache<B256>
 }
 
 /// Message variants triggered by the [`NetworkState`]
+#[derive(Debug)]
 pub(crate) enum StateAction {
+    // /// Dispatch a `NewBlock` message to the peer
+    // NewBlock {
+    //     /// Target of the message
+    //     peer_id: PeerId,
+    //     /// The `NewBlock` message
+    //     block:   NewBlockMessage
+    // },
+    // NewBlockHashes {
+    //     /// Target of the message
+    //     peer_id: PeerId,
+    //     /// `NewBlockHashes` message to send to the peer.
+    //     hashes:  NewBlockHashes
+    // },
     /// Create a new connection to the given node.
     Connect { remote_addr: SocketAddr, peer_id: PeerId },
     /// Disconnect an existing connection
@@ -267,4 +389,107 @@ pub(crate) enum StateAction {
     PeerAdded(PeerId),
     /// A peer was dropped
     PeerRemoved(PeerId)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        future::poll_fn,
+        sync::{atomic::AtomicU64, Arc}
+    };
+
+    use reth_eth_wire::{
+        capability::{Capabilities, Capability},
+        BlockBodies, EthVersion, Status
+    };
+    use reth_interfaces::p2p::{bodies::client::BodiesClient, error::RequestError};
+    use reth_primitives::{BlockBody, Header, PeerId, B256};
+    use reth_provider::test_utils::NoopProvider;
+    use tokio::sync::mpsc;
+    use tokio_stream::{wrappers::ReceiverStream, StreamExt};
+
+    use crate::{
+        discovery::Discovery, fetch::StateFetcher, message::PeerRequestSender, peers::PeersManager,
+        state::NetworkState, PeerRequest
+    };
+
+    /// Returns a testing instance of the [NetworkState].
+    fn state() -> NetworkState<NoopProvider> {
+        let peers = PeersManager::default();
+        let handle = peers.handle();
+        NetworkState {
+            active_peers:    Default::default(),
+            peers_manager:   Default::default(),
+            queued_messages: Default::default(),
+            client:          NoopProvider::default(),
+            discovery:       Discovery::noop(),
+            genesis_hash:    Default::default(),
+            state_fetcher:   StateFetcher::new(handle, Default::default())
+        }
+    }
+
+    fn capabilities() -> Arc<Capabilities> {
+        Arc::new(vec![Capability::from(EthVersion::Eth67)].into())
+    }
+
+    // tests that ongoing requests are answered with connection dropped if the
+    // session that received that request is drops the request object.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_dropped_active_session() {
+        let mut state = state();
+        let client = state.fetch_client();
+
+        let peer_id = PeerId::random();
+        let (tx, session_rx) = mpsc::channel(1);
+        let peer_tx = PeerRequestSender::new(peer_id, tx);
+
+        state.on_session_activated(
+            peer_id,
+            capabilities(),
+            Status::default(),
+            peer_tx,
+            Arc::new(AtomicU64::new(1))
+        );
+
+        assert!(state.active_peers.contains_key(&peer_id));
+
+        let body = BlockBody { ommers: vec![Header::default()], ..Default::default() };
+
+        let body_response = body.clone();
+
+        // this mimics an active session that receives the requests from the state
+        tokio::task::spawn(async move {
+            let mut stream = ReceiverStream::new(session_rx);
+            let resp = stream.next().await.unwrap();
+            match resp {
+                PeerRequest::GetBlockBodies { response, .. } => {
+                    response.send(Ok(BlockBodies(vec![body_response]))).unwrap();
+                }
+                _ => unreachable!()
+            }
+
+            // wait for the next request, then drop
+            let _resp = stream.next().await.unwrap();
+        });
+
+        // spawn the state as future
+        tokio::task::spawn(async move {
+            loop {
+                poll_fn(|cx| state.poll(cx)).await;
+            }
+        });
+
+        // send requests to the state via the client
+        let (peer, bodies) = client
+            .get_block_bodies(vec![B256::random()])
+            .await
+            .unwrap()
+            .split();
+        assert_eq!(peer, peer_id);
+        assert_eq!(bodies, vec![body]);
+
+        let resp = client.get_block_bodies(vec![B256::random()]).await;
+        assert!(resp.is_err());
+        assert_eq!(resp.unwrap_err(), RequestError::ConnectionDropped);
+    }
 }

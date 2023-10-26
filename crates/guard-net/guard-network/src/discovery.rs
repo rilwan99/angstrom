@@ -3,11 +3,15 @@
 use std::{
     collections::{hash_map::Entry, HashMap, VecDeque},
     net::{IpAddr, SocketAddr},
+    sync::Arc,
     task::{Context, Poll}
 };
 
 use futures::StreamExt;
 use guard_discv4::{DiscoveryUpdate, Discv4, Discv4Config, EnrForkIdEntry};
+use reth_dns_discovery::{
+    DnsDiscoveryConfig, DnsDiscoveryHandle, DnsDiscoveryService, DnsNodeRecordUpdate, DnsResolver
+};
 use reth_primitives::{ForkId, NodeRecord, PeerId};
 use secp256k1::SecretKey;
 use tokio::{sync::mpsc, task::JoinHandle};
@@ -15,31 +19,37 @@ use tokio_stream::wrappers::ReceiverStream;
 
 use crate::{
     error::{NetworkError, ServiceKind},
-    swarm::DiscoveredEvent
+    manager::DiscoveredEvent
 };
 
 /// An abstraction over the configured discovery protocol.
 ///
 /// Listens for new discovered nodes and emits events for discovered nodes and
-/// their address.#[derive(Debug, Clone)]
-
+/// their address.
+#[derive(Debug)]
 pub struct Discovery {
     /// All nodes discovered via discovery protocol.
     ///
     /// These nodes can be ephemeral and are updated via the discovery protocol.
-    discovered_nodes:    HashMap<PeerId, SocketAddr>,
+    discovered_nodes:      HashMap<PeerId, SocketAddr>,
     /// Local ENR of the discovery service.
-    local_enr:           NodeRecord,
+    local_enr:             NodeRecord,
     /// Handler to interact with the Discovery v4 service
-    discv4:              Option<Discv4>,
+    discv4:                Option<Discv4>,
     /// All KAD table updates from the discv4 service.
-    discv4_updates:      Option<ReceiverStream<DiscoveryUpdate>>,
+    discv4_updates:        Option<ReceiverStream<DiscoveryUpdate>>,
     /// The handle to the spawned discv4 service
-    _discv4_service:     Option<JoinHandle<()>>,
+    _discv4_service:       Option<JoinHandle<()>>,
+    /// Handler to interact with the DNS discovery service
+    _dns_discovery:        Option<DnsDiscoveryHandle>,
+    /// Updates from the DNS discovery service.
+    dns_discovery_updates: Option<ReceiverStream<DnsNodeRecordUpdate>>,
+    /// The handle to the spawned DNS discovery service
+    _dns_disc_service:     Option<JoinHandle<()>>,
     /// Events buffered until polled.
-    queued_events:       VecDeque<DiscoveryEvent>,
+    queued_events:         VecDeque<DiscoveryEvent>,
     /// List of listeners subscribed to discovery events.
-    discovery_listeners: Vec<mpsc::UnboundedSender<DiscoveryEvent>>
+    discovery_listeners:   Vec<mpsc::UnboundedSender<DiscoveryEvent>>
 }
 
 impl Discovery {
@@ -50,7 +60,8 @@ impl Discovery {
     pub async fn new(
         discovery_addr: SocketAddr,
         sk: SecretKey,
-        discv4_config: Option<Discv4Config>
+        discv4_config: Option<Discv4Config>,
+        dns_discovery_config: Option<DnsDiscoveryConfig>
     ) -> Result<Self, NetworkError> {
         // setup discv4
         let local_enr = NodeRecord::from_secret_key(discovery_addr, &sk);
@@ -69,6 +80,20 @@ impl Discovery {
             (None, None, None)
         };
 
+        // setup DNS discovery
+        let (_dns_discovery, dns_discovery_updates, _dns_disc_service) =
+            if let Some(dns_config) = dns_discovery_config {
+                let (mut service, dns_disc) = DnsDiscoveryService::new_pair(
+                    Arc::new(DnsResolver::from_system_conf()?),
+                    dns_config
+                );
+                let dns_discovery_updates = service.node_record_stream();
+                let dns_disc_service = service.spawn();
+                (Some(dns_disc), Some(dns_discovery_updates), Some(dns_disc_service))
+            } else {
+                (None, None, None)
+            };
+
         Ok(Self {
             discovery_listeners: Default::default(),
             local_enr,
@@ -76,7 +101,10 @@ impl Discovery {
             discv4_updates,
             _discv4_service,
             discovered_nodes: Default::default(),
-            queued_events: Default::default()
+            queued_events: Default::default(),
+            _dns_disc_service,
+            _dns_discovery,
+            dns_discovery_updates
         })
     }
 
@@ -181,6 +209,15 @@ impl Discovery {
                 self.on_discv4_update(update)
             }
 
+            while let Some(Poll::Ready(Some(update))) = self
+                .dns_discovery_updates
+                .as_mut()
+                .map(|updates| updates.poll_next_unpin(cx))
+            {
+                self.add_discv4_node(update.node_record);
+                self.on_node_record_update(update.node_record, update.fork_id);
+            }
+
             if self.queued_events.is_empty() {
                 return Poll::Pending
             }
@@ -199,18 +236,21 @@ impl Discovery {
             mpsc::unbounded_channel();
 
         Self {
-            discovered_nodes:    Default::default(),
-            local_enr:           NodeRecord {
+            discovered_nodes:      Default::default(),
+            local_enr:             NodeRecord {
                 address:  IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
                 tcp_port: 0,
                 udp_port: 0,
                 id:       PeerId::random()
             },
-            discv4:              Default::default(),
-            discv4_updates:      Default::default(),
-            queued_events:       Default::default(),
-            _discv4_service:     Default::default(),
-            discovery_listeners: Default::default()
+            discv4:                Default::default(),
+            discv4_updates:        Default::default(),
+            queued_events:         Default::default(),
+            _discv4_service:       Default::default(),
+            _dns_discovery:        None,
+            dns_discovery_updates: None,
+            _dns_disc_service:     None,
+            discovery_listeners:   Default::default()
         }
     }
 }
@@ -238,8 +278,9 @@ mod tests {
         let mut rng = thread_rng();
         let (secret_key, _) = SECP256K1.generate_keypair(&mut rng);
         let discovery_addr = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 0));
-        let _discovery = Discovery::new(discovery_addr, secret_key, Default::default())
-            .await
-            .unwrap();
+        let _discovery =
+            Discovery::new(discovery_addr, secret_key, Default::default(), Default::default())
+                .await
+                .unwrap();
     }
 }

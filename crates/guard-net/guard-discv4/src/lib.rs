@@ -35,7 +35,7 @@ use std::{
     cell::RefCell,
     collections::{btree_map, hash_map::Entry, BTreeMap, HashMap, VecDeque},
     io,
-    net::{IpAddr, SocketAddr},
+    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4},
     pin::Pin,
     rc::Rc,
     sync::Arc,
@@ -101,6 +101,11 @@ use crate::table::PongTable;
 ///
 /// Note: the default TCP port is the same.
 pub const DEFAULT_DISCOVERY_PORT: u16 = 50505;
+
+pub const DEFAULT_DISCOVERY_ADDR: Ipv4Addr = Ipv4Addr::UNSPECIFIED;
+
+pub const DEFAULT_DISCOVERY_ADDRESS: SocketAddr =
+    SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, DEFAULT_DISCOVERY_PORT));
 
 /// The maximum size of any packet is 1280 bytes.
 const MAX_PACKET_SIZE: usize = 1280;

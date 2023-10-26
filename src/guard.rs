@@ -12,14 +12,14 @@ use ethers_middleware::SignerMiddleware;
 use ethers_providers::{Middleware, PubsubClient};
 use futures::{Future, FutureExt};
 use futures_util::StreamExt;
-use guard_network::{NetworkConfig, PeerMessages, Swarm, SwarmEvent};
+use guard_network::NetworkConfig;
 use sim::Simulator;
 use tokio::sync::mpsc::Sender;
 use tracing::debug;
 use url::Url;
 
 use crate::{
-    relay_sender::RelaySender, round_robin_sync::RoundRobinSync, GeneralConfig, NetworkManager
+    relay_sender::RelaySender, round_robin_sync::RoundRobinSync, EthNetworkManager, GeneralConfig
 };
 
 // TODO: these values should be moved somewhere else bc there ugly
@@ -48,7 +48,7 @@ where
     <M as Middleware>::Provider: PubsubClient
 {
     /// Manager of Network State
-    network_manager: NetworkManager<M>,
+    network_manager: EthNetworkManager<M>,
     /// guard network connection
     consensus:       ConsensusHandle,
     /// deals with round robin sycning
@@ -66,7 +66,6 @@ where
         network_config: NetworkConfig,
         general_config: GeneralConfig<S>
     ) -> anyhow::Result<Self> {
-        let swarm = Swarm::new(network_config).await?;
         let relay_sender = RelaySender::new(Arc::new(SignerMiddleware::new(
             BroadcasterMiddleware::new(
                 middleware,
@@ -79,38 +78,12 @@ where
             ),
             general_config.ecdsa_key.clone()
         )));
-        let network_manager = NetworkManager::new(middleware, swarm, relay_sender).await?;
+        let network_manager = EthNetworkManager::new(middleware, relay_sender).await?;
 
         let (consensus, current_height) = ConsensusManager::new().await;
         let syncing = RoundRobinSync::new(middleware, current_height).await;
 
         Ok(Self { consensus, network_manager, syncing: Some(syncing), _p: Default::default() })
-    }
-
-    fn on_guard_net(&mut self, event: SwarmEvent) {
-        debug!(?event, "handling network event");
-
-        match event {
-            SwarmEvent::ValidMessage { peer_id, request } => {
-                debug!(?peer_id, ?request, "got data from peer");
-                match request {
-                    PeerMessages::PropagateBundle(bundle) => {
-                        todo!()
-                    }
-                    PeerMessages::PropagateOrder(order) => {
-                        todo!()
-                    }
-                    PeerMessages::Commit(c) => {
-                        todo!()
-                    }
-                    PeerMessages::Proposal(p) => todo!(),
-                    PeerMessages::PrePropose(p) => todo!()
-                }
-            }
-            res @ _ => {
-                debug!(?res, "got swarm event");
-            }
-        }
     }
 
     fn on_consensus(&mut self, consensus: ConsensusMessage) {
@@ -128,10 +101,6 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut work = 4096;
         loop {
-            self.network_manager
-                .poll_swarm(cx)
-                .apply(|swarm_event| self.on_guard_net(swarm_event));
-
             self.network_manager.poll_block_stream(cx).apply(|block| {
                 let block = Arc::new(block);
                 if let Some(sync) = self.syncing.as_mut() {
