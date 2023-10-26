@@ -9,7 +9,8 @@ use std::{
 };
 
 use futures::{stream::FuturesUnordered, Future, FutureExt, StreamExt};
-use guard_eth_wire::{EthVersion, GetSearcherOrders, SearcherOrders};
+use guard_eth_wire::{EthVersion, GetLimitOrders, GetSearcherOrders, LimitOrders, SearcherOrders};
+use guard_types::rpc::SignedLimitOrder;
 use reth_interfaces::{
     p2p::error::{RequestError, RequestResult},
     sync::SyncStateProvider
@@ -305,70 +306,78 @@ where
         // Note: Assuming ~random~ order due to random state of the peers map hasher
         for (peer_idx, (peer_id, peer)) in self.peers.iter_mut().enumerate() {
             // filter all transactions unknown to the peer
-            let mut hashes = PooledTransactionsHashesBuilder::new(peer.version);
-            let mut full_transactions = FullTransactionsBuilder::default();
-
-            // Iterate through the transactions to propagate and fill the hashes and full
-            // transaction lists, before deciding whether or not to send full transactions
-            // to the peer.
-            for tx in to_propagate.iter() {
-                if peer.transactions.insert(tx.hash()) {
-                    hashes.push(tx);
-
-                    // Do not send full 4844 transaction hashes to peers.
-                    //
-                    //  Nodes MUST NOT automatically broadcast blob transactions to their peers.
-                    //  Instead, those transactions are only announced using
-                    //  `NewPooledTransactionHashes` messages, and can then be manually requested
-                    //  via `GetPooledTransactions`.
-                    //
-                    // From: <https://eips.ethereum.org/EIPS/eip-4844#networking>
-                    if !tx.transaction.is_eip4844() {
-                        full_transactions.push(tx);
-                    }
-                }
-            }
-            let mut new_pooled_hashes = hashes.build();
-
-            if !new_pooled_hashes.is_empty() {
-                // determine whether to send full tx objects or hashes. If there are no full
-                // transactions, try to send hashes.
-                if peer_idx > max_num_full || full_transactions.is_empty() {
-                    // enforce tx soft limit per message for the (unlikely) event the number of
-                    // hashes exceeds it
-                    new_pooled_hashes.truncate(NEW_POOLED_TRANSACTION_HASHES_SOFT_LIMIT);
-
-                    for hash in new_pooled_hashes.iter_hashes().copied() {
-                        propagated
-                            .0
-                            .entry(hash)
-                            .or_default()
-                            .push(PropagateKind::Hash(*peer_id));
-                    }
-
-                    trace!(target: "net::tx", ?peer_id, num_txs=?new_pooled_hashes.len(), "Propagating tx hashes to peer");
-
-                    // send hashes of transactions
-                    self.network
-                        .send_transactions_hashes(*peer_id, new_pooled_hashes);
-                } else {
-                    let new_full_transactions = full_transactions.build();
-
-                    for tx in new_full_transactions.iter() {
-                        propagated
-                            .0
-                            .entry(tx.hash())
-                            .or_default()
-                            .push(PropagateKind::Full(*peer_id));
-                    }
-
-                    trace!(target: "net::tx", ?peer_id, num_txs=?new_full_transactions.len(), "Propagating full transactions to peer");
-
-                    // send full transactions
-                    self.network
-                        .send_transactions(*peer_id, new_full_transactions);
-                }
-            }
+            // let mut hashes =
+            // PooledTransactionsHashesBuilder::new(peer.version);
+            // let mut full_transactions = FullTransactionsBuilder::default();
+            //
+            // // Iterate through the transactions to propagate and fill the
+            // hashes and full // transaction lists, before deciding
+            // whether or not to send full transactions // to the peer.
+            // for tx in to_propagate.iter() {
+            //     if peer.transactions.insert(tx.hash()) {
+            //         hashes.push(tx);
+            //
+            //         // Do not send full 4844 transaction hashes to peers.
+            //         //
+            //         //  Nodes MUST NOT automatically broadcast blob
+            // transactions to their peers.         //  Instead,
+            // those transactions are only announced using         //
+            // `NewPooledTransactionHashes` messages, and can then be manually
+            // requested         //  via `GetPooledTransactions`.
+            //         //
+            //         // From: <https://eips.ethereum.org/EIPS/eip-4844#networking>
+            //         if !tx.transaction.is_eip4844() {
+            //             full_transactions.push(tx);
+            //         }
+            //     }
+            // }
+            // let mut new_pooled_hashes = hashes.build();
+            //
+            // if !new_pooled_hashes.is_empty() {
+            //     // determine whether to send full tx objects or hashes. If
+            // there are no full     // transactions, try to send
+            // hashes.     if peer_idx > max_num_full ||
+            // full_transactions.is_empty() {         // enforce tx
+            // soft limit per message for the (unlikely) event the number of
+            //         // hashes exceeds it
+            //         new_pooled_hashes.
+            // truncate(NEW_POOLED_TRANSACTION_HASHES_SOFT_LIMIT);
+            //
+            //         for hash in new_pooled_hashes.iter_hashes().copied() {
+            //             propagated
+            //                 .0
+            //                 .entry(hash)
+            //                 .or_default()
+            //                 .push(PropagateKind::Hash(*peer_id));
+            //         }
+            //
+            //         trace!(target: "net::tx", ?peer_id,
+            // num_txs=?new_pooled_hashes.len(), "Propagating tx hashes to
+            // peer");
+            //
+            //         // send hashes of transactions
+            //         self.network
+            //             .send_transactions_hashes(*peer_id,
+            // new_pooled_hashes);     } else {
+            //         let new_full_transactions = full_transactions.build();
+            //
+            //         for tx in new_full_transactions.iter() {
+            //             propagated
+            //                 .0
+            //                 .entry(tx.hash())
+            //                 .or_default()
+            //                 .push(PropagateKind::Full(*peer_id));
+            //         }
+            //
+            //         trace!(target: "net::tx", ?peer_id,
+            // num_txs=?new_full_transactions.len(), "Propagating full
+            // transactions to peer");
+            //
+            //         // send full transactions
+            //         self.network
+            //             .send_transactions(*peer_id, new_full_transactions);
+            //     }
+            // }
         }
 
         // Update propagated transactions metrics
@@ -424,8 +433,8 @@ where
                 .push(PropagateKind::Full(peer_id));
         }
         // send full transactions
-        self.network
-            .send_transactions(peer_id, new_full_transactions);
+        // self.network
+        //     .send_transactions(peer_id, new_full_transactions);
 
         // Update propagated transactions metrics
         self.metrics
@@ -457,136 +466,111 @@ where
                 .map(PropagateTransaction::new)
                 .collect();
 
-            let mut propagated = PropagatedTransactions::default();
+            // let mut propagated = PropagatedTransactions::default();
 
-            // check if transaction is known to peer
-            let mut hashes = PooledTransactionsHashesBuilder::new(peer.version);
-
-            for tx in to_propagate {
-                if peer.transactions.insert(tx.hash()) {
-                    hashes.push(&tx);
-                }
-            }
-
-            let new_pooled_hashes = hashes.build();
-
-            if new_pooled_hashes.is_empty() {
-                // nothing to propagate
-                return
-            }
-
-            for hash in new_pooled_hashes.iter_hashes().copied() {
-                propagated
-                    .0
-                    .entry(hash)
-                    .or_default()
-                    .push(PropagateKind::Hash(peer_id));
-            }
+            // // check if transaction is known to peer
+            // let mut hashes =
+            // PooledTransactionsHashesBuilder::new(peer.version);
+            //
+            // for tx in to_propagate {
+            //     if peer.transactions.insert(tx.hash()) {
+            //         hashes.push(&tx);
+            //     }
+            // }
+            //
+            // let new_pooled_hashes = hashes.build();
+            //
+            // if new_pooled_hashes.is_empty() {
+            //     // nothing to propagate
+            //     return
+            // }
+            //
+            // for hash in new_pooled_hashes.iter_hashes().copied() {
+            //     propagated
+            //         .0
+            //         .entry(hash)
+            //         .or_default()
+            //         .push(PropagateKind::Hash(peer_id));
+            // }
 
             // send hashes of transactions
-            self.network
-                .send_transactions_hashes(peer_id, new_pooled_hashes);
+            // self.network
+            //     .send_transactions_hashes(peer_id, new_pooled_hashes);
 
             // Update propagated transactions metrics
-            self.metrics
-                .propagated_transactions
-                .increment(propagated.0.len() as u64);
-
-            propagated
+            // self.metrics
+            //     .propagated_transactions
+            //     .increment(propagated.0.len() as u64);
+            //
+            // propagated
         };
 
         // notify pool so events get fired
-        self.pool.on_propagated(propagated);
+        // self.pool.on_propagated(propagated);
     }
 
     /// Request handler for an incoming `NewPooledTransactionHashes`
-    fn on_new_pooled_transaction_hashes(
-        &mut self,
-        peer_id: PeerId,
-        msg: NewPooledTransactionHashes
-    ) {
-        // If the node is initially syncing, ignore transactions
-        if self.network.is_initially_syncing() {
-            return
-        }
-
-        let mut num_already_seen = 0;
-
-        if let Some(peer) = self.peers.get_mut(&peer_id) {
-            let mut hashes = msg.into_hashes();
-            // keep track of the transactions the peer knows
-            for tx in hashes.iter().copied() {
-                if !peer.transactions.insert(tx) {
-                    num_already_seen += 1;
-                }
-            }
-
-            self.pool.retain_unknown(&mut hashes);
-
-            if hashes.is_empty() {
-                // nothing to request
-                return
-            }
-
-            // enforce recommended soft limit, however the peer may enforce an arbitrary
-            // limit on the response (2MB)
-            hashes.truncate(GET_POOLED_TRANSACTION_SOFT_LIMIT_NUM_HASHES);
-
-            // request the missing transactions
-            let (response, rx) = oneshot::channel();
-            let req = PeerRequest::GetPooledTransactions {
-                request: GetPooledTransactions(hashes),
-                response
-            };
-
-            if peer.request_tx.try_send(req).is_ok() {
-                self.inflight_requests
-                    .push(GetPooledTxRequestFut::new(peer_id, rx))
-            } else {
-                // peer channel is saturated, drop the request
-                self.metrics.egress_peer_channel_full.increment(1);
-                return
-            }
-
-            if num_already_seen > 0 {
-                self.metrics.messages_with_already_seen_hashes.increment(1);
-                debug!(target: "net::tx", num_hashes=%num_already_seen, ?peer_id, client=?peer.client_version, "Peer sent already seen hashes");
-            }
-        }
-
-        if num_already_seen > 0 {
-            self.report_already_seen(peer_id);
-        }
-    }
+    // fn on_new_pooled_transaction_hashes(
+    //     &mut self,
+    //     peer_id: PeerId,
+    //     msg: NewPooledTransactionHashes
+    // ) { // If the node is initially syncing, ignore transactions if
+    //   self.network.is_initially_syncing() { return }
+    //
+    //     let mut num_already_seen = 0;
+    //
+    //     if let Some(peer) = self.peers.get_mut(&peer_id) {
+    //         let mut hashes = msg.into_hashes();
+    //         // keep track of the transactions the peer knows
+    //         for tx in hashes.iter().copied() {
+    //             if !peer.transactions.insert(tx) {
+    //                 num_already_seen += 1;
+    //             }
+    //         }
+    //
+    //         self.pool.retain_unknown(&mut hashes);
+    //
+    //         if hashes.is_empty() {
+    //             // nothing to request
+    //             return
+    //         }
+    //
+    //         // enforce recommended soft limit, however the peer may enforce an arbitrary
+    //         // limit on the response (2MB)
+    //         hashes.truncate(GET_POOLED_TRANSACTION_SOFT_LIMIT_NUM_HASHES);
+    //
+    //         // request the missing transactions
+    //         let (response, rx) = oneshot::channel();
+    //         let req = PeerRequest::GetPooledTransactions {
+    //             request: GetPooledTransactions(hashes),
+    //             response
+    //         };
+    //
+    //         if peer.request_tx.try_send(req).is_ok() {
+    //             self.inflight_requests
+    //                 .push(GetPooledTxRequestFut::new(peer_id, rx))
+    //         } else {
+    //             // peer channel is saturated, drop the request
+    //             self.metrics.egress_peer_channel_full.increment(1);
+    //             return
+    //         }
+    //
+    //         if num_already_seen > 0 {
+    //             self.metrics.messages_with_already_seen_hashes.increment(1);
+    //             debug!(target: "net::tx", num_hashes=%num_already_seen, ?peer_id,
+    // client=?peer.client_version, "Peer sent already seen hashes");         }
+    //     }
+    //
+    //     if num_already_seen > 0 {
+    //         self.report_already_seen(peer_id);
+    //     }
+    // }
 
     /// Handles dedicated transaction events related to the `eth` protocol.
     fn on_network_tx_event(&mut self, event: NetworkTransactionEvent) {
         match event {
-            NetworkTransactionEvent::IncomingTransactions { peer_id, msg } => {
-                // ensure we didn't receive any blob transactions as these are disallowed to be
-                // broadcasted in full
-
-                let has_blob_txs = msg.has_eip4844();
-
-                let non_blob_txs = msg
-                    .0
-                    .into_iter()
-                    .map(PooledTransactionsElement::try_from_broadcast)
-                    .filter_map(Result::ok)
-                    .collect();
-
-                self.import_transactions(peer_id, non_blob_txs, TransactionSource::Broadcast);
-
-                if has_blob_txs {
-                    self.report_peer(peer_id, ReputationChangeKind::BadTransactions);
-                }
-            }
-            NetworkTransactionEvent::IncomingPooledTransactionHashes { peer_id, msg } => {
-                self.on_new_pooled_transaction_hashes(peer_id, msg)
-            }
-            NetworkTransactionEvent::GetPooledTransactions { peer_id, request, response } => {
-                self.on_get_pooled_transactions(peer_id, request, response)
-            }
+            NetworkTransactionEvent::GetLimitOrder { peer_id, request, response } => {}
+            NetworkTransactionEvent::IncomingLimitOrder { peer_id, order } => {}
         }
     }
 
@@ -650,23 +634,24 @@ where
                 if !self.network.is_initially_syncing() {
                     let peer = self.peers.get_mut(&peer_id).expect("is present; qed");
 
-                    let mut msg_builder = PooledTransactionsHashesBuilder::new(version);
-
-                    let pooled_txs = self
-                        .pool
-                        .pooled_transactions_max(NEW_POOLED_TRANSACTION_HASHES_SOFT_LIMIT);
-                    if pooled_txs.is_empty() {
-                        // do not send a message if there are no transactions in the pool
-                        return
-                    }
-
-                    for pooled_tx in pooled_txs.into_iter() {
-                        peer.transactions.insert(*pooled_tx.hash());
-                        msg_builder.push_pooled(pooled_tx);
-                    }
-
-                    let msg = msg_builder.build();
-                    self.network.send_transactions_hashes(peer_id, msg);
+                    // let mut msg_builder =
+                    // PooledTransactionsHashesBuilder::new(version);
+                    //
+                    // let pooled_txs = self
+                    //     .pool
+                    //     .pooled_transactions_max(NEW_POOLED_TRANSACTION_HASHES_SOFT_LIMIT);
+                    // if pooled_txs.is_empty() {
+                    //     // do not send a message if there are no transactions
+                    // in the pool     return
+                    // }
+                    //
+                    // for pooled_tx in pooled_txs.into_iter() {
+                    //     peer.transactions.insert(*pooled_tx.hash());
+                    //     msg_builder.push_pooled(pooled_tx);
+                    // }
+                    //
+                    // let msg = msg_builder.build();
+                    // self.network.send_transactions_hashes(peer_id, msg);
                 }
             }
             _ => {}
@@ -815,12 +800,13 @@ where
         this.update_request_metrics();
 
         // Advance all requests.
-        while let Poll::Ready(Some(GetPooledTxResponse { peer_id, result })) =
+        while let Poll::Ready(Some(GetPooledSeacherOrderResponse { peer_id, result })) =
             this.inflight_requests.poll_next_unpin(cx)
         {
             match result {
                 Ok(Ok(txs)) => {
-                    this.import_transactions(peer_id, txs.0, TransactionSource::Response)
+                    // this.import_transactions(peer_id, txs.0,
+                    // TransactionSource::Response)
                 }
                 Ok(Err(req_err)) => {
                     this.on_request_error(peer_id, req_err);
@@ -929,56 +915,49 @@ impl FullTransactionsBuilder {
     }
 }
 
-/// A helper type to create the pooled transactions message based on the
-/// negotiated version of the session with the peer
-enum PooledTransactionsHashesBuilder {
-    Eth66(NewPooledTransactionHashes66),
-    Eth68(NewPooledTransactionHashes68)
-}
-
 // === impl PooledTransactionsHashesBuilder ===
 
-impl PooledTransactionsHashesBuilder {
-    /// Push a transaction from the pool to the list.
-    fn push_pooled<T: PoolTransaction>(&mut self, pooled_tx: Arc<ValidPoolTransaction<T>>) {
-        match self {
-            PooledTransactionsHashesBuilder::Eth66(msg) => msg.0.push(*pooled_tx.hash()),
-            PooledTransactionsHashesBuilder::Eth68(msg) => {
-                msg.hashes.push(*pooled_tx.hash());
-                msg.sizes.push(pooled_tx.encoded_length());
-                msg.types.push(pooled_tx.transaction.tx_type());
-            }
-        }
-    }
-
-    fn push(&mut self, tx: &PropagateTransaction) {
-        match self {
-            PooledTransactionsHashesBuilder::Eth66(msg) => msg.0.push(tx.hash()),
-            PooledTransactionsHashesBuilder::Eth68(msg) => {
-                msg.hashes.push(tx.hash());
-                msg.sizes.push(tx.size);
-                msg.types.push(tx.transaction.tx_type().into());
-            }
-        }
-    }
-
-    /// Create a builder for the negotiated version of the peer's session
-    fn new(version: EthVersion) -> Self {
-        match version {
-            EthVersion::Eth66 | EthVersion::Eth67 => {
-                PooledTransactionsHashesBuilder::Eth66(Default::default())
-            }
-            EthVersion::Eth68 => PooledTransactionsHashesBuilder::Eth68(Default::default())
-        }
-    }
-
-    fn build(self) -> NewPooledTransactionHashes {
-        match self {
-            PooledTransactionsHashesBuilder::Eth66(msg) => msg.into(),
-            PooledTransactionsHashesBuilder::Eth68(msg) => msg.into()
-        }
-    }
-}
+// impl PooledTransactionsHashesBuilder {
+//     /// Push a transaction from the pool to the list.
+//     fn push_pooled<T: PoolTransaction>(&mut self, pooled_tx:
+// Arc<ValidPoolTransaction<T>>) {         match self {
+//             PooledTransactionsHashesBuilder::Eth66(msg) =>
+// msg.0.push(*pooled_tx.hash()),
+// PooledTransactionsHashesBuilder::Eth68(msg) => {
+// msg.hashes.push(*pooled_tx.hash());
+// msg.sizes.push(pooled_tx.encoded_length());
+// msg.types.push(pooled_tx.transaction.tx_type());             }
+//         }
+//     }
+//
+//     fn push(&mut self, tx: &PropagateTransaction) {
+//         match self {
+//             PooledTransactionsHashesBuilder::Eth66(msg) =>
+// msg.0.push(tx.hash()),
+// PooledTransactionsHashesBuilder::Eth68(msg) => {
+// msg.hashes.push(tx.hash());                 msg.sizes.push(tx.size);
+//                 msg.types.push(tx.transaction.tx_type().into());
+//             }
+//         }
+//     }
+//
+//     /// Create a builder for the negotiated version of the peer's session
+//     fn new(version: EthVersion) -> Self {
+//         match version {
+//             EthVersion::Eth66 | EthVersion::Eth67 => {
+//                 PooledTransactionsHashesBuilder::Eth66(Default::default())
+//             }
+//             EthVersion::Eth68 =>
+// PooledTransactionsHashesBuilder::Eth68(Default::default())         }
+//     }
+//
+//     fn build(self) -> NewPooledTransactionHashes {
+//         match self {
+//             PooledTransactionsHashesBuilder::Eth66(msg) => msg.into(),
+//             PooledTransactionsHashesBuilder::Eth68(msg) => msg.into()
+//         }
+//     }
+// }
 
 /// How we received the transactions.
 enum TransactionSource {
@@ -999,34 +978,31 @@ impl TransactionSource {
 }
 
 /// An inflight request for `PooledTransactions` from a peer
-struct GetPooledTxRequest {
+struct GetPooledSearcherOrderRequest {
     peer_id:  PeerId,
-    response: oneshot::Receiver<RequestResult<PooledTransactions>>
+    response: oneshot::Receiver<RequestResult<SearcherOrders>>
 }
 
-struct GetPooledTxResponse {
+struct GetPooledSeacherOrderResponse {
     peer_id: PeerId,
-    result:  Result<RequestResult<PooledTransactions>, RecvError>
+    result:  Result<RequestResult<SearcherOrders>, RecvError>
 }
 
 #[must_use = "futures do nothing unless polled"]
 #[pin_project::pin_project]
 struct GetPooledTxRequestFut {
     #[pin]
-    inner: Option<GetPooledTxRequest>
+    inner: Option<GetPooledSearcherOrderRequest>
 }
 
 impl GetPooledTxRequestFut {
-    fn new(
-        peer_id: PeerId,
-        response: oneshot::Receiver<RequestResult<PooledTransactions>>
-    ) -> Self {
-        Self { inner: Some(GetPooledTxRequest { peer_id, response }) }
+    fn new(peer_id: PeerId, response: oneshot::Receiver<RequestResult<SearcherOrders>>) -> Self {
+        Self { inner: Some(GetPooledSearcherOrderRequest { peer_id, response }) }
     }
 }
 
 impl Future for GetPooledTxRequestFut {
-    type Output = GetPooledTxResponse;
+    type Output = GetPooledSeacherOrderResponse;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut req = self
@@ -1037,7 +1013,7 @@ impl Future for GetPooledTxRequestFut {
             .expect("polled after completion");
         match req.response.poll_unpin(cx) {
             Poll::Ready(result) => {
-                Poll::Ready(GetPooledTxResponse { peer_id: req.peer_id, result })
+                Poll::Ready(GetPooledSeacherOrderResponse { peer_id: req.peer_id, result })
             }
             Poll::Pending => {
                 self.project().inner.set(Some(req));
@@ -1087,14 +1063,12 @@ pub enum NetworkTransactionEvent {
     /// Received list of transactions from the given peer.
     ///
     /// This represents transactions that were broadcasted to use from the peer.
-    IncomingTransactions { peer_id: PeerId, msg: Transactions },
-    /// Received list of transactions hashes to the given peer.
-    IncomingPooledTransactionHashes { peer_id: PeerId, msg: NewPooledTransactionHashes },
+    IncomingLimitOrder { peer_id: PeerId, order: SignedLimitOrder },
     /// Incoming `GetPooledTransactions` request from a peer.
-    GetPooledTransactions {
+    GetLimitOrder {
         peer_id:  PeerId,
-        request:  GetPooledTransactions,
-        response: oneshot::Sender<RequestResult<PooledTransactions>>
+        request:  GetLimitOrders,
+        response: oneshot::Sender<RequestResult<LimitOrders>>
     }
 }
 
@@ -1446,7 +1420,7 @@ mod tests {
             .add_transaction(reth_transaction_pool::TransactionOrigin::External, tx.clone())
             .await;
 
-        let request = GetPooledTransactions(vec![tx.get_hash()]);
+        let request = (vec![tx.get_hash()]);
 
         let (send, receive) = oneshot::channel::<RequestResult<PooledTransactions>>();
 

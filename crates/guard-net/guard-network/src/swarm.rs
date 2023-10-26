@@ -13,7 +13,6 @@ use guard_eth_wire::{
     DisconnectReason, EthVersion, Status
 };
 use reth_primitives::PeerId;
-use reth_provider::{BlockNumReader, BlockReader};
 use tracing::{debug, trace};
 
 use crate::{

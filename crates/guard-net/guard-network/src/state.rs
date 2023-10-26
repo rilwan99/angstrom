@@ -11,20 +11,16 @@ use std::{
     task::{Context, Poll}
 };
 
-use guard_eth_wire::{
-    capability::Capabilities, BlockHashNumber, DisconnectReason, NewBlockHashes, Status
-};
+use guard_eth_wire::{capability::Capabilities, DisconnectReason, Status};
 use reth_network_api::PeerKind;
 use reth_primitives::{ForkId, PeerId, B256};
-use reth_provider::BlockNumReader;
-use tokio::sync::oneshot;
 use tracing::debug;
 
 use crate::{
     cache::LruCache,
     discovery::{Discovery, DiscoveryEvent},
     manager::DiscoveredEvent,
-    message::{NewBlockMessage, PeerRequest, PeerRequestSender, PeerResponse, PeerResponseResult},
+    message::{PeerRequestSender, PeerResponse, PeerResponseResult},
     peers::{PeerAction, PeersManager}
 };
 
@@ -132,86 +128,9 @@ impl NetworkState {
         self.active_peers.remove(&peer);
     }
 
-    /// Starts propagating the new block to peers that haven't reported the
-    /// block yet.
-    ///
-    /// This is supposed to be invoked after the block was validated.
-    ///
-    /// > It then sends the block to a small fraction of connected peers
-    /// > (usually the square root of
-    /// > the total number of peers) using the `NewBlock` message.
-    ///
-    /// See also <https://github.com/ethereum/devp2p/blob/master/caps/eth.md>
-    pub(crate) fn announce_new_block(&mut self, msg: NewBlockMessage) {
-        // send a `NewBlock` message to a fraction fo the connected peers (square root
-        // of the total number of peers)
-        let num_propagate = (self.active_peers.len() as f64).sqrt() as u64 + 1;
-
-        let number = msg.block.block.header.number;
-        let mut count = 0;
-        for (peer_id, peer) in self.active_peers.iter_mut() {
-            if peer.blocks.contains(&msg.hash) {
-                // skip peers which already reported the block
-                continue
-            }
-
-            // Queue a `NewBlock` message for the peer
-            if count < num_propagate {
-                self.queued_messages
-                    .push_back(StateAction::NewBlock { peer_id: *peer_id, block: msg.clone() });
-
-                // mark the block as seen by the peer
-                peer.blocks.insert(msg.hash);
-
-                count += 1;
-            }
-
-            if count >= num_propagate {
-                break
-            }
-        }
-    }
-
-    /// Completes the block propagation process started in
-    /// [`NetworkState::announce_new_block()`] but sending `NewBlockHash`
-    /// broadcast to all peers that haven't seen it yet.
-    pub(crate) fn announce_new_block_hash(&mut self, msg: NewBlockMessage) {
-        let number = msg.block.block.header.number;
-        let hashes = NewBlockHashes(vec![BlockHashNumber { hash: msg.hash, number }]);
-        for (peer_id, peer) in self.active_peers.iter_mut() {
-            if peer.blocks.contains(&msg.hash) {
-                // skip peers which already reported the block
-                continue
-            }
-
-            self.queued_messages.push_back(StateAction::NewBlockHashes {
-                peer_id: *peer_id,
-                hashes:  hashes.clone()
-            });
-        }
-    }
-
     /// Invoked when a new [`ForkId`] is activated.
     pub(crate) fn update_fork_id(&mut self, fork_id: ForkId) {
         self.discovery.update_fork_id(fork_id)
-    }
-
-    /// Invoked after a `NewBlock` message was received by the peer.
-    ///
-    /// This will keep track of blocks we know a peer has
-    pub(crate) fn on_new_block(&mut self, peer_id: PeerId, hash: B256) {
-        // Mark the blocks as seen
-        if let Some(peer) = self.active_peers.get_mut(&peer_id) {
-            peer.blocks.insert(hash);
-        }
-    }
-
-    /// Invoked for a `NewBlockHashes` broadcast message.
-    pub(crate) fn on_new_block_hashes(&mut self, peer_id: PeerId, hashes: Vec<BlockHashNumber>) {
-        // Mark the blocks as seen
-        if let Some(peer) = self.active_peers.get_mut(&peer_id) {
-            peer.blocks.extend(hashes.into_iter().map(|b| b.hash));
-        }
     }
 
     /// Bans the [`IpAddr`] in the discovery service.

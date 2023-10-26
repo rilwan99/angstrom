@@ -7,7 +7,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use guard_eth_wire::{DisconnectReason, NewBlock, NewPooledTransactionHashes, SharedTransactions};
+use guard_eth_wire::DisconnectReason;
 use parking_lot::Mutex;
 use reth_interfaces::sync::{NetworkSyncUpdater, SyncState, SyncStateProvider};
 use reth_net_common::bandwidth_meter::BandwidthMeter;
@@ -120,32 +120,9 @@ impl NetworkHandle {
         self.send_message(NetworkHandleMessage::StatusUpdate { head });
     }
 
-    /// Announce a block over devp2p
-    ///
-    /// Caution: in PoS this is a noop, since new block are no longer announced
-    /// over devp2p, but are instead sent to node node by the CL. However,
-    /// they can still be requested over devp2p, but broadcasting them is a
-    /// considered a protocol violation..
-    pub fn announce_block(&self, block: NewBlock, hash: B256) {
-        self.send_message(NetworkHandleMessage::AnnounceBlock(block, hash))
-    }
-
     /// Sends a [`PeerRequest`] to the given peer's session.
     pub fn send_request(&self, peer_id: PeerId, request: PeerRequest) {
         self.send_message(NetworkHandleMessage::EthRequest { peer_id, request })
-    }
-
-    /// Send transactions hashes to the peer.
-    pub fn send_transactions_hashes(&self, peer_id: PeerId, msg: NewPooledTransactionHashes) {
-        self.send_message(NetworkHandleMessage::SendPooledTransactionHashes { peer_id, msg })
-    }
-
-    /// Send full transactions to the peer
-    pub fn send_transactions(&self, peer_id: PeerId, msg: Vec<Arc<TransactionSigned>>) {
-        self.send_message(NetworkHandleMessage::SendTransaction {
-            peer_id,
-            msg: SharedTransactions(msg)
-        })
     }
 
     /// Provides a shareable reference to the [`BandwidthMeter`] stored on the
@@ -327,12 +304,6 @@ pub(crate) enum NetworkHandleMessage {
     DisconnectPeer(PeerId, Option<DisconnectReason>),
     /// Add a new listener for [`NetworkEvent`].
     EventListener(UnboundedSender<NetworkEvent>),
-    /// Broadcast event to announce a new block to all nodes.
-    AnnounceBlock(NewBlock, B256),
-    /// Sends the list of transactions to the given peer.
-    SendTransaction { peer_id: PeerId, msg: SharedTransactions },
-    /// Sends the list of transactions hashes to the given peer.
-    SendPooledTransactionHashes { peer_id: PeerId, msg: NewPooledTransactionHashes },
     /// Send an `eth` protocol request to the peer.
     EthRequest {
         /// The peer to send the request to.
