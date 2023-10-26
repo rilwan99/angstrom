@@ -17,8 +17,7 @@ use guard_eth_wire::{
     capability::Capabilities,
     errors::{EthHandshakeError, EthStreamError, P2PStreamError},
     message::{EthBroadcastMessage, RequestPair},
-    DisconnectReason, EthMessage, EthStream, GetLimitOrders, GetSearcherOrders, GetUsersOrders,
-    LimitOrders, P2PStream, SearcherOrders, UserOrders
+    DisconnectReason, EthMessage, EthStream, P2PStream
 };
 use reth_ecies::stream::ECIESStream;
 use reth_interfaces::p2p::error::RequestError;

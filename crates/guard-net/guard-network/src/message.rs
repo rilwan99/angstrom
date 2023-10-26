@@ -74,10 +74,7 @@ pub enum PeerRequest {
     /// Request Block headers from the peer.
     ///
     /// The response should be sent through the channel.
-    GetUserOrders {
-        request:  GetUsersOrders,
-        response: oneshot::Sender<RequestResult<SearcherOrders>>
-    },
+    GetUserOrders { request: GetUsersOrders, response: oneshot::Sender<RequestResult<UserOrders>> },
     /// Request pooled transactions from the peer.
     ///
     /// The response should be sent through the channel.

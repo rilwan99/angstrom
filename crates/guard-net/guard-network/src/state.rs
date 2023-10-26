@@ -437,19 +437,19 @@ pub(crate) struct ActivePeer {
 /// Message variants triggered by the [`NetworkState`]
 #[derive(Debug)]
 pub(crate) enum StateAction {
-    /// Dispatch a `NewBlock` message to the peer
-    NewBlock {
-        /// Target of the message
-        peer_id: PeerId,
-        /// The `NewBlock` message
-        block:   NewBlockMessage
-    },
-    NewBlockHashes {
-        /// Target of the message
-        peer_id: PeerId,
-        /// `NewBlockHashes` message to send to the peer.
-        hashes:  NewBlockHashes
-    },
+    // /// Dispatch a `NewBlock` message to the peer
+    // NewBlock {
+    //     /// Target of the message
+    //     peer_id: PeerId,
+    //     /// The `NewBlock` message
+    //     block:   NewBlockMessage
+    // },
+    // NewBlockHashes {
+    //     /// Target of the message
+    //     peer_id: PeerId,
+    //     /// `NewBlockHashes` message to send to the peer.
+    //     hashes:  NewBlockHashes
+    // },
     /// Create a new connection to the given node.
     Connect { remote_addr: SocketAddr, peer_id: PeerId },
     /// Disconnect an existing connection
