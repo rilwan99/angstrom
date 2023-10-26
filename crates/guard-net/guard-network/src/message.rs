@@ -11,35 +11,36 @@ use std::{
 
 use futures::FutureExt;
 use guard_eth_wire::{
-    capability::RawCapabilityMessage, message::RequestPair, BlockBodies, BlockHeaders, EthMessage,
-    GetBlockBodies, GetBlockHeaders, GetNodeData, GetPooledTransactions, GetReceipts, NewBlock,
-    NewBlockHashes, NewPooledTransactionHashes, NodeData, PooledTransactions, Receipts,
-    SharedTransactions, Transactions
+    capability::RawCapabilityMessage, message::RequestPair, EthMessage, GetLimitOrders,
+    GetSearcherOrders, GetUsersOrders, LimitOrders, SearcherOrders, UserOrders
 };
-use guard_types::{consensus::*, rpc::SignedLimitOrder};
+use guard_types::{
+    consensus::*,
+    rpc::{SignedLimitOrder, SignedSearcherOrder}
+};
 use reth_interfaces::p2p::error::{RequestError, RequestResult};
 use reth_primitives::{
     BlockBody, Bytes, Header, PeerId, PooledTransactionsElement, ReceiptWithBloom, B256
 };
 use tokio::sync::{mpsc, mpsc::error::TrySendError, oneshot};
 
-/// Internal form of a `NewBlock` message
-#[derive(Debug, Clone)]
-pub struct NewBlockMessage {
-    /// Hash of the block
-    pub hash:  B256,
-    /// Raw received message
-    pub block: Arc<NewBlock>
-}
+// /// Internal form of a `NewBlock` message
+// #[derive(Debug, Clone)]
+// pub struct NewBlockMessage {
+//     /// Hash of the block
+//     pub hash:  B256,
+//     /// Raw received message
+//     pub block: Arc<NewBlock>
+// }
 
 // === impl NewBlockMessage ===
 
-impl NewBlockMessage {
-    /// Returns the block number of the block
-    pub fn number(&self) -> u64 {
-        self.block.block.header.number
-    }
-}
+// impl NewBlockMessage {
+//     /// Returns the block number of the block
+//     pub fn number(&self) -> u64 {
+//         self.block.block.header.number
+//     }
+// }
 
 /// All Bi-directional eth-message variants that can be sent to a session or
 /// received from a session.
@@ -66,32 +67,24 @@ pub enum PeerRequest {
     /// Request Block headers from the peer.
     ///
     /// The response should be sent through the channel.
-    GetBlockHeaders {
-        request:  GetBlockHeaders,
-        response: oneshot::Sender<RequestResult<BlockHeaders>>
+    GetLimitOrders {
+        request:  GetLimitOrders,
+        response: oneshot::Sender<RequestResult<LimitOrders>>
     },
     /// Request Block headers from the peer.
     ///
     /// The response should be sent through the channel.
-    GetBlockBodies {
-        request:  GetBlockBodies,
-        response: oneshot::Sender<RequestResult<BlockBodies>>
+    GetUserOrders {
+        request:  GetUsersOrders,
+        response: oneshot::Sender<RequestResult<SearcherOrders>>
     },
     /// Request pooled transactions from the peer.
     ///
     /// The response should be sent through the channel.
-    GetPooledTransactions {
-        request:  GetPooledTransactions,
-        response: oneshot::Sender<RequestResult<PooledTransactions>>
-    },
-    /// Request NodeData from the peer.
-    ///
-    /// The response should be sent through the channel.
-    GetNodeData { request: GetNodeData, response: oneshot::Sender<RequestResult<NodeData>> },
-    /// Request Receipts from the peer.
-    ///
-    /// The response should be sent through the channel.
-    GetReceipts { request: GetReceipts, response: oneshot::Sender<RequestResult<Receipts>> }
+    GetSearcherOrders {
+        request:  GetSearcherOrders,
+        response: oneshot::Sender<RequestResult<SearcherOrders>>
+    }
 }
 
 // === impl PeerRequest ===
@@ -105,34 +98,23 @@ impl PeerRequest {
     /// Send an error back to the receiver.
     pub(crate) fn send_err_response(self, err: RequestError) {
         let _ = match self {
-            PeerRequest::GetBlockHeaders { response, .. } => response.send(Err(err)).ok(),
-            PeerRequest::GetBlockBodies { response, .. } => response.send(Err(err)).ok(),
-            PeerRequest::GetPooledTransactions { response, .. } => response.send(Err(err)).ok(),
-            PeerRequest::GetNodeData { response, .. } => response.send(Err(err)).ok(),
-            PeerRequest::GetReceipts { response, .. } => response.send(Err(err)).ok()
+            PeerRequest::GetUserOrders { response, .. } => response.send(Err(err)).ok(),
+            PeerRequest::GetLimitOrders { response, .. } => response.send(Err(err)).ok(),
+            PeerRequest::GetSearcherOrders { response, .. } => response.send(Err(err)).ok()
         };
     }
 
     /// Returns the [`EthMessage`] for this type
     pub fn create_request_message(&self, request_id: u64) -> EthMessage {
         match self {
-            PeerRequest::GetBlockHeaders { request, .. } => {
-                EthMessage::GetBlockHeaders(RequestPair { request_id, message: *request })
+            PeerRequest::GetUserOrders { request, .. } => {
+                EthMessage::GetUserOrders(RequestPair { request_id, message: request.clone() })
             }
-            PeerRequest::GetBlockBodies { request, .. } => {
-                EthMessage::GetBlockBodies(RequestPair { request_id, message: request.clone() })
+            PeerRequest::GetSearcherOrders { request, .. } => {
+                EthMessage::GetSearcherOrders(RequestPair { request_id, message: request.clone() })
             }
-            PeerRequest::GetPooledTransactions { request, .. } => {
-                EthMessage::GetPooledTransactions(RequestPair {
-                    request_id,
-                    message: request.clone()
-                })
-            }
-            PeerRequest::GetNodeData { request, .. } => {
-                EthMessage::GetNodeData(RequestPair { request_id, message: request.clone() })
-            }
-            PeerRequest::GetReceipts { request, .. } => {
-                EthMessage::GetReceipts(RequestPair { request_id, message: request.clone() })
+            PeerRequest::GetLimitOrders { request, .. } => {
+                EthMessage::GetLimitOrders(RequestPair { request_id, message: request.clone() })
             }
         }
     }
@@ -141,11 +123,9 @@ impl PeerRequest {
 /// Corresponding variant for [`PeerRequest`].
 #[derive(Debug)]
 pub enum PeerResponse {
-    BlockHeaders { response: oneshot::Receiver<RequestResult<BlockHeaders>> },
-    BlockBodies { response: oneshot::Receiver<RequestResult<BlockBodies>> },
-    PooledTransactions { response: oneshot::Receiver<RequestResult<PooledTransactions>> },
-    NodeData { response: oneshot::Receiver<RequestResult<NodeData>> },
-    Receipts { response: oneshot::Receiver<RequestResult<Receipts>> }
+    SearcherOrder { response: oneshot::Receiver<RequestResult<SignedSearcherOrder>> },
+    LimitOrder { response: oneshot::Receiver<RequestResult<SignedLimitOrder>> },
+    UserOrder { response: oneshot::Receiver<RequestResult<SignedSearcherOrder>> }
 }
 
 // === impl PeerResponse ===
@@ -163,20 +143,14 @@ impl PeerResponse {
         }
 
         let res = match self {
-            PeerResponse::BlockHeaders { response } => {
-                poll_request!(response, BlockHeaders, cx)
+            PeerResponse::LimitOrder { response } => {
+                poll_request!(response, LimitOrders, cx)
             }
-            PeerResponse::BlockBodies { response } => {
-                poll_request!(response, BlockBodies, cx)
+            PeerResponse::SearcherOrder { response } => {
+                poll_request!(response, SearcherOrders, cx)
             }
-            PeerResponse::PooledTransactions { response } => {
-                poll_request!(response, PooledTransactions, cx)
-            }
-            PeerResponse::NodeData { response } => {
-                poll_request!(response, NodeData, cx)
-            }
-            PeerResponse::Receipts { response } => {
-                poll_request!(response, Receipts, cx)
+            PeerResponse::UserOrder { response } => {
+                poll_request!(response, UserOrder, cx)
             }
         };
         Poll::Ready(res)
@@ -187,11 +161,9 @@ impl PeerResponse {
 #[derive(Debug)]
 #[allow(missing_docs)]
 pub enum PeerResponseResult {
-    BlockHeaders(RequestResult<Vec<Header>>),
-    BlockBodies(RequestResult<Vec<BlockBody>>),
-    PooledTransactions(RequestResult<Vec<PooledTransactionsElement>>),
-    NodeData(RequestResult<Vec<Bytes>>),
-    Receipts(RequestResult<Vec<Vec<ReceiptWithBloom>>>)
+    LimitOrders(RequestResult<Vec<SignedLimitOrder>>),
+    SearcherOrders(RequestResult<Vec<SignedSearcherOrder>>),
+    UserOrder(RequestResult<Vec<SignedSearcherOrder>>)
 }
 
 // === impl PeerResponseResult ===
@@ -212,20 +184,14 @@ impl PeerResponseResult {
             };
         }
         match self {
-            PeerResponseResult::BlockHeaders(resp) => {
-                to_message!(resp, BlockHeaders, id)
+            PeerResponseResult::UserOrder(resp) => {
+                to_message!(resp, UserOrders, id)
             }
-            PeerResponseResult::BlockBodies(resp) => {
-                to_message!(resp, BlockBodies, id)
+            PeerResponseResult::LimitOrders(resp) => {
+                to_message!(resp, LimitOrders, id)
             }
-            PeerResponseResult::PooledTransactions(resp) => {
-                to_message!(resp, PooledTransactions, id)
-            }
-            PeerResponseResult::NodeData(resp) => {
-                to_message!(resp, NodeData, id)
-            }
-            PeerResponseResult::Receipts(resp) => {
-                to_message!(resp, Receipts, id)
+            PeerResponseResult::SearcherOrders(resp) => {
+                to_message!(resp, SearcherOrders, id)
             }
         }
     }
@@ -233,11 +199,9 @@ impl PeerResponseResult {
     /// Returns the `Err` value if the result is an error.
     pub fn err(&self) -> Option<&RequestError> {
         match self {
-            PeerResponseResult::BlockHeaders(res) => res.as_ref().err(),
-            PeerResponseResult::BlockBodies(res) => res.as_ref().err(),
-            PeerResponseResult::PooledTransactions(res) => res.as_ref().err(),
-            PeerResponseResult::NodeData(res) => res.as_ref().err(),
-            PeerResponseResult::Receipts(res) => res.as_ref().err()
+            PeerResponseResult::UserOrder(res) => res.as_ref().err(),
+            PeerResponseResult::LimitOrders(res) => res.as_ref().err(),
+            PeerResponseResult::SearcherOrders(res) => res.as_ref().err()
         }
     }
 
@@ -245,11 +209,9 @@ impl PeerResponseResult {
     #[allow(unused)]
     pub fn is_err(&self) -> bool {
         match self {
-            PeerResponseResult::BlockHeaders(res) => res.is_err(),
-            PeerResponseResult::BlockBodies(res) => res.is_err(),
-            PeerResponseResult::PooledTransactions(res) => res.is_err(),
-            PeerResponseResult::NodeData(res) => res.is_err(),
-            PeerResponseResult::Receipts(res) => res.is_err()
+            PeerResponseResult::UserOrder(res) => res.is_err(),
+            PeerResponseResult::LimitOrders(res) => res.is_err(),
+            PeerResponseResult::SearcherOrders(res) => res.is_err()
         }
     }
 }

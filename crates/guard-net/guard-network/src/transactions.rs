@@ -865,10 +865,10 @@ where
                     // rules)
                     if err.is_bad_transaction() && !this.network.is_syncing() {
                         trace!(target: "net::tx", ?err, "Bad transaction import");
-                        this.on_bad_import(err.hash);
+                        this.on_bad_import(*err.hash());
                         continue
                     }
-                    this.on_good_import(err.hash);
+                    this.on_good_import(*err.hash());
                 }
             }
         }
@@ -1151,7 +1151,7 @@ mod tests {
         let config = NetworkConfigBuilder::new(secret_key)
             .disable_discovery()
             .listener_port(0)
-            .build(client);
+            .build();
         let (network_handle, network, mut transactions, _) = NetworkManager::new(config)
             .await
             .unwrap()

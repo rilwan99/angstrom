@@ -5,5 +5,8 @@ pub use status::*;
 pub mod version;
 pub use version::*;
 
+pub mod orders;
+pub use orders::*;
+
 pub mod message;
 pub use message::{EthMessage, EthMessageID, ProtocolMessage};

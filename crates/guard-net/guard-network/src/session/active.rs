@@ -184,63 +184,29 @@ impl ActiveSession {
                 error: EthStreamError::EthHandshakeError(EthHandshakeError::StatusNotInHandshake),
                 message
             },
-            EthMessage::NewBlockHashes(msg) => self
-                .try_emit_broadcast(PeerMessage::NewBlockHashes(msg))
-                .into(),
-            EthMessage::NewBlock(msg) => {
-                let block =
-                    NewBlockMessage { hash: msg.block.header.hash_slow(), block: Arc::new(*msg) };
-                self.try_emit_broadcast(PeerMessage::NewBlock(block)).into()
+            EthMessage::Commit(msg) => self.try_emit_broadcast(PeerMessage::Commit(msg)),
+            EthMessage::Proposal(msg) => self.try_emit_broadcast(PeerMessage::Proposal(msg)),
+            EthMessage::PrePropose(msg) => self.try_emit_broadcast(PeerMessage::PrePropose(msg)),
+            EthMessage::PropagateOrder(msg) => {
+                self.try_emit_broadcast(PeerMessage::PropagateOrder(msg))
             }
-            EthMessage::Transactions(msg) => self
-                .try_emit_broadcast(PeerMessage::ReceivedTransaction(msg))
-                .into(),
-            EthMessage::NewPooledTransactionHashes66(msg) => self
-                .try_emit_broadcast(PeerMessage::PooledTransactions(msg.into()))
-                .into(),
-            EthMessage::NewPooledTransactionHashes68(msg) => {
-                if msg.hashes.len() != msg.types.len() || msg.hashes.len() != msg.sizes.len() {
-                    return OnIncomingMessageOutcome::BadMessage {
-                        error:   EthStreamError::TransactionHashesInvalidLenOfFields {
-                            hashes_len: msg.hashes.len(),
-                            types_len:  msg.types.len(),
-                            sizes_len:  msg.sizes.len()
-                        },
-                        message: EthMessage::NewPooledTransactionHashes68(msg)
-                    }
-                }
-                self.try_emit_broadcast(PeerMessage::PooledTransactions(msg.into()))
-                    .into()
+            EthMessage::SearcherOrders(req) => {
+                on_response!(req, GetSearcherOrders)
             }
-            EthMessage::GetBlockHeaders(req) => {
-                on_request!(req, BlockHeaders, GetBlockHeaders)
+            EthMessage::LimitOrders(req) => {
+                on_response!(req, GetLimitOrders)
             }
-            EthMessage::BlockHeaders(resp) => {
-                on_response!(resp, GetBlockHeaders)
+            EthMessage::UserOrders(req) => {
+                on_response!(req, GetUserOrders)
             }
-            EthMessage::GetBlockBodies(req) => {
-                on_request!(req, BlockBodies, GetBlockBodies)
+            EthMessage::GetUserOrders(req) => {
+                on_request!(req, UserOrder, GetUserOrders)
             }
-            EthMessage::BlockBodies(resp) => {
-                on_response!(resp, GetBlockBodies)
+            EthMessage::GetLimitOrders(req) => {
+                on_request!(req, LimitOrder, GetLimitOrders)
             }
-            EthMessage::GetPooledTransactions(req) => {
-                on_request!(req, PooledTransactions, GetPooledTransactions)
-            }
-            EthMessage::PooledTransactions(resp) => {
-                on_response!(resp, GetPooledTransactions)
-            }
-            EthMessage::GetNodeData(req) => {
-                on_request!(req, NodeData, GetNodeData)
-            }
-            EthMessage::NodeData(resp) => {
-                on_response!(resp, GetNodeData)
-            }
-            EthMessage::GetReceipts(req) => {
-                on_request!(req, Receipts, GetReceipts)
-            }
-            EthMessage::Receipts(resp) => {
-                on_response!(resp, GetReceipts)
+            EthMessage::GetSearcherOrders(req) => {
+                on_request!(req, SearcherOrder, GetSearcherOrders)
             }
         }
     }
@@ -880,7 +846,8 @@ mod tests {
                 self.secret_key,
                 self.hello.clone(),
                 self.status,
-                self.fork_filter.clone()
+                self.fork_filter.clone(),
+                self.valid_stakers.clone()
             ));
 
             let mut stream = ReceiverStream::new(pending_sessions_rx);
