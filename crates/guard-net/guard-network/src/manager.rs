@@ -41,16 +41,15 @@ use reth_rpc_types::{EthProtocolInfo, NetworkStatus};
 use reth_tokio_util::EventListeners;
 use tokio::sync::mpsc::{self, error::TrySendError};
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tracing::{debug, error, trace, warn};
+use tracing::{debug, error, trace};
 
 use crate::{
     config::NetworkConfig,
     discovery::Discovery,
     error::{NetworkError, ServiceKind},
     eth_requests::IncomingEthRequest,
-    import::{BlockImport, BlockImportOutcome, BlockValidation},
     listener::ConnectionListener,
-    message::{NewBlockMessage, PeerMessage, PeerRequest, PeerRequestSender},
+    message::{PeerMessage, PeerRequest, PeerRequestSender},
     metrics::{DisconnectMetrics, NetworkMetrics, NETWORK_POOL_TRANSACTIONS_SCOPE},
     network::{NetworkHandle, NetworkHandleMessage},
     peers::{PeersHandle, PeersManager},
@@ -390,124 +389,20 @@ impl NetworkManager {
     /// Handle an incoming request from the peer
     fn on_eth_request(&mut self, peer_id: PeerId, req: PeerRequest) {
         match req {
-            PeerRequest::GetBlockHeaders { request, response } => {
-                self.delegate_eth_request(IncomingEthRequest::GetBlockHeaders {
-                    peer_id,
-                    request,
-                    response
-                })
-            }
-            PeerRequest::GetBlockBodies { request, response } => {
-                self.delegate_eth_request(IncomingEthRequest::GetBlockBodies {
-                    peer_id,
-                    request,
-                    response
-                })
-            }
-            PeerRequest::GetNodeData { request, response } => {
-                self.delegate_eth_request(IncomingEthRequest::GetNodeData {
-                    peer_id,
-                    request,
-                    response
-                })
-            }
-            PeerRequest::GetReceipts { request, response } => {
-                self.delegate_eth_request(IncomingEthRequest::GetReceipts {
-                    peer_id,
-                    request,
-                    response
-                })
-            }
-            PeerRequest::GetPooledTransactions { request, response } => {
-                self.notify_tx_manager(NetworkTransactionEvent::GetPooledTransactions {
-                    peer_id,
-                    request,
-                    response
-                });
-            }
-        }
-    }
-
-    /// Invoked after a `NewBlock` message from the peer was validated
-    fn on_block_import_result(&mut self, outcome: BlockImportOutcome) {
-        let BlockImportOutcome { peer, result } = outcome;
-        match result {
-            Ok(validated_block) => match validated_block {
-                BlockValidation::ValidHeader { block } => {
-                    self.swarm
-                        .state_mut()
-                        .update_peer_block(&peer, block.hash, block.number());
-                    self.swarm.state_mut().announce_new_block(block);
-                }
-                BlockValidation::ValidBlock { block } => {
-                    self.swarm.state_mut().announce_new_block_hash(block);
-                }
-            },
-            Err(_err) => {
-                self.swarm
-                    .state_mut()
-                    .peers_mut()
-                    .apply_reputation_change(&peer, ReputationChangeKind::BadBlock);
-            }
-        }
-    }
-
-    /// Enforces [EIP-3675](https://eips.ethereum.org/EIPS/eip-3675#devp2p) consensus rules for the network protocol
-    ///
-    /// Depending on the mode of the network:
-    ///    - disconnect peer if in POS
-    ///    - execute the closure if in POW
-    fn within_pow_or_disconnect<F>(&mut self, peer_id: PeerId, only_pow: F)
-    where
-        F: FnOnce(&mut Self)
-    {
-        // reject message in POS
-        if self.handle.mode().is_stake() {
-            // connections to peers which send invalid messages should be terminated
-            self.swarm
-                .sessions_mut()
-                .disconnect(peer_id, Some(DisconnectReason::SubprotocolSpecific));
-        } else {
-            only_pow(self);
+            PeerRequest::GetUserOrders { request, response } => {}
+            PeerRequest::GetLimitOrders { request, response } => {}
+            PeerRequest::GetSearcherOrders { request, response } => {}
         }
     }
 
     /// Handles a received Message from the peer's session.
     fn on_peer_message(&mut self, peer_id: PeerId, msg: PeerMessage) {
         match msg {
-            PeerMessage::NewBlockHashes(hashes) => {
-                self.within_pow_or_disconnect(peer_id, |this| {
-                    // update peer's state, to track what blocks this peer has seen
-                    this.swarm
-                        .state_mut()
-                        .on_new_block_hashes(peer_id, hashes.0)
-                })
-            }
-            PeerMessage::NewBlock(block) => {
-                self.within_pow_or_disconnect(peer_id, move |this| {
-                    this.swarm.state_mut().on_new_block(peer_id, block.hash);
-                    // start block import process
-                    this.block_import.on_new_block(peer_id, block);
-                });
-            }
-            PeerMessage::PooledTransactions(msg) => {
-                self.notify_tx_manager(NetworkTransactionEvent::IncomingPooledTransactionHashes {
-                    peer_id,
-                    msg
-                });
-            }
-            PeerMessage::EthRequest(req) => {
-                self.on_eth_request(peer_id, req);
-            }
-            PeerMessage::ReceivedTransaction(msg) => {
-                self.notify_tx_manager(NetworkTransactionEvent::IncomingTransactions {
-                    peer_id,
-                    msg
-                });
-            }
-            PeerMessage::SendTransactions(_) => {
-                unreachable!("Not emitted by session")
-            }
+            PeerMessage::Commit(commit) => {}
+            PeerMessage::Proposal(prop) => {}
+            PeerMessage::PrePropose(pre) => {}
+            PeerMessage::PropagateOrder(po) => {}
+            PeerMessage::EthRequest(req) => self.on_eth_request(peer_id, req),
             PeerMessage::Other(other) => {
                 debug!(target : "net", message_id=%other.id, "Ignoring unsupported message");
             }
@@ -523,27 +418,10 @@ impl NetworkManager {
             NetworkHandleMessage::DiscoveryListener(tx) => {
                 self.swarm.state_mut().discovery_mut().add_listener(tx);
             }
-            NetworkHandleMessage::AnnounceBlock(block, hash) => {
-                if self.handle.mode().is_stake() {
-                    // See [EIP-3675](https://eips.ethereum.org/EIPS/eip-3675#devp2p)
-                    warn!(target: "net", "Peer performed block propagation, but it is not supported in proof of stake (EIP-3675)");
-                    return
-                }
-                let msg = NewBlockMessage { hash, block: Arc::new(block) };
-                self.swarm.state_mut().announce_new_block(msg);
-            }
             NetworkHandleMessage::EthRequest { peer_id, request } => self
                 .swarm
                 .sessions_mut()
                 .send_message(&peer_id, PeerMessage::EthRequest(request)),
-            NetworkHandleMessage::SendTransaction { peer_id, msg } => self
-                .swarm
-                .sessions_mut()
-                .send_message(&peer_id, PeerMessage::SendTransactions(msg)),
-            NetworkHandleMessage::SendPooledTransactionHashes { peer_id, msg } => self
-                .swarm
-                .sessions_mut()
-                .send_message(&peer_id, PeerMessage::PooledTransactions(msg)),
             NetworkHandleMessage::AddPeerAddress(peer, kind, addr) => {
                 // only add peer if we are not shutting down
                 if !self.swarm.is_shutting_down() {
@@ -601,11 +479,6 @@ impl Future for NetworkManager {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
-
-        // poll new block imports
-        while let Poll::Ready(outcome) = this.block_import.poll(cx) {
-            this.on_block_import_result(outcome);
-        }
 
         // process incoming messages from a handle
         loop {
