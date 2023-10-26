@@ -18,9 +18,7 @@ use tokio::sync::mpsc::Sender;
 use tracing::debug;
 use url::Url;
 
-use crate::{
-    relay_sender::RelaySender, round_robin_sync::RoundRobinSync, EthNetworkManager, GeneralConfig
-};
+use crate::GeneralConfig;
 
 // TODO: these values should be moved somewhere else bc there ugly
 static SIMULATION_RELAY: &str = "https://relay.flashbots.net";
@@ -40,21 +38,17 @@ static BUILDER_URLS: &[&str] = &[
     "https://rpc.nfactorial.xyz"
 ];
 
-/// The control head of the Guard
+/// holds all the guard handles and deals with failures
 pub struct Guard<M, S>
 where
     M: Middleware + Unpin + 'static,
     S: Simulator + Unpin + 'static,
     <M as Middleware>::Provider: PubsubClient
 {
-    /// Manager of Network State
-    network_manager: EthNetworkManager<M>,
     /// guard network connection
-    consensus:       ConsensusHandle,
-    /// deals with round robin sycning
-    syncing:         Option<RoundRobinSync<M>>,
-    /// placeholder for txpool
-    _p:              PhantomData<S>
+    consensus: ConsensusHandle,
+    /// holder for if we need
+    _p:        PhantomData<(M, S)>
 }
 
 impl<M: Middleware + Unpin, S: Simulator + Unpin> Guard<M, S>
@@ -66,29 +60,9 @@ where
         network_config: NetworkConfig,
         general_config: GeneralConfig<S>
     ) -> anyhow::Result<Self> {
-        let relay_sender = RelaySender::new(Arc::new(SignerMiddleware::new(
-            BroadcasterMiddleware::new(
-                middleware,
-                BUILDER_URLS
-                    .into_iter()
-                    .map(|u| Url::parse(u).unwrap())
-                    .collect(),
-                Url::parse(SIMULATION_RELAY)?,
-                general_config.submission_key.clone()
-            ),
-            general_config.ecdsa_key.clone()
-        )));
-        let network_manager = EthNetworkManager::new(middleware, relay_sender).await?;
-
         let (consensus, current_height) = ConsensusManager::new().await;
-        let syncing = RoundRobinSync::new(middleware, current_height).await;
 
-        Ok(Self { consensus, network_manager, syncing: Some(syncing), _p: Default::default() })
-    }
-
-    fn on_consensus(&mut self, consensus: ConsensusMessage) {
-        debug!(?consensus, "handling consensus event");
-        todo!()
+        Ok(Self { consensus, _p: Default::default() })
     }
 }
 
@@ -99,25 +73,7 @@ where
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut work = 4096;
-        loop {
-            self.network_manager.poll_block_stream(cx).apply(|block| {
-                let block = Arc::new(block);
-                if let Some(sync) = self.syncing.as_mut() {
-                    sync.on_new_block(block);
-                }
-            });
-
-            self.network_manager
-                .poll_relay_submission(cx)
-                .apply(|result| todo!());
-
-            work -= 1;
-            if work == 0 {
-                cx.waker().wake_by_ref();
-                return Poll::Pending
-            }
-        }
+        Poll::Pending
     }
 }
 

@@ -6,9 +6,15 @@ use revm::primitives::TxEnv;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    primitive::Angstrom::{Bundle, LowerBound},
+    primitive::{Bundle, LowerBound},
     Signature
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SubmissionBundle {
+    Vanilla(SignedVanillaBundle),
+    Composable(ComposableBundle)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignedLowerBound {
@@ -17,7 +23,7 @@ pub struct SignedLowerBound {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LowerBoundBundle {
+pub struct ComposableBundle {
     pub bundle:             Bundle,
     pub signed_lower_bound: SignedLowerBound
 }
