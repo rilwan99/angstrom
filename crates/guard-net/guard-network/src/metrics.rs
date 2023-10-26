@@ -138,7 +138,8 @@ impl DisconnectMetrics {
             DisconnectReason::UnexpectedHandshakeIdentity => self.unexpected_identity.increment(1),
             DisconnectReason::ConnectedToSelf => self.connected_to_self.increment(1),
             DisconnectReason::PingTimeout => self.ping_timeout.increment(1),
-            DisconnectReason::SubprotocolSpecific => self.subprotocol_specific.increment(1)
+            DisconnectReason::SubprotocolSpecific => self.subprotocol_specific.increment(1),
+            _ => {}
         }
     }
 }

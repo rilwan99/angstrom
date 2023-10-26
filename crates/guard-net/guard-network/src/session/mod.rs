@@ -237,7 +237,7 @@ impl SessionManager {
             hello_message,
             status,
             fork_filter,
-            self.valid_stakers
+            self.valid_stakers.clone()
         ));
 
         let handle = PendingSessionHandle {
@@ -274,7 +274,7 @@ impl SessionManager {
                 status,
                 fork_filter,
                 band_with_meter,
-                self.valid_stakers
+                self.valid_stakers.clone()
             ));
 
             let handle = PendingSessionHandle {
@@ -589,23 +589,6 @@ impl SessionManager {
                 }
             }
         }
-    }
-
-    /// Returns [`PeerInfo`] for all connected peers
-    pub fn get_peer_info(&self) -> Vec<PeerInfo> {
-        self.active_sessions
-            .values()
-            .map(ActiveSessionHandle::peer_info)
-            .collect()
-    }
-
-    /// Returns [`PeerInfo`] for a given peer.
-    ///
-    /// Returns `None` if there's no active session to the peer.
-    pub fn get_peer_info_by_id(&self, peer_id: PeerId) -> Option<PeerInfo> {
-        self.active_sessions
-            .get(&peer_id)
-            .map(ActiveSessionHandle::peer_info)
     }
 }
 

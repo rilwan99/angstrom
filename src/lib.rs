@@ -1,15 +1,15 @@
 #![feature(result_option_inspect)]
 
 mod bundle_builder;
+mod eth_manager;
 mod guard;
-mod network_manager;
 mod relay_sender;
 mod round_robin_sync;
 
 use common::{AtomicConsensus, IsLeader};
+pub use eth_manager::*;
 use ethers_signers::LocalWallet;
 pub use guard::*;
-pub use network_manager::*;
 use order_pool::*;
 use sim::Simulator;
 

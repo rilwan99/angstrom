@@ -193,6 +193,10 @@ impl SessionError for EthStreamError {
                 | DisconnectReason::ClientQuitting
                 | DisconnectReason::UnexpectedHandshakeIdentity
                 | DisconnectReason::ConnectedToSelf
+                | DisconnectReason::StakerRemoved
+                | DisconnectReason::SignerNotStaked
+                | DisconnectReason::NoRecoveredSigner
+                | DisconnectReason::UnreadableSignature
                 | DisconnectReason::SubprotocolSpecific => {
                     // These are considered fatal, and are handled by the
                     // [`SessionError::is_fatal_protocol_error`]

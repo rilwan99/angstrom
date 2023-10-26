@@ -96,20 +96,6 @@ impl NetworkHandle {
         UnboundedReceiverStream::new(rx)
     }
 
-    /// Returns [`PeerInfo`] for a given peer.
-    ///
-    /// Returns `None` if there's no active session to the peer.
-    pub async fn get_peer_by_id(
-        &self,
-        peer_id: PeerId
-    ) -> Result<Option<PeerInfo>, oneshot::error::RecvError> {
-        let (tx, rx) = oneshot::channel();
-        let _ = self
-            .manager()
-            .send(NetworkHandleMessage::GetPeerInfoById(peer_id, tx));
-        rx.await
-    }
-
     /// Sends a [`NetworkHandleMessage`] to the manager
     pub(crate) fn send_message(&self, msg: NetworkHandleMessage) {
         let _ = self.inner.to_manager_tx.send(msg);
@@ -163,53 +149,6 @@ impl PeersInfo for NetworkHandle {
         }
 
         NodeRecord::new(socket_addr, id)
-    }
-}
-
-#[async_trait]
-impl Peers for NetworkHandle {
-    /// Sends a message to the [`NetworkManager`](crate::NetworkManager) to add
-    /// a peer to the known set, with the given kind.
-    fn add_peer_kind(&self, peer: PeerId, kind: PeerKind, addr: SocketAddr) {
-        self.send_message(NetworkHandleMessage::AddPeerAddress(peer, kind, addr));
-    }
-
-    async fn get_peers(&self) -> Result<Vec<PeerInfo>, NetworkError> {
-        let (tx, rx) = oneshot::channel();
-        let _ = self.manager().send(NetworkHandleMessage::GetPeerInfo(tx));
-        Ok(rx.await?)
-    }
-
-    /// Sends a message to the [`NetworkManager`](crate::NetworkManager) to
-    /// remove a peer from the set corresponding to given kind.
-    fn remove_peer(&self, peer: PeerId, kind: PeerKind) {
-        self.send_message(NetworkHandleMessage::RemovePeer(peer, kind))
-    }
-
-    /// Sends a message to the [`NetworkManager`](crate::NetworkManager)  to
-    /// disconnect an existing connection to the given peer.
-    fn disconnect_peer(&self, peer: PeerId) {
-        self.send_message(NetworkHandleMessage::DisconnectPeer(peer, None))
-    }
-
-    /// Sends a message to the [`NetworkManager`](crate::NetworkManager)  to
-    /// disconnect an existing connection to the given peer using the
-    /// provided reason
-    fn disconnect_peer_with_reason(&self, peer: PeerId, reason: DisconnectReason) {
-        self.send_message(NetworkHandleMessage::DisconnectPeer(peer, Some(reason)))
-    }
-
-    /// Send a reputation change for the given peer.
-    fn reputation_change(&self, peer_id: PeerId, kind: ReputationChangeKind) {
-        self.send_message(NetworkHandleMessage::ReputationChange(peer_id, kind));
-    }
-
-    async fn reputation_by_id(&self, peer_id: PeerId) -> Result<Option<Reputation>, NetworkError> {
-        let (tx, rx) = oneshot::channel();
-        let _ = self
-            .manager()
-            .send(NetworkHandleMessage::GetReputationById(peer_id, tx));
-        Ok(rx.await?)
     }
 }
 
@@ -317,10 +256,6 @@ pub(crate) enum NetworkHandleMessage {
     StatusUpdate { head: Head },
     /// Get the current status
     GetStatus(oneshot::Sender<NetworkStatus>),
-    /// Get PeerInfo from all the peers
-    GetPeerInfo(oneshot::Sender<Vec<PeerInfo>>),
-    /// Get PeerInfo for a specific peer
-    GetPeerInfoById(PeerId, oneshot::Sender<Option<PeerInfo>>),
     /// Get the reputation for a specific peer
     GetReputationById(PeerId, oneshot::Sender<Option<Reputation>>),
     /// Gracefully shutdown network

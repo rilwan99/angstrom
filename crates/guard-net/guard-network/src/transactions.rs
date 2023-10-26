@@ -731,7 +731,7 @@ where
 
     fn report_peer(&self, peer_id: PeerId, kind: ReputationChangeKind) {
         trace!(target: "net::tx", ?peer_id, ?kind);
-        self.network.reputation_change(peer_id, kind);
+        // self.network.reputation_change(peer_id, kind);
         self.metrics.reported_bad_transactions.increment(1);
     }
 
@@ -750,8 +750,9 @@ where
 
     fn report_already_seen(&self, peer_id: PeerId) {
         trace!(target: "net::tx", ?peer_id, "Penalizing peer for already seen transaction");
-        self.network
-            .reputation_change(peer_id, ReputationChangeKind::AlreadySeenTransaction);
+        // self.network
+        //     .reputation_change(peer_id,
+        // ReputationChangeKind::AlreadySeenTransaction);
     }
 
     /// Clear the transaction

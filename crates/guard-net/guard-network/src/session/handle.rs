@@ -8,7 +8,6 @@ use guard_eth_wire::{
 };
 use reth_ecies::{stream::ECIESStream, ECIESError};
 use reth_net_common::bandwidth_meter::MeteredStream;
-use reth_network_api::PeerInfo;
 use reth_primitives::PeerId;
 use tokio::{
     net::TcpStream,
@@ -147,20 +146,6 @@ impl ActiveSessionHandle {
     /// Returns the address we're connected to.
     pub fn remote_addr(&self) -> SocketAddr {
         self.remote_addr
-    }
-
-    /// Extracts the [PeerInfo] from the session handle.
-    pub(crate) fn peer_info(&self) -> PeerInfo {
-        PeerInfo {
-            remote_id:      self.remote_id,
-            direction:      self.direction,
-            remote_addr:    self.remote_addr,
-            local_addr:     self.local_addr,
-            capabilities:   self.capabilities.clone(),
-            client_version: self.client_version.clone(),
-            eth_version:    self.version,
-            status:         self.status
-        }
     }
 }
 
