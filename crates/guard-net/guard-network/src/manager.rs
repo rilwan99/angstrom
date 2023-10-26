@@ -39,7 +39,7 @@ use reth_network_api::ReputationChangeKind;
 use reth_primitives::{ForkId, NodeRecord, PeerId, B256};
 use reth_rpc_types::{EthProtocolInfo, NetworkStatus};
 use reth_tokio_util::EventListeners;
-use tokio::sync::mpsc::{self, error::TrySendError};
+use tokio::sync::mpsc::{self};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::{debug, error, trace};
 
@@ -47,7 +47,6 @@ use crate::{
     config::NetworkConfig,
     discovery::Discovery,
     error::{NetworkError, ServiceKind},
-    eth_requests::IncomingEthRequest,
     listener::ConnectionListener,
     message::{PeerMessage, PeerRequest, PeerRequestSender},
     metrics::{DisconnectMetrics, NetworkMetrics, NETWORK_POOL_TRANSACTIONS_SCOPE},
@@ -107,23 +106,6 @@ pub struct NetworkManager {
     /// [`TransactionsManager`](crate::transactions::TransactionsManager) task,
     /// if configured.
     to_transactions_manager: Option<UnboundedMeteredSender<NetworkTransactionEvent>>,
-    /// Sender half to send events to the
-    /// [`EthRequestHandler`](crate::eth_requests::EthRequestHandler) task, if
-    /// configured.
-    ///
-    /// The channel that originally receives and bundles all requests from all
-    /// sessions is already bounded. However, since handling an eth request
-    /// is more I/O intensive than delegating them from the bounded channel
-    /// to the eth-request channel, it is possible that this builds up if
-    /// the node is flooded with requests.
-    ///
-    /// Even though nonmalicious requests are relatively cheap, it's possible to
-    /// craft body requests with bogus data up until the allowed max message
-    /// size limit. Thus, we use a bounded channel here to avoid unbounded
-    /// build up if the node is flooded with requests. This channel size is
-    /// set at
-    /// [`ETH_REQUEST_CHANNEL_CAPACITY`](crate::builder::ETH_REQUEST_CHANNEL_CAPACITY)
-    to_eth_request_handler:  Option<mpsc::Sender<IncomingEthRequest>>,
     /// Tracks the number of active session (connected peers).
     ///
     /// This is updated via internal events and shared via `Arc` with the
@@ -143,12 +125,6 @@ impl NetworkManager {
     pub fn set_transactions(&mut self, tx: mpsc::UnboundedSender<NetworkTransactionEvent>) {
         self.to_transactions_manager =
             Some(UnboundedMeteredSender::new(tx, NETWORK_POOL_TRANSACTIONS_SCOPE));
-    }
-
-    /// Sets the dedicated channel for events indented for the
-    /// [`EthRequestHandler`](crate::eth_requests::EthRequestHandler).
-    pub fn set_eth_request_handler(&mut self, tx: mpsc::Sender<IncomingEthRequest>) {
-        self.to_eth_request_handler = Some(tx);
     }
 
     /// Returns the [`NetworkHandle`] that can be cloned and shared.
@@ -252,7 +228,6 @@ impl NetworkManager {
             from_handle_rx: UnboundedReceiverStream::new(from_handle_rx),
             event_listeners: Default::default(),
             to_transactions_manager: None,
-            to_eth_request_handler: None,
             num_active_peers,
             metrics: Default::default(),
             disconnect_metrics: Default::default()
@@ -367,22 +342,6 @@ impl NetworkManager {
     fn notify_tx_manager(&self, event: NetworkTransactionEvent) {
         if let Some(ref tx) = self.to_transactions_manager {
             let _ = tx.send(event);
-        }
-    }
-
-    /// Sends an event to the
-    /// [`EthRequestManager`](crate::eth_requests::EthRequestHandler) if
-    /// configured.
-    fn delegate_eth_request(&self, event: IncomingEthRequest) {
-        if let Some(ref reqs) = self.to_eth_request_handler {
-            let _ = reqs.try_send(event).map_err(|e| {
-                if let TrySendError::Full(_) = e {
-                    debug!(target:"net", "EthRequestHandler channel is full!");
-                    self.metrics
-                        .total_dropped_eth_requests_at_full_capacity
-                        .increment(1);
-                }
-            });
         }
     }
 

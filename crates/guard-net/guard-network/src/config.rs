@@ -23,11 +23,7 @@ pub use secp256k1::SecretKey;
 use secp256k1::{ecdsa::RecoverableSignature, Message, Secp256k1, SECP256K1};
 
 use crate::{
-    error::NetworkError,
-    import::{BlockImport, ProofOfStakeBlockImport},
-    peers::PeersConfig,
-    session::SessionsConfig,
-    NetworkHandle, NetworkManager
+    error::NetworkError, peers::PeersConfig, session::SessionsConfig, NetworkHandle, NetworkManager
 };
 
 /// Convenience function to create a new random [`SecretKey`]
