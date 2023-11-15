@@ -4,6 +4,7 @@ members = [
   "crates/consensus",
   "crates/types",
   "crates/common",
+  "crates/validation",
   "crates/order-pool",
   "crates/rpc/*",
   "crates/eth/",
@@ -59,7 +60,7 @@ alloy-primitives.workspace = true
 guard-types.workspace = true
 common.workspace = true
 consensus.workspace = true
-sim.workspace = true
+validation.workspace = true
 
 rand = "0.8.5"
 jsonrpsee = { workspace = true, features = ["full"] }
@@ -127,7 +128,7 @@ ethers-middleware = { version = "2.0.10", default-features = false }
 consensus = { path = "./crates/consensus/" }
 guard-types = { path = "./crates/types/" }
 common = { path = "./crates/common/" }
-sim = { path = "./crates/sim/" }
+validation = { path = "./crates/validation/" }
 
 # anvil = { git = "https://github.com/SorellaLabs/fastfoundry" }
 # anvil-core = { git = "https://github.com/SorellaLabs/fastfoundry" }
