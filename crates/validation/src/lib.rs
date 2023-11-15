@@ -21,13 +21,17 @@ pub mod revm;
 pub mod slot_keeper;
 pub mod state;
 
+pub struct ValidatorSimConfig<DB: StateProvider + Clone + Send + Sync + Unpin + 'static> {
+    pub db:          DB,
+    pub cache_bytes: usize
+}
+
 pub fn spawn_revm_sim<DB: StateProvider + Clone + Send + Sync + Unpin + 'static>(
-    db: DB,
-    cache_bytes: usize
+    config: ValidatorSimConfig<DB>
 ) -> Result<RevmClient, SimError> {
     let (tx, rx) = unbounded_channel();
     std::thread::spawn(move || {
-        let lru = lru_db::RevmLRU::new(cache_bytes, db.into());
+        let lru = lru_db::RevmLRU::new(config.cache_bytes, config.db.into());
         let revm_client = Revm::new(rx, lru).unwrap();
         let handle = revm_client.get_threadpool_handle();
 
