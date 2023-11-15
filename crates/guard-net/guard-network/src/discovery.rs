@@ -181,7 +181,7 @@ impl Discovery {
             DiscoveryUpdate::Removed(node) => {
                 self.discovered_nodes.remove(&node);
             }
-            DiscoveryUpdate::Bundle(updates) => {
+            DiscoveryUpdate::Batch(updates) => {
                 for update in updates {
                     self.on_discv4_update(update);
                 }
