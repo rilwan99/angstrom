@@ -17,7 +17,7 @@ guard-eth-wire = { path = "../crates/guard-net/guard-eth-wire" }
 
 guard-types.workspace = true
 
-sim.workspace = true
+validation.workspace = true
 tokio.workspace = true
 futures.workspace = true
 thiserror.workspace = true

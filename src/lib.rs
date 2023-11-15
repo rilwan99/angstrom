@@ -5,7 +5,7 @@ mod guard;
 use common::{AtomicConsensus, IsLeader};
 use ethers_signers::LocalWallet;
 pub use guard::*;
-use sim::Simulator;
+use validation::Simulator;
 
 pub struct GeneralConfig<S: Simulator + Unpin + 'static> {
     pub simulator:           S,

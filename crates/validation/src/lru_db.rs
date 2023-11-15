@@ -2,27 +2,24 @@ use std::{collections::HashMap, sync::Arc};
 
 use alloy_primitives::Address;
 use parking_lot::RwLock;
-use reth_db::mdbx::{tx::Tx, WriteMap, RO};
-use reth_provider::LatestStateProvider;
-use reth_revm::{database::StateProviderDatabase, State};
-use revm::{
-    db::{AccountState, DbAccount},
-    Database
-};
+use reth_interfaces::RethError;
+use reth_primitives::KECCAK_EMPTY;
+use reth_provider::{AccountReader, StateProvider};
+use revm::db::DbAccount;
 use revm_primitives::{db::DatabaseRef, AccountInfo, Bytecode, B256, U256};
 use schnellru::{ByMemoryUsage, LruMap};
 
 use crate::{errors::SimError, state::RevmBackend};
 
-pub struct RevmLRU {
+pub struct RevmLRU<DB> {
     state_overrides:    HashMap<Address, HashMap<U256, U256>>,
     bytecode_overrides: HashMap<Address, Bytecode>,
     accounts:           Arc<RwLock<LruMap<Address, DbAccount, ByMemoryUsage>>>,
     contracts:          Arc<RwLock<LruMap<B256, Bytecode, ByMemoryUsage>>>,
-    db:                 Arc<reth_db::mdbx::Env<WriteMap>>
+    db:                 Arc<DB>
 }
 
-impl Clone for RevmLRU {
+impl<DB: Clone> Clone for RevmLRU<DB> {
     fn clone(&self) -> Self {
         Self {
             state_overrides:    HashMap::default(),
@@ -34,25 +31,25 @@ impl Clone for RevmLRU {
     }
 }
 
-impl RevmBackend for RevmLRU {
+impl<DB> RevmBackend for RevmLRU<DB>
+where
+    DB: StateProvider
+{
     fn update_evm_state(
         &self,
         slot_changes: &crate::state::AddressSlots
     ) -> eyre::Result<(), SimError> {
-        let db = self.db.clone();
-        let state_provider = RevmLRU::get_lastest_state_provider(Tx::new(db.begin_ro_txn()?));
-
         let mut accounts = self.accounts.write();
 
         for (addr, storage) in slot_changes.iter() {
             let acct_storage = accounts
                 .get_or_insert(*addr, || DbAccount {
-                    info: state_provider.basic_ref(*addr).unwrap().unwrap(),
+                    info: self.basic_ref_no_cache(addr).unwrap().unwrap(),
                     ..Default::default()
                 })
                 .unwrap();
             for (idx, val) in storage {
-                let new_state = state_provider.storage_ref(*addr, *idx)?;
+                let new_state = self.storage_ref_no_cache(addr, *idx)?;
                 if new_state != *val {
                     acct_storage.storage.insert(*idx, new_state);
                 }
@@ -62,8 +59,11 @@ impl RevmBackend for RevmLRU {
     }
 }
 
-impl RevmLRU {
-    pub fn new(max_bytes: usize, db: Arc<reth_db::Env<WriteMap>>) -> Self {
+impl<DB> RevmLRU<DB>
+where
+    DB: StateProvider
+{
+    pub fn new(max_bytes: usize, db: Arc<DB>) -> Self {
         let accounts = Arc::new(RwLock::new(LruMap::new(ByMemoryUsage::new(max_bytes))));
         let contracts = Arc::new(RwLock::new(LruMap::new(ByMemoryUsage::new(max_bytes))));
         Self {
@@ -83,60 +83,64 @@ impl RevmLRU {
         self.bytecode_overrides = overrides
     }
 
-    pub fn get_lastest_state_provider(
-        tx: Tx<'_, RO>
-    ) -> StateProviderDatabase<LatestStateProvider<Tx<'_, RO>>> {
-        let db_provider = LatestStateProvider::new(tx);
+    fn basic_ref_no_cache(&self, address: &Address) -> Result<Option<AccountInfo>, RethError> {
+        Ok(self.db.basic_account(*address)?.map(|account| AccountInfo {
+            balance:   account.balance,
+            nonce:     account.nonce,
+            code_hash: account.bytecode_hash.unwrap_or(KECCAK_EMPTY),
+            code:      None
+        }))
+    }
 
-        StateProviderDatabase(db_provider)
+    fn storage_ref_no_cache(&self, address: &Address, index: U256) -> Result<U256, RethError> {
+        self.db
+            .storage(*address, index.into())
+            .map(|inner| inner.unwrap_or_default())
     }
 }
 
-impl DatabaseRef for RevmLRU {
-    type Error = SimError;
+impl<DB> DatabaseRef for RevmLRU<DB>
+where
+    DB: StateProvider
+{
+    type Error = RethError;
 
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        let accounts = self.accounts.read();
-        match accounts.peek(&address) {
-            Some(acc) => Ok(acc.info()),
-            None => {
-                let db = Self::get_lastest_state_provider(Tx::new(self.db.begin_ro_txn()?));
-                Ok(db.basic_ref(address)?)
-            }
-        }
+        let mut accounts = self.accounts.write();
+
+        accounts
+            .get(&address)
+            .map(|acc| Ok(acc.info()))
+            .unwrap_or_else(|| self.basic_ref_no_cache(&address))
     }
 
-    fn code_by_hash_ref(&self, _code_hash: B256) -> Result<Bytecode, Self::Error> {
+    fn code_by_hash_ref(&self, code_hash: B256) -> Result<Bytecode, Self::Error> {
         unreachable!() // this should never be reached since the code hash is
                        // defined in basic()
+                       //
     }
 
     fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
-        // check overrides
+        // check for overrides
         if let Some(storage) = self.state_overrides.get(&address) {
             if let Some(value) = storage.get(&index) {
                 return Ok(*value)
             }
         }
 
-        // check default
-        let db = Self::get_lastest_state_provider(Tx::new(self.db.begin_ro_txn()?));
-        let accounts = self.accounts.read();
-        if let Some(acc_entry) = accounts.peek(&address) {
-            if let Some(entry) = acc_entry.storage.get(&index) {
-                return Ok(*entry)
-            }
-            if !matches!(
-                acc_entry.account_state,
-                AccountState::StorageCleared | AccountState::NotExisting
-            ) {
-                return Ok(db.storage_ref(address, index)?)
-            }
-        } else {
-            return Ok(db.storage_ref(address, index)?)
-        }
+        let mut accounts = self.accounts.write();
 
-        Ok(U256::default())
+        Ok(accounts
+            .get(&address)
+            .map(|account_entry| {
+                account_entry
+                    .storage
+                    .get(&index)
+                    .map(|e| Ok(Some(*e)))
+                    .unwrap_or_else(|| self.db.storage(address, index.into()))
+            })
+            .unwrap_or_else(|| self.db.storage(address, index.into()))?
+            .unwrap_or_default())
     }
 
     fn block_hash_ref(&self, _number: U256) -> Result<B256, Self::Error> {

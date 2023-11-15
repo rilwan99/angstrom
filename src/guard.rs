@@ -13,10 +13,10 @@ use ethers_providers::{Middleware, PubsubClient};
 use futures::{Future, FutureExt};
 use futures_util::StreamExt;
 use guard_network::NetworkConfig;
-use sim::Simulator;
 use tokio::sync::mpsc::Sender;
 use tracing::debug;
 use url::Url;
+use validation::Simulator;
 
 use crate::GeneralConfig;
 

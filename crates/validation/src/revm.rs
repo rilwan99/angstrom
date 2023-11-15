@@ -3,6 +3,7 @@ use std::{collections::HashMap, sync::Arc, task::Poll};
 use common::PollExt;
 use ethers_core::abi::Bytes;
 use futures_util::{stream::FuturesUnordered, Future, FutureExt, StreamExt};
+use reth_provider::StateProvider;
 use revm_primitives::{Address, Bytecode};
 use tokio::{runtime::Handle, sync::mpsc::UnboundedReceiver, task::JoinHandle};
 
@@ -21,17 +22,23 @@ const V4_BYTE_CODE: Bytes = vec![];
 const ANGSTROM_ADDRESS: Address = Address::ZERO;
 
 /// revm state handler
-pub struct Revm {
+pub struct Revm<DB> {
     transaction_rx: UnboundedReceiver<SimEvent>,
     threadpool:     ThreadPool,
-    state:          Arc<RevmState>,
+    state:          Arc<RevmState<DB>>,
     slot_changes:   AddressSlots,
-    slot_keeper:    SlotKeeper,
+    slot_keeper:    SlotKeeper<DB>,
     futures:        FuturesUnordered<JoinHandle<Option<AddressSlots>>>
 }
 
-impl Revm {
-    pub fn new(transaction_rx: UnboundedReceiver<SimEvent>, db: RevmLRU) -> Result<Self, SimError> {
+impl<DB> Revm<DB>
+where
+    DB: StateProvider + Send + Sync + Clone + Unpin + 'static
+{
+    pub fn new(
+        transaction_rx: UnboundedReceiver<SimEvent>,
+        db: RevmLRU<DB>
+    ) -> Result<Self, SimError> {
         let threadpool = ThreadPool::new()?;
         Ok(Self {
             slot_keeper: SlotKeeper::new(db.clone(), vec![], threadpool.runtime.handle().clone()),
@@ -146,7 +153,10 @@ impl Revm {
     }
 }
 
-impl Future for Revm {
+impl<DB> Future for Revm<DB>
+where
+    DB: StateProvider + Send + Sync + Clone + Unpin + 'static
+{
     type Output = ();
 
     fn poll(

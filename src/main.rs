@@ -7,10 +7,10 @@ use ethers_signers::LocalWallet;
 use guard_network::{config::SecretKey, NetworkConfig};
 use hex_literal::hex;
 use reth_primitives::{mainnet_nodes, NodeRecord, PeerId, H512};
-use sim::{lru_db::RevmLRU, spawn_revm_sim};
 use stale_guard::{GeneralConfig, Guard};
 use tokio::runtime::Runtime;
 use url::Url;
+use validation::{lru_db::RevmLRU, spawn_revm_sim};
 
 #[derive(Debug, Parser)]
 pub struct Args {
