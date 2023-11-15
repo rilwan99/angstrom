@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc, task::Poll};
 use common::PollExt;
 use ethers_core::abi::Bytes;
 use futures_util::{stream::FuturesUnordered, Future, FutureExt, StreamExt};
-use reth_provider::StateProvider;
+use reth_provider::StateProviderFactory;
 use revm_primitives::{Address, Bytecode};
 use tokio::{runtime::Handle, sync::mpsc::UnboundedReceiver, task::JoinHandle};
 
@@ -33,7 +33,7 @@ pub struct Revm<DB> {
 
 impl<DB> Revm<DB>
 where
-    DB: StateProvider + Send + Sync + Clone + Unpin + 'static
+    DB: StateProviderFactory + Send + Sync + Clone + Unpin + 'static
 {
     pub fn new(
         transaction_rx: UnboundedReceiver<SimEvent>,
@@ -155,7 +155,7 @@ where
 
 impl<DB> Future for Revm<DB>
 where
-    DB: StateProvider + Send + Sync + Clone + Unpin + 'static
+    DB: StateProviderFactory + Send + Sync + Clone + Unpin + 'static
 {
     type Output = ();
 
