@@ -4,7 +4,7 @@ use alloy_primitives::Address;
 use parking_lot::RwLock;
 use reth_interfaces::RethError;
 use reth_primitives::KECCAK_EMPTY;
-use reth_provider::{AccountReader, StateProvider};
+use reth_provider::{AccountReader, StateProvider, StateProviderFactory};
 use revm::db::DbAccount;
 use revm_primitives::{db::DatabaseRef, AccountInfo, Bytecode, B256, U256};
 use schnellru::{ByMemoryUsage, LruMap};
@@ -33,7 +33,7 @@ impl<DB: Clone> Clone for RevmLRU<DB> {
 
 impl<DB> RevmBackend for RevmLRU<DB>
 where
-    DB: StateProvider
+    DB: StateProviderFactory
 {
     fn update_evm_state(
         &self,
@@ -61,7 +61,7 @@ where
 
 impl<DB> RevmLRU<DB>
 where
-    DB: StateProvider
+    DB: StateProviderFactory
 {
     pub fn new(max_bytes: usize, db: Arc<DB>) -> Self {
         let accounts = Arc::new(RwLock::new(LruMap::new(ByMemoryUsage::new(max_bytes))));
@@ -84,16 +84,21 @@ where
     }
 
     fn basic_ref_no_cache(&self, address: &Address) -> Result<Option<AccountInfo>, RethError> {
-        Ok(self.db.basic_account(*address)?.map(|account| AccountInfo {
-            balance:   account.balance,
-            nonce:     account.nonce,
-            code_hash: account.bytecode_hash.unwrap_or(KECCAK_EMPTY),
-            code:      None
-        }))
+        Ok(self
+            .db
+            .latest()?
+            .basic_account(*address)?
+            .map(|account| AccountInfo {
+                balance:   account.balance,
+                nonce:     account.nonce,
+                code_hash: account.bytecode_hash.unwrap_or(KECCAK_EMPTY),
+                code:      None
+            }))
     }
 
     fn storage_ref_no_cache(&self, address: &Address, index: U256) -> Result<U256, RethError> {
         self.db
+            .latest()?
             .storage(*address, index.into())
             .map(|inner| inner.unwrap_or_default())
     }
@@ -101,7 +106,7 @@ where
 
 impl<DB> DatabaseRef for RevmLRU<DB>
 where
-    DB: StateProvider
+    DB: StateProviderFactory
 {
     type Error = RethError;
 
@@ -137,9 +142,9 @@ where
                     .storage
                     .get(&index)
                     .map(|e| Ok(Some(*e)))
-                    .unwrap_or_else(|| self.db.storage(address, index.into()))
+                    .unwrap_or_else(|| self.db.latest()?.storage(address, index.into()))
             })
-            .unwrap_or_else(|| self.db.storage(address, index.into()))?
+            .unwrap_or_else(|| self.db.latest()?.storage(address, index.into()))?
             .unwrap_or_default())
     }
 

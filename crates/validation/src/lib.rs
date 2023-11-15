@@ -7,7 +7,7 @@ use guard_types::{
     primitive::{Angstrom::Bundle, ExternalStateSim},
     rpc::{CallerInfo, SignedLimitOrder}
 };
-use reth_provider::StateProvider;
+use reth_provider::StateProviderFactory;
 use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
 
 use crate::revm::Revm;
@@ -21,12 +21,12 @@ pub mod revm;
 pub mod slot_keeper;
 pub mod state;
 
-pub struct ValidatorSimConfig<DB: StateProvider + Clone + Send + Sync + Unpin + 'static> {
+pub struct ValidatorSimConfig<DB: StateProviderFactory + Clone + Send + Sync + Unpin + 'static> {
     pub db:          DB,
     pub cache_bytes: usize
 }
 
-pub fn spawn_revm_sim<DB: StateProvider + Clone + Send + Sync + Unpin + 'static>(
+pub fn spawn_revm_sim<DB: StateProviderFactory + Clone + Send + Sync + Unpin + 'static>(
     config: ValidatorSimConfig<DB>
 ) -> Result<RevmClient, SimError> {
     let (tx, rx) = unbounded_channel();

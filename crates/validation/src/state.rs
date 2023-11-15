@@ -8,7 +8,7 @@ use guard_types::{
     primitive::{Angstrom::Bundle, *},
     rpc::CallerInfo
 };
-use reth_provider::StateProvider;
+use reth_provider::StateProviderFactory;
 use revm::EVM;
 use revm_primitives::{
     db::DatabaseRef, Account, Bytecode, ExecutionResult, Log, TransactTo, TxEnv
@@ -34,7 +34,7 @@ pub struct RevmState<DB> {
 
 impl<DB> RevmState<DB>
 where
-    DB: StateProvider + Send + Sync + Clone + 'static
+    DB: StateProviderFactory + Send + Sync + Clone + 'static
 {
     pub fn new(db: RevmLRU<DB>) -> Self {
         Self { db }

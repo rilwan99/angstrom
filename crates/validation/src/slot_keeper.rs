@@ -6,11 +6,10 @@ use std::{
 };
 
 use alloy_sol_types::SolCall;
-use ethers_providers::{JsonRpcClient, Middleware, ProviderError};
 use futures::Future;
 use futures_util::FutureExt;
 use guard_types::primitive::ERC20;
-use reth_provider::StateProvider;
+use reth_provider::StateProviderFactory;
 use revm::new;
 use revm_primitives::{Address, Env, TransactTo, TxEnv, U256};
 use tokio::{runtime::Handle, task::JoinHandle};
@@ -27,7 +26,7 @@ pub struct SlotKeeper<DB> {
 
 impl<DB> SlotKeeper<DB>
 where
-    DB: StateProvider + Send + Sync + Clone + 'static
+    DB: StateProviderFactory + Send + Sync + Clone + 'static
 {
     pub fn new(db: RevmLRU<DB>, addresses: Vec<Address>, handle: Handle) -> Self {
         let slots = SlotKeeper::get_slots(addresses.clone(), db.clone());
