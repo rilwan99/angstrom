@@ -8,7 +8,7 @@ use std::{
 };
 
 use futures::StreamExt;
-use guard_discv4::{DiscoveryUpdate, Discv4, Discv4Config, EnrForkIdEntry};
+use reth_discv4::{DiscoveryUpdate, Discv4, Discv4Config, EnrForkIdEntry};
 use reth_dns_discovery::{
     DnsDiscoveryConfig, DnsDiscoveryHandle, DnsDiscoveryService, DnsNodeRecordUpdate, DnsResolver
 };
@@ -181,7 +181,7 @@ impl Discovery {
             DiscoveryUpdate::Removed(node) => {
                 self.discovered_nodes.remove(&node);
             }
-            DiscoveryUpdate::Bundle(updates) => {
+            DiscoveryUpdate::Batch(updates) => {
                 for update in updates {
                     self.on_discv4_update(update);
                 }

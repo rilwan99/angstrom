@@ -34,7 +34,7 @@ revm-primitives.workspace = true
 reth-primitives.workspace = true
 reth-provider.workspace = true
 reth-revm.workspace = true
-reth-db.workspace = true
+reth-db = { workspace = true, features = ["mdbx"] }
 reth-interfaces.workspace = true
 
 # async/futures

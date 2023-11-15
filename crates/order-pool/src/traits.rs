@@ -828,7 +828,7 @@ impl PoolOrder for AngstromPooledOrder {
     /// max_priority_fee_per_gas)`. For legacy transactions: `gas_price -
     /// base_fee`.
     fn effective_tip_per_gas(&self, base_fee: u64) -> Option<u128> {
-        self.transaction.effective_tip_per_gas(base_fee)
+        self.transaction.effective_tip_per_gas(Some(base_fee))
     }
 
     /// Returns the max priority fee per gas if the transaction is an EIP-1559

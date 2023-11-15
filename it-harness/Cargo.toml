@@ -14,7 +14,6 @@ guard-network = { path = "../crates/guard-net/guard-network/", features = [
   "test_harness",
 ] }
 guard-eth-wire = { path = "../crates/guard-net/guard-eth-wire" }
-guard-discv4 = { path = "../crates/guard-net/guard-discv4" }
 
 guard-types.workspace = true
 

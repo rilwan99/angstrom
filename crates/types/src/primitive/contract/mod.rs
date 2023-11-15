@@ -1,7 +1,7 @@
 use alloy_sol_macro::sol;
 
 mod angstrom;
-pub use angstrom::*;
+pub use angstrom::{Angstrom::*, *};
 
 sol! {
 #![sol(all_derives = true)]

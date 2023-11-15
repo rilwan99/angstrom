@@ -6,7 +6,8 @@ use std::{
 };
 
 use reth_primitives::{
-    constants::ETHEREUM_BLOCK_GAS_LIMIT, ChainSpec, InvalidTransactionError, LEGACY_TX_TYPE_ID
+    constants::ETHEREUM_BLOCK_GAS_LIMIT, ChainSpec, GotExpected, InvalidTransactionError,
+    LEGACY_TX_TYPE_ID
 };
 use reth_provider::{AccountReader, StateProviderFactory};
 use reth_tasks::TaskSpawner;
@@ -192,10 +193,9 @@ where
         if cost > account.balance {
             return TransactionValidationOutcome::Invalid(
                 transaction,
-                InvalidTransactionError::InsufficientFunds {
-                    cost,
-                    available_funds: account.balance
-                }
+                InvalidTransactionError::InsufficientFunds(
+                    GotExpected { got: account.balance, expected: cost }.into()
+                )
                 .into()
             )
         }

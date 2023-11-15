@@ -1,4 +1,4 @@
-pub use alloy_primitives::*;
+use alloy_primitives::*;
 use alloy_rlp::{length_of_length, Decodable, Encodable, Error, Header};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_macro::sol;
@@ -193,9 +193,7 @@ sol! {
     }
 }
 
-pub use Angstrom::*;
-
-impl Encodable for PoolKey {
+impl Encodable for Angstrom::PoolKey {
     fn encode(&self, out: &mut dyn bytes::BufMut) {
         Header { list: true, payload_length: 69 }.encode(out);
 
@@ -221,7 +219,7 @@ impl Encodable for PoolKey {
     }
 }
 
-impl Decodable for PoolKey {
+impl Decodable for Angstrom::PoolKey {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let Header { list, payload_length } = Header::decode(buf)?;
 
@@ -257,19 +255,19 @@ impl Decodable for PoolKey {
     }
 }
 
-impl Encodable for OrderType {
+impl Encodable for Angstrom::OrderType {
     fn encode(&self, out: &mut dyn bytes::BufMut) {
         let byte: u8 = (*self) as u8;
         out.put_u8(byte)
     }
 }
-impl Decodable for OrderType {
+impl Decodable for Angstrom::OrderType {
     fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
         unsafe { std::mem::transmute(u8::decode(buf)) }
     }
 }
 
-impl Encodable for CurrencySettlement {
+impl Encodable for Angstrom::CurrencySettlement {
     fn length(&self) -> usize {
         let length = 53;
         length + length_of_length(length)
@@ -287,7 +285,7 @@ impl Encodable for CurrencySettlement {
         self.amountNet.twos_complement().encode(out);
     }
 }
-impl Decodable for CurrencySettlement {
+impl Decodable for Angstrom::CurrencySettlement {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let Header { list, payload_length } = Header::decode(buf)?;
 

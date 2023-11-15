@@ -5,12 +5,9 @@ use std::{
 
 use alloy_primitives::{Address, U256};
 use alloy_rlp::{Decodable, Encodable, Error};
-use alloy_rlp_derive::{RlpDecodable, RlpDecodableWrapper, RlpEncodable, RlpEncodableWrapper};
-use reth_primitives::{recover_signer, Signature as ESignature};
+use reth_primitives::Signature as ESignature;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-
-use crate::primitive::ANGSTROM_DOMAIN;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(transparent)]
@@ -40,7 +37,7 @@ impl Encodable for Signature {
 }
 impl Decodable for Signature {
     fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
-        let sig = ESignature::decode(buf)?;
+        let sig = ESignature::decode(buf).unwrap();
         Ok(Signature(sig))
     }
 }

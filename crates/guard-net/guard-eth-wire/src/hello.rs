@@ -1,6 +1,6 @@
 use alloy_rlp::{RlpDecodable, RlpEncodable};
-use guard_discv4::DEFAULT_DISCOVERY_PORT;
 use reth_codecs::derive_arbitrary;
+use reth_discv4::DEFAULT_DISCOVERY_PORT;
 use reth_primitives::{constants::RETH_CLIENT_VERSION, PeerId, H256};
 use secp256k1::ecdsa::RecoverableSignature;
 #[cfg(feature = "serde")]
