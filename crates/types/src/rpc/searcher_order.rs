@@ -1,14 +1,14 @@
-use alloy_primitives::{Address, U256};
+use alloy_primitives::{Address, B256, U256};
 use alloy_rlp::{Decodable, Encodable, Error};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_types::SolStruct;
 use derive_more::{AsRef, Deref};
-use reth_primitives::{recover_signer, Signature as ESignature};
+use reth_primitives::{recover_signer, Signature as ESignature, H256};
 use secp256k1::Error as SigError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::primitive::{Angstrom::Order, ComposableOrder, Signature, ANGSTROM_DOMAIN};
+use crate::primitive::{ComposableOrder, Order, Signature, ANGSTROM_DOMAIN};
 
 /// Submitted order pre-processing
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, RlpEncodable, RlpDecodable)]
@@ -22,8 +22,11 @@ pub struct SignedSearcherOrder {
 //TODO: Also implement recovery for 1271 orders see
 impl SignedSearcherOrder {
     pub fn recover_signer(&self) -> Option<Address> {
-        let hash = self.details.eip712_signing_hash(&ANGSTROM_DOMAIN);
-        self.signature.0.recover_signer(hash)
+        let hash = self.details.eip712_signing_hash(&ANGSTROM_DOMAIN).0;
+        self.signature
+            .0
+            .recover_signer(H256(hash))
+            .map(|res| Address::from(res.0))
     }
 }
 
@@ -61,8 +64,11 @@ pub struct SignedComposableSearcherOrder {
 
 impl SignedComposableSearcherOrder {
     pub fn recover_signer(&self) -> Option<Address> {
-        let hash = self.details.eip712_signing_hash(&ANGSTROM_DOMAIN);
-        self.signature.0.recover_signer(hash)
+        let hash = self.details.eip712_signing_hash(&ANGSTROM_DOMAIN).0;
+        self.signature
+            .0
+            .recover_signer(H256(hash))
+            .map(|res| Address::from(res.0))
     }
 }
 

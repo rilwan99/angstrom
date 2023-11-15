@@ -111,11 +111,11 @@ reth-libmdbx = { git = "https://github.com/paradigmxyz/reth", tag = "v0.1.0-alph
 
 # alloy
 
-alloy-sol-types = { version = "0.4.0", features = ["json"] }
-alloy-sol-macro = { version = "0.4.0", features = ["json"] }
+alloy-sol-types = { version = "0.4.2", features = ["json"] }
+alloy-sol-macro = { version = "0.4.2", features = ["json"] }
 alloy-rlp = { version = "0.3.3" }
 alloy-rlp-derive = { version = "0.3.3" }
-alloy-primitives = { version = "0.4.0", features = ["rlp"] }
+alloy-primitives = { version = "0.4.2", features = ["rlp"] }
 
 
 hex-literal = "0.4.1"
