@@ -106,7 +106,7 @@ where
     type Error = RethError;
 
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
-        let mut accounts = self.accounts.read();
+        let mut accounts = self.accounts.write();
 
         accounts
             .get(&address)
@@ -128,7 +128,7 @@ where
             }
         }
 
-        let mut accounts = self.accounts.read();
+        let mut accounts = self.accounts.write();
 
         Ok(accounts
             .get(&address)

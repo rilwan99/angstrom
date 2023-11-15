@@ -7,6 +7,7 @@ use guard_types::{
     primitive::{Angstrom::Bundle, ExternalStateSim},
     rpc::{CallerInfo, SignedLimitOrder}
 };
+use reth_provider::StateProvider;
 use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
 
 use crate::revm::Revm;
@@ -20,12 +21,14 @@ pub mod revm;
 pub mod slot_keeper;
 pub mod state;
 
-pub fn spawn_revm_sim<DB: Send + Sync + Unpin + 'static>(
-    db: lru_db::RevmLRU<DB>
+pub fn spawn_revm_sim<DB: StateProvider + Clone + Send + Sync + Unpin + 'static>(
+    db: DB,
+    cache_bytes: usize
 ) -> Result<RevmClient, SimError> {
     let (tx, rx) = unbounded_channel();
     std::thread::spawn(move || {
-        let revm_client = Revm::new(rx, db).unwrap();
+        let lru = lru_db::RevmLRU::new(cache_bytes, db.into());
+        let revm_client = Revm::new(rx, lru).unwrap();
         let handle = revm_client.get_threadpool_handle();
 
         handle.block_on(revm_client);
