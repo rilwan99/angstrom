@@ -10,22 +10,26 @@ use ethers_providers::{JsonRpcClient, Middleware, ProviderError};
 use futures::Future;
 use futures_util::FutureExt;
 use guard_types::primitive::ERC20;
+use reth_provider::StateProvider;
 use revm::new;
 use revm_primitives::{Address, Env, TransactTo, TxEnv, U256};
 use tokio::{runtime::Handle, task::JoinHandle};
 
 use crate::lru_db::RevmLRU;
 
-pub struct SlotKeeper {
+pub struct SlotKeeper<DB> {
     addresses: Vec<Address>,
     slots:     HashMap<Address, U256>,
-    db:        RevmLRU,
+    db:        RevmLRU<DB>,
     handle:    Handle,
     fut:       Option<JoinHandle<HashMap<Address, U256>>>
 }
 
-impl SlotKeeper {
-    pub fn new(db: RevmLRU, addresses: Vec<Address>, handle: Handle) -> Self {
+impl<DB> SlotKeeper<DB>
+where
+    DB: StateProvider + Send + Sync + Clone + 'static
+{
+    pub fn new(db: RevmLRU<DB>, addresses: Vec<Address>, handle: Handle) -> Self {
         let slots = SlotKeeper::get_slots(addresses.clone(), db.clone());
 
         Self { addresses, db, slots, handle, fut: None }
@@ -47,7 +51,7 @@ impl SlotKeeper {
         self.addresses.extend(address);
     }
 
-    pub fn get_slots(addresses: Vec<Address>, db: RevmLRU) -> HashMap<Address, U256> {
+    pub fn get_slots(addresses: Vec<Address>, db: RevmLRU<DB>) -> HashMap<Address, U256> {
         // this is pretty big. would be nice to breakup
         addresses
             .iter()
@@ -103,7 +107,7 @@ impl SlotKeeper {
     }
 }
 
-impl Future for SlotKeeper {
+impl<DB: Send + Sync + Unpin + 'static> Future for SlotKeeper<DB> {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {

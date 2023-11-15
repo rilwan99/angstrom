@@ -8,6 +8,7 @@ use guard_types::{
     primitive::{Angstrom::Bundle, *},
     rpc::CallerInfo
 };
+use reth_provider::StateProvider;
 use revm::EVM;
 use revm_primitives::{
     db::DatabaseRef, Account, Bytecode, ExecutionResult, Log, TransactTo, TxEnv
@@ -26,13 +27,16 @@ pub trait RevmBackend {
 pub type AddressSlots = HashMap<Address, HashMap<U256, U256>>;
 
 /// struct used to share the mutable state across threads
-pub struct RevmState {
+pub struct RevmState<DB> {
     /// holds state to sim on
-    db: RevmLRU
+    db: RevmLRU<DB>
 }
 
-impl RevmState {
-    pub fn new(db: RevmLRU) -> Self {
+impl<DB> RevmState<DB>
+where
+    DB: StateProvider + Send + Sync + Clone + 'static
+{
+    pub fn new(db: RevmLRU<DB>) -> Self {
         Self { db }
     }
 

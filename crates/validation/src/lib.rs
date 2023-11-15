@@ -20,7 +20,9 @@ pub mod revm;
 pub mod slot_keeper;
 pub mod state;
 
-pub fn spawn_revm_sim(db: lru_db::RevmLRU) -> Result<RevmClient, SimError> {
+pub fn spawn_revm_sim<DB: Send + Sync + Unpin + 'static>(
+    db: lru_db::RevmLRU<DB>
+) -> Result<RevmClient, SimError> {
     let (tx, rx) = unbounded_channel();
     std::thread::spawn(move || {
         let revm_client = Revm::new(rx, db).unwrap();
