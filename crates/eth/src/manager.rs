@@ -10,6 +10,7 @@ use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
 use futures::Future;
 use futures_util::StreamExt;
 use guard_types::submission::SubmissionBundle;
+use reth_provider::CanonStateNotifications;
 use tokio::sync::mpsc::{channel, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -20,38 +21,38 @@ use crate::{
 
 pub enum EthNetworkEvent {}
 
-/// Holds all of our eth network state
-pub struct EthNetworkManager<M: Middleware + 'static>
-where
-    <M as Middleware>::Provider: PubsubClient
-{
+/// Holds all of our eth network state.
+/// Will do the following
+/// 1) Deal with submitting bundles
+/// 2) Deal with fetching block state differences + fmt (need for validation and
+///    orderpool)
+pub struct EthNetworkManager<M: Middleware + 'static, > {
     /// our command receiver
     commander:       ReceiverStream<EthCommand>,
     /// people listening to events
     event_listeners: Vec<Sender<EthNetworkEvent>>,
 
     /// for the leader to submit to relays
-    relay_sender: RelaySender<M>,
-    /// general new block stream. Will be updated when our local optimized
-    /// mem-pool is built
-    block_stream: SubscriptionStream<'static, M::Provider, Block<H256>>
+    relay_sender:      RelaySender<M>,
+    /// Notifications for Canonical Block updates
+    canonical_updates: CanonStateNotifications
 }
 
-impl<M: Middleware + 'static> EthNetworkManager<M>
-where
-    <M as Middleware>::Provider: PubsubClient
-{
-    pub async fn new(
-        middleware: &'static M,
+impl<M: Middleware + 'static> EthNetworkManager<M> {
+    pub fn new(
+        canonical_updates: CanonStateNotifications,
         relay_sender: RelaySender<M>
     ) -> anyhow::Result<EthHandle> {
-        let block_stream = middleware.subscribe_blocks().await?;
-
         let (tx, rx) = channel(10);
         let stream = ReceiverStream::new(rx);
 
-        let this =
-            Self { relay_sender, block_stream, commander: stream, event_listeners: Vec::new() };
+        let this = Self {
+            relay_sender,
+            canonical_updates,
+            commander: stream,
+            event_listeners: Vec::new()
+        };
+
         let handle = EthHandle::new(tx);
         tokio::spawn(this);
 
@@ -63,10 +64,6 @@ where
         self.relay_sender.submit_bundle(bundle);
     }
 
-    pub fn poll_block_stream(&mut self, cx: &mut Context<'_>) -> Poll<Block<H256>> {
-        self.block_stream.poll_next_unpin(cx).filter_map(|f| f)
-    }
-
     pub fn poll_relay_submission(
         &mut self,
         cx: &mut Context<'_>
@@ -75,10 +72,7 @@ where
     }
 }
 
-impl<M: Middleware + 'static> Future for EthNetworkManager<M>
-where
-    <M as Middleware>::Provider: PubsubClient
-{
+impl<M: Middleware + 'static> Future for EthNetworkManager<M> {
     type Output = ();
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
