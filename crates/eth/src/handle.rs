@@ -1,5 +1,6 @@
 use tokio::sync::mpsc::Sender;
 
+#[derive(Debug, Clone)]
 pub struct EthHandle {
     sender: Sender<EthCommand>
 }
