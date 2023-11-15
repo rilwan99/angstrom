@@ -55,15 +55,17 @@ pub enum ConsensusError {
 /// properly.
 pub struct ConsensusCore {
     /// keeps track of the current round state
-    round_state:        RoundState,
+    round_state:            RoundState,
     /// leader selection algo
-    leader_selection:   RoundRobinAlgo,
+    leader_selection:       RoundRobinAlgo,
     /// collects + formulates evidence of byzantine guards
-    evidence_collector: EvidenceCollector,
+    evidence_collector:     EvidenceCollector,
     /// deals with all signing and signature verification
-    signer:             Signer,
+    signer:                 Signer,
     /// messages to share with others
-    outbound:           VecDeque<ConsensusMessage>
+    outbound:               VecDeque<ConsensusMessage>,
+    /// Used to trigger new consensus rounds
+    canonical_block_stream: CanonStateNotifications
 }
 
 impl ConsensusCore {

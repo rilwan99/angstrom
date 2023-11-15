@@ -19,6 +19,7 @@ ethers-providers.workspace = true
 ethers-signers.workspace = true
 ethers-middleware.workspace = true
 ethers-core.workspace = true
+reth-provider.workspace = true
 tracing.workspace = true
 async-trait.workspace = true
 serde.workspace = true
