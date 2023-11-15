@@ -1,4 +1,4 @@
-pub use alloy_primitives::*;
+use alloy_primitives::*;
 use alloy_rlp::{length_of_length, Decodable, Encodable, Error, Header};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_macro::sol;

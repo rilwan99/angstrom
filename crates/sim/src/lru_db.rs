@@ -63,7 +63,7 @@ impl RevmBackend for RevmLRU {
 }
 
 impl RevmLRU {
-    pub fn new(max_bytes: usize, db: Arc<reth_db::mdbx::Env<WriteMap>>) -> Self {
+    pub fn new(max_bytes: usize, db: Arc<reth_db::Env<WriteMap>>) -> Self {
         let accounts = Arc::new(RwLock::new(LruMap::new(ByMemoryUsage::new(max_bytes))));
         let contracts = Arc::new(RwLock::new(LruMap::new(ByMemoryUsage::new(max_bytes))));
         Self {
@@ -84,8 +84,8 @@ impl RevmLRU {
     }
 
     pub fn get_lastest_state_provider(
-        tx: Tx<'_, RO, WriteMap>
-    ) -> StateProviderDatabase<LatestStateProvider<Tx<'_, RO, WriteMap>>> {
+        tx: Tx<'_, RO>
+    ) -> StateProviderDatabase<LatestStateProvider<Tx<'_, RO>>> {
         let db_provider = LatestStateProvider::new(tx);
 
         StateProviderDatabase(db_provider)

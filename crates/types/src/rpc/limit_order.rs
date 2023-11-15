@@ -2,7 +2,6 @@ use std::{
     collections::HashMap,
     ops::{Add, Deref, DerefMut}
 };
-use reth_primitives::H256;
 
 use alloy_primitives::{Address, U256};
 use alloy_rlp::{Decodable, Encodable, Error};
@@ -27,11 +26,8 @@ pub struct SignedLimitOrder {
 
 impl SignedLimitOrder {
     pub fn recover_signer(&self) -> Option<Address> {
-        let hash = self.details.eip712_signing_hash(&ANGSTROM_DOMAIN).0;
-        self.signature
-            .0
-            .recover_signer(H256(hash))
-            .map(|res| Address::from(res.0))
+        let hash = self.details.eip712_signing_hash(&ANGSTROM_DOMAIN);
+        self.signature.0.recover_signer(hash)
     }
 }
 
@@ -68,11 +64,8 @@ pub struct SignedComposableLimitOrder {
 
 impl SignedComposableLimitOrder {
     pub fn recover_signer(&self) -> Option<Address> {
-        let hash = self.details.eip712_signing_hash(&ANGSTROM_DOMAIN).0;
-        self.signature
-            .0
-            .recover_signer(H256(hash))
-            .map(|res| Address::from(res.0))
+        let hash = self.details.eip712_signing_hash(&ANGSTROM_DOMAIN);
+        self.signature.0.recover_signer(hash)
     }
 }
 
