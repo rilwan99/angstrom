@@ -7,10 +7,10 @@ use std::{
 };
 
 use ethers_core::utils::keccak256;
-use guard_discv4::{
+use guard_eth_wire::{HelloMessage, Status, DEFAULT_HELLO_VERIFICATION_MESSAGE};
+use reth_discv4::{
     Discv4Config, Discv4ConfigBuilder, DEFAULT_DISCOVERY_ADDRESS, DEFAULT_DISCOVERY_PORT
 };
-use guard_eth_wire::{HelloMessage, Status, DEFAULT_HELLO_VERIFICATION_MESSAGE};
 use reth_dns_discovery::DnsDiscoveryConfig;
 use reth_ecies::util::pk2id;
 use reth_primitives::{

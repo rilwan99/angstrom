@@ -1,7 +1,7 @@
 //! Builder structs for [`Status`](crate::types::Status) and
 //! [`HelloMessage`](crate::HelloMessage) messages.
 
-use guard_discv4::DEFAULT_DISCOVERY_PORT;
+use reth_discv4::DEFAULT_DISCOVERY_PORT;
 use reth_primitives::{Chain, ForkId, PeerId, Signature, H256, U256};
 use secp256k1::ecdsa::RecoverableSignature;
 
