@@ -1,7 +1,7 @@
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use guard_types::primitive::OrderType;
-use reth_primitives::{Address, B256};
+use reth_primitives::{alloy_primitives::Address, B256};
 
 use self::{composable::ComposableLimitPool, limit::LimitPool, side::Side};
 
@@ -16,17 +16,19 @@ pub trait LimitTx: Side {
     fn get_pool(&self) -> Address;
     fn get_type(&self) -> OrderType;
     fn is_valid(&self) -> bool;
+    fn is_expired(&self) -> bool;
     fn get_id(&self) -> TransactionId;
 }
 
+#[derive(Debug, Clone, Copy, Hash)]
 pub struct TransactionId {
+    pub user_addr:  Address,
     /// Hash of the order. Needed to check for inclusion
-    order_hash: B256,
+    pub order_hash: B256,
     /// Nonce of the order
-    nonce:      u64,
+    pub nonce:      u64,
     /// when the order expires
-    expiry:     u128,
-
+    pub expiry:     u128
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -34,7 +36,9 @@ pub enum LimitPoolError {
     #[error("Pool has reached max size, and order doesn't satisify replacment requirements")]
     MaxSize,
     #[error("No pool was found for address: {0}")]
-    NoPool(PoolId)
+    NoPool(PoolId),
+    #[error("already have a ordered with {0:?}")]
+    DuplicateNonce(TransactionId)
 }
 
 pub enum LimitOrderLocation {
@@ -46,23 +50,27 @@ pub enum LimitOrderLocation {
 type PoolId = Address;
 
 struct SizeTracker {
-    pub max:     usize,
+    pub max:     Option<usize>,
     pub current: usize
 }
 
 pub struct LimitOrderPool<T: LimitTx> {
     composable_orders: ComposableLimitPool<T>,
     limit_orders:      LimitPool<T>,
-    all_order_ids:     HashSet<TransactionId>,
+    /// used for easy update operations on Orders.
+    all_order_ids:     HashMap<TransactionId, LimitOrderLocation>,
+    /// used for nonce lookup.
+    user_to_id:        HashMap<Address, TransactionId>,
     size:              SizeTracker
 }
 
 impl<T: LimitTx> LimitOrderPool<T> {
-    pub fn new(max_size: usize) -> Self {
+    pub fn new(max_size: Option<usize>) -> Self {
         Self {
             composable_orders: ComposableLimitPool::new(),
             limit_orders:      LimitPool::new(),
-            all_order_ids:     HashSet::new(),
+            all_order_ids:     HashMap::new(),
+            user_to_id:        HashMap::new(),
             size:              SizeTracker { max: max_size, current: 0 }
         }
     }
