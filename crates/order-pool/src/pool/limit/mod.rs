@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use guard_types::primitive::OrderType;
-use reth_primitives::{alloy_primitives::Address, B256};
+use reth_primitives::{alloy_primitives::Address, B256, U256};
 
 use self::{composable::ComposableLimitPool, limit::LimitPool, side::Side};
 
@@ -19,6 +19,12 @@ pub trait LimitTx: Side {
     fn is_expired(&self) -> bool;
     fn is_composable(&self) -> bool;
     fn get_id(&self) -> TransactionId;
+    fn price(&self) -> OrderPrice;
+}
+
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct OrderPrice {
+    price: U256
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -58,14 +64,16 @@ struct SizeTracker {
 }
 
 pub struct LimitOrderPool<T: LimitTx> {
+    /// TODO: this trait bound will change
     composable_orders:   ComposableLimitPool<T>,
     limit_orders:        LimitPool<T>,
     /// used for easy update operations on Orders.
     all_order_ids:       HashMap<TransactionId, LimitOrderLocation>,
     /// used for nonce lookup.
     user_to_id:          HashMap<Address, Vec<TransactionId>>,
-    /// hash to location
-    order_hash_location: HashMap<B256, LimitOrderLocation>,
+    /// hash to pool location with identifier.
+    order_hash_location: HashMap<B256, (TransactionId, LimitOrderLocation)>,
+    /// The size of the current transactions.
     size:                SizeTracker
 }
 
@@ -109,7 +117,13 @@ impl<T: LimitTx> LimitOrderPool<T> {
         todo!()
     }
 
-    pub fn get_all_order(&mut self) -> Vec<T> {
+    pub fn get_all_order(&mut self) -> (Vec<T>, Vec<T>) {
         todo!()
     }
+
+    pub fn get_overlap_with_buffer(&mut self, tick_buffer: u8) -> (Vec<T>, Vec<T>) {
+        todo!()
+    }
+
+    // TODO: add ability to fetch composable and non-composable orders
 }
