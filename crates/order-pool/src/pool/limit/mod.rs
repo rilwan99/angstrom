@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use guard_types::primitive::OrderType;
 use reth_primitives::{Address, B256};
 
@@ -14,6 +16,7 @@ pub trait LimitTx: Side {
     fn get_pool(&self) -> Address;
     fn get_type(&self) -> OrderType;
     fn is_valid(&self) -> bool;
+    fn get_id(&self) -> TransactionId;
 }
 
 pub struct TransactionId {
@@ -22,7 +25,8 @@ pub struct TransactionId {
     /// Nonce of the order
     nonce:      u64,
     /// when the order expires
-    expiry:     u128
+    expiry:     u128,
+
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -31,6 +35,12 @@ pub enum LimitPoolError {
     MaxSize,
     #[error("No pool was found for address: {0}")]
     NoPool(PoolId)
+}
+
+pub enum LimitOrderLocation {
+    Composable,
+    LimitParked,
+    LimitPending
 }
 
 type PoolId = Address;
@@ -43,6 +53,7 @@ struct SizeTracker {
 pub struct LimitOrderPool<T: LimitTx> {
     composable_orders: ComposableLimitPool<T>,
     limit_orders:      LimitPool<T>,
+    all_order_ids:     HashSet<TransactionId>,
     size:              SizeTracker
 }
 
@@ -51,6 +62,7 @@ impl<T: LimitTx> LimitOrderPool<T> {
         Self {
             composable_orders: ComposableLimitPool::new(),
             limit_orders:      LimitPool::new(),
+            all_order_ids:     HashSet::new(),
             size:              SizeTracker { max: max_size, current: 0 }
         }
     }

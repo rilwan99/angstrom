@@ -5,3 +5,8 @@ pub trait Side: Ord {
         !self.is_bid()
     }
 }
+
+pub enum OrderSide {
+    Bid,
+    Ask
+}
