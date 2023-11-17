@@ -16,6 +16,15 @@ pub trait LimitTx: Side {
     fn is_valid(&self) -> bool;
 }
 
+pub struct TransactionId {
+    /// Hash of the order. Needed to check for inclusion
+    order_hash: B256,
+    /// Nonce of the order
+    nonce:      u64,
+    /// when the order expires
+    expiry:     u128
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum LimitPoolError {
     #[error("Pool has reached max size, and order doesn't satisify replacment requirements")]
@@ -57,5 +66,4 @@ impl<T: LimitTx> LimitOrderPool<T> {
     pub fn get_all_order(&mut self) -> Vec<T> {
         todo!()
     }
-
 }

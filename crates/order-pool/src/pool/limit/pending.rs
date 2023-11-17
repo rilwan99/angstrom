@@ -11,7 +11,6 @@ impl<T: LimitTx> PendingPool<T> {
     }
 
     pub fn new_order(&mut self, order: T) -> Result<(), LimitPoolError> {
-
         Ok(())
     }
 }

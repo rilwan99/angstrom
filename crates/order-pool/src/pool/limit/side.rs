@@ -5,5 +5,3 @@ pub trait Side: Ord {
         !self.is_bid()
     }
 }
-
-
