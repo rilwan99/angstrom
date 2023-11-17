@@ -682,7 +682,8 @@ impl WsHttpServerKind {
         server_kind: ServerKind,
         metrics: RpcServerMetrics
     ) -> Result<(Self, SocketAddr), RpcError> {
-        let rate_limiting = RateLimitLayer::new(REQUESTS_PER_SECOND, Duration::from_secs(1));
+        let rate_limiting =
+            RateLimitLayer::new(REQUESTS_PER_SECOND.try_into().unwrap(), Duration::from_secs(1));
 
         if let Some(cors) = cors_domains.as_deref().map(cors::create_cors_layer) {
             let cors = cors.map_err(|err| RpcError::Custom(err.to_string()))?;

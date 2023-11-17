@@ -5,10 +5,10 @@ members = [
   "crates/types",
   "crates/common",
   "crates/validation",
-  "crates/order-pool",
+  #"crates/order-pool",
   "crates/rpc/*",
   "crates/eth/",
-  "it-harness",
+  #"it-harness",
 ]
 
 [workspace.package]
@@ -20,10 +20,6 @@ homepage = "https://github.com/SorellaLabs/stale-guard"
 repository = "https://github.com/SorellaLabs/stale-guard"
 exclude = [".github/"]
 
-[package]
-name = "stale-guard"
-version.workspace = true
-edition.workspace = true
 
 [profile.release]
 lto = "fat"
@@ -36,49 +32,6 @@ lto = "fat"
 codegen-units = 1
 incremental = false
 
-[dependencies]
-tokio.workspace = true
-futures.workspace = true
-thiserror.workspace = true
-reth-primitives.workspace = true
-ethers-providers.workspace = true
-ethers-signers.workspace = true
-ethers-middleware.workspace = true
-ethers-core.workspace = true
-tracing.workspace = true
-async-trait.workspace = true
-tokio-stream.workspace = true
-serde.workspace = true
-anyhow.workspace = true
-url.workspace = true
-reth-tracing.workspace = true
-serde_json.workspace = true
-hex-literal.workspace = true
-reth-db.workspace = true
-
-alloy-primitives.workspace = true
-guard-types.workspace = true
-common.workspace = true
-consensus.workspace = true
-validation.workspace = true
-
-rand = "0.8.5"
-jsonrpsee = { workspace = true, features = ["full"] }
-tower-http = { version = "0.4", features = ["full"] }
-tower = { version = "0.4", features = ["full"] }
-hyper = "0.14"
-
-parking_lot = "0.12"
-guard-network = { path = "./crates/guard-net/guard-network/" }
-order-pool = { path = "./crates/order-pool/" }
-futures-util = "0.3.28"
-tokio-util = { version = "0.7.4", features = ["codec"] }
-soketto = "0.7.1"
-jsonrpsee-core = { version = "0.20" }
-jsonrpsee-types = { version = "0.20" }
-clap = { version = "4", features = ["derive"] }
-fdlimit = "0.2.1"
-ethers-flashbots = "0.14.0"
 
 [workspace.dependencies]
 # revm
@@ -187,5 +140,3 @@ arbitrary = "1.1"
 assert_matches = "1.5.0"
 aquamarine = "0.3"
 
-[features]
-test_harness = ["guard-network/test_harness"]

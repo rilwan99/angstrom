@@ -9,7 +9,6 @@ repository.workspace = true
 exclude.workspace = true
 
 [dependencies]
-stale-guard = { path = "../", features = ["test_harness"] }
 guard-network = { path = "../crates/guard-net/guard-network/", features = [
   "test_harness",
 ] }

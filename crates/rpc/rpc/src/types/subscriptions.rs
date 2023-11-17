@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use guard_types::{
-    consensus::*, contract_bindings::Angstrom::PoolKey, primitive::SignedLimitOrder
-};
+use guard_types::{consensus::*, primitive::Angstrom::PoolKey, rpc::SignedLimitOrder};
 use serde::{Deserialize, Serialize};
 
 use super::quoting::{Depth25, Depth5, BBO};
