@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use reth_primitives::B256;
+
 use super::{LimitPoolError, TransactionId};
 use crate::pool::limit::LimitTx;
 

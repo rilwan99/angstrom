@@ -30,6 +30,8 @@ pub struct OrderPrice {
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct TransactionId {
     pub user_addr:  Address,
+    /// Pool id
+    pub pool_id:    PoolId,
     /// Hash of the order. Needed to check for inclusion
     pub order_hash: B256,
     /// Nonce of the order
@@ -113,7 +115,26 @@ impl<T: LimitTx> LimitOrderPool<T> {
         Ok(())
     }
 
+    /// Removes all filled orders from the pools
     pub fn filled_orders(&mut self, orders: &Vec<B256>) -> Vec<T> {
+        orders.iter().filter_map(|order| self.order_hash_location.get(order)).map(|(id, location)| {
+            match location {
+                LimitOrderLocation::Composable => {
+                    self.composable_orders.filled_order(&id)
+                },
+                LimitOrderLocation::LimitPending => {
+                }
+                _ => { unreachable!() }
+            }
+
+        });
+        self.order_hash_location.g
+        todo!()
+    }
+
+    /// Removes all orders for a given user when there state changes for
+    /// revalidation
+    pub fn changed_user_state(&mut self, users: &Vec<Address>) -> (Vec<T>, Vec<T>) {
         todo!()
     }
 

@@ -38,4 +38,17 @@ impl<T: LimitTx> PendingPool<T> {
 
         Ok(())
     }
+
+    pub fn filled_order(&mut self, hash: B256) -> Option<T> {
+        let order = self.orders.remove(&hash)?;
+        let price = order.price();
+
+        if order.is_bid() {
+            self.bids.remove(&price);
+        } else {
+            self.asks.remove(&Reverse(price));
+        }
+
+        Some(order)
+    }
 }

@@ -2,7 +2,9 @@ use std::collections::HashMap;
 
 use reth_primitives::B256;
 
-use super::{pending::PendingPool, LimitOrderLocation, LimitPoolError, LimitTx, PoolId};
+use super::{
+    pending::PendingPool, LimitOrderLocation, LimitPoolError, LimitTx, PoolId, TransactionId
+};
 
 pub struct ComposableLimitPool<T: LimitTx>(HashMap<PoolId, PendingPool<T>>);
 
@@ -15,7 +17,7 @@ impl<T: LimitTx> ComposableLimitPool<T> {
         Ok(LimitOrderLocation::Composable)
     }
 
-    pub fn filled_orders(&mut self, orders: &Vec<B256>) -> Vec<T> {
-        vec![]
+    pub fn filled_order(&mut self, tx_id: &TransactionId) -> Option<T> {
+        self.0.get_mut(&tx_id.pool_id)?.filled_order(tx_id.order_hash)
     }
 }
