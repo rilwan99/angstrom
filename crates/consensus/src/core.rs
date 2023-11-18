@@ -11,6 +11,7 @@ use guard_types::{
     consensus::{Commit, Evidence, EvidenceError, PreProposal, Proposal},
     submission::BestBundles
 };
+use reth_provider::CanonStateNotifications;
 use thiserror::Error;
 use tracing::error;
 
