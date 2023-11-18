@@ -13,12 +13,11 @@ impl<T: PooledComposableOrder> ComposableLimitPool<T> {
         todo!()
     }
 
-    pub fn new_order(&mut self, order: T) -> Result<LimitOrderLocation, LimitPoolError> {
+    pub fn new_order(&mut self, order: T) -> Result<(), LimitPoolError> {
         let id = order.order_id();
         self.0
             .get_mut(&id.pool_id)
             .map(|pool| pool.new_order(order))
-            .map(|_| LimitOrderLocation::Composable)
             .ok_or_else(|| LimitPoolError::NoPool(id.pool_id))
     }
 

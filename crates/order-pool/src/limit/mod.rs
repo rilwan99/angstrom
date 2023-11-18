@@ -1,6 +1,5 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use guard_types::primitive::OrderType;
 use reth_primitives::{alloy_primitives::Address, B256, U256};
 
 use self::{composable::ComposableLimitPool, limit::LimitPool};
@@ -21,6 +20,7 @@ pub enum LimitPoolError {
     DuplicateOrder
 }
 
+#[derive(Debug, Clone, Copy)]
 pub enum LimitOrderLocation {
     Composable,
     LimitParked,
@@ -59,9 +59,27 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
         }
     }
 
-    pub fn new_order(&mut self, order: T) -> Result<(), LimitPoolError> {
+    pub fn new_composable_order(&mut self, order: C) -> Result<(), LimitPoolError> {
         let id = order.order_id();
 
+        self.check_for_duplicates(&id)?;
+        self.composable_orders.new_order(order)?;
+        self.add_order_tracking(id, LimitOrderLocation::Composable);
+
+        Ok(())
+    }
+
+    pub fn new_limit_order(&mut self, order: T) -> Result<(), LimitPoolError> {
+        let id = order.order_id();
+
+        self.check_for_duplicates(&id)?;
+        let location = self.limit_orders.new_order(order)?;
+        self.add_order_tracking(id, location);
+
+        Ok(())
+    }
+
+    fn check_for_duplicates(&self, id: &OrderId) -> Result<(), LimitPoolError> {
         // is new order
         if self.all_order_ids.contains_key(&id) {
             return Err(LimitPoolError::DuplicateOrder)
@@ -74,13 +92,22 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
             .map(|inner| inner.iter().any(|other_id| other_id.nonce == id.nonce))
             .unwrap_or(false)
         {
-            return Err(LimitPoolError::DuplicateNonce(id))
+            return Err(LimitPoolError::DuplicateNonce(id.clone()))
         }
 
-        // TODO: based on composability, insert into pools and then add to the tracking
-        // list
-
         Ok(())
+    }
+
+    fn add_order_tracking(&mut self, id: OrderId, location: LimitOrderLocation) {
+        let user = id.user_addr;
+
+        // add to user tracking
+        self.user_to_id.entry(user).or_default().push(id.clone());
+        // add to hash tracking
+        self.order_hash_location
+            .insert(id.order_hash, (id.clone(), location));
+        // add to all order id
+        self.all_order_ids.insert(id, location);
     }
 
     /// Removes all filled orders from the pools
