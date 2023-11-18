@@ -1,4 +1,7 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashMap, HashSet},
+    fmt::Debug
+};
 
 use guard_types::primitive::OrderType;
 use reth_primitives::{alloy_primitives::Address, B256, U256};
@@ -11,7 +14,7 @@ mod parked;
 mod pending;
 mod side;
 
-pub trait LimitTx: Side {
+pub trait LimitTx: Side + Clone + Debug + Send + Sync + 'static {
     fn hash(&self) -> B256;
     fn get_pool(&self) -> Address;
     fn get_type(&self) -> OrderType;
@@ -117,25 +120,56 @@ impl<T: LimitTx> LimitOrderPool<T> {
 
     /// Removes all filled orders from the pools
     pub fn filled_orders(&mut self, orders: &Vec<B256>) -> Vec<T> {
-        orders.iter().filter_map(|order| self.order_hash_location.get(order)).map(|(id, location)| {
-            match location {
-                LimitOrderLocation::Composable => {
-                    self.composable_orders.filled_order(&id)
-                },
-                LimitOrderLocation::LimitPending => {
+        // remove from lower level + hash locations;
+        orders
+            .iter()
+            .filter_map(|order_hash| {
+                // remove from order hash loc
+                let (id, location) = self.order_hash_location.remove(order_hash)?;
+                match location {
+                    LimitOrderLocation::Composable => self.composable_orders.remove_order(&id),
+                    LimitOrderLocation::LimitPending => None,
+                    _ => {
+                        unreachable!()
+                    }
                 }
-                _ => { unreachable!() }
-            }
+            })
+            .map(|order| {
+                let id = order.get_id();
+                // remove from all orders
+                let _ = self.all_order_ids.remove(&id);
+                // remove from user;
+                self.user_to_id
+                    .get_mut(&id.user_addr)
+                    .map(|inner| inner.retain(|order| order != &id));
 
-        });
-        self.order_hash_location.g
-        todo!()
+                order
+            })
+            .collect()
     }
 
     /// Removes all orders for a given user when there state changes for
-    /// revalidation
-    pub fn changed_user_state(&mut self, users: &Vec<Address>) -> (Vec<T>, Vec<T>) {
-        todo!()
+    /// re-validation
+    pub fn changed_user_state(&mut self, users: &Vec<Address>) -> Vec<T> {
+        users
+            .iter()
+            // remove user
+            .filter_map(|user| self.user_to_id.remove(user))
+            .flatten()
+            .filter_map(|user_order| {
+                // remove all orders
+                let loc = self.all_order_ids.remove(&user_order)?;
+                // remove hash
+                let _ = self.order_hash_location.remove(&user_order.order_hash);
+                match loc {
+                    LimitOrderLocation::Composable => {
+                        self.composable_orders.remove_order(&user_order)
+                    }
+                    LimitOrderLocation::LimitPending => todo!(),
+                    LimitOrderLocation::LimitParked => todo!()
+                }
+            })
+            .collect()
     }
 
     pub fn get_all_order(&mut self) -> (Vec<T>, Vec<T>) {

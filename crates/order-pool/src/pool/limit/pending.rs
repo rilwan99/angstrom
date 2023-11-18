@@ -7,7 +7,7 @@ use reth_primitives::B256;
 use revm::primitives::HashMap;
 use tokio::sync::broadcast;
 
-use super::{LimitPoolError, LimitTx, OrderPrice, TransactionId};
+use super::{LimitPoolError, LimitTx, OrderPrice};
 
 pub struct PendingPool<T: LimitTx> {
     /// all order hashes
@@ -34,12 +34,13 @@ impl<T: LimitTx> PendingPool<T> {
             self.bids.insert(price, hash);
         }
 
-        self.orders.insert(hash, order);
+        self.orders.insert(hash, order.clone());
+        let _ = self.new_transaction_notifier.send(order);
 
         Ok(())
     }
 
-    pub fn filled_order(&mut self, hash: B256) -> Option<T> {
+    pub fn remove_order(&mut self, hash: B256) -> Option<T> {
         let order = self.orders.remove(&hash)?;
         let price = order.price();
 

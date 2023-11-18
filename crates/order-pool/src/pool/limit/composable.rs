@@ -17,7 +17,9 @@ impl<T: LimitTx> ComposableLimitPool<T> {
         Ok(LimitOrderLocation::Composable)
     }
 
-    pub fn filled_order(&mut self, tx_id: &TransactionId) -> Option<T> {
-        self.0.get_mut(&tx_id.pool_id)?.filled_order(tx_id.order_hash)
+    pub fn remove_order(&mut self, tx_id: &TransactionId) -> Option<T> {
+        self.0
+            .get_mut(&tx_id.pool_id)?
+            .remove_order(tx_id.order_hash)
     }
 }
