@@ -21,5 +21,12 @@ impl<T: PooledOrder> ParkedPool<T> {
         }
     }
 
-    pub fn new_order(&mut self, order: T) {}
+    pub fn new_order(&mut self, order: T) {
+        let id = order.order_id();
+        if order.is_bid() {
+            self.bids.insert(id, order);
+        } else {
+            self.asks.insert(id, order);
+        }
+    }
 }
