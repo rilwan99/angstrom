@@ -3,59 +3,22 @@ use std::{collections::HashMap, fmt::Debug};
 use reth_primitives::{alloy_primitives::Address, B256, U256};
 
 use self::{composable::ComposableLimitPool, limit::LimitPool};
-use crate::{common::OrderId, PooledComposableOrder, PooledLimitOrder, PooledOrder};
+use crate::{
+    common::{OrderId, SizeTracker},
+    PooledComposableOrder, PooledLimitOrder, PooledOrder
+};
 
 mod composable;
 mod limit;
+mod parked;
+mod pending;
 
-#[derive(Debug, thiserror::Error)]
-pub enum LimitPoolError {
-    #[error("Pool has reached max size, and order doesn't satisify replacment requirements")]
-    MaxSize,
-    #[error("No pool was found for address: {0}")]
-    NoPool(PoolId),
-    #[error("Already have a ordered with {0:?}")]
-    DuplicateNonce(OrderId),
-    #[error("Duplicate order")]
-    DuplicateOrder
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum LimitOrderLocation {
-    Composable,
-    LimitParked,
-    LimitPending
-}
+pub use pending::OrderPriorityData;
 
 type PoolId = Address;
 
 pub type RegularAndLimit<T, C> = (Vec<T>, Vec<C>);
 pub type RegularAndLimitRef<'a, T, C> = (Vec<&'a T>, Vec<&'a C>);
-
-struct SizeTracker {
-    pub max:     Option<usize>,
-    pub current: usize
-}
-
-impl SizeTracker {
-    pub fn has_space(&mut self, size: usize) -> bool {
-        if let Some(max) = self.max {
-            if self.current + size <= max {
-                self.current += size;
-                true
-            } else {
-                false
-            }
-        } else {
-            self.current += size;
-            true
-        }
-    }
-
-    pub fn remove_order(&mut self, size: usize) {
-        self.current -= size;
-    }
-}
 
 pub struct LimitOrderPool<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> {
     composable_orders:   ComposableLimitPool<C>,
@@ -112,6 +75,86 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
         Ok(())
     }
 
+    /// Removes all filled orders from the pools
+    pub fn filled_orders(&mut self, orders: &Vec<B256>) -> RegularAndLimit<T, C> {
+        // remove from lower level + hash locations;
+        let (left, right): (Vec<_>, Vec<_>) = orders
+            .iter()
+            .filter_map(|order_hash| {
+                // remove from order hash loc
+                let (id, location) = self.order_hash_location.remove(order_hash)?;
+                // remove from all orders
+                let _ = self.all_order_ids.remove(&id)?;
+                // remove from user;
+                self.user_to_id
+                    .get_mut(&id.address)
+                    .map(|inner| inner.retain(|order| order != &id));
+
+                match location {
+                    LimitOrderLocation::Composable => {
+                        Some((None, self.composable_orders.remove_order(&id)))
+                    }
+                    LimitOrderLocation::LimitPending => {
+                        Some((self.limit_orders.remove_order(&id, location), None))
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                }
+            })
+            .unzip();
+
+        (self.filter_option_and_adjust_size(left), self.filter_option_and_adjust_size(right))
+    }
+
+    /// Removes all orders for a given user when there state changes for
+    /// re-validation
+    pub fn changed_user_state(&mut self, users: &Vec<Address>) -> RegularAndLimit<T, C> {
+        let (left, right): (Vec<_>, Vec<_>) = users
+            .iter()
+            // remove user
+            .filter_map(|user| self.user_to_id.remove(user))
+            .flatten()
+            .filter_map(|user_order| {
+                // remove all orders
+                let loc = self.all_order_ids.remove(&user_order)?;
+                // remove hash
+                let _ = self.order_hash_location.remove(&user_order.hash);
+                match loc {
+                    LimitOrderLocation::Composable => {
+                        Some((None, self.composable_orders.remove_order(&user_order)))
+                    }
+                    _ => Some((self.limit_orders.remove_order(&user_order, loc), None))
+                }
+            })
+            .unzip();
+
+        (self.filter_option_and_adjust_size(left), self.filter_option_and_adjust_size(right))
+    }
+
+    // individual fetches
+    pub fn fetch_all_pool_orders(&mut self, id: &PoolId) -> RegularAndLimitRef<T, C> {
+        (
+            self.limit_orders.fetch_all_pool_orders(id),
+            self.composable_orders.fetch_all_pool_orders(id)
+        )
+    }
+}
+
+// Helper functions
+impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrderPool<T, C> {
+    /// Helper function for unzipping and size adjustment
+    fn filter_option_and_adjust_size<O: PooledOrder>(&mut self, order: Vec<Option<O>>) -> Vec<O> {
+        order
+            .into_iter()
+            .filter_map(|order| order)
+            .map(|order| {
+                self.size.remove_order(order.size());
+                order
+            })
+            .collect()
+    }
+
     /// Helper function for checking for duplicates when adding orders
     fn check_for_duplicates(&self, id: &OrderId) -> Result<(), LimitPoolError> {
         // is new order
@@ -144,103 +187,23 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
         // add to all order id
         self.all_order_ids.insert(id, location);
     }
+}
 
-    /// Removes all filled orders from the pools
-    pub fn filled_orders(&mut self, orders: &Vec<B256>) -> RegularAndLimit<T, C> {
-        // remove from lower level + hash locations;
-        let (left, right): (Vec<_>, Vec<_>) = orders
-            .iter()
-            .filter_map(|order_hash| {
-                // remove from order hash loc
-                let (id, location) = self.order_hash_location.remove(order_hash)?;
-                // remove from all orders
-                let _ = self.all_order_ids.remove(&id)?;
-                // remove from user;
-                self.user_to_id
-                    .get_mut(&id.address)
-                    .map(|inner| inner.retain(|order| order != &id));
+#[derive(Debug, thiserror::Error)]
+pub enum LimitPoolError {
+    #[error("Pool has reached max size, and order doesn't satisify replacment requirements")]
+    MaxSize,
+    #[error("No pool was found for address: {0}")]
+    NoPool(PoolId),
+    #[error("Already have a ordered with {0:?}")]
+    DuplicateNonce(OrderId),
+    #[error("Duplicate order")]
+    DuplicateOrder
+}
 
-                match location {
-                    LimitOrderLocation::Composable => {
-                        Some((None, self.composable_orders.remove_order(&id)))
-                    }
-                    LimitOrderLocation::LimitPending => {
-                        Some((self.limit_orders.remove_order(&id, location), None))
-                    }
-                    _ => {
-                        unreachable!()
-                    }
-                }
-            })
-            .unzip();
-
-        (
-            left.into_iter()
-                .filter_map(|order| order)
-                .map(|order| {
-                    self.size.remove_order(order.size());
-                    order
-                })
-                .collect(),
-            right
-                .into_iter()
-                .filter_map(|order| order)
-                .map(|order| {
-                    self.size.remove_order(order.size());
-                    order
-                })
-                .collect()
-        )
-    }
-
-    /// Removes all orders for a given user when there state changes for
-    /// re-validation
-    pub fn changed_user_state(&mut self, users: &Vec<Address>) -> RegularAndLimit<T, C> {
-        let (left, right): (Vec<_>, Vec<_>) = users
-            .iter()
-            // remove user
-            .filter_map(|user| self.user_to_id.remove(user))
-            .flatten()
-            .filter_map(|user_order| {
-                // remove all orders
-                let loc = self.all_order_ids.remove(&user_order)?;
-                // remove hash
-                let _ = self.order_hash_location.remove(&user_order.hash);
-                match loc {
-                    LimitOrderLocation::Composable => {
-                        Some((None, self.composable_orders.remove_order(&user_order)))
-                    }
-                    _ => Some((self.limit_orders.remove_order(&user_order, loc), None))
-                }
-            })
-            .unzip();
-
-        (
-            left.into_iter()
-                .filter_map(|order| order)
-                .map(|order| {
-                    self.size.remove_order(order.size());
-                    order
-                })
-                .collect(),
-            right
-                .into_iter()
-                .filter_map(|order| order)
-                .map(|order| {
-                    self.size.remove_order(order.size());
-                    order
-                })
-                .collect()
-        )
-    }
-
-    pub fn get_all_order(&mut self) -> RegularAndLimitRef<T, C> {
-        todo!()
-    }
-
-    pub fn get_overlap_with_buffer(&mut self, tick_buffer: u8) -> RegularAndLimitRef<T, C> {
-        todo!()
-    }
-
-    // TODO: add ability to fetch composable and non-composable orders
+#[derive(Debug, Clone, Copy)]
+pub enum LimitOrderLocation {
+    Composable,
+    LimitParked,
+    LimitPending
 }

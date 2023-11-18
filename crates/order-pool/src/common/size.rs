@@ -1,0 +1,24 @@
+pub struct SizeTracker {
+    pub max:     Option<usize>,
+    pub current: usize
+}
+
+impl SizeTracker {
+    pub fn has_space(&mut self, size: usize) -> bool {
+        if let Some(max) = self.max {
+            if self.current + size <= max {
+                self.current += size;
+                true
+            } else {
+                false
+            }
+        } else {
+            self.current += size;
+            true
+        }
+    }
+
+    pub fn remove_order(&mut self, size: usize) {
+        self.current -= size;
+    }
+}
