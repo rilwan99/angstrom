@@ -174,23 +174,7 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
             })
             .unzip();
 
-        (
-            left.into_iter()
-                .filter_map(|order| order)
-                .map(|order| {
-                    self.size.remove_order(order.size());
-                    order
-                })
-                .collect(),
-            right
-                .into_iter()
-                .filter_map(|order| order)
-                .map(|order| {
-                    self.size.remove_order(order.size());
-                    order
-                })
-                .collect()
-        )
+        (self.filter_option_and_adjust_size(left), self.filter_option_and_adjust_size(right))
     }
 
     /// Removes all orders for a given user when there state changes for
@@ -215,23 +199,18 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
             })
             .unzip();
 
-        (
-            left.into_iter()
-                .filter_map(|order| order)
-                .map(|order| {
-                    self.size.remove_order(order.size());
-                    order
-                })
-                .collect(),
-            right
-                .into_iter()
-                .filter_map(|order| order)
-                .map(|order| {
-                    self.size.remove_order(order.size());
-                    order
-                })
-                .collect()
-        )
+        (self.filter_option_and_adjust_size(left), self.filter_option_and_adjust_size(right))
+    }
+
+    fn filter_option_and_adjust_size<O: PooledOrder>(&mut self, order: Vec<Option<O>>) -> Vec<O> {
+        order
+            .into_iter()
+            .filter_map(|order| order)
+            .map(|order| {
+                self.size.remove_order(order.size());
+                order
+            })
+            .collect()
     }
 
     pub fn get_all_order(&mut self) -> RegularAndLimitRef<T, C> {
