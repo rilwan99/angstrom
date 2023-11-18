@@ -29,6 +29,9 @@ pub enum LimitOrderLocation {
 
 type PoolId = Address;
 
+pub type RegularAndLimit<T, C> = (Vec<T>, Vec<C>);
+pub type RegularAndLimitRef<'a, T, C> = (Vec<&'a T>, Vec<&'a C>);
+
 struct SizeTracker {
     pub max:     Option<usize>,
     pub current: usize
@@ -47,6 +50,10 @@ impl SizeTracker {
             self.current += size;
             true
         }
+    }
+
+    pub fn remove_order(&mut self, size: usize) {
+        self.current -= size;
     }
 }
 
@@ -105,6 +112,7 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
         Ok(())
     }
 
+    /// Helper function for checking for duplicates when adding orders
     fn check_for_duplicates(&self, id: &OrderId) -> Result<(), LimitPoolError> {
         // is new order
         if self.all_order_ids.contains_key(&id) {
@@ -124,6 +132,7 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
         Ok(())
     }
 
+    /// Helper function to add new orders to tracking
     fn add_order_tracking(&mut self, id: OrderId, location: LimitOrderLocation) {
         let user = id.user_addr;
 
@@ -137,7 +146,7 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
     }
 
     /// Removes all filled orders from the pools
-    pub fn filled_orders(&mut self, orders: &Vec<B256>) -> (Vec<T>, Vec<C>) {
+    pub fn filled_orders(&mut self, orders: &Vec<B256>) -> RegularAndLimit<T, C> {
         // remove from lower level + hash locations;
         let (left, right): (Vec<_>, Vec<_>) = orders
             .iter()
@@ -166,14 +175,27 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
             .unzip();
 
         (
-            left.into_iter().filter_map(|order| order).collect(),
-            right.into_iter().filter_map(|order| order).collect()
+            left.into_iter()
+                .filter_map(|order| order)
+                .map(|order| {
+                    self.size.remove_order(order.size());
+                    order
+                })
+                .collect(),
+            right
+                .into_iter()
+                .filter_map(|order| order)
+                .map(|order| {
+                    self.size.remove_order(order.size());
+                    order
+                })
+                .collect()
         )
     }
 
     /// Removes all orders for a given user when there state changes for
     /// re-validation
-    pub fn changed_user_state(&mut self, users: &Vec<Address>) -> (Vec<T>, Vec<C>) {
+    pub fn changed_user_state(&mut self, users: &Vec<Address>) -> RegularAndLimit<T, C> {
         let (left, right): (Vec<_>, Vec<_>) = users
             .iter()
             // remove user
@@ -194,16 +216,29 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
             .unzip();
 
         (
-            left.into_iter().filter_map(|order| order).collect(),
-            right.into_iter().filter_map(|order| order).collect()
+            left.into_iter()
+                .filter_map(|order| order)
+                .map(|order| {
+                    self.size.remove_order(order.size());
+                    order
+                })
+                .collect(),
+            right
+                .into_iter()
+                .filter_map(|order| order)
+                .map(|order| {
+                    self.size.remove_order(order.size());
+                    order
+                })
+                .collect()
         )
     }
 
-    pub fn get_all_order(&mut self) -> (Vec<T>, Vec<C>) {
+    pub fn get_all_order(&mut self) -> RegularAndLimitRef<T, C> {
         todo!()
     }
 
-    pub fn get_overlap_with_buffer(&mut self, tick_buffer: u8) -> (Vec<T>, Vec<C>) {
+    pub fn get_overlap_with_buffer(&mut self, tick_buffer: u8) -> RegularAndLimitRef<T, C> {
         todo!()
     }
 
