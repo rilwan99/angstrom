@@ -1,13 +1,11 @@
 use std::collections::HashMap;
 
-use reth_primitives::B256;
-
-use super::TransactionId;
-use crate::{pool::limit::LimitTx, PooledOrder};
+use super::OrderId;
+use crate::PooledOrder;
 
 pub struct ParkedPool<T: PooledOrder> {
-    bids: HashMap<TransactionId, T>,
-    asks: HashMap<TransactionId, T>
+    bids: HashMap<OrderId, T>,
+    asks: HashMap<OrderId, T>
 }
 
 impl<T: PooledOrder> ParkedPool<T> {
@@ -15,7 +13,5 @@ impl<T: PooledOrder> ParkedPool<T> {
         todo!()
     }
 
-    pub fn new_order(&mut self, order: T) -> Result<(), LimitPoolError> {
-        Ok(())
-    }
+    pub fn new_order(&mut self, order: T) {}
 }

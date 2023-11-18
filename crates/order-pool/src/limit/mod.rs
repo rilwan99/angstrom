@@ -2,25 +2,16 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fmt::Debug
 };
+use crate::{ PooledComposableOrder ,PooledLimitOrder};
 
 use guard_types::primitive::OrderType;
 use reth_primitives::{alloy_primitives::Address, B256, U256};
 
 use self::{composable::ComposableLimitPool, limit::LimitPool};
+use crate::common::OrderId;
 
 mod composable;
 mod limit;
-
-pub trait LimitTx: Side + Clone + Debug + Send + Sync + 'static {
-    fn hash(&self) -> B256;
-    fn get_pool(&self) -> Address;
-    fn get_type(&self) -> OrderType;
-    fn is_valid(&self) -> bool;
-    fn is_expired(&self) -> bool;
-    fn is_composable(&self) -> bool;
-    fn get_id(&self) -> TransactionId;
-    fn price(&self) -> OrderPrice;
-}
 
 
 #[derive(Debug, thiserror::Error)]
@@ -30,7 +21,7 @@ pub enum LimitPoolError {
     #[error("No pool was found for address: {0}")]
     NoPool(PoolId),
     #[error("Already have a ordered with {0:?}")]
-    DuplicateNonce(TransactionId),
+    DuplicateNonce(OrderId),
     #[error("Duplicate order")]
     DuplicateOrder
 }
@@ -53,16 +44,16 @@ pub struct LimitOrderPool<T: PooledLimitOrder, C: PooledComposableOrder + Pooled
     composable_orders:   ComposableLimitPool<C>,
     limit_orders:        LimitPool<T>,
     /// used for easy update operations on Orders.
-    all_order_ids:       HashMap<TransactionId, LimitOrderLocation>,
+    all_order_ids:       HashMap<OrderId, LimitOrderLocation>,
     /// used for nonce lookup.
-    user_to_id:          HashMap<Address, Vec<TransactionId>>,
+    user_to_id:          HashMap<Address, Vec<OrderId>>,
     /// hash to pool location with identifier.
-    order_hash_location: HashMap<B256, (TransactionId, LimitOrderLocation)>,
+    order_hash_location: HashMap<B256, (OrderId, LimitOrderLocation)>,
     /// The size of the current transactions.
     size:                SizeTracker
 }
 
-impl<T: LimitTx> LimitOrderPool<T> {
+impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrderPool<T,C> {
     pub fn new(max_size: Option<usize>) -> Self {
         Self {
             composable_orders:   ComposableLimitPool::new(),
@@ -130,7 +121,7 @@ impl<T: LimitTx> LimitOrderPool<T> {
 
     /// Removes all orders for a given user when there state changes for
     /// re-validation
-    pub fn changed_user_state(&mut self, users: &Vec<Address>) -> Vec<T> {
+    pub fn changed_user_state(&mut self, users: &Vec<Address>) -> (Vec<T>, Vec<C>) {
         users
             .iter()
             // remove user
@@ -152,11 +143,11 @@ impl<T: LimitTx> LimitOrderPool<T> {
             .collect()
     }
 
-    pub fn get_all_order(&mut self) -> (Vec<T>, Vec<T>) {
+    pub fn get_all_order(&mut self) -> (Vec<T>, Vec<C>) {
         todo!()
     }
 
-    pub fn get_overlap_with_buffer(&mut self, tick_buffer: u8) -> (Vec<T>, Vec<T>) {
+    pub fn get_overlap_with_buffer(&mut self, tick_buffer: u8) -> (Vec<T>, Vec<C>) {
         todo!()
     }
 

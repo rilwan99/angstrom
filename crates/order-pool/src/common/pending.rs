@@ -1,22 +1,18 @@
-use std::{
-    cmp::Reverse,
-    collections::{BTreeMap, BTreeSet, BinaryHeap}
-};
+use std::{cmp::Reverse, collections::BTreeMap};
 
 use reth_primitives::B256;
 use revm::primitives::HashMap;
 use tokio::sync::broadcast;
 
-use super::OrderPrice;
 use crate::PooledOrder;
 
 pub struct PendingPool<T: PooledOrder> {
     /// all order hashes
     orders:                   HashMap<B256, T>,
     /// bids are sorted descending by price
-    bids:                     BTreeMap<OrderPrice, B256>,
+    bids:                     BTreeMap<u128, B256>,
     /// asks are sorted ascending by price
-    asks:                     BTreeMap<Reverse<OrderPrice>, B256>,
+    asks:                     BTreeMap<Reverse<u128>, B256>,
     // Notifier for new transactions
     new_transaction_notifier: broadcast::Sender<T>
 }
@@ -28,7 +24,7 @@ impl<T: PooledOrder> PendingPool<T> {
 
     pub fn new_order(&mut self, order: T) {
         let hash = order.hash();
-        let price = order.price();
+        let price = order.limit_price();
         if order.is_ask() {
             self.asks.insert(Reverse(price), hash);
         } else {
