@@ -34,6 +34,22 @@ struct SizeTracker {
     pub current: usize
 }
 
+impl SizeTracker {
+    pub fn has_space(&mut self, size: usize) -> bool {
+        if let Some(max) = self.max {
+            if self.current + size <= max {
+                self.current += size;
+                true
+            } else {
+                false
+            }
+        } else {
+            self.current += size;
+            true
+        }
+    }
+}
+
 pub struct LimitOrderPool<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> {
     composable_orders:   ComposableLimitPool<C>,
     limit_orders:        LimitPool<T>,
@@ -62,6 +78,11 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
     pub fn new_composable_order(&mut self, order: C) -> Result<(), LimitPoolError> {
         let id = order.order_id();
 
+        let size = order.size();
+        if !self.size.has_space(size) {
+            return Err(LimitPoolError::MaxSize)
+        }
+
         self.check_for_duplicates(&id)?;
         self.composable_orders.new_order(order)?;
         self.add_order_tracking(id, LimitOrderLocation::Composable);
@@ -71,6 +92,11 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
 
     pub fn new_limit_order(&mut self, order: T) -> Result<(), LimitPoolError> {
         let id = order.order_id();
+
+        let size = order.size();
+        if !self.size.has_space(size) {
+            return Err(LimitPoolError::MaxSize)
+        }
 
         self.check_for_duplicates(&id)?;
         let location = self.limit_orders.new_order(order)?;
