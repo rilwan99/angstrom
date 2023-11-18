@@ -9,7 +9,7 @@ use guard_types::{
     }
 };
 
-use crate::common::OrderId;
+use crate::{common::OrderId, limit::OrderPriorityData};
 
 #[async_trait::async_trait]
 #[auto_impl::auto_impl(Arc)]
@@ -47,6 +47,8 @@ pub trait PooledOrder: fmt::Debug + Send + Sync + Clone {
 
     /// Limit Price
     fn limit_price(&self) -> u128;
+
+    fn order_priority_data(&self) -> OrderPriorityData;
 
     /// Order deadline
     fn deadline(&self) -> U256;
@@ -90,6 +92,10 @@ pub trait PooledComposableOrder: PooledOrder {
 
 impl PooledOrder for EcRecoveredLimitOrder {
     fn is_valid(&self) -> bool {
+        todo!()
+    }
+
+    fn order_priority_data(&self) -> OrderPriorityData {
         todo!()
     }
 

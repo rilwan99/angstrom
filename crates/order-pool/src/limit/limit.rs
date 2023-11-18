@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 
-use reth_primitives::B256;
-
-use super::{LimitOrderLocation, LimitPoolError};
+use super::{parked::ParkedPool, pending::PendingPool, LimitOrderLocation, LimitPoolError, PoolId};
 use crate::{
-    common::{BidAndAsks, OrderId, ParkedPool, PendingPool, PoolId},
+    common::{BidAndAsks, OrderId},
     PooledLimitOrder
 };
 
@@ -38,38 +36,33 @@ impl<T: PooledLimitOrder> LimitPool<T> {
 
     pub fn remove_order(&mut self, order_id: &OrderId, location: LimitOrderLocation) -> Option<T> {
         match location {
-            LimitOrderLocation::LimitPending => {}
-            LimitOrderLocation::LimitParked => {}
+            LimitOrderLocation::LimitPending => self
+                .pending_orders
+                .get_mut(&order_id.pool_id)
+                .and_then(|pool| pool.remove_order(order_id.hash)),
+            LimitOrderLocation::LimitParked => self
+                .parked_orders
+                .get_mut(&order_id.pool_id)
+                .and_then(|pool| pool.remove_order(order_id)),
             _ => unreachable!()
         }
-
-        todo!()
-        // match location {
-        //     LimitOrderLocation::LimitParked => {
-        //         self.parked_orders.get_mut(order_id.pool_id).map(|inner|
-        //     },
-        //     LimitOrderLocation::LimitPending => {
-        //     },
-        //     _ => unreachable!()
-        // }
-        // self.o
     }
 
-    pub fn fetch_all_orders(&self, id: &PoolId) -> Vec<&T> {
+    pub fn fetch_all_pool_orders(&self, id: &PoolId) -> Vec<&T> {
         self.pending_orders
             .get(id)
             .map(|inner| inner.fetch_all_orders())
             .unwrap()
     }
 
-    pub fn fetch_all_bids(&self, id: &PoolId) -> Vec<&T> {
+    pub fn fetch_all_pool_bids(&self, id: &PoolId) -> Vec<&T> {
         self.pending_orders
             .get(id)
             .map(|inner| inner.fetch_all_bids())
             .unwrap()
     }
 
-    pub fn fetch_all_asks(&self, id: &PoolId) -> Vec<&T> {
+    pub fn fetch_all_pool_asks(&self, id: &PoolId) -> Vec<&T> {
         self.pending_orders
             .get(id)
             .map(|inner| inner.fetch_all_asks())
@@ -77,7 +70,7 @@ impl<T: PooledLimitOrder> LimitPool<T> {
     }
 
     /// Fetches supply and demand intersection
-    pub fn fetch_intersection(&self, id: &PoolId) -> BidAndAsks<T> {
+    pub fn fetch_pool_intersection(&self, id: &PoolId) -> BidAndAsks<T> {
         self.pending_orders
             .get(id)
             .map(|inner| inner.fetch_intersection())
@@ -85,7 +78,41 @@ impl<T: PooledLimitOrder> LimitPool<T> {
     }
 
     /// Fetches supply and demand intersection with a tick price buffer
-    pub fn fetch_intersection_with_buffer(&self, _buffer: u8) -> BidAndAsks<T> {
+    pub fn fetch_pool_intersection_with_buffer(&self, _buffer: u8) -> BidAndAsks<T> {
+        todo!("Blocked until added tick impl")
+    }
+
+    pub fn fetch_all_orders(&self) -> Vec<Vec<&T>> {
+        self.pending_orders
+            .values()
+            .map(|inner| inner.fetch_all_orders())
+            .collect()
+    }
+
+    pub fn fetch_all_bids(&self) -> Vec<Vec<&T>> {
+        self.pending_orders
+            .values()
+            .map(|inner| inner.fetch_all_bids())
+            .collect()
+    }
+
+    pub fn fetch_all_asks(&self) -> Vec<Vec<&T>> {
+        self.pending_orders
+            .values()
+            .map(|inner| inner.fetch_all_asks())
+            .collect()
+    }
+
+    /// Fetches supply and demand intersection
+    pub fn fetch_intersection(&self) -> Vec<BidAndAsks<T>> {
+        self.pending_orders
+            .values()
+            .map(|inner| inner.fetch_intersection())
+            .collect()
+    }
+
+    /// Fetches supply and demand intersection with a tick price buffer
+    pub fn fetch_intersection_with_buffer(&self, _buffer: u8) -> Vec<BidAndAsks<T>> {
         todo!("Blocked until added tick impl")
     }
 }
