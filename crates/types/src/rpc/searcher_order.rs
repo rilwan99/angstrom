@@ -42,7 +42,7 @@ impl TryInto<EcRecoveredSearcherOrder> for SignedSearcherOrder {
 }
 
 /// Signed transaction with recovered signer.
-#[derive(Debug, Clone, PartialEq, Hash, Eq, AsRef, Deref)]
+#[derive(Debug, Clone, PartialEq, Hash, Eq, AsRef, Deref, RlpEncodable, RlpDecodable)]
 pub struct EcRecoveredSearcherOrder {
     /// Signer of the transaction
     pub signer:       Address,
@@ -83,7 +83,7 @@ impl TryInto<EcRecoveredComposableSearcherOrder> for SignedComposableSearcherOrd
 }
 
 /// Signed transaction with recovered signer.
-#[derive(Debug, Clone, PartialEq, Hash, Eq, AsRef, Deref)]
+#[derive(Debug, Clone, PartialEq, Hash, Eq, AsRef, Deref, RlpDecodable, RlpEncodable)]
 pub struct EcRecoveredComposableSearcherOrder {
     /// Signer of the transaction
     pub signer:       Address,
@@ -91,4 +91,26 @@ pub struct EcRecoveredComposableSearcherOrder {
     #[deref]
     #[as_ref]
     pub signed_order: SignedComposableSearcherOrder
+}
+
+impl TryFrom<alloy_primitives::Bytes> for EcRecoveredComposableSearcherOrder {
+    type Error = alloy_rlp::Error;
+
+    fn try_from(value: alloy_primitives::Bytes) -> Result<Self, Self::Error> {
+        let veced = value.0.to_vec();
+        let mut sliced = veced.as_slice();
+
+        EcRecoveredComposableSearcherOrder::decode(&mut sliced)
+    }
+}
+
+impl TryFrom<alloy_primitives::Bytes> for EcRecoveredSearcherOrder {
+    type Error = alloy_rlp::Error;
+
+    fn try_from(value: alloy_primitives::Bytes) -> Result<Self, Self::Error> {
+        let veced = value.0.to_vec();
+        let mut sliced = veced.as_slice();
+
+        EcRecoveredSearcherOrder::decode(&mut sliced)
+    }
 }
