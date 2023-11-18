@@ -6,15 +6,38 @@ use tokio::sync::broadcast;
 
 use crate::{common::BidAndAsks, PooledOrder};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OrderPriorityData {
+    pub price:  u128,
+    pub volume: u128,
+    pub gas:    u128
+}
+
+impl PartialOrd for OrderPriorityData {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.price.cmp(&other.price).then_with(|| {
+            self.volume
+                .cmp(&other.volume)
+                .then_with(|| self.gas.cmp(&other.gas))
+        }))
+    }
+}
+
+impl Ord for OrderPriorityData {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
 pub struct PendingPool<T: PooledOrder> {
     /// all order hashes
     orders:                   HashMap<B256, T>,
     /// bids are sorted descending by price, TODO: This should be binned into
     /// ticks based off of the underlying pools params
-    bids:                     BTreeMap<u128, B256>,
+    bids:                     BTreeMap<OrderPriorityData, Vec<B256>>,
     /// asks are sorted ascending by price,  TODO: This should be binned into
     /// ticks based off of the underlying pools params
-    asks:                     BTreeMap<Reverse<u128>, B256>,
+    asks:                     BTreeMap<Reverse<OrderPriorityData>, Vec<B256>>,
     /// Notifier for new transactions
     new_transaction_notifier: broadcast::Sender<T>
 }
@@ -26,11 +49,12 @@ impl<T: PooledOrder> PendingPool<T> {
 
     pub fn new_order(&mut self, order: T) {
         let hash = order.hash();
-        let price = order.limit_price();
+        let priority = order.order_priority_data();
+
         if order.is_bid() {
-            self.bids.insert(price, hash);
+            self.bids.entry(priority).or_default().push(hash);
         } else {
-            self.asks.insert(Reverse(price), hash);
+            self.asks.entry(Reverse(priority)).or_default().push(hash);
         }
 
         self.orders.insert(hash, order.clone());
@@ -40,12 +64,16 @@ impl<T: PooledOrder> PendingPool<T> {
 
     pub fn remove_order(&mut self, hash: B256) -> Option<T> {
         let order = self.orders.remove(&hash)?;
-        let price = order.limit_price();
+        let priority = order.order_priority_data();
 
         if order.is_bid() {
-            self.bids.remove(&price);
+            self.bids
+                .entry(priority)
+                .and_modify(|data| data.retain(|order_hash| order_hash != &hash));
         } else {
-            self.asks.remove(&Reverse(price));
+            self.asks
+                .entry(Reverse(priority))
+                .and_modify(|data| data.retain(|order_hash| order_hash != &hash));
         }
 
         Some(order)
@@ -58,6 +86,7 @@ impl<T: PooledOrder> PendingPool<T> {
     pub fn fetch_all_bids(&self) -> Vec<&T> {
         self.bids
             .values()
+            .flatten()
             .map(|key| {
                 self.orders
                     .get(key)
@@ -69,6 +98,7 @@ impl<T: PooledOrder> PendingPool<T> {
     pub fn fetch_all_asks(&self) -> Vec<&T> {
         self.asks
             .values()
+            .flatten()
             .map(|key| {
                 self.orders
                     .get(key)
@@ -81,15 +111,23 @@ impl<T: PooledOrder> PendingPool<T> {
     pub fn fetch_intersection(&self) -> BidAndAsks<T> {
         self.bids
             .iter()
-            .map(|(price, addr)| (price, self.orders.get(addr).unwrap()))
-            .zip(
-                self.asks
-                    .iter()
-                    .map(|(price, addr)| (price, self.orders.get(addr).unwrap()))
-            )
+            .flat_map(|(price, addrs)| {
+                addrs
+                    .into_iter()
+                    .map(|addr| self.orders.get(addr).unwrap())
+                    .zip(std::iter::repeat(price))
+                    .collect::<Vec<_>>()
+            })
+            .zip(self.asks.iter().flat_map(|(price, addrs)| {
+                addrs
+                    .into_iter()
+                    .map(|addr| self.orders.get(addr).unwrap())
+                    .zip(std::iter::repeat(price))
+                    .collect::<Vec<_>>()
+            }))
             .map_while(
-                |((bid_p, bid), (ask_p, ask))| {
-                    if ask_p.0.le(bid_p) {
+                |((bid, bid_p), (ask, ask_p))| {
+                    if ask_p.0.price.le(&bid_p.price) {
                         Some((bid, ask))
                     } else {
                         None

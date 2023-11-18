@@ -8,10 +8,11 @@ use crate::{
     PooledComposableOrder, PooledLimitOrder, PooledOrder
 };
 
-mod parked;
 mod composable;
 mod limit;
+mod parked;
 mod pending;
+pub use pending::OrderPriorityData;
 
 type PoolId = Address;
 
