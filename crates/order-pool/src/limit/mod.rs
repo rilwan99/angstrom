@@ -68,39 +68,6 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
         Ok(())
     }
 
-    /// Helper function for checking for duplicates when adding orders
-    fn check_for_duplicates(&self, id: &OrderId) -> Result<(), LimitPoolError> {
-        // is new order
-        if self.all_order_ids.contains_key(&id) {
-            return Err(LimitPoolError::DuplicateOrder)
-        }
-
-        // check for duplicate nonce
-        if self
-            .user_to_id
-            .get(&id.user_addr)
-            .map(|inner| inner.iter().any(|other_id| other_id.nonce == id.nonce))
-            .unwrap_or(false)
-        {
-            return Err(LimitPoolError::DuplicateNonce(id.clone()))
-        }
-
-        Ok(())
-    }
-
-    /// Helper function to add new orders to tracking
-    fn add_order_tracking(&mut self, id: OrderId, location: LimitOrderLocation) {
-        let user = id.user_addr;
-
-        // add to user tracking
-        self.user_to_id.entry(user).or_default().push(id.clone());
-        // add to hash tracking
-        self.order_hash_location
-            .insert(id.order_hash, (id.clone(), location));
-        // add to all order id
-        self.all_order_ids.insert(id, location);
-    }
-
     /// Removes all filled orders from the pools
     pub fn filled_orders(&mut self, orders: &Vec<B256>) -> RegularAndLimit<T, C> {
         // remove from lower level + hash locations;
@@ -158,6 +125,17 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
         (self.filter_option_and_adjust_size(left), self.filter_option_and_adjust_size(right))
     }
 
+    // individual fetches
+    pub fn fetch_all_pool_orders(&mut self, id: &PoolId) -> RegularAndLimitRef<T, C> {
+        (
+            self.limit_orders.fetch_all_pool_orders(id),
+            self.composable_orders.fetch_all_pool_orders(id)
+        )
+    }
+}
+
+// Helper functions
+impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrderPool<T, C> {
     /// Helper function for unzipping and size adjustment
     fn filter_option_and_adjust_size<O: PooledOrder>(&mut self, order: Vec<Option<O>>) -> Vec<O> {
         order
@@ -170,15 +148,38 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
             .collect()
     }
 
-    pub fn get_all_order(&mut self) -> RegularAndLimitRef<T, C> {
-        todo!()
+    /// Helper function for checking for duplicates when adding orders
+    fn check_for_duplicates(&self, id: &OrderId) -> Result<(), LimitPoolError> {
+        // is new order
+        if self.all_order_ids.contains_key(&id) {
+            return Err(LimitPoolError::DuplicateOrder)
+        }
+
+        // check for duplicate nonce
+        if self
+            .user_to_id
+            .get(&id.user_addr)
+            .map(|inner| inner.iter().any(|other_id| other_id.nonce == id.nonce))
+            .unwrap_or(false)
+        {
+            return Err(LimitPoolError::DuplicateNonce(id.clone()))
+        }
+
+        Ok(())
     }
 
-    pub fn get_overlap_with_buffer(&mut self, tick_buffer: u8) -> RegularAndLimitRef<T, C> {
-        todo!()
-    }
+    /// Helper function to add new orders to tracking
+    fn add_order_tracking(&mut self, id: OrderId, location: LimitOrderLocation) {
+        let user = id.user_addr;
 
-    // TODO: add ability to fetch composable and non-composable orders
+        // add to user tracking
+        self.user_to_id.entry(user).or_default().push(id.clone());
+        // add to hash tracking
+        self.order_hash_location
+            .insert(id.order_hash, (id.clone(), location));
+        // add to all order id
+        self.all_order_ids.insert(id, location);
+    }
 }
 
 struct SizeTracker {
