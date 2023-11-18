@@ -1,6 +1,5 @@
 use std::fmt;
 
-use crate::common::OrderId;
 use alloy_primitives::{Address, Bytes, TxHash, U128, U256};
 use guard_types::{
     primitive::{ComposableOrder, Order, PoolKey},
@@ -9,6 +8,8 @@ use guard_types::{
         EcRecoveredSearcherOrder, SignedComposableLimitOrder
     }
 };
+
+use crate::common::OrderId;
 
 #[async_trait::async_trait]
 #[auto_impl::auto_impl(Arc)]
@@ -26,7 +27,7 @@ pub trait OrderPool: Send + Sync + Clone {
     type ComposableSearcherOrder: PooledComposableOrder + PooledSearcherOrder;
 }
 
-pub trait PooledOrder: fmt::Debug + Send + Sync {
+pub trait PooledOrder: fmt::Debug + Send + Sync + Clone {
     /// Hash of the order
     fn hash(&self) -> TxHash;
 
@@ -61,6 +62,9 @@ pub trait PooledOrder: fmt::Debug + Send + Sync {
 
     /// Returns chain_id
     fn chain_id(&self) -> Option<u64>;
+
+    /// Returns if the order should be pending or parked
+    fn is_valid(&self) -> bool;
 }
 
 pub trait PooledLimitOrder: PooledOrder {
@@ -82,6 +86,10 @@ pub trait PooledComposableOrder: PooledOrder {
 }
 
 impl PooledOrder for EcRecoveredLimitOrder {
+    fn is_valid(&self) -> bool {
+        todo!()
+    }
+
     fn hash(&self) -> TxHash {
         self.signed_order.hash
     }
@@ -120,6 +128,10 @@ impl PooledOrder for EcRecoveredLimitOrder {
 
     fn chain_id(&self) -> Option<u64> {
         unreachable!()
+    }
+
+    fn order_id(&self) -> OrderId {
+        todo!()
     }
 }
 

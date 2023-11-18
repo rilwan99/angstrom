@@ -13,5 +13,13 @@ impl<T: PooledOrder> ParkedPool<T> {
         todo!()
     }
 
+    pub fn remove_order(&mut self, order_id: &OrderId, is_bid: bool) -> Option<T> {
+        if is_bid {
+            self.bids.remove(order_id)
+        } else {
+            self.asks.remove(order_id)
+        }
+    }
+
     pub fn new_order(&mut self, order: T) {}
 }
