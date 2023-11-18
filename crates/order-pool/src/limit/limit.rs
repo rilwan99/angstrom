@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use super::{parked::ParkedPool, pending::PendingPool, LimitOrderLocation, LimitPoolError, PoolId};
+use super::{parked::ParkedPool, pending::PendingPool, LimitOrderLocation, LimitPoolError};
 use crate::{
-    common::{BidAndAsks, OrderId},
+    common::{BidAndAsks, OrderId, PoolId},
     PooledLimitOrder
 };
 

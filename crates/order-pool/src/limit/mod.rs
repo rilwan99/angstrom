@@ -4,7 +4,7 @@ use reth_primitives::{alloy_primitives::Address, B256, U256};
 
 use self::{composable::ComposableLimitPool, limit::LimitPool};
 use crate::{
-    common::{OrderId, SizeTracker},
+    common::{OrderId, PoolId, SizeTracker},
     PooledComposableOrder, PooledLimitOrder, PooledOrder
 };
 
