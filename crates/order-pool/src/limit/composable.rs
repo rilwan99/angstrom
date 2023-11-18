@@ -1,14 +1,16 @@
 use std::collections::HashMap;
 
-use super::{LimitOrderLocation, LimitPoolError, PoolId};
+use super::{pending::PendingPool, LimitOrderLocation, LimitPoolError, PoolId};
 use crate::{
-    common::{BidAndAsks, OrderId, PendingPool},
-    PooledComposableOrder
+    common::{BidAndAsks, OrderId},
+    PooledComposableOrder, PooledLimitOrder
 };
 
-pub struct ComposableLimitPool<T: PooledComposableOrder>(HashMap<PoolId, PendingPool<T>>);
+pub struct ComposableLimitPool<T: PooledComposableOrder + PooledLimitOrder>(
+    HashMap<PoolId, PendingPool<T>>
+);
 
-impl<T: PooledComposableOrder> ComposableLimitPool<T> {
+impl<T: PooledComposableOrder + PooledLimitOrder> ComposableLimitPool<T> {
     pub fn new() -> Self {
         todo!()
     }
@@ -35,17 +37,11 @@ impl<T: PooledComposableOrder> ComposableLimitPool<T> {
     }
 
     pub fn fetch_all_pool_bids(&self, id: &PoolId) -> Vec<&T> {
-        self.0
-            .get(id)
-            .map(|inner| inner.fetch_all_bids())
-            .unwrap()
+        self.0.get(id).map(|inner| inner.fetch_all_bids()).unwrap()
     }
 
     pub fn fetch_all_pool_asks(&self, id: &PoolId) -> Vec<&T> {
-        self.0
-            .get(id)
-            .map(|inner| inner.fetch_all_asks())
-            .unwrap()
+        self.0.get(id).map(|inner| inner.fetch_all_asks()).unwrap()
     }
 
     /// Fetches supply and demand intersection

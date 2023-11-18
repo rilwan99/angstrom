@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 
-use reth_primitives::B256;
-
-use super::{LimitOrderLocation, LimitPoolError, PoolId};
+use super::{pending::PendingPool, LimitOrderLocation, LimitPoolError, PoolId};
 use crate::{
-    common::{BidAndAsks, OrderId, ParkedPool, PendingPool},
+    common::{BidAndAsks, OrderId, ParkedPool},
     PooledLimitOrder
 };
 
