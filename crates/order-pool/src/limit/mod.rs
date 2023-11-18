@@ -8,54 +8,10 @@ use crate::{common::OrderId, PooledComposableOrder, PooledLimitOrder, PooledOrde
 mod composable;
 mod limit;
 
-#[derive(Debug, thiserror::Error)]
-pub enum LimitPoolError {
-    #[error("Pool has reached max size, and order doesn't satisify replacment requirements")]
-    MaxSize,
-    #[error("No pool was found for address: {0}")]
-    NoPool(PoolId),
-    #[error("Already have a ordered with {0:?}")]
-    DuplicateNonce(OrderId),
-    #[error("Duplicate order")]
-    DuplicateOrder
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum LimitOrderLocation {
-    Composable,
-    LimitParked,
-    LimitPending
-}
-
 type PoolId = Address;
 
 pub type RegularAndLimit<T, C> = (Vec<T>, Vec<C>);
 pub type RegularAndLimitRef<'a, T, C> = (Vec<&'a T>, Vec<&'a C>);
-
-struct SizeTracker {
-    pub max:     Option<usize>,
-    pub current: usize
-}
-
-impl SizeTracker {
-    pub fn has_space(&mut self, size: usize) -> bool {
-        if let Some(max) = self.max {
-            if self.current + size <= max {
-                self.current += size;
-                true
-            } else {
-                false
-            }
-        } else {
-            self.current += size;
-            true
-        }
-    }
-
-    pub fn remove_order(&mut self, size: usize) {
-        self.current -= size;
-    }
-}
 
 pub struct LimitOrderPool<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> {
     composable_orders:   ComposableLimitPool<C>,
@@ -202,6 +158,7 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
         (self.filter_option_and_adjust_size(left), self.filter_option_and_adjust_size(right))
     }
 
+    /// Helper function for unzipping and size adjustment
     fn filter_option_and_adjust_size<O: PooledOrder>(&mut self, order: Vec<Option<O>>) -> Vec<O> {
         order
             .into_iter()
@@ -222,4 +179,48 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
     }
 
     // TODO: add ability to fetch composable and non-composable orders
+}
+
+struct SizeTracker {
+    pub max:     Option<usize>,
+    pub current: usize
+}
+
+impl SizeTracker {
+    pub fn has_space(&mut self, size: usize) -> bool {
+        if let Some(max) = self.max {
+            if self.current + size <= max {
+                self.current += size;
+                true
+            } else {
+                false
+            }
+        } else {
+            self.current += size;
+            true
+        }
+    }
+
+    pub fn remove_order(&mut self, size: usize) {
+        self.current -= size;
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum LimitPoolError {
+    #[error("Pool has reached max size, and order doesn't satisify replacment requirements")]
+    MaxSize,
+    #[error("No pool was found for address: {0}")]
+    NoPool(PoolId),
+    #[error("Already have a ordered with {0:?}")]
+    DuplicateNonce(OrderId),
+    #[error("Duplicate order")]
+    DuplicateOrder
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum LimitOrderLocation {
+    Composable,
+    LimitParked,
+    LimitPending
 }
