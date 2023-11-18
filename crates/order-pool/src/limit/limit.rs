@@ -38,21 +38,16 @@ impl<T: PooledLimitOrder> LimitPool<T> {
 
     pub fn remove_order(&mut self, order_id: &OrderId, location: LimitOrderLocation) -> Option<T> {
         match location {
-            LimitOrderLocation::LimitPending => {}
-            LimitOrderLocation::LimitParked => {}
+            LimitOrderLocation::LimitPending => self
+                .pending_orders
+                .get_mut(&order_id.pool_id)
+                .and_then(|pool| pool.remove_order(order_id.order_hash)),
+            LimitOrderLocation::LimitParked => self
+                .parked_orders
+                .get_mut(&order_id.pool_id)
+                .and_then(|pool| pool.remove_order(order_id)),
             _ => unreachable!()
         }
-
-        todo!()
-        // match location {
-        //     LimitOrderLocation::LimitParked => {
-        //         self.parked_orders.get_mut(order_id.pool_id).map(|inner|
-        //     },
-        //     LimitOrderLocation::LimitPending => {
-        //     },
-        //     _ => unreachable!()
-        // }
-        // self.o
     }
 
     pub fn fetch_all_orders(&self, id: &PoolId) -> Vec<&T> {
