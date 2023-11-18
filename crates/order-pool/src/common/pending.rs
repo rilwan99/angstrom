@@ -25,10 +25,10 @@ impl<T: PooledOrder> PendingPool<T> {
     pub fn new_order(&mut self, order: T) {
         let hash = order.hash();
         let price = order.limit_price();
-        if order.is_ask() {
-            self.asks.insert(Reverse(price), hash);
-        } else {
+        if order.is_bid() {
             self.bids.insert(price, hash);
+        } else {
+            self.asks.insert(Reverse(price), hash);
         }
 
         self.orders.insert(hash, order.clone());

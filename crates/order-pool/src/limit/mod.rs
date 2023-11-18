@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap, HashSet},
-    fmt::Debug
-};
+use std::{collections::HashMap, fmt::Debug};
 
 use guard_types::primitive::OrderType;
 use reth_primitives::{alloy_primitives::Address, B256, U256};

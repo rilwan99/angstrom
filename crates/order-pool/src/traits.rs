@@ -65,6 +65,9 @@ pub trait PooledOrder: fmt::Debug + Send + Sync + Clone {
 
     /// Returns if the order should be pending or parked
     fn is_valid(&self) -> bool;
+
+    /// Returns the direction of the pool defined by ordering
+    fn is_bid(&self) -> bool;
 }
 
 pub trait PooledLimitOrder: PooledOrder {
@@ -87,6 +90,10 @@ pub trait PooledComposableOrder: PooledOrder {
 
 impl PooledOrder for EcRecoveredLimitOrder {
     fn is_valid(&self) -> bool {
+        todo!()
+    }
+
+    fn is_bid(&self) -> bool {
         todo!()
     }
 
