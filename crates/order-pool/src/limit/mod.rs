@@ -3,7 +3,10 @@ use std::{collections::HashMap, fmt::Debug};
 use reth_primitives::{alloy_primitives::Address, B256, U256};
 
 use self::{composable::ComposableLimitPool, limit::LimitPool};
-use crate::{common::OrderId, PooledComposableOrder, PooledLimitOrder, PooledOrder};
+use crate::{
+    common::{OrderId, PoolId},
+    PooledComposableOrder, PooledLimitOrder, PooledOrder
+};
 
 mod composable;
 mod limit;
@@ -26,8 +29,6 @@ pub enum LimitOrderLocation {
     LimitParked,
     LimitPending
 }
-
-type PoolId = Address;
 
 pub type RegularAndLimit<T, C> = (Vec<T>, Vec<C>);
 pub type RegularAndLimitRef<'a, T, C> = (Vec<&'a T>, Vec<&'a C>);
