@@ -1,5 +1,6 @@
 use std::fmt;
 
+use crate::common::OrderId;
 use alloy_primitives::{Address, Bytes, TxHash, U128, U256};
 use guard_types::{
     primitive::{ComposableOrder, Order, PoolKey},
@@ -28,6 +29,8 @@ pub trait OrderPool: Send + Sync + Clone {
 pub trait PooledOrder: fmt::Debug + Send + Sync {
     /// Hash of the order
     fn hash(&self) -> TxHash;
+
+    fn order_id(&self) -> OrderId;
 
     /// The order signer
     fn from(&self) -> Address;
@@ -72,7 +75,7 @@ pub trait PooledSearcherOrder: PooledOrder {
     fn donate(&self) -> (U128, U128);
 }
 
-trait PooledComposableOrder: PooledOrder {
+pub trait PooledComposableOrder: PooledOrder {
     fn pre_hook(&self) -> Option<Bytes>;
 
     fn post_hook(&self) -> Option<Bytes>;

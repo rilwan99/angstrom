@@ -2,15 +2,18 @@ use std::collections::HashMap;
 
 use reth_primitives::B256;
 
-use super::{
-    parked::ParkedPool, pending::PendingPool, LimitOrderLocation, LimitPoolError, LimitTx, PoolId
+use super::{LimitOrderLocation, LimitPoolError, PoolId};
+use crate::{
+    common::{ParkedPool, PendingPool},
+    PooledLimitOrder
 };
 
-pub struct LimitPool<T: LimitTx> {
+pub struct LimitPool<T: PooledLimitOrder> {
     pending_orders: HashMap<PoolId, PendingPool<T>>,
     parked_orders:  HashMap<PoolId, ParkedPool<T>>
 }
-impl<T: LimitTx> LimitPool<T> {
+
+impl<T: PooledLimitOrder> LimitPool<T> {
     pub fn new() -> Self {
         todo!()
     }
