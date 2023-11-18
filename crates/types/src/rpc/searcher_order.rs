@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, U256};
+use alloy_primitives::{Address, TxHash, U256};
 use alloy_rlp::{Decodable, Encodable, Error};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_types::SolStruct;
@@ -13,8 +13,10 @@ use crate::primitive::{Angstrom::Order, ComposableOrder, Signature, ANGSTROM_DOM
 /// Submitted order pre-processing
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, RlpEncodable, RlpDecodable)]
 pub struct SignedSearcherOrder {
+    /// Order hash
+    pub hash:      TxHash,
     /// The original order from the user.
-    pub details:   Order,
+    pub order:     Order,
     /// The user's EIP-712 signature of the Order.
     pub signature: Signature
 }
@@ -22,7 +24,7 @@ pub struct SignedSearcherOrder {
 //TODO: Also implement recovery for 1271 orders see
 impl SignedSearcherOrder {
     pub fn recover_signer(&self) -> Option<Address> {
-        let hash = self.details.eip712_signing_hash(&ANGSTROM_DOMAIN);
+        let hash = self.order.eip712_signing_hash(&ANGSTROM_DOMAIN);
         self.signature.0.recover_signer(hash)
     }
 }
@@ -35,7 +37,7 @@ impl TryInto<EcRecoveredSearcherOrder> for SignedSearcherOrder {
             .recover_signer()
             .ok_or_else(|| SigError::IncorrectSignature)?;
 
-        Ok(EcRecoveredSearcherOrder { signer: sig, signed_transaction: self })
+        Ok(EcRecoveredSearcherOrder { signer: sig, signed_order: self })
     }
 }
 
@@ -43,25 +45,27 @@ impl TryInto<EcRecoveredSearcherOrder> for SignedSearcherOrder {
 #[derive(Debug, Clone, PartialEq, Hash, Eq, AsRef, Deref)]
 pub struct EcRecoveredSearcherOrder {
     /// Signer of the transaction
-    signer:             Address,
+    pub signer:       Address,
     /// Signed transaction
     #[deref]
     #[as_ref]
-    signed_transaction: SignedSearcherOrder
+    pub signed_order: SignedSearcherOrder
 }
 
 /// Submitted order pre-processing
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, RlpEncodable, RlpDecodable)]
 pub struct SignedComposableSearcherOrder {
+    /// Order hash
+    pub hash:      TxHash,
     /// The original order from the user.
-    pub details:   ComposableOrder,
+    pub order:     ComposableOrder,
     /// The user's EIP-712 signature of the Order.
     pub signature: Signature
 }
 
 impl SignedComposableSearcherOrder {
     pub fn recover_signer(&self) -> Option<Address> {
-        let hash = self.details.eip712_signing_hash(&ANGSTROM_DOMAIN);
+        let hash = self.order.eip712_signing_hash(&ANGSTROM_DOMAIN);
         self.signature.0.recover_signer(hash)
     }
 }
@@ -70,11 +74,11 @@ impl TryInto<EcRecoveredComposableSearcherOrder> for SignedComposableSearcherOrd
     type Error = SigError;
 
     fn try_into(self) -> Result<EcRecoveredComposableSearcherOrder, Self::Error> {
-        let sig = self
+        let sender = self
             .recover_signer()
             .ok_or_else(|| SigError::IncorrectSignature)?;
 
-        Ok(EcRecoveredComposableSearcherOrder { signer: sig, signed_transaction: self })
+        Ok(EcRecoveredComposableSearcherOrder { signer: sender, signed_order: self })
     }
 }
 
@@ -82,9 +86,9 @@ impl TryInto<EcRecoveredComposableSearcherOrder> for SignedComposableSearcherOrd
 #[derive(Debug, Clone, PartialEq, Hash, Eq, AsRef, Deref)]
 pub struct EcRecoveredComposableSearcherOrder {
     /// Signer of the transaction
-    signer:             Address,
+    pub signer:       Address,
     /// Signed transaction
     #[deref]
     #[as_ref]
-    signed_transaction: SignedComposableSearcherOrder
+    pub signed_order: SignedComposableSearcherOrder
 }

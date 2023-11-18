@@ -1,3 +1,4 @@
+use alloy_primitives::Bytes;
 use guard_types::rpc::{
     EcRecoveredComposableLimitOrder, EcRecoveredComposableSearcherOrder, EcRecoveredLimitOrder,
     EcRecoveredSearcherOrder, SignedComposableLimitOrder, SignedComposableSearcherOrder,
@@ -19,7 +20,7 @@ impl<OrderPool> OrderApiServer for OrderApi<OrderPool>
 where
     OrderPool: Send + Sync + 'static
 {
-    async fn submit_limit_order(&self, order: SignedLimitOrder) -> RpcResult<bool> {
+    async fn submit_limit_order(&self, order: Bytes) -> RpcResult<bool> {
         if let Ok(order) = order.try_into() {
             let order: EcRecoveredLimitOrder = order;
             todo!()
@@ -28,7 +29,7 @@ where
         }
     }
 
-    async fn submit_searcher_order(&self, order: SignedSearcherOrder) -> RpcResult<bool> {
+    async fn submit_searcher_order(&self, order: Bytes) -> RpcResult<bool> {
         if let Ok(order) = order.try_into() {
             let order: EcRecoveredSearcherOrder = order;
             todo!()
@@ -37,10 +38,7 @@ where
         }
     }
 
-    async fn submit_composable_limit_order(
-        &self,
-        order: SignedComposableLimitOrder
-    ) -> RpcResult<bool> {
+    async fn submit_composable_limit_order(&self, order: Bytes) -> RpcResult<bool> {
         if let Ok(order) = order.try_into() {
             let order: EcRecoveredComposableLimitOrder = order;
             todo!()
@@ -49,10 +47,7 @@ where
         }
     }
 
-    async fn submit_composable_searcher_order(
-        &self,
-        order: SignedComposableSearcherOrder
-    ) -> RpcResult<bool> {
+    async fn submit_composable_searcher_order(&self, order: Bytes) -> RpcResult<bool> {
         if let Ok(order) = order.try_into() {
             let order: EcRecoveredComposableSearcherOrder = order;
             todo!()

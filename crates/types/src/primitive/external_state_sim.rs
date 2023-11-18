@@ -41,12 +41,12 @@ impl TryInto<ExternalStateSim> for SignedLimitOrder {
 
         Ok(ExternalStateSim {
             tx: self.clone(),
-            pre_hook: self.details.preHook.into(),
-            amount_in_req: self.details.amountIn,
-            amount_in_token: self.details.currencyIn,
-            post_hook: self.details.postHook.into(),
-            amount_out_lim: self.details.amountOutMin,
-            amount_out_token: self.details.currencyOut,
+            pre_hook: self.order.preHook.into(),
+            amount_in_req: self.order.amountIn,
+            amount_in_token: self.order.currencyIn,
+            post_hook: self.order.postHook.into(),
+            amount_out_lim: self.order.amountOutMin,
+            amount_out_token: self.order.currencyOut,
             addr
         })
     }

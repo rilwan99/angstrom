@@ -25,6 +25,7 @@ reth-tasks.workspace = true
 revm.workspace = true
 alloy-rlp.workspace = true  
 guard-types.workspace = true
+alloy-primitives.workspace = true
 
 # async/futures
 async-trait.workspace = true
@@ -58,14 +59,3 @@ rand = "0.8"
 proptest.workspace = true
 criterion = "0.5"
 assert_matches.workspace = true
-
-[features]
-default = ["serde"]
-serde = ["dep:serde"]
-test-utils = ["rand", "paste", "serde"]
-arbitrary = ["proptest", "reth-primitives/arbitrary"]
-
-[[bench]]
-name = "reorder"
-required-features = ["test-utils", "arbitrary"]
-harness = false
