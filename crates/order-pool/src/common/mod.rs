@@ -5,6 +5,8 @@ use alloy_primitives::{Address, B256};
 pub use parked::*;
 pub use pending::*;
 
+pub type BidAndAsks<'a, T> = (Vec<&'a T>, Vec<&'a T>);
+
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub struct OrderId {
     pub user_addr:  Address,

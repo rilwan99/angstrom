@@ -4,7 +4,7 @@ use reth_primitives::B256;
 
 use super::{LimitOrderLocation, LimitPoolError, PoolId};
 use crate::{
-    common::{OrderId, ParkedPool, PendingPool},
+    common::{BidAndAsks, OrderId, ParkedPool, PendingPool},
     PooledLimitOrder
 };
 
@@ -49,7 +49,37 @@ impl<T: PooledLimitOrder> LimitPool<T> {
         // self.o
     }
 
-    pub fn filled_orders(&mut self, orders: &Vec<B256>) -> Vec<T> {
-        vec![]
+    pub fn fetch_all_orders(&self, id: &PoolId) -> Vec<&T> {
+        self.pending_orders
+            .get(id)
+            .map(|inner| inner.fetch_all_orders())
+            .unwrap()
+    }
+
+    pub fn fetch_all_bids(&self, id: &PoolId) -> Vec<&T> {
+        self.pending_orders
+            .get(id)
+            .map(|inner| inner.fetch_all_bids())
+            .unwrap()
+    }
+
+    pub fn fetch_all_asks(&self, id: &PoolId) -> Vec<&T> {
+        self.pending_orders
+            .get(id)
+            .map(|inner| inner.fetch_all_asks())
+            .unwrap()
+    }
+
+    /// Fetches supply and demand intersection
+    pub fn fetch_intersection(&self, id: &PoolId) -> BidAndAsks<T> {
+        self.pending_orders
+            .get(id)
+            .map(|inner| inner.fetch_intersection())
+            .unwrap()
+    }
+
+    /// Fetches supply and demand intersection with a tick price buffer
+    pub fn fetch_intersection_with_buffer(&self, _buffer: u8) -> BidAndAsks<T> {
+        todo!("Blocked until added tick impl")
     }
 }
