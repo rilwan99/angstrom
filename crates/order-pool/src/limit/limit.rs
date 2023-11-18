@@ -37,6 +37,12 @@ impl<T: PooledLimitOrder> LimitPool<T> {
     }
 
     pub fn remove_order(&mut self, order_id: &OrderId, location: LimitOrderLocation) -> Option<T> {
+        match location {
+            LimitOrderLocation::LimitPending => {}
+            LimitOrderLocation::LimitParked => {}
+            _ => unreachable!()
+        }
+
         todo!()
         // match location {
         //     LimitOrderLocation::LimitParked => {
