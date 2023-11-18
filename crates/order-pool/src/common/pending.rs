@@ -7,9 +7,10 @@ use reth_primitives::B256;
 use revm::primitives::HashMap;
 use tokio::sync::broadcast;
 
-use super::{LimitPoolError, LimitTx, OrderPrice};
+use super::OrderPrice;
+use crate::PooledOrder;
 
-pub struct PendingPool<T: LimitTx> {
+pub struct PendingPool<T: PooledOrder> {
     /// all order hashes
     orders:                   HashMap<B256, T>,
     /// bids are sorted descending by price
@@ -20,12 +21,12 @@ pub struct PendingPool<T: LimitTx> {
     new_transaction_notifier: broadcast::Sender<T>
 }
 
-impl<T: LimitTx> PendingPool<T> {
+impl<T: PooledOrder> PendingPool<T> {
     pub fn new() -> Self {
         todo!()
     }
 
-    pub fn new_order(&mut self, order: T) -> Result<(), LimitPoolError> {
+    pub fn new_order(&mut self, order: T) {
         let hash = order.hash();
         let price = order.price();
         if order.is_ask() {
@@ -36,8 +37,6 @@ impl<T: LimitTx> PendingPool<T> {
 
         self.orders.insert(hash, order.clone());
         let _ = self.new_transaction_notifier.send(order);
-
-        Ok(())
     }
 
     pub fn remove_order(&mut self, hash: B256) -> Option<T> {

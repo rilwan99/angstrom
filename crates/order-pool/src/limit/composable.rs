@@ -2,9 +2,8 @@ use std::collections::HashMap;
 
 use reth_primitives::B256;
 
-use super::{
-    pending::PendingPool, LimitOrderLocation, LimitPoolError, LimitTx, PoolId, TransactionId
-};
+use super::{LimitOrderLocation, LimitPoolError, LimitTx, PoolId};
+use crate::common::{PendingPool, TransactionId};
 
 pub struct ComposableLimitPool<T: LimitTx>(HashMap<PoolId, PendingPool<T>>);
 

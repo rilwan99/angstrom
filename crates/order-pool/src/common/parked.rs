@@ -2,15 +2,15 @@ use std::collections::HashMap;
 
 use reth_primitives::B256;
 
-use super::{LimitPoolError, TransactionId};
-use crate::pool::limit::LimitTx;
+use super::TransactionId;
+use crate::{pool::limit::LimitTx, PooledOrder};
 
-pub struct ParkedPool<T: LimitTx> {
+pub struct ParkedPool<T: PooledOrder> {
     bids: HashMap<TransactionId, T>,
     asks: HashMap<TransactionId, T>
 }
 
-impl<T: LimitTx> ParkedPool<T> {
+impl<T: PooledOrder> ParkedPool<T> {
     pub fn new() -> Self {
         todo!()
     }

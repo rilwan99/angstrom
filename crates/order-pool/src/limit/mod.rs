@@ -6,13 +6,10 @@ use std::{
 use guard_types::primitive::OrderType;
 use reth_primitives::{alloy_primitives::Address, B256, U256};
 
-use self::{composable::ComposableLimitPool, limit::LimitPool, side::Side};
+use self::{composable::ComposableLimitPool, limit::LimitPool};
 
 mod composable;
 mod limit;
-mod parked;
-mod pending;
-mod side;
 
 pub trait LimitTx: Side + Clone + Debug + Send + Sync + 'static {
     fn hash(&self) -> B256;
@@ -25,23 +22,6 @@ pub trait LimitTx: Side + Clone + Debug + Send + Sync + 'static {
     fn price(&self) -> OrderPrice;
 }
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct OrderPrice {
-    price: U256
-}
-
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-pub struct TransactionId {
-    pub user_addr:  Address,
-    /// Pool id
-    pub pool_id:    PoolId,
-    /// Hash of the order. Needed to check for inclusion
-    pub order_hash: B256,
-    /// Nonce of the order
-    pub nonce:      u64,
-    /// when the order expires
-    pub expiry:     u128
-}
 
 #[derive(Debug, thiserror::Error)]
 pub enum LimitPoolError {
@@ -68,9 +48,9 @@ struct SizeTracker {
     pub current: usize
 }
 
-pub struct LimitOrderPool<T: LimitTx> {
+pub struct LimitOrderPool<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> {
     /// TODO: this trait bound will change
-    composable_orders:   ComposableLimitPool<T>,
+    composable_orders:   ComposableLimitPool<C>,
     limit_orders:        LimitPool<T>,
     /// used for easy update operations on Orders.
     all_order_ids:       HashMap<TransactionId, LimitOrderLocation>,

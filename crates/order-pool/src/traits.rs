@@ -72,7 +72,7 @@ pub trait PooledSearcherOrder: PooledOrder {
     fn donate(&self) -> (U128, U128);
 }
 
-trait PooledComposableOrder: PooledOrder {
+pub trait PooledComposableOrder: PooledOrder {
     fn pre_hook(&self) -> Option<Bytes>;
 
     fn post_hook(&self) -> Option<Bytes>;

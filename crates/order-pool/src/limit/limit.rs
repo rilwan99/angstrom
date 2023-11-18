@@ -2,9 +2,8 @@ use std::collections::HashMap;
 
 use reth_primitives::B256;
 
-use super::{
-    parked::ParkedPool, pending::PendingPool, LimitOrderLocation, LimitPoolError, LimitTx, PoolId
-};
+use super::{LimitOrderLocation, LimitPoolError, LimitTx, PoolId};
+use crate::common::{ParkedPool, PendingPool, TransactionId};
 
 pub struct LimitPool<T: LimitTx> {
     pending_orders: HashMap<PoolId, PendingPool<T>>,
