@@ -2,17 +2,15 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet},
     fmt::Debug
 };
-use crate::{ PooledComposableOrder ,PooledLimitOrder};
 
 use guard_types::primitive::OrderType;
 use reth_primitives::{alloy_primitives::Address, B256, U256};
 
 use self::{composable::ComposableLimitPool, limit::LimitPool};
-use crate::common::OrderId;
+use crate::{common::OrderId, PooledComposableOrder, PooledLimitOrder, PooledOrder};
 
 mod composable;
 mod limit;
-
 
 #[derive(Debug, thiserror::Error)]
 pub enum LimitPoolError {
@@ -40,7 +38,6 @@ struct SizeTracker {
 }
 
 pub struct LimitOrderPool<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> {
-    /// TODO: this trait bound will change
     composable_orders:   ComposableLimitPool<C>,
     limit_orders:        LimitPool<T>,
     /// used for easy update operations on Orders.
@@ -53,7 +50,7 @@ pub struct LimitOrderPool<T: PooledLimitOrder, C: PooledComposableOrder + Pooled
     size:                SizeTracker
 }
 
-impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrderPool<T,C> {
+impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrderPool<T, C> {
     pub fn new(max_size: Option<usize>) -> Self {
         Self {
             composable_orders:   ComposableLimitPool::new(),
@@ -66,7 +63,7 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
     }
 
     pub fn new_order(&mut self, order: T) -> Result<(), LimitPoolError> {
-        let id = order.get_id();
+        let id = order.order_id();
 
         // is new order
         if self.all_order_ids.contains_key(&id) {
@@ -90,39 +87,44 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
     }
 
     /// Removes all filled orders from the pools
-    pub fn filled_orders(&mut self, orders: &Vec<B256>) -> Vec<T> {
+    pub fn filled_orders(&mut self, orders: &Vec<B256>) -> (Vec<T>, Vec<C>) {
         // remove from lower level + hash locations;
-        orders
+        let (left, right): (Vec<_>, Vec<_>) = orders
             .iter()
             .filter_map(|order_hash| {
                 // remove from order hash loc
                 let (id, location) = self.order_hash_location.remove(order_hash)?;
-                match location {
-                    LimitOrderLocation::Composable => self.composable_orders.remove_order(&id),
-                    LimitOrderLocation::LimitPending => None,
-                    _ => {
-                        unreachable!()
-                    }
-                }
-            })
-            .map(|order| {
-                let id = order.get_id();
                 // remove from all orders
-                let _ = self.all_order_ids.remove(&id);
+                let _ = self.all_order_ids.remove(&id)?;
                 // remove from user;
                 self.user_to_id
                     .get_mut(&id.user_addr)
                     .map(|inner| inner.retain(|order| order != &id));
 
-                order
+                match location {
+                    LimitOrderLocation::Composable => {
+                        Some((None, self.composable_orders.remove_order(&id)))
+                    }
+                    LimitOrderLocation::LimitPending => {
+                        Some((self.limit_orders.remove_order(&id, location), None))
+                    }
+                    _ => {
+                        unreachable!()
+                    }
+                }
             })
-            .collect()
+            .unzip();
+
+        (
+            left.into_iter().filter_map(|order| order).collect(),
+            right.into_iter().filter_map(|order| order).collect()
+        )
     }
 
     /// Removes all orders for a given user when there state changes for
     /// re-validation
     pub fn changed_user_state(&mut self, users: &Vec<Address>) -> (Vec<T>, Vec<C>) {
-        users
+        let (left, right): (Vec<_>, Vec<_>) = users
             .iter()
             // remove user
             .filter_map(|user| self.user_to_id.remove(user))
@@ -134,13 +136,17 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
                 let _ = self.order_hash_location.remove(&user_order.order_hash);
                 match loc {
                     LimitOrderLocation::Composable => {
-                        self.composable_orders.remove_order(&user_order)
+                        Some((None, self.composable_orders.remove_order(&user_order)))
                     }
-                    LimitOrderLocation::LimitPending => todo!(),
-                    LimitOrderLocation::LimitParked => todo!()
+                    _ => Some((self.limit_orders.remove_order(&user_order, loc), None))
                 }
             })
-            .collect()
+            .unzip();
+
+        (
+            left.into_iter().filter_map(|order| order).collect(),
+            right.into_iter().filter_map(|order| order).collect()
+        )
     }
 
     pub fn get_all_order(&mut self) -> (Vec<T>, Vec<C>) {

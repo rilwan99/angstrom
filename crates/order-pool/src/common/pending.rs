@@ -37,7 +37,7 @@ impl<T: PooledOrder> PendingPool<T> {
 
     pub fn remove_order(&mut self, hash: B256) -> Option<T> {
         let order = self.orders.remove(&hash)?;
-        let price = order.price();
+        let price = order.limit_price();
 
         if order.is_bid() {
             self.bids.remove(&price);

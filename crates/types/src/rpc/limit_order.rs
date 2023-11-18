@@ -8,6 +8,7 @@ use alloy_rlp::{Decodable, Encodable, Error};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_types::SolStruct;
 use derive_more::{AsRef, Deref};
+use open_fastrlp::DecodeError;
 use reth_primitives::{recover_signer, Signature as ESignature};
 use secp256k1::Error as SigError;
 use serde::{Deserialize, Serialize};
@@ -46,7 +47,7 @@ impl TryInto<EcRecoveredLimitOrder> for SignedLimitOrder {
 }
 
 /// Signed transaction with recovered signer.
-#[derive(Debug, Clone, PartialEq, Hash, Eq, AsRef, Deref)]
+#[derive(Debug, Clone, PartialEq, Hash, Eq, AsRef, Deref, RlpEncodable, RlpDecodable)]
 pub struct EcRecoveredLimitOrder {
     /// Signer of the transaction
     pub signer:       Address,
@@ -86,7 +87,7 @@ impl TryInto<EcRecoveredComposableLimitOrder> for SignedComposableLimitOrder {
 }
 
 /// Signed transaction with recovered signer.
-#[derive(Debug, Clone, PartialEq, Hash, Eq, AsRef, Deref)]
+#[derive(Debug, Clone, PartialEq, Hash, Eq, AsRef, Deref, RlpDecodable, RlpEncodable)]
 pub struct EcRecoveredComposableLimitOrder {
     /// Signer of the transaction
     pub signer:       Address,
@@ -101,4 +102,26 @@ pub struct CallerInfo {
     pub address:   Address,
     pub nonce:     u64,
     pub overrides: HashMap<Address, HashMap<U256, U256>>
+}
+
+impl TryFrom<alloy_primitives::Bytes> for EcRecoveredLimitOrder {
+    type Error = alloy_rlp::Error;
+
+    fn try_from(value: alloy_primitives::Bytes) -> Result<Self, Self::Error> {
+        let veced = value.0.to_vec();
+        let mut sliced = veced.as_slice();
+
+        EcRecoveredLimitOrder::decode(&mut sliced)
+    }
+}
+
+impl TryFrom<alloy_primitives::Bytes> for EcRecoveredComposableLimitOrder {
+    type Error = alloy_rlp::Error;
+
+    fn try_from(value: alloy_primitives::Bytes) -> Result<Self, Self::Error> {
+        let veced = value.0.to_vec();
+        let mut sliced = veced.as_slice();
+
+        EcRecoveredComposableLimitOrder::decode(&mut sliced)
+    }
 }
