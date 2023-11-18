@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use super::{pending::PendingPool, LimitOrderLocation, LimitPoolError, PoolId};
+use super::{parked::ParkedPool, pending::PendingPool, LimitOrderLocation, LimitPoolError, PoolId};
 use crate::{
-    common::{BidAndAsks, OrderId, ParkedPool},
+    common::{BidAndAsks, OrderId},
     PooledLimitOrder
 };
 
@@ -39,7 +39,7 @@ impl<T: PooledLimitOrder> LimitPool<T> {
             LimitOrderLocation::LimitPending => self
                 .pending_orders
                 .get_mut(&order_id.pool_id)
-                .and_then(|pool| pool.remove_order(order_id.order_hash)),
+                .and_then(|pool| pool.remove_order(order_id.hash)),
             LimitOrderLocation::LimitParked => self
                 .parked_orders
                 .get_mut(&order_id.pool_id)

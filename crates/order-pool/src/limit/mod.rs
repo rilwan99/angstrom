@@ -8,6 +8,7 @@ use crate::{
     PooledComposableOrder, PooledLimitOrder, PooledOrder
 };
 
+mod parked;
 mod composable;
 mod limit;
 mod pending;
@@ -84,7 +85,7 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
                 let _ = self.all_order_ids.remove(&id)?;
                 // remove from user;
                 self.user_to_id
-                    .get_mut(&id.user_addr)
+                    .get_mut(&id.address)
                     .map(|inner| inner.retain(|order| order != &id));
 
                 match location {
@@ -116,7 +117,7 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
                 // remove all orders
                 let loc = self.all_order_ids.remove(&user_order)?;
                 // remove hash
-                let _ = self.order_hash_location.remove(&user_order.order_hash);
+                let _ = self.order_hash_location.remove(&user_order.hash);
                 match loc {
                     LimitOrderLocation::Composable => {
                         Some((None, self.composable_orders.remove_order(&user_order)))
@@ -162,7 +163,7 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
         // check for duplicate nonce
         if self
             .user_to_id
-            .get(&id.user_addr)
+            .get(&id.address)
             .map(|inner| inner.iter().any(|other_id| other_id.nonce == id.nonce))
             .unwrap_or(false)
         {
@@ -174,13 +175,13 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
 
     /// Helper function to add new orders to tracking
     fn add_order_tracking(&mut self, id: OrderId, location: LimitOrderLocation) {
-        let user = id.user_addr;
+        let user = id.address;
 
         // add to user tracking
         self.user_to_id.entry(user).or_default().push(id.clone());
         // add to hash tracking
         self.order_hash_location
-            .insert(id.order_hash, (id.clone(), location));
+            .insert(id.hash, (id.clone(), location));
         // add to all order id
         self.all_order_ids.insert(id, location);
     }
