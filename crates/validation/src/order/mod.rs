@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use order_pool::traits::{
+use order_pool::{
     OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder
 };
 
@@ -28,14 +28,14 @@ pub enum OrderValidationOutcome<O: PooledOrder> {
     },
     /// The transaction is considered invalid indefinitely: It violates
     /// constraints that prevent this transaction from ever becoming valid.
-    Invalid(T, InvalidPoolTransactionError),
+    Invalid(O, InvalidPoolTransactionError),
     /// An error occurred while trying to validate the transaction
     Error(TxHash, Box<dyn std::error::Error + Send + Sync>)
 }
 
 pub struct ValidatedSearcherOrder<O: PooledSearcherOrder> {
     pub order:  O,
-    pub donate: (U128, U128)
+    pub donate: (u128, u128)
 }
 
 /// Provides support for validating transaction at any given state of the chain

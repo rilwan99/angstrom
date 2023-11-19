@@ -5,7 +5,7 @@ use revm_primitives::{Account, Address, HashMap, TxEnv};
 use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
 
-use crate::{BundleOrTransactionResult, SimEvent};
+use crate::{bundle::BundleOrTransactionResult, bundle::SimEvent};
 
 #[derive(Debug)]
 pub enum SimResult {

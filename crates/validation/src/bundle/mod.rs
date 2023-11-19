@@ -10,16 +10,11 @@ use guard_types::{
 use reth_provider::StateProviderFactory;
 use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
 
-use crate::revm::Revm;
+use crate::common::{lru_db::RevmLRU, revm::Revm};
 
 // pub mod anvil;
 pub mod client;
 pub mod errors;
-pub mod executor;
-pub mod lru_db;
-pub mod revm;
-pub mod slot_keeper;
-pub mod state;
 
 pub struct ValidatorSimConfig<DB: StateProviderFactory + Clone + Send + Sync + Unpin + 'static> {
     pub db:          DB,
@@ -31,7 +26,7 @@ pub fn spawn_revm_sim<DB: StateProviderFactory + Clone + Send + Sync + Unpin + '
 ) -> Result<RevmClient, SimError> {
     let (tx, rx) = unbounded_channel();
     std::thread::spawn(move || {
-        let lru = lru_db::RevmLRU::new(config.cache_bytes, config.db.into());
+        let lru = RevmLRU::new(config.cache_bytes, config.db.into());
         let revm_client = Revm::new(rx, lru).unwrap();
         let handle = revm_client.get_threadpool_handle();
 
