@@ -1,7 +1,5 @@
-use std::time::Instant;
-
 use alloy_primitives::{TxHash, U256};
-use order_pool::{
+use guard_types::orders::{
     OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder
 };
 

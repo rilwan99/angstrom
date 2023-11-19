@@ -2,12 +2,11 @@ use std::collections::{BTreeMap, HashMap};
 
 use alloy_primitives::{Address, B256};
 use composable::ComposableSearcherPool;
+use guard_types::orders::{OrderId, PooledComposableOrder, PooledSearcherOrder};
 
 use self::searcher::VanillaSearcherPool;
-use crate::{
-    common::{OrderId, SizeTracker},
-    PooledComposableOrder, PooledSearcherOrder
-};
+use crate::common::SizeTracker;
+
 mod composable;
 mod searcher;
 

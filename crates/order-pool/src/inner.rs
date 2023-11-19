@@ -1,8 +1,9 @@
 use std::marker::PhantomData;
 
+use guard_types::orders::{PooledComposableOrder, PooledLimitOrder};
 use tokio::sync::mpsc::Sender;
 
-use crate::{limit::LimitOrderPool, PooledComposableOrder, PooledLimitOrder};
+use crate::limit::LimitOrderPool;
 
 pub struct OrderPoolInner<L, LC, S, SC, V>
 where

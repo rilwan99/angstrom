@@ -1,40 +1,14 @@
 use std::fmt::Debug;
 
-use client::RevmClient;
 use errors::{SimError, SimResult};
 use ethers_core::types::{transaction::eip2718::TypedTransaction, I256, U256};
 use guard_types::{
     primitive::{Angstrom::Bundle, ExternalStateSim},
     rpc::{CallerInfo, SignedLimitOrder}
 };
-use reth_provider::StateProviderFactory;
 use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
 
-use crate::common::{lru_db::RevmLRU, revm::Revm};
-
-// pub mod anvil;
-pub mod client;
 pub mod errors;
-
-pub struct ValidatorSimConfig<DB: StateProviderFactory + Clone + Send + Sync + Unpin + 'static> {
-    pub db:          DB,
-    pub cache_bytes: usize
-}
-
-pub fn spawn_revm_sim<DB: StateProviderFactory + Clone + Send + Sync + Unpin + 'static>(
-    config: ValidatorSimConfig<DB>
-) -> Result<RevmClient, SimError> {
-    let (tx, rx) = unbounded_channel();
-    std::thread::spawn(move || {
-        let lru = RevmLRU::new(config.cache_bytes, config.db.into());
-        let revm_client = Revm::new(rx, lru).unwrap();
-        let handle = revm_client.get_threadpool_handle();
-
-        handle.block_on(revm_client);
-    });
-
-    Ok(RevmClient::new(tx))
-}
 
 #[derive(Debug)]
 pub enum BundleOrTransactionResult {

@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
+use guard_types::orders::{OrderId, PooledComposableOrder, PooledLimitOrder};
+
 use super::{pending::PendingPool, LimitOrderLocation, LimitPoolError};
-use crate::{
-    common::{BidAndAsks, OrderId, PoolId},
-    PooledComposableOrder, PooledLimitOrder
-};
+use crate::common::{BidAndAsks, PoolId};
 
 pub struct ComposableLimitPool<T: PooledComposableOrder + PooledLimitOrder>(
     HashMap<PoolId, PendingPool<T>>

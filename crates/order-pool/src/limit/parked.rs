@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
+use guard_types::orders::PooledOrder;
+
 use super::OrderId;
-use crate::PooledOrder;
 
 pub struct ParkedPool<T: PooledOrder>(HashMap<OrderId, T>);
 
