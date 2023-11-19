@@ -1,4 +1,3 @@
-use std::time::Instant;
 
 use alloy_primitives::{TxHash, U256};
 use order_pool::{
