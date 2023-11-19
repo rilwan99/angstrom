@@ -287,9 +287,9 @@ pub mod test {
 
     #[test]
     pub fn verify_order_priority_cmp() {
-        let p0 = order_priority!(100, 1000, 10);
-        let p1 = order_priority!(99, 1001, 10);
-        let p2 = order_priority!(101, 1001, 10);
+        let p0 = order_priority!(101, 1000, 10);
+        let p1 = order_priority!(100, 1001, 10);
+        let p2 = order_priority!(99, 1001, 10);
 
         let p3 = order_priority!(100, 1001, 10);
         let p4 = order_priority!(100, 1000, 10);

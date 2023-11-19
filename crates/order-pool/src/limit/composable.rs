@@ -24,9 +24,7 @@ impl<T: PooledComposableOrder + PooledLimitOrder> ComposableLimitPool<T> {
     }
 
     pub fn remove_order(&mut self, tx_id: &OrderId) -> Option<T> {
-        self.0
-            .get_mut(&tx_id.pool_id)?
-            .remove_order(tx_id.hash)
+        self.0.get_mut(&tx_id.pool_id)?.remove_order(tx_id.hash)
     }
 
     pub fn fetch_all_pool_orders(&self, id: &PoolId) -> Vec<&T> {
