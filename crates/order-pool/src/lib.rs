@@ -1,6 +1,9 @@
-pub use crate::traits::*;
-mod traits;
-
 mod common;
+mod inner;
 mod limit;
 mod searcher;
+mod traits;
+
+pub use common::*;
+
+pub use crate::traits::*;

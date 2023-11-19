@@ -7,9 +7,9 @@ use guard_types::{
 };
 use tokio::sync::{mpsc::UnboundedSender, oneshot::channel};
 
-use crate::{
-    bundle::{SimEvent, Simulator},
-    bundle::errors::{SimError, SimResult}
+use crate::bundle::{
+    errors::{SimError, SimResult},
+    BundleValidator, SimEvent
 };
 
 /// clone-able handle to the simulator
@@ -25,15 +25,15 @@ impl RevmClient {
 }
 
 #[async_trait::async_trait]
-impl Simulator for RevmClient {
-    async fn simulate_v4_tx(&self, tx: TypedTransaction) -> Result<SimResult, SimError> {
+impl BundleValidator for RevmClient {
+    async fn validate_v4_tx(&self, tx: TypedTransaction) -> Result<SimResult, SimError> {
         let (sender, rx) = channel();
         self.transaction_tx.send(SimEvent::UniswapV4(tx, sender))?;
 
         Ok(rx.await.unwrap())
     }
 
-    async fn simulate_external_state<T>(
+    async fn validate_external_state<T>(
         &self,
         hook_data: T,
         caller_info: CallerInfo
@@ -50,8 +50,8 @@ impl Simulator for RevmClient {
         Ok(rx.await.unwrap())
     }
 
-    /// simulates the full bundle in order to make sure it is valid and passes
-    async fn simulate_vanilla_bundle(
+    /// validates the full bundle in order to make sure it is valid and passes
+    async fn validate_vanilla_bundle(
         &self,
         caller_info: CallerInfo,
         bundle: Bundle
@@ -63,8 +63,8 @@ impl Simulator for RevmClient {
         Ok(rx.await.unwrap())
     }
 
-    /// simulates the full bundle in order to make sure it is valid and passes
-    async fn simulate_composable_bundle(
+    /// validates the full bundle in order to make sure it is valid and passes
+    async fn validate_composable_bundle(
         &self,
         caller_info: CallerInfo,
         bundle: Bundle
