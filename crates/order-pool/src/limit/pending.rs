@@ -115,34 +115,36 @@ impl<T: PooledOrder> PendingPool<T> {
             .collect()
     }
 
-    pub fn fetch_all_bids_meta(&self) -> Vec<OrderPriorityData> {
-        self.bids.keys().map(|k| k.0).collect()
+    pub fn fetch_all_bids_meta(&self) -> Vec<(OrderPriorityData, B256)> {
+        self.bids.iter().map(|k| (k.0 .0, *k.1)).collect()
     }
 
-    pub fn fetch_all_asks_meta(&self) -> Vec<OrderPriorityData> {
-        self.asks.keys().copied().collect()
+    pub fn fetch_all_asks_meta(&self) -> Vec<(OrderPriorityData, B256)> {
+        self.asks.iter().map(|k| (*k.0, *k.1)).collect()
     }
 
     /// Fetches supply and demand intersection
     pub fn fetch_intersection(&self) -> BidAndAsks<T> {
-        self.bids
-            .iter()
-            .map(|(price, addr)| (price, self.orders.get(addr).unwrap()))
-            .zip(
-                self.asks
-                    .iter()
-                    .map(|(price, addr)| (price, self.orders.get(addr).unwrap()))
-            )
-            .map_while(
-                |((bid_p, bid), (ask_p, ask))| {
-                    if ask_p.price.le(&bid_p.0.price) {
-                        Some((bid, ask))
-                    } else {
-                        None
-                    }
-                }
-            )
-            .unzip()
+        // TODO: this will change when we tick bin, waiting till then
+        // self.bids
+        //     .iter()
+        //     .map(|(price, addr)| (price, self.orders.get(addr).unwrap()))
+        //     .zip(
+        //         self.asks
+        //             .iter()
+        //             .map(|(price, addr)| (price,
+        // self.orders.get(addr).unwrap()))     )
+        //     .map_while(
+        //         |((bid_p, bid), (ask_p, ask))| {
+        //             if ask_p.price.le(&bid_p.0.price) {
+        //                 Some((bid, ask))
+        //             } else {
+        //                 None
+        //             }
+        //         }
+        //     )
+        //     .unzip()
+        todo!()
     }
 
     /// Fetches supply and demand intersection with a tick price buffer
@@ -346,15 +348,56 @@ pub mod test {
     }
 
     #[test]
-    pub fn fetching_order() {
+    pub fn test_remove_bid() {
         let (tx, mut rx) = broadcast::channel(1500);
-        let pool = init_pool_with_data(tx, 500, 500);
+        let mut pool = init_pool_with_data(tx, 500, 500);
 
         let mut count = 0;
         while let Ok(_) = rx.try_recv() {
             count += 1;
         }
+
+        let mut bids = pool.fetch_all_bids_meta();
+        let (_, hash) = bids.remove(0);
+
+        let order = pool.remove_order(hash);
+
+        assert!(order.is_some());
+
+        assert!(pool
+            .fetch_all_bids_meta()
+            .into_iter()
+            .find(|(_, has_hash)| has_hash == &hash)
+            .is_none());
+
         // verify all orders where sent via channel
         assert_eq!(count, 1000);
+    }
+
+    #[test]
+    pub fn test_remove_ask() {
+        let (tx, mut rx) = broadcast::channel(1500);
+        let mut pool = init_pool_with_data(tx, 500, 500);
+
+        let mut count = 0;
+        while let Ok(_) = rx.try_recv() {
+            count += 1;
+        }
+
+        // verify all orders where sent via channel
+        assert_eq!(count, 1000);
+
+        let mut asks = pool.fetch_all_asks_meta();
+        let (_, hash) = asks.remove(0);
+
+        let order = pool.remove_order(hash);
+
+        assert!(order.is_some());
+
+        assert!(pool
+            .fetch_all_asks_meta()
+            .into_iter()
+            .find(|(_, has_hash)| has_hash == &hash)
+            .is_none());
     }
 }
