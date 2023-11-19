@@ -28,3 +28,7 @@ pub trait OrderPool: Send + Sync + Clone {
     /// The transaction type of the composable searcher order pool
     type ComposableSearcherOrder: PooledComposableOrder + PooledSearcherOrder;
 }
+
+pub trait PooledLimitOrderValidation {
+    fn test(&self) -> u8;
+}

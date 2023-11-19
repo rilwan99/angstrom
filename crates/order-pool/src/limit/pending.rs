@@ -1,16 +1,15 @@
 use std::{cmp::Reverse, collections::BTreeMap};
 
-use bitflags::Flags;
 use guard_types::orders::{OrderPriorityData, PooledOrder};
 use reth_primitives::B256;
 use revm::primitives::HashMap;
 use tokio::sync::broadcast;
 
-use crate::common::BidAndAsks;
+use crate::{common::BidAndAsks, limit::ValidOrder};
 
 pub struct PendingPool<T: PooledOrder> {
     /// all order hashes
-    orders:                   HashMap<B256, T>,
+    orders:                   HashMap<B256, ValidOrder<T>>,
     /// bids are sorted descending by price, TODO: This should be binned into
     /// ticks based off of the underlying pools params
     bids:                     BTreeMap<Reverse<OrderPriorityData>, B256>,
@@ -18,11 +17,11 @@ pub struct PendingPool<T: PooledOrder> {
     /// ticks based off of the underlying pools params
     asks:                     BTreeMap<OrderPriorityData, B256>,
     /// Notifier for new transactions
-    new_transaction_notifier: broadcast::Sender<T>
+    new_transaction_notifier: broadcast::Sender<ValidOrder<T>>
 }
 
 impl<T: PooledOrder> PendingPool<T> {
-    pub fn new(notifier: broadcast::Sender<T>) -> Self {
+    pub fn new(notifier: broadcast::Sender<ValidOrder<T>>) -> Self {
         Self {
             orders:                   HashMap::new(),
             bids:                     BTreeMap::new(),
@@ -31,7 +30,7 @@ impl<T: PooledOrder> PendingPool<T> {
         }
     }
 
-    pub fn new_order(&mut self, order: T) {
+    pub fn new_order(&mut self, order: ValidOrder<T>) {
         let hash = order.hash();
         let priority = order.order_priority_data();
 
@@ -54,7 +53,7 @@ impl<T: PooledOrder> PendingPool<T> {
         let _ = self.new_transaction_notifier.send(order);
     }
 
-    pub fn remove_order(&mut self, hash: B256) -> Option<T> {
+    pub fn remove_order(&mut self, hash: B256) -> Option<ValidOrder<T>> {
         let order = self.orders.remove(&hash)?;
         let priority = order.order_priority_data();
 
@@ -67,11 +66,11 @@ impl<T: PooledOrder> PendingPool<T> {
         Some(order)
     }
 
-    pub fn fetch_all_orders(&self) -> Vec<&T> {
+    pub fn fetch_all_orders(&self) -> Vec<&ValidOrder<T>> {
         self.orders.values().collect()
     }
 
-    pub fn fetch_all_bids(&self) -> Vec<&T> {
+    pub fn fetch_all_bids(&self) -> Vec<&ValidOrder<T>> {
         self.bids
             .values()
             .map(|v| {
@@ -82,7 +81,7 @@ impl<T: PooledOrder> PendingPool<T> {
             .collect()
     }
 
-    pub fn fetch_all_asks(&self) -> Vec<&T> {
+    pub fn fetch_all_asks(&self) -> Vec<&ValidOrder<T>> {
         self.asks
             .values()
             .map(|v| {
@@ -102,7 +101,7 @@ impl<T: PooledOrder> PendingPool<T> {
     }
 
     /// Fetches supply and demand intersection
-    pub fn fetch_intersection(&self) -> BidAndAsks<T> {
+    pub fn fetch_intersection(&self) -> BidAndAsks<ValidOrder<T>> {
         // TODO: this will change when we tick bin, waiting till then
         // self.bids
         //     .iter()
@@ -126,7 +125,7 @@ impl<T: PooledOrder> PendingPool<T> {
     }
 
     /// Fetches supply and demand intersection with a tick price buffer
-    pub fn fetch_intersection_with_buffer(&self, _buffer: u8) -> BidAndAsks<T> {
+    pub fn fetch_intersection_with_buffer(&self, _buffer: u8) -> BidAndAsks<ValidOrder<T>> {
         todo!("Blocked until added tick impl")
     }
 }
@@ -138,6 +137,7 @@ pub mod test {
     use alloy_primitives::{Address, U256};
     use guard_types::orders::*;
     use rand::Rng;
+    use validation::order::ValidatedOrder;
 
     use super::*;
 
@@ -218,30 +218,36 @@ pub mod test {
         }
     }
 
-    pub fn generate_noop_orders(bids: usize, asks: usize) -> Vec<NoopOrder> {
+    pub fn generate_noop_orders(bids: usize, asks: usize) -> Vec<ValidatedOrder<NoopOrder, ()>> {
         let mut res = Vec::with_capacity(bids + asks);
         let mut rng = rand::thread_rng();
         for _ in 0..bids {
-            res.push(NoopOrder {
-                price:    rng.gen(),
-                volume:   rng.gen(),
-                deadline: rng.gen(),
-                nonce:    rng.gen(),
-                hash:     rng.gen(),
-                is_bid:   true,
-                gas:      rng.gen()
+            res.push(ValidatedOrder {
+                order: NoopOrder {
+                    price:    rng.gen(),
+                    volume:   rng.gen(),
+                    deadline: rng.gen(),
+                    nonce:    rng.gen(),
+                    hash:     rng.gen(),
+                    is_bid:   true,
+                    gas:      rng.gen()
+                },
+                data:  ()
             })
         }
 
         for _ in 0..asks {
-            res.push(NoopOrder {
-                price:    rng.gen(),
-                volume:   rng.gen(),
-                deadline: rng.gen(),
-                nonce:    rng.gen(),
-                hash:     rng.gen(),
-                is_bid:   false,
-                gas:      rng.gen()
+            res.push(ValidatedOrder {
+                order: NoopOrder {
+                    price:    rng.gen(),
+                    volume:   rng.gen(),
+                    deadline: rng.gen(),
+                    nonce:    rng.gen(),
+                    hash:     rng.gen(),
+                    is_bid:   false,
+                    gas:      rng.gen()
+                },
+                data:  ()
             })
         }
 
@@ -249,7 +255,7 @@ pub mod test {
     }
 
     pub fn init_pool_with_data(
-        sender: broadcast::Sender<NoopOrder>,
+        sender: broadcast::Sender<ValidatedOrder<NoopOrder, ()>>,
         bids: usize,
         asks: usize
     ) -> PendingPool<NoopOrder> {

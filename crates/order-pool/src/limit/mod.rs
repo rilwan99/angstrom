@@ -2,9 +2,13 @@ use std::{collections::HashMap, fmt::Debug};
 
 use guard_types::orders::{OrderId, PooledComposableOrder, PooledLimitOrder, PooledOrder};
 use reth_primitives::{alloy_primitives::Address, B256, U256};
+use validation::order::ValidatedOrder;
 
 use self::{composable::ComposableLimitPool, limit::LimitPool};
-use crate::common::{PoolId, SizeTracker};
+use crate::{
+    common::{PoolId, SizeTracker},
+    PooledLimitOrderValidation
+};
 
 mod composable;
 mod limit;
@@ -14,7 +18,14 @@ mod pending;
 pub type RegularAndLimit<T, C> = (Vec<T>, Vec<C>);
 pub type RegularAndLimitRef<'a, T, C> = (Vec<&'a T>, Vec<&'a C>);
 
-pub struct LimitOrderPool<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> {
+pub type ValidOrder<T: PooledOrder> = ValidatedOrder<T, T::ValidationData>;
+
+pub struct LimitOrderPool<T, C>
+where
+    T: PooledLimitOrder,
+    C: PooledComposableOrder + PooledLimitOrder /* <T as PooledOrder>::ValidationData:
+                                                 * PooledLimitOrderValidation */
+{
     composable_orders:   ComposableLimitPool<C>,
     limit_orders:        LimitPool<T>,
     /// used for easy update operations on Orders.
@@ -27,7 +38,12 @@ pub struct LimitOrderPool<T: PooledLimitOrder, C: PooledComposableOrder + Pooled
     size:                SizeTracker
 }
 
-impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrderPool<T, C> {
+impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrderPool<T, C>
+where
+    T: PooledLimitOrder,
+    C: PooledComposableOrder + PooledLimitOrder /* <T as PooledOrder>::ValidationData:
+                                                 * PooledLimitOrderValidation */
+{
     pub fn new(max_size: Option<usize>) -> Self {
         Self {
             composable_orders:   ComposableLimitPool::new(),
@@ -137,7 +153,12 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
 }
 
 // Helper functions
-impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrderPool<T, C> {
+impl<T, C> LimitOrderPool<T, C>
+where
+    T: PooledLimitOrder,
+    C: PooledComposableOrder + PooledLimitOrder /* <T as PooledOrder>::ValidationData:
+                                                 * PooledLimitOrderValidation */
+{
     /// Helper function for unzipping and size adjustment
     fn filter_option_and_adjust_size<O: PooledOrder>(&mut self, order: Vec<Option<O>>) -> Vec<O> {
         order
