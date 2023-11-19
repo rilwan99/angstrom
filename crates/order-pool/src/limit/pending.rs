@@ -1,5 +1,6 @@
 use std::{cmp::Reverse, collections::BTreeMap};
 
+use bitflags::Flags;
 use reth_primitives::B256;
 use revm::primitives::HashMap;
 use tokio::sync::broadcast;
@@ -57,8 +58,16 @@ impl<T: PooledOrder> PendingPool<T> {
         let priority = order.order_priority_data();
 
         if order.is_bid() {
+            if self.bids.contains_key(&Reverse(priority)) {
+                return //TODO: error this
+            }
+
             self.bids.insert(Reverse(priority), hash);
         } else {
+            if self.asks.contains_key(&priority) {
+                return //TODO: error this
+            }
+
             self.asks.insert(priority, hash);
         }
 
@@ -87,9 +96,9 @@ impl<T: PooledOrder> PendingPool<T> {
     pub fn fetch_all_bids(&self) -> Vec<&T> {
         self.bids
             .values()
-            .map(|key| {
+            .map(|v| {
                 self.orders
-                    .get(key)
+                    .get(v)
                     .expect("Had key but no value, this is a error")
             })
             .collect()
@@ -98,12 +107,20 @@ impl<T: PooledOrder> PendingPool<T> {
     pub fn fetch_all_asks(&self) -> Vec<&T> {
         self.asks
             .values()
-            .map(|key| {
+            .map(|v| {
                 self.orders
-                    .get(key)
+                    .get(v)
                     .expect("Had key but no value, this is a error")
             })
             .collect()
+    }
+
+    pub fn fetch_all_bids_meta(&self) -> Vec<OrderPriorityData> {
+        self.bids.keys().map(|k| k.0).collect()
+    }
+
+    pub fn fetch_all_asks_meta(&self) -> Vec<OrderPriorityData> {
+        self.asks.keys().copied().collect()
     }
 
     /// Fetches supply and demand intersection
@@ -136,6 +153,8 @@ impl<T: PooledOrder> PendingPool<T> {
 
 #[cfg(test)]
 pub mod test {
+    use std::cmp::Ordering;
+
     use alloy_primitives::{Address, U256};
     use rand::Rng;
 
@@ -258,6 +277,53 @@ pub mod test {
         pool
     }
 
+    macro_rules! order_priority {
+        ($price:expr, $vol:expr, $gas:expr) => {
+            OrderPriorityData { price: $price, volume: $vol, gas: $gas }
+        };
+    }
+
+    #[test]
+    pub fn verify_order_priority_cmp() {
+        let p0 = order_priority!(100, 1000, 10);
+        let p1 = order_priority!(99, 1001, 10);
+        let p2 = order_priority!(101, 1001, 10);
+
+        let p3 = order_priority!(100, 1001, 10);
+        let p4 = order_priority!(100, 1000, 10);
+        let p5 = order_priority!(100, 999, 10);
+
+        let p6 = order_priority!(100, 1000, 11);
+        let p7 = order_priority!(100, 1000, 10);
+        let p8 = order_priority!(100, 1000, 9);
+
+        let gt = Ordering::Greater;
+        let lt = Ordering::Less;
+        let eq = Ordering::Equal;
+
+        assert_eq!(p1.cmp(&p0), lt);
+        assert_eq!(p1.cmp(&p1), eq);
+        assert_eq!(p1.cmp(&p2), gt);
+
+        assert_eq!(p4.cmp(&p3), lt);
+        assert_eq!(p4.cmp(&p4), eq);
+        assert_eq!(p4.cmp(&p5), gt);
+
+        assert_eq!(p7.cmp(&p6), lt);
+        assert_eq!(p7.cmp(&p7), eq);
+        assert_eq!(p7.cmp(&p8), gt);
+    }
+
+    macro_rules! is_ordered {
+        ($list:expr, $cmp:tt, $field:ident) => {
+            let mut last = $list.remove(0);
+            for entry in $list {
+                assert!(entry.$field $cmp last.$field);
+                last = entry ;
+            }
+        };
+    }
+
     #[test]
     pub fn verify_order_insertion() {
         let (tx, mut rx) = broadcast::channel(15);
@@ -270,6 +336,25 @@ pub mod test {
         // verify all orders where sent via channel
         assert_eq!(count, 10);
 
-        // verify
+        // assert price order
+        let mut asks = pool.asks.keys().collect::<Vec<_>>();
+        is_ordered!(asks, >=, price);
+
+        // assert price order
+        let mut bids = pool.bids.keys().map(|k| k.0).collect::<Vec<_>>();
+        is_ordered!(bids, <=, price);
+    }
+
+    #[test]
+    pub fn fetching_order() {
+        let (tx, mut rx) = broadcast::channel(1500);
+        let pool = init_pool_with_data(tx, 500, 500);
+
+        let mut count = 0;
+        while let Ok(_) = rx.try_recv() {
+            count += 1;
+        }
+        // verify all orders where sent via channel
+        assert_eq!(count, 1000);
     }
 }
