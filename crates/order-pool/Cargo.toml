@@ -25,6 +25,7 @@ reth-tasks.workspace = true
 revm.workspace = true
 alloy-rlp.workspace = true  
 guard-types.workspace = true
+validation.workspace = true
 alloy-primitives.workspace = true
 
 # async/futures

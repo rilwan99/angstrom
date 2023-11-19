@@ -1,4 +1,5 @@
 use alloy_primitives::{TxHash, U256};
+use derive_more::{AsRef, Deref};
 use guard_types::orders::{
     OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder
 };
@@ -34,7 +35,10 @@ pub enum OrderValidationOutcome<O: PooledOrder> {
     Error(TxHash, Box<dyn std::error::Error + Send + Sync>)
 }
 
-pub struct ValidatedOrder<O: PooledOrder, Data> {
+#[derive(Debug, AsRef, Deref, Clone)]
+pub struct ValidatedOrder<O: PooledOrder, Data: Clone> {
+    #[deref]
+    #[as_ref]
     pub order: O,
     pub data:  Data
 }
