@@ -259,7 +259,7 @@ pub mod test {
                 deadline: rng.gen(),
                 nonce:    rng.gen(),
                 hash:     rng.gen(),
-                is_bid:   true,
+                is_bid:   false,
                 gas:      rng.gen()
             })
         }
