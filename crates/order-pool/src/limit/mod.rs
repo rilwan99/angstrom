@@ -7,7 +7,7 @@ use validation::order::ValidatedOrder;
 use self::{composable::ComposableLimitPool, limit::LimitPool};
 use crate::{
     common::{PoolId, SizeTracker},
-    PooledLimitOrderValidation
+    ComposableLimitOrderValidation, LimitOrderValidation
 };
 
 mod composable;
@@ -18,7 +18,7 @@ mod pending;
 pub type RegularAndLimit<T, C> = (Vec<T>, Vec<C>);
 pub type RegularAndLimitRef<'a, T, C> = (Vec<&'a T>, Vec<&'a C>);
 
-pub type ValidOrder<T: PooledOrder> = ValidatedOrder<T, T::ValidationData>;
+pub type ValidOrder<T> = ValidatedOrder<T, <T as PooledOrder>::ValidationData>;
 
 pub struct LimitOrderPool<T, C>
 where
@@ -41,7 +41,8 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
 where
     T: PooledLimitOrder,
     C: PooledComposableOrder + PooledLimitOrder,
-    <T as PooledOrder>::ValidationData: PooledLimitOrderValidation
+    <T as PooledOrder>::ValidationData: LimitOrderValidation,
+    <C as PooledOrder>::ValidationData: ComposableLimitOrderValidation
 {
     pub fn new(max_size: Option<usize>) -> Self {
         Self {
@@ -164,8 +165,7 @@ where
 impl<T, C> LimitOrderPool<T, C>
 where
     T: PooledLimitOrder,
-    C: PooledComposableOrder + PooledLimitOrder,
-    <T as PooledOrder>::ValidationData: PooledLimitOrderValidation
+    C: PooledComposableOrder + PooledLimitOrder
 {
     /// Helper function for unzipping and size adjustment
     fn filter_option_and_adjust_size<O: PooledOrder>(

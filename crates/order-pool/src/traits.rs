@@ -29,6 +29,18 @@ pub trait OrderPool: Send + Sync + Clone {
     type ComposableSearcherOrder: PooledComposableOrder + PooledSearcherOrder;
 }
 
-pub trait PooledLimitOrderValidation {
-    fn test(&self) -> u8;
+pub trait LimitOrderValidation {
+    fn data(&self) -> u8;
+}
+
+pub trait ComposableLimitOrderValidation {
+    fn data(&self) -> u8;
+}
+
+pub trait SearcherOrderValidation {
+    fn data(&self) -> u8;
+}
+
+pub trait ComposableSearcherOrderValidation {
+    fn data(&self) -> u8;
 }
