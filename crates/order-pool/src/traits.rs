@@ -81,7 +81,13 @@ pub trait PooledSearcherOrder: PooledOrder {
     /// The liquidity pool this order trades in
     fn pool(&self) -> u8;
     /// donate value
-    fn donate(&self) -> (U128, U128);
+    fn donate(&self) -> (u128, u128);
+
+    fn volume(&self) -> u128;
+
+    fn gas(&self) -> u128;
+
+    fn donated(&self) -> u128;
 }
 
 pub trait PooledComposableOrder: PooledOrder {
@@ -151,12 +157,6 @@ impl PooledOrder for EcRecoveredLimitOrder {
 impl PooledLimitOrder for EcRecoveredLimitOrder {
     fn pool_and_direction(&self) -> (u8, bool) {
         //(self.signed_order.order.pool, self.signed_order.order.direction)
-        todo!()
-    }
-}
-
-impl PooledLimitOrder for ValidatedLimitOrder {
-    fn pool_and_direction(&self) -> (u8, bool) {
         todo!()
     }
 }
