@@ -1,3 +1,4 @@
+pub mod error;
 pub mod executor;
 pub mod lru_db;
 pub mod revm;

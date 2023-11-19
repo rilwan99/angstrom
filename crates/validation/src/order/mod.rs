@@ -1,8 +1,11 @@
 use std::time::Instant;
 
+use alloy_primitives::{TxHash, U256};
 use order_pool::{
     OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder
 };
+
+use crate::common::error::ValidationError;
 
 /// A valid order in the pool.
 ///
@@ -22,20 +25,20 @@ pub enum OrderValidationOutcome<O: PooledOrder> {
         ///
         /// If this is a _new_ EIP-4844 blob transaction, then this must contain
         /// the extracted sidecar.
-        order:       ValidatedSearcherOrder<O>,
+        order:       ValidatedOrder<O, O::ValidationData>,
         /// Whether to propagate the transaction to the network.
         propagate:   bool
     },
     /// The transaction is considered invalid indefinitely: It violates
     /// constraints that prevent this transaction from ever becoming valid.
-    Invalid(O, InvalidPoolTransactionError),
+    Invalid(O, ValidationError),
     /// An error occurred while trying to validate the transaction
     Error(TxHash, Box<dyn std::error::Error + Send + Sync>)
 }
 
-pub struct ValidatedSearcherOrder<O: PooledSearcherOrder> {
-    pub order:  O,
-    pub donate: (u128, u128)
+pub struct ValidatedOrder<O: PooledOrder, Data> {
+    pub order: O,
+    pub data:  Data
 }
 
 /// Provides support for validating transaction at any given state of the chain
@@ -53,7 +56,7 @@ pub trait OrderValidator: Send + Sync {
     /// The transaction type of the composable searcher order pool
     type ComposableSearcherOrder: PooledComposableOrder + PooledSearcherOrder;
 
-    /// Validates the transaction and returns a [`TransactionValidationOutcome`]
+    /// Validates the transaction and returns a [`OrderValidationOutcome`]
     /// describing the validity of the given transaction.
     ///
     /// This will be used by the transaction-pool to check whether the
@@ -83,9 +86,9 @@ pub trait OrderValidator: Send + Sync {
     /// See [TransactionValidationTaskExecutor] for a reference implementation.
     async fn validate_order(
         &self,
-        origin: TransactionOrigin,
-        transaction: Self::Transaction
-    ) -> ValidationOutcome<Self::Limit>;
+        origin: OrderOrigin,
+        transaction: Self::LimitOrder
+    ) -> OrderValidationOutcome<Self::LimitOrder>;
 
     /// Validates a batch of transactions.
     ///
@@ -94,72 +97,67 @@ pub trait OrderValidator: Send + Sync {
     /// See also [Self::validate_transaction].
     async fn validate_orders(
         &self,
-        transactions: Vec<(TransactionOrigin, Self::Transaction)>
-    ) -> Vec<TransactionValidationOutcome<Self::Transaction>> {
+        transactions: Vec<(OrderOrigin, Self::LimitOrder)>
+    ) -> Vec<OrderValidationOutcome<Self::LimitOrder>> {
         futures_util::future::join_all(
             transactions
                 .into_iter()
-                .map(|(origin, tx)| self.validate_transaction(origin, tx))
+                .map(|(origin, tx)| self.validate_order(origin, tx))
         )
         .await
     }
 
     async fn validate_composable_order(
         &self,
-        origin: TransactionOrigin,
-        transaction: Self::ComposableTransaction
-    ) -> ValidationOutcome<Self::ComposableLimit>;
+        origin: OrderOrigin,
+        transaction: Self::ComposableLimitOrder
+    ) -> OrderValidationOutcome<Self::ComposableLimitOrder>;
 
     async fn validate_composable_orders(
         &self,
-        transactions: Vec<(TransactionOrigin, Self::ComposableTransaction)>
-    ) -> Vec<TransactionValidationOutcome<Self::ComposableTransaction>> {
+        transactions: Vec<(OrderOrigin, Self::ComposableLimitOrder)>
+    ) -> Vec<OrderValidationOutcome<Self::ComposableLimitOrder>> {
         futures_util::future::join_all(
             transactions
                 .into_iter()
-                .map(|(origin, tx)| self.validate_composable_transaction(origin, tx))
+                .map(|(origin, tx)| self.validate_composable_order(origin, tx))
         )
         .await
     }
 
     async fn validate_searcher_order(
         &self,
-        origin: TransactionOrigin,
-        transaction: Self::SearcherTransaction
-    ) -> ValidationOutcome<Self::Searcher>;
+        origin: OrderOrigin,
+        transaction: Self::SearcherOrder
+    ) -> OrderValidationOutcome<Self::SearcherOrder>;
 
     async fn validate_searcher_orders(
         &self,
-        transactions: Vec<(TransactionOrigin, Self::SearcherTransaction)>
-    ) -> Vec<TransactionValidationOutcome<Self::SearcherTransaction>> {
+        transactions: Vec<(OrderOrigin, Self::SearcherOrder)>
+    ) -> Vec<OrderValidationOutcome<Self::SearcherOrder>> {
         futures_util::future::join_all(
             transactions
                 .into_iter()
-                .map(|(origin, tx)| self.validate_searcher_transaction(origin, tx))
+                .map(|(origin, tx)| self.validate_searcher_order(origin, tx))
         )
         .await
     }
 
     async fn validate_composable_searcher_order(
         &self,
-        origin: TransactionOrigin,
-        transaction: Self::ComposableSearcherTransaction
-    ) -> ValidationOutcome<Self::ComposableSearcher>;
+        origin: OrderOrigin,
+        transaction: Self::ComposableSearcherOrder
+    ) -> OrderValidationOutcome<Self::ComposableSearcherOrder>;
 
     async fn validate_composable_searcher_orders(
         &self,
-        transactions: Vec<(TransactionOrigin, Self::ComposableSearcherTransaction)>
-    ) -> Vec<TransactionValidationOutcome<Self::ComposableSearcherTransaction>> {
+        transactions: Vec<(OrderOrigin, Self::ComposableSearcherOrder)>
+    ) -> Vec<OrderValidationOutcome<Self::ComposableSearcherOrder>> {
         futures_util::future::join_all(
             transactions
                 .into_iter()
-                .map(|(origin, tx)| self.validate_composable_searcher_transaction(origin, tx))
+                .map(|(origin, tx)| self.validate_composable_searcher_order(origin, tx))
         )
         .await
     }
-
-    /// Invoked when the head block changes.
-    ///
-    /// This can be used to update fork specific values (timestamp).
-    fn on_new_head_block(&self, _new_tip_block: &SealedBlock) {}
 }
