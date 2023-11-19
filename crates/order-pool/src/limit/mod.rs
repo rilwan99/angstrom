@@ -23,8 +23,7 @@ pub type ValidOrder<T: PooledOrder> = ValidatedOrder<T, T::ValidationData>;
 pub struct LimitOrderPool<T, C>
 where
     T: PooledLimitOrder,
-    C: PooledComposableOrder + PooledLimitOrder /* <T as PooledOrder>::ValidationData:
-                                                 * PooledLimitOrderValidation */
+    C: PooledComposableOrder + PooledLimitOrder
 {
     composable_orders:   ComposableLimitPool<C>,
     limit_orders:        LimitPool<T>,
@@ -41,8 +40,8 @@ where
 impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrderPool<T, C>
 where
     T: PooledLimitOrder,
-    C: PooledComposableOrder + PooledLimitOrder /* <T as PooledOrder>::ValidationData:
-                                                 * PooledLimitOrderValidation */
+    C: PooledComposableOrder + PooledLimitOrder,
+    <T as PooledOrder>::ValidationData: PooledLimitOrderValidation
 {
     pub fn new(max_size: Option<usize>) -> Self {
         Self {
@@ -150,7 +149,10 @@ where
     }
 
     // individual fetches
-    pub fn fetch_all_pool_orders(&mut self, id: &PoolId) -> RegularAndLimitRef<ValidOrder<T>, ValidOrder<C>> {
+    pub fn fetch_all_pool_orders(
+        &mut self,
+        id: &PoolId
+    ) -> RegularAndLimitRef<ValidOrder<T>, ValidOrder<C>> {
         (
             self.limit_orders.fetch_all_pool_orders(id),
             self.composable_orders.fetch_all_pool_orders(id)
@@ -162,8 +164,8 @@ where
 impl<T, C> LimitOrderPool<T, C>
 where
     T: PooledLimitOrder,
-    C: PooledComposableOrder + PooledLimitOrder /* <T as PooledOrder>::ValidationData:
-                                                 * PooledLimitOrderValidation */
+    C: PooledComposableOrder + PooledLimitOrder,
+    <T as PooledOrder>::ValidationData: PooledLimitOrderValidation
 {
     /// Helper function for unzipping and size adjustment
     fn filter_option_and_adjust_size<O: PooledOrder>(
