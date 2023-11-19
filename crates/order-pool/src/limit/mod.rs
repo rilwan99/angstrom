@@ -55,7 +55,7 @@ where
         }
     }
 
-    pub fn new_composable_order(&mut self, order: C) -> Result<(), LimitPoolError> {
+    pub fn new_composable_order(&mut self, order: ValidOrder<C>) -> Result<(), LimitPoolError> {
         let id = order.order_id();
 
         let size = order.size();
@@ -71,7 +71,7 @@ where
         Ok(())
     }
 
-    pub fn new_limit_order(&mut self, order: T) -> Result<(), LimitPoolError> {
+    pub fn new_limit_order(&mut self, order: ValidOrder<T>) -> Result<(), LimitPoolError> {
         let id = order.order_id();
 
         let size = order.size();
@@ -87,7 +87,10 @@ where
     }
 
     /// Removes all filled orders from the pools
-    pub fn filled_orders(&mut self, orders: &Vec<B256>) -> RegularAndLimit<T, C> {
+    pub fn filled_orders(
+        &mut self,
+        orders: &Vec<B256>
+    ) -> RegularAndLimit<ValidOrder<T>, ValidOrder<C>> {
         // remove from lower level + hash locations;
         let (left, right): (Vec<_>, Vec<_>) = orders
             .iter()
@@ -120,7 +123,10 @@ where
 
     /// Removes all orders for a given user when there state changes for
     /// re-validation
-    pub fn changed_user_state(&mut self, users: &Vec<Address>) -> RegularAndLimit<T, C> {
+    pub fn changed_user_state(
+        &mut self,
+        users: &Vec<Address>
+    ) -> RegularAndLimit<ValidOrder<T>, ValidOrder<C>> {
         let (left, right): (Vec<_>, Vec<_>) = users
             .iter()
             // remove user
@@ -144,7 +150,7 @@ where
     }
 
     // individual fetches
-    pub fn fetch_all_pool_orders(&mut self, id: &PoolId) -> RegularAndLimitRef<T, C> {
+    pub fn fetch_all_pool_orders(&mut self, id: &PoolId) -> RegularAndLimitRef<ValidOrder<T>, ValidOrder<C>> {
         (
             self.limit_orders.fetch_all_pool_orders(id),
             self.composable_orders.fetch_all_pool_orders(id)
@@ -160,7 +166,10 @@ where
                                                  * PooledLimitOrderValidation */
 {
     /// Helper function for unzipping and size adjustment
-    fn filter_option_and_adjust_size<O: PooledOrder>(&mut self, order: Vec<Option<O>>) -> Vec<O> {
+    fn filter_option_and_adjust_size<O: PooledOrder>(
+        &mut self,
+        order: Vec<Option<ValidOrder<O>>>
+    ) -> Vec<ValidOrder<O>> {
         order
             .into_iter()
             .filter_map(|order| order)
