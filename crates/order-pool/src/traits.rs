@@ -158,9 +158,260 @@ impl PooledOrder for EcRecoveredLimitOrder {
     }
 }
 
+impl PooledOrder for EcRecoveredSearcherOrder {
+    type ValidationData = ();
+
+    fn is_valid(&self) -> bool {
+        todo!()
+    }
+
+    fn order_priority_data(&self) -> OrderPriorityData {
+        todo!()
+    }
+
+    fn is_bid(&self) -> bool {
+        todo!()
+    }
+
+    fn hash(&self) -> TxHash {
+        self.signed_order.hash
+    }
+
+    fn from(&self) -> Address {
+        self.signer
+    }
+
+    fn nonce(&self) -> U256 {
+        self.order.nonce
+    }
+
+    fn amount_in(&self) -> u128 {
+        self.signed_order.order.amountIn
+    }
+
+    fn amount_out_min(&self) -> u128 {
+        self.signed_order.order.amountOutMin
+    }
+
+    fn limit_price(&self) -> u128 {
+        self.amount_out_min() / self.amount_in()
+    }
+
+    fn deadline(&self) -> U256 {
+        self.signed_order.order.deadline
+    }
+
+    fn size(&self) -> usize {
+        unreachable!()
+    }
+
+    fn encoded_length(&self) -> usize {
+        unreachable!()
+    }
+
+    fn chain_id(&self) -> Option<u64> {
+        unreachable!()
+    }
+
+    fn order_id(&self) -> OrderId {
+        todo!()
+    }
+}
+
+impl PooledSearcherOrder for EcRecoveredSearcherOrder {
+    fn gas(&self) -> u128 {
+        todo!()
+    }
+
+    fn pool(&self) -> u8 {
+        todo!()
+    }
+
+    fn donate(&self) -> (u128, u128) {
+        todo!()
+    }
+
+    fn volume(&self) -> u128 {
+        todo!()
+    }
+
+    fn donated(&self) -> u128 {
+        todo!()
+    }
+}
+
 impl PooledLimitOrder for EcRecoveredLimitOrder {
     fn pool_and_direction(&self) -> (u8, bool) {
         //(self.signed_order.order.pool, self.signed_order.order.direction)
+        todo!()
+    }
+}
+
+impl PooledOrder for EcRecoveredComposableLimitOrder {
+    type ValidationData = ();
+
+    fn is_valid(&self) -> bool {
+        todo!()
+    }
+
+    fn order_priority_data(&self) -> OrderPriorityData {
+        todo!()
+    }
+
+    fn is_bid(&self) -> bool {
+        todo!()
+    }
+
+    fn hash(&self) -> TxHash {
+        self.signed_order.hash
+    }
+
+    fn from(&self) -> Address {
+        self.signer
+    }
+
+    fn nonce(&self) -> U256 {
+        self.order.nonce
+    }
+
+    fn amount_in(&self) -> u128 {
+        self.signed_order.order.amountIn
+    }
+
+    fn amount_out_min(&self) -> u128 {
+        self.signed_order.order.amountOutMin
+    }
+
+    fn limit_price(&self) -> u128 {
+        self.amount_out_min() / self.amount_in()
+    }
+
+    fn deadline(&self) -> U256 {
+        self.signed_order.order.deadline
+    }
+
+    fn size(&self) -> usize {
+        unreachable!()
+    }
+
+    fn encoded_length(&self) -> usize {
+        unreachable!()
+    }
+
+    fn chain_id(&self) -> Option<u64> {
+        unreachable!()
+    }
+
+    fn order_id(&self) -> OrderId {
+        todo!()
+    }
+}
+
+impl PooledLimitOrder for EcRecoveredComposableLimitOrder {
+    fn pool_and_direction(&self) -> (u8, bool) {
+        //(self.signed_order.order.pool, self.signed_order.order.direction)
+        todo!()
+    }
+}
+
+impl PooledComposableOrder for EcRecoveredComposableLimitOrder {
+    fn pre_hook(&self) -> Option<Bytes> {
+        todo!()
+    }
+
+    fn post_hook(&self) -> Option<Bytes> {
+        todo!()
+    }
+}
+
+impl PooledOrder for EcRecoveredComposableSearcherOrder {
+    type ValidationData = ();
+
+    fn is_valid(&self) -> bool {
+        todo!()
+    }
+
+    fn order_priority_data(&self) -> OrderPriorityData {
+        todo!()
+    }
+
+    fn is_bid(&self) -> bool {
+        todo!()
+    }
+
+    fn hash(&self) -> TxHash {
+        self.signed_order.hash
+    }
+
+    fn from(&self) -> Address {
+        self.signer
+    }
+
+    fn nonce(&self) -> U256 {
+        self.order.nonce
+    }
+
+    fn amount_in(&self) -> u128 {
+        self.signed_order.order.amountIn
+    }
+
+    fn amount_out_min(&self) -> u128 {
+        self.signed_order.order.amountOutMin
+    }
+
+    fn limit_price(&self) -> u128 {
+        self.amount_out_min() / self.amount_in()
+    }
+
+    fn deadline(&self) -> U256 {
+        self.signed_order.order.deadline
+    }
+
+    fn size(&self) -> usize {
+        unreachable!()
+    }
+
+    fn encoded_length(&self) -> usize {
+        unreachable!()
+    }
+
+    fn chain_id(&self) -> Option<u64> {
+        unreachable!()
+    }
+
+    fn order_id(&self) -> OrderId {
+        todo!()
+    }
+}
+
+impl PooledSearcherOrder for EcRecoveredComposableSearcherOrder {
+    fn gas(&self) -> u128 {
+        todo!()
+    }
+
+    fn pool(&self) -> u8 {
+        todo!()
+    }
+
+    fn donate(&self) -> (u128, u128) {
+        todo!()
+    }
+
+    fn volume(&self) -> u128 {
+        todo!()
+    }
+
+    fn donated(&self) -> u128 {
+        todo!()
+    }
+}
+
+impl PooledComposableOrder for EcRecoveredComposableSearcherOrder {
+    fn pre_hook(&self) -> Option<Bytes> {
+        todo!()
+    }
+
+    fn post_hook(&self) -> Option<Bytes> {
         todo!()
     }
 }

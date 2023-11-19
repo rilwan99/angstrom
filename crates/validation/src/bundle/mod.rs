@@ -8,9 +8,6 @@ use guard_types::{
 };
 use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
 
-
-// pub mod anvil;
-pub mod client;
 pub mod errors;
 
 #[derive(Debug)]

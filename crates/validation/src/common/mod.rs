@@ -9,8 +9,9 @@ use reth_provider::StateProviderFactory;
 use tokio::sync::mpsc::unbounded_channel;
 
 use crate::{
-    bundle::{client::RevmClient, errors::SimError},
-    common::{lru_db::RevmLRU, revm::Revm}
+    bundle::errors::SimError,
+    common::{lru_db::RevmLRU, revm::Revm},
+    RevmClient
 };
 
 pub struct ValidatorSimConfig<DB: StateProviderFactory + Clone + Send + Sync + Unpin + 'static> {
