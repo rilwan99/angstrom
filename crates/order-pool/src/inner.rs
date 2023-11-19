@@ -7,8 +7,8 @@ use tokio::sync::mpsc::Sender;
 use validation::order::{OrderValidationOutcome, OrderValidator};
 
 use crate::{
-    limit::LimitOrderPool, ComposableLimitOrderValidation, LimitOrderValidation,
-    SearcherOrderValidation
+    limit::LimitOrderPool, searcher::SearcherPool, ComposableLimitOrderValidation,
+    LimitOrderValidation, SearcherOrderValidation
 };
 
 pub struct OrderPoolInner<L, CL, S, CS, V>
@@ -19,14 +19,12 @@ where
     CS: PooledComposableOrder + PooledSearcherOrder,
     V: OrderValidator
 {
-    /// limit pool
     limit_pool:      LimitOrderPool<L, CL>,
+    sercher_pool:    SearcherPool<S, CS>,
     /// event listeners
     event_listeners: Vec<Sender<()>>,
 
-    validator: V,
-
-    _p: PhantomData<(S, CS, V)>
+    validator: V
 }
 
 impl<L, CL, S, CS, V> OrderPoolInner<L, CL, S, CS, V>
