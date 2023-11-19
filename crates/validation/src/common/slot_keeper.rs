@@ -14,7 +14,7 @@ use revm::new;
 use revm_primitives::{Address, Env, TransactTo, TxEnv, U256};
 use tokio::{runtime::Handle, task::JoinHandle};
 
-use crate::lru_db::RevmLRU;
+use crate::common::lru_db::RevmLRU;
 
 pub struct SlotKeeper<DB> {
     addresses: Vec<Address>,

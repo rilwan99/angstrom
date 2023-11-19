@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use super::{pending::PendingPool, LimitOrderLocation, LimitPoolError, PoolId};
+use super::{pending::PendingPool, LimitOrderLocation, LimitPoolError};
 use crate::{
-    common::{BidAndAsks, OrderId},
+    common::{BidAndAsks, OrderId, PoolId},
     PooledComposableOrder, PooledLimitOrder
 };
 
@@ -15,7 +15,7 @@ impl<T: PooledComposableOrder + PooledLimitOrder> ComposableLimitPool<T> {
         todo!()
     }
 
-    pub fn new_order(&mut self, order: T) -> Result<(), LimitPoolError> {
+    pub fn add_order(&mut self, order: T) -> Result<(), LimitPoolError> {
         let id = order.order_id();
         self.0
             .get_mut(&id.pool_id)

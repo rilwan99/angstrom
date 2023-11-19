@@ -4,7 +4,7 @@ use reth_primitives::{alloy_primitives::Address, B256, U256};
 
 use self::{composable::ComposableLimitPool, limit::LimitPool};
 use crate::{
-    common::{OrderId, SizeTracker},
+    common::{OrderId, PoolId, SizeTracker},
     PooledComposableOrder, PooledLimitOrder, PooledOrder
 };
 
@@ -14,8 +14,6 @@ mod parked;
 mod pending;
 
 pub use pending::OrderPriorityData;
-
-type PoolId = Address;
 
 pub type RegularAndLimit<T, C> = (Vec<T>, Vec<C>);
 pub type RegularAndLimitRef<'a, T, C> = (Vec<&'a T>, Vec<&'a C>);
@@ -52,9 +50,10 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
         if !self.size.has_space(size) {
             return Err(LimitPoolError::MaxSize)
         }
-
+        //TODO: Remove the duplicate check to the highest level so wed don't verify
+        // unnecessarily
         self.check_for_duplicates(&id)?;
-        self.composable_orders.new_order(order)?;
+        self.composable_orders.add_order(order)?;
         self.add_order_tracking(id, LimitOrderLocation::Composable);
 
         Ok(())
@@ -69,7 +68,7 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
         }
 
         self.check_for_duplicates(&id)?;
-        let location = self.limit_orders.new_order(order)?;
+        let location = self.limit_orders.add_order(order)?;
         self.add_order_tracking(id, location);
 
         Ok(())

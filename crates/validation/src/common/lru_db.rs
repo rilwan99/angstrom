@@ -9,7 +9,10 @@ use revm::db::DbAccount;
 use revm_primitives::{db::DatabaseRef, AccountInfo, Bytecode, B256, U256};
 use schnellru::{ByMemoryUsage, LruMap};
 
-use crate::{errors::SimError, state::RevmBackend};
+use crate::{
+    bundle::errors::SimError,
+    common::state::{AddressSlots, RevmBackend}
+};
 
 pub struct RevmLRU<DB> {
     state_overrides:    HashMap<Address, HashMap<U256, U256>>,
@@ -35,10 +38,7 @@ impl<DB> RevmBackend for RevmLRU<DB>
 where
     DB: StateProviderFactory
 {
-    fn update_evm_state(
-        &self,
-        slot_changes: &crate::state::AddressSlots
-    ) -> eyre::Result<(), SimError> {
+    fn update_evm_state(&self, slot_changes: &AddressSlots) -> eyre::Result<(), SimError> {
         let mut accounts = self.accounts.write();
 
         for (addr, storage) in slot_changes.iter() {

@@ -8,8 +8,8 @@ use guard_types::{
 use tokio::sync::{mpsc::UnboundedSender, oneshot::channel};
 
 use crate::{
-    errors::{SimError, SimResult},
-    SimEvent, Simulator
+    bundle::{SimEvent, Simulator},
+    bundle::errors::{SimError, SimResult}
 };
 
 /// clone-able handle to the simulator

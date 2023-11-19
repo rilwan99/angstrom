@@ -1,7 +1,7 @@
 use futures_util::{pin_mut, Future};
 use tokio::{runtime::Runtime, task::JoinHandle};
 
-use crate::errors::SimError;
+use crate::bundle::errors::SimError;
 
 /// executes tasks on the runtime
 /// used for a thread pool for the simulator
