@@ -8,12 +8,16 @@ use revm_primitives::{Address, Bytecode};
 use tokio::{runtime::Handle, sync::mpsc::UnboundedReceiver, task::JoinHandle};
 
 use crate::{
-    errors::{SimError, SimResult},
-    executor::{TaskKind, ThreadPool},
-    lru_db::RevmLRU,
-    slot_keeper::SlotKeeper,
-    state::{AddressSlots, RevmState},
-    SimEvent
+    bundle::{
+        errors::{SimError, SimResult},
+        SimEvent
+    },
+    common::{
+        executor::{TaskKind, ThreadPool},
+        lru_db::RevmLRU,
+        slot_keeper::SlotKeeper,
+        state::{AddressSlots, RevmState}
+    }
 };
 
 ///TODO: replace once settled

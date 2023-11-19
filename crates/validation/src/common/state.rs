@@ -15,9 +15,11 @@ use revm_primitives::{
 };
 
 use crate::{
-    errors::{SimError, SimResult},
-    lru_db::RevmLRU,
-    BundleOrTransactionResult
+    bundle::{
+        errors::{SimError, SimResult},
+        BundleOrTransactionResult
+    },
+    common::lru_db::RevmLRU
 };
 
 pub trait RevmBackend {
