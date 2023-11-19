@@ -1,19 +1,15 @@
 use std::{collections::HashMap, fmt::Debug};
 
+use guard_types::orders::{OrderId, PooledComposableOrder, PooledLimitOrder, PooledOrder};
 use reth_primitives::{alloy_primitives::Address, B256, U256};
 
 use self::{composable::ComposableLimitPool, limit::LimitPool};
-use crate::{
-    common::{OrderId, PoolId, SizeTracker},
-    PooledComposableOrder, PooledLimitOrder, PooledOrder
-};
+use crate::common::{PoolId, SizeTracker};
 
 mod composable;
 mod limit;
 mod parked;
 mod pending;
-
-pub use pending::OrderPriorityData;
 
 pub type RegularAndLimit<T, C> = (Vec<T>, Vec<C>);
 pub type RegularAndLimitRef<'a, T, C> = (Vec<&'a T>, Vec<&'a C>);

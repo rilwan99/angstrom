@@ -1,34 +1,12 @@
 use std::{cmp::Reverse, collections::BTreeMap};
 
 use bitflags::Flags;
+use guard_types::orders::{OrderPriorityData, PooledOrder};
 use reth_primitives::B256;
 use revm::primitives::HashMap;
 use tokio::sync::broadcast;
 
-use crate::{common::BidAndAsks, PooledOrder};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OrderPriorityData {
-    pub price:  u128,
-    pub volume: u128,
-    pub gas:    u128
-}
-
-impl PartialOrd for OrderPriorityData {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.price.cmp(&other.price).then_with(|| {
-            self.volume
-                .cmp(&other.volume)
-                .then_with(|| self.gas.cmp(&other.gas))
-        }))
-    }
-}
-
-impl Ord for OrderPriorityData {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
+use crate::common::BidAndAsks;
 
 pub struct PendingPool<T: PooledOrder> {
     /// all order hashes
@@ -158,6 +136,7 @@ pub mod test {
     use std::cmp::Ordering;
 
     use alloy_primitives::{Address, U256};
+    use guard_types::orders::*;
     use rand::Rng;
 
     use super::*;
@@ -174,6 +153,8 @@ pub mod test {
     }
 
     impl PooledOrder for NoopOrder {
+        type ValidationData = ();
+
         fn order_priority_data(&self) -> OrderPriorityData {
             OrderPriorityData { price: self.price, volume: self.volume, gas: self.gas }
         }
@@ -186,8 +167,8 @@ pub mod test {
             true
         }
 
-        fn order_id(&self) -> crate::common::OrderId {
-            crate::common::OrderId {
+        fn order_id(&self) -> OrderId {
+            OrderId {
                 address:  Address::ZERO,
                 pool_id:  Address::ZERO,
                 hash:     self.hash,

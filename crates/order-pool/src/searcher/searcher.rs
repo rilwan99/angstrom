@@ -4,11 +4,9 @@ use std::{
 };
 
 use alloy_primitives::B256;
+use guard_types::orders::{OrderId, PooledSearcherOrder};
 
-use crate::{
-    common::{OrderId, PoolId},
-    traits::PooledSearcherOrder
-};
+use crate::common::PoolId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ArbPriorityData {

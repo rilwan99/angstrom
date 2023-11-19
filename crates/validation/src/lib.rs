@@ -7,6 +7,7 @@ use std::fmt::Debug;
 use bundle::BundleValidator;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
 use guard_types::{
+    orders::OrderOrigin,
     primitive::{Angstrom::Bundle, ExternalStateSim},
     rpc::{
         CallerInfo, EcRecoveredComposableLimitOrder, EcRecoveredComposableSearcherOrder,
@@ -14,7 +15,6 @@ use guard_types::{
     }
 };
 use order::OrderValidator;
-use order_pool::OrderOrigin;
 use tokio::sync::{mpsc::UnboundedSender, oneshot::channel};
 
 use crate::{
