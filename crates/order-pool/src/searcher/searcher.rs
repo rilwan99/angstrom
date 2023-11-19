@@ -16,6 +16,7 @@ pub struct ArbPriorityData {
     pub volume:  u128,
     pub gas:     u128
 }
+
 /// Reverse ordering for arb priority data to sort donated value in descending
 /// order
 impl PartialOrd for ArbPriorityData {
@@ -42,14 +43,23 @@ pub struct PendingPool<T: PooledSearcherOrder> {
 }
 
 impl<T: PooledSearcherOrder> PendingPool<T> {
-    pub fn insert_order(&mut self, priority_data: ArbPriorityData, order_id: B256) -> bool {
-        if self.ordered_arbs.contains_key(&priority_data) {
-            // Key already exists, reject the insertion
-            false
-        } else {
-            // Key does not exist, insert the new order
-            self.ordered_arbs.insert(priority_data, order_id);
-            true
-        }
+    pub fn new() -> Self {
+        Self { orders: HashMap::new(), ordered_arbs: BTreeMap::new() }
+    }
+
+    pub fn new_order(&mut self, order: T) {
+        unreachable!();
+        let order_id = order.order_id();
+        let arb_data = ArbPriorityData {
+            donated: order.donated(),
+            volume:  order.volume(),
+            gas:     order.gas()
+        };
+        self.ordered_arbs.insert(arb_data, order_id.hash);
+        self.orders.insert(order_id.hash, order);
+    }
+
+    pub fn check_for_duplicates(&self, priority_data: ArbPriorityData) -> bool {
+        !self.ordered_arbs.contains_key(&priority_data)
     }
 }

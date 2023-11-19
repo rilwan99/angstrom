@@ -16,7 +16,7 @@ impl<T: PooledLimitOrder> LimitPool<T> {
         todo!()
     }
 
-    pub fn new_order(&mut self, order: T) -> Result<LimitOrderLocation, LimitPoolError> {
+    pub fn add_order(&mut self, order: T) -> Result<LimitOrderLocation, LimitPoolError> {
         let pool_addr = order.order_id().pool_id;
 
         if order.is_valid() {

@@ -50,9 +50,10 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
         if !self.size.has_space(size) {
             return Err(LimitPoolError::MaxSize)
         }
-
+        //TODO: Remove the duplicate check to the highest level so wed don't verify
+        // unnecessarily
         self.check_for_duplicates(&id)?;
-        self.composable_orders.new_order(order)?;
+        self.composable_orders.add_order(order)?;
         self.add_order_tracking(id, LimitOrderLocation::Composable);
 
         Ok(())
@@ -67,7 +68,7 @@ impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrde
         }
 
         self.check_for_duplicates(&id)?;
-        let location = self.limit_orders.new_order(order)?;
+        let location = self.limit_orders.add_order(order)?;
         self.add_order_tracking(id, location);
 
         Ok(())
