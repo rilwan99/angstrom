@@ -57,9 +57,26 @@ where
     pub fn new_searcher_order(&mut self, origin: OrderOrigin, order: S) {
         self.validator.validate_searcher_order(origin, order)
     }
+
     pub fn new_composable_searcher_order(&mut self, origin: OrderOrigin, order: CS) {
-        self.validator.validate_composable_searcher_order(origin, order)
+        self.validator
+            .validate_composable_searcher_order(origin, order)
     }
+}
+
+impl<L, CL, S, CS, V> OrderPoolInner<L, CL, S, CS, V>
+where
+    L: PooledLimitOrder,
+    CL: PooledComposableOrder + PooledLimitOrder,
+    S: PooledSearcherOrder,
+    CS: PooledComposableOrder + PooledSearcherOrder,
+    V: OrderValidator,
+    <L as PooledOrder>::ValidationData: LimitOrderValidation,
+    <CL as PooledOrder>::ValidationData: ComposableLimitOrderValidation,
+    <S as PooledOrder>::ValidationData: SearcherOrderValidation,
+    <CS as PooledOrder>::ValidationData: ComposableSearcherOrderValidation
+{
+    fn handle_validated_order(&mut self, res: ValidationResults<L, CL, S, CS>) {}
 }
 
 // impl Future for OrderPoolInner<>
@@ -71,18 +88,15 @@ where
     CS: PooledComposableOrder + PooledSearcherOrder,
     V: OrderValidator,
     <L as PooledOrder>::ValidationData: LimitOrderValidation,
-    <CL as PooledOrder>::ValidationData: ComposableLimitOrderValidation
+    <CL as PooledOrder>::ValidationData: ComposableLimitOrderValidation,
+    <S as PooledOrder>::ValidationData: SearcherOrderValidation,
+    <CS as PooledOrder>::ValidationData: ComposableSearcherOrderValidation
 {
     type Item = ();
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         while let Poll::Ready(Some(next)) = self.validator.poll_next_unpin(cx) {
-            match next {
-                ValidationResults::Limit(limit) => {}
-                ValidationResults::ComposableLimit(composable_limit) => {}
-                ValidationResults::Searcher(searcher) => {}
-                ValidationResults::ComposableSearcher(composable_searcher) => {}
-            }
+            self.handle_validated_order(next)
         }
         Poll::Pending
     }
