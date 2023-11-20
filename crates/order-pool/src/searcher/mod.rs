@@ -15,9 +15,9 @@ mod searcher;
 
 pub struct SearcherPool<T: PooledSearcherOrder, C: PooledComposableOrder + PooledSearcherOrder> {
     /// Holds all non composable searcher order pools
-    searcher_orders: Vec<VanillaSearcherPool<T>>,
+    searcher_orders: VanillaSearcherPool<T>,
     /// Holds all composable searcher order pools
-    composable_searcher_orders: Vec<ComposableSearcherPool<C>>,
+    composable_searcher_orders: ComposableSearcherPool<C>,
     /// The size of the current transactions.
     size: SizeTracker
 }
