@@ -1,15 +1,12 @@
-use std::marker::PhantomData;
-
 use guard_types::orders::{
-    OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder
+    ComposableLimitOrderValidation, ComposableSearcherOrderValidation, LimitOrderValidation,
+    OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder,
+    SearcherOrderValidation
 };
 use tokio::sync::mpsc::Sender;
 use validation::order::{OrderValidationOutcome, OrderValidator};
 
-use crate::{
-    limit::LimitOrderPool, searcher::SearcherPool, ComposableLimitOrderValidation,
-    LimitOrderValidation, SearcherOrderValidation
-};
+use crate::{limit::LimitOrderPool, searcher::SearcherPool};
 
 pub struct OrderPoolInner<L, CL, S, CS, V>
 where
@@ -42,7 +39,7 @@ where
     <L as PooledOrder>::ValidationData: LimitOrderValidation,
     <CL as PooledOrder>::ValidationData: ComposableLimitOrderValidation,
     <S as PooledOrder>::ValidationData: SearcherOrderValidation,
-    <CS as PooledOrder>::ValidationData: ComposableLimitOrderValidation
+    <CS as PooledOrder>::ValidationData: ComposableSearcherOrderValidation
 {
     pub async fn validate_limit(
         &mut self,
@@ -52,10 +49,12 @@ where
         let res = self.validator.validate_order(origin, order).await;
         match res {
             OrderValidationOutcome::Valid { order, propagate } => {
-                let a = order.data.data();
+                let a = order.data.priority_data();
             }
             _ => todo!()
         }
         todo!()
     }
 }
+
+pub struct EventListener {}

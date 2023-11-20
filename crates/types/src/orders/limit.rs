@@ -1,12 +1,9 @@
 use alloy_primitives::{Address, Bytes, TxHash, U256};
 
-use super::{OrderId, OrderOrigin, OrderPriorityData, PooledComposableOrder, PooledOrder};
+use super::{OrderId, OrderPriorityData, PooledComposableOrder, PooledOrder};
 use crate::{
     primitive::{ComposableOrder, Order, PoolKey},
-    rpc::{
-        EcRecoveredComposableLimitOrder, EcRecoveredComposableSearcherOrder, EcRecoveredLimitOrder,
-        EcRecoveredSearcherOrder, SignedComposableLimitOrder
-    }
+    rpc::{EcRecoveredComposableLimitOrder, EcRecoveredLimitOrder}
 };
 
 pub trait PooledLimitOrder: PooledOrder {

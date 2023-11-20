@@ -10,7 +10,7 @@ use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
 use futures::Future;
 use futures_util::StreamExt;
 use guard_types::submission::SubmissionBundle;
-use reth_provider::CanonStateNotifications;
+use reth_provider::{CanonStateNotification, CanonStateNotifications, StateProviderFactory};
 use tokio::sync::mpsc::{channel, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -26,7 +26,7 @@ pub enum EthNetworkEvent {}
 /// 1) Deal with submitting bundles
 /// 2) Deal with fetching block state differences + fmt (need for validation and
 ///    orderpool)
-pub struct EthNetworkManager<M: Middleware + 'static> {
+pub struct EthNetworkManager<M: Middleware + 'static, DB> {
     /// our command receiver
     commander:       ReceiverStream<EthCommand>,
     /// people listening to events
@@ -35,13 +35,20 @@ pub struct EthNetworkManager<M: Middleware + 'static> {
     /// for the leader to submit to relays
     relay_sender:      RelaySender<M>,
     /// Notifications for Canonical Block updates
-    canonical_updates: CanonStateNotifications
+    canonical_updates: CanonStateNotifications,
+    /// used to fetch data from db
+    db:                DB
 }
 
-impl<M: Middleware + 'static> EthNetworkManager<M> {
+impl<M, DB> EthNetworkManager<M, DB>
+where
+    M: Middleware + 'static,
+    DB: StateProviderFactory + Send + Sync + Unpin + 'static
+{
     pub fn new(
         canonical_updates: CanonStateNotifications,
-        relay_sender: RelaySender<M>
+        relay_sender: RelaySender<M>,
+        db: DB
     ) -> anyhow::Result<EthHandle> {
         let (tx, rx) = channel(10);
         let stream = ReceiverStream::new(rx);
@@ -50,7 +57,8 @@ impl<M: Middleware + 'static> EthNetworkManager<M> {
             relay_sender,
             canonical_updates,
             commander: stream,
-            event_listeners: Vec::new()
+            event_listeners: Vec::new(),
+            db
         };
 
         let handle = EthHandle::new(tx);
@@ -70,9 +78,20 @@ impl<M: Middleware + 'static> EthNetworkManager<M> {
     ) -> Poll<Result<(), PendingBundleError>> {
         self.relay_sender.poll(cx)
     }
+
+    fn on_canon_update(&mut self, canonical_updates: CanonStateNotification) {
+        match canonical_updates {
+            CanonStateNotification::Reorg { old, new } => {}
+            CanonStateNotification::Commit { new } => {}
+        }
+    }
 }
 
-impl<M: Middleware + 'static> Future for EthNetworkManager<M> {
+impl<M, DB> Future for EthNetworkManager<M, DB>
+where
+    M: Middleware + 'static,
+    DB: StateProviderFactory + Send + Sync + Unpin + 'static
+{
     type Output = ();
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {

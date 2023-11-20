@@ -156,7 +156,7 @@ pub mod test {
         type ValidationData = ();
 
         fn order_priority_data(&self) -> OrderPriorityData {
-            OrderPriorityData { price: self.price, volume: self.volume, gas: self.gas }
+            OrderPriorityData { price: self.price, balls: self.volume, gas: self.gas }
         }
 
         fn is_bid(&self) -> bool {

@@ -1,14 +1,14 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use guard_types::orders::{OrderId, PooledComposableOrder, PooledLimitOrder, PooledOrder};
-use reth_primitives::{alloy_primitives::Address, B256, U256};
+use guard_types::orders::{
+    ComposableLimitOrderValidation, LimitOrderValidation, OrderId, PooledComposableOrder,
+    PooledLimitOrder, PooledOrder
+};
+use reth_primitives::{alloy_primitives::Address, B256};
 use validation::order::ValidatedOrder;
 
 use self::{composable::ComposableLimitPool, limit::LimitPool};
-use crate::{
-    common::{PoolId, SizeTracker},
-    ComposableLimitOrderValidation, LimitOrderValidation
-};
+use crate::common::{PoolId, SizeTracker};
 
 mod composable;
 mod limit;

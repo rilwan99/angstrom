@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, Bytes, TxHash,  U256};
+use alloy_primitives::{Address, Bytes, TxHash, U256};
 
 use super::{OrderId, OrderOrigin, OrderPriorityData, PooledComposableOrder, PooledOrder};
 use crate::{
