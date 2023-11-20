@@ -51,7 +51,7 @@ where
     ) -> OrderValidationOutcome<L> {
         let res = self.validator.validate_order(origin, order).await;
         match res {
-            OrderValidationOutcome::Valid { balance, state_nonce, order, propagate } => {
+            OrderValidationOutcome::Valid { order, propagate } => {
                 let a = order.data.data();
             }
             _ => todo!()
