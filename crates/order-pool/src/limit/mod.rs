@@ -24,9 +24,7 @@ pub type RegularAndLimitRef<'a, T, C> = (Vec<&'a T>, Vec<&'a C>);
 pub struct LimitOrderPool<T, C>
 where
     T: PooledLimitOrder,
-    C: PooledComposableOrder + PooledLimitOrder,
-    <T as PooledOrder>::ValidationData: LimitOrderValidation,
-    <C as PooledOrder>::ValidationData: ComposableLimitOrderValidation
+    C: PooledComposableOrder + PooledLimitOrder
 {
     composable_orders:   ComposableLimitPool<C>,
     limit_orders:        LimitPool<T>,
@@ -168,8 +166,8 @@ where
 impl<T, C> LimitOrderPool<T, C>
 where
     T: PooledLimitOrder,
-    <T as PooledOrder>::ValidationData: LimitOrderValidation,
     C: PooledComposableOrder + PooledLimitOrder,
+    <T as PooledOrder>::ValidationData: LimitOrderValidation,
     <C as PooledOrder>::ValidationData: ComposableLimitOrderValidation
 {
     /// Helper function for unzipping and size adjustment

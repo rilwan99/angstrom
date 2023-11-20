@@ -8,10 +8,7 @@ use guard_types::{
 use super::{parked::ParkedPool, pending::PendingPool, LimitOrderLocation, LimitPoolError};
 use crate::common::{BidAndAsks, ValidOrder};
 
-pub struct LimitPool<T: PooledLimitOrder>
-where
-    <T as PooledOrder>::ValidationData: LimitOrderValidation
-{
+pub struct LimitPool<T: PooledLimitOrder> {
     pending_orders: Vec<PendingPool<T>>,
     parked_orders:  Vec<ParkedPool<T>>
 }

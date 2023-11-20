@@ -82,7 +82,8 @@ consensus = { path = "./crates/consensus/" }
 guard-types = { path = "./crates/types/" }
 common = { path = "./crates/common/" }
 validation = { path = "./crates/validation/" }
-order-pool= { path = "./crates/order-pool/" }
+order-pool = { path = "./crates/order-pool/" }
+eth = { path = "./crates/eth/" }
 
 # anvil = { git = "https://github.com/SorellaLabs/fastfoundry" }
 # anvil-core = { git = "https://github.com/SorellaLabs/fastfoundry" }
@@ -140,4 +141,3 @@ proptest-derive = "0.4"
 arbitrary = "1.1"
 assert_matches = "1.5.0"
 aquamarine = "0.3"
-
