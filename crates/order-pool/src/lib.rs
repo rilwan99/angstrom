@@ -107,11 +107,21 @@ where
     CL: PooledComposableOrder + PooledLimitOrder,
     S: PooledSearcherOrder,
     CS: PooledComposableOrder + PooledSearcherOrder,
-    V: OrderValidator
+    V: OrderValidator<
+        LimitOrder = L,
+        SearcherOrder = S,
+        ComposableLimitOrder = CL,
+        ComposableSearcherOrder = CS
+    >,
+    <L as PooledOrder>::ValidationData: LimitOrderValidation,
+    <CL as PooledOrder>::ValidationData: ComposableLimitOrderValidation,
+    <S as PooledOrder>::ValidationData: SearcherOrderValidation,
+    <CS as PooledOrder>::ValidationData: ComposableSearcherOrderValidation
 {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        self.inner.poll
         todo!()
     }
 }
