@@ -5,11 +5,11 @@ use reth_primitives::B256;
 use revm::primitives::HashMap;
 use tokio::sync::broadcast;
 
-use crate::{common::BidAndAsks, limit::ValidOrder};
+use crate::common::{BidAndAsks, ValidOrder};
 
-pub struct PendingPool<T: PooledOrder> {
+pub struct PendingPool<O: PooledOrder> {
     /// all order hashes
-    orders:                   HashMap<B256, ValidOrder<T>>,
+    orders:                   HashMap<B256, ValidOrder<O>>,
     /// bids are sorted descending by price, TODO: This should be binned into
     /// ticks based off of the underlying pools params
     bids:                     BTreeMap<Reverse<OrderPriorityData>, B256>,
@@ -17,11 +17,11 @@ pub struct PendingPool<T: PooledOrder> {
     /// ticks based off of the underlying pools params
     asks:                     BTreeMap<OrderPriorityData, B256>,
     /// Notifier for new transactions
-    new_transaction_notifier: broadcast::Sender<ValidOrder<T>>
+    new_transaction_notifier: broadcast::Sender<ValidOrder<O>>
 }
 
-impl<T: PooledOrder> PendingPool<T> {
-    pub fn new(notifier: broadcast::Sender<ValidOrder<T>>) -> Self {
+impl<O: PooledOrder> PendingPool<O> {
+    pub fn new(notifier: broadcast::Sender<ValidOrder<O>>) -> Self {
         Self {
             orders:                   HashMap::new(),
             bids:                     BTreeMap::new(),
@@ -30,7 +30,7 @@ impl<T: PooledOrder> PendingPool<T> {
         }
     }
 
-    pub fn new_order(&mut self, order: ValidOrder<T>) {
+    pub fn new_order(&mut self, order: ValidOrder<O>) {
         let hash = order.hash();
         let priority = order.order_priority_data();
 
@@ -53,7 +53,7 @@ impl<T: PooledOrder> PendingPool<T> {
         let _ = self.new_transaction_notifier.send(order);
     }
 
-    pub fn remove_order(&mut self, hash: B256) -> Option<ValidOrder<T>> {
+    pub fn remove_order(&mut self, hash: B256) -> Option<ValidOrder<O>> {
         let order = self.orders.remove(&hash)?;
         let priority = order.order_priority_data();
 
@@ -66,11 +66,11 @@ impl<T: PooledOrder> PendingPool<T> {
         Some(order)
     }
 
-    pub fn fetch_all_orders(&self) -> Vec<&ValidOrder<T>> {
+    pub fn fetch_all_orders(&self) -> Vec<&ValidOrder<O>> {
         self.orders.values().collect()
     }
 
-    pub fn fetch_all_bids(&self) -> Vec<&ValidOrder<T>> {
+    pub fn fetch_all_bids(&self) -> Vec<&ValidOrder<O>> {
         self.bids
             .values()
             .map(|v| {
@@ -81,7 +81,7 @@ impl<T: PooledOrder> PendingPool<T> {
             .collect()
     }
 
-    pub fn fetch_all_asks(&self) -> Vec<&ValidOrder<T>> {
+    pub fn fetch_all_asks(&self) -> Vec<&ValidOrder<O>> {
         self.asks
             .values()
             .map(|v| {
@@ -101,7 +101,7 @@ impl<T: PooledOrder> PendingPool<T> {
     }
 
     /// Fetches supply and demand intersection
-    pub fn fetch_intersection(&self) -> BidAndAsks<ValidOrder<T>> {
+    pub fn fetch_intersection(&self) -> BidAndAsks<ValidOrder<O>> {
         // TODO: this will change when we tick bin, waiting till then
         // self.bids
         //     .iter()
@@ -125,7 +125,7 @@ impl<T: PooledOrder> PendingPool<T> {
     }
 
     /// Fetches supply and demand intersection with a tick price buffer
-    pub fn fetch_intersection_with_buffer(&self, _buffer: u8) -> BidAndAsks<ValidOrder<T>> {
+    pub fn fetch_intersection_with_buffer(&self, _buffer: u8) -> BidAndAsks<ValidOrder<O>> {
         todo!("Blocked until added tick impl")
     }
 }

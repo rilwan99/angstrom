@@ -5,6 +5,13 @@ pub struct OrderPriorityData {
     pub gas:    u128
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct ValidationMetadata {
+    pub pool_id:       usize,
+    pub is_bid:        bool,
+    pub priority_data: OrderPriorityData
+}
+
 impl PartialOrd for OrderPriorityData {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.price.cmp(&other.price).then_with(|| {

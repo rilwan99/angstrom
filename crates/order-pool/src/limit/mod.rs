@@ -1,14 +1,17 @@
 use std::{collections::HashMap, fmt::Debug};
 
-use guard_types::orders::{
-    ComposableLimitOrderValidation, LimitOrderValidation, OrderId, PooledComposableOrder,
-    PooledLimitOrder, PooledOrder
+use guard_types::{
+    orders::{
+        ComposableLimitOrderValidation, LimitOrderValidation, OrderId, PooledComposableOrder,
+        PooledLimitOrder, PooledOrder
+    },
+    primitive::PoolId
 };
-use reth_primitives::{alloy_primitives::Address, B256};
+use reth_primitives::{alloy_primitives::Address, B256, U256};
 use validation::order::ValidatedOrder;
 
 use self::{composable::ComposableLimitPool, limit::LimitPool};
-use crate::common::{PoolId, SizeTracker};
+use crate::{common::SizeTracker, ValidOrder};
 
 mod composable;
 mod limit;
@@ -18,12 +21,12 @@ mod pending;
 pub type RegularAndLimit<T, C> = (Vec<T>, Vec<C>);
 pub type RegularAndLimitRef<'a, T, C> = (Vec<&'a T>, Vec<&'a C>);
 
-pub type ValidOrder<T> = ValidatedOrder<T, <T as PooledOrder>::ValidationData>;
-
 pub struct LimitOrderPool<T, C>
 where
     T: PooledLimitOrder,
-    C: PooledComposableOrder + PooledLimitOrder
+    C: PooledComposableOrder + PooledLimitOrder,
+    <T as PooledOrder>::ValidationData: LimitOrderValidation,
+    <C as PooledOrder>::ValidationData: ComposableLimitOrderValidation
 {
     composable_orders:   ComposableLimitPool<C>,
     limit_orders:        LimitPool<T>,
@@ -165,7 +168,9 @@ where
 impl<T, C> LimitOrderPool<T, C>
 where
     T: PooledLimitOrder,
-    C: PooledComposableOrder + PooledLimitOrder
+    <T as PooledOrder>::ValidationData: LimitOrderValidation,
+    C: PooledComposableOrder + PooledLimitOrder,
+    <C as PooledOrder>::ValidationData: ComposableLimitOrderValidation
 {
     /// Helper function for unzipping and size adjustment
     fn filter_option_and_adjust_size<O: PooledOrder>(

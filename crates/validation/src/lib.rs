@@ -22,6 +22,7 @@ use crate::{
         errors::{SimError, SimResult},
         SimEvent
     },
+    common::pool_map::PoolMapping,
     order::OrderValidationOutcome
 };
 /// clone-able handle to the simulator
