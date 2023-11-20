@@ -36,18 +36,18 @@ pub struct ValidatedOrder<O: PooledOrder, Data: Clone> {
 
 /// Provides support for validating transaction at any given state of the chain
 #[async_trait::async_trait]
-pub trait OrderValidator: Send + Sync {
+pub trait OrderValidator: Send + Sync + Clone + Unpin + 'static {
     /// The order type of the limit order pool
-    type LimitOrder: PooledLimitOrder;
+    type LimitOrder: PooledOrder;
 
     /// The transaction type of the searcher order pool
-    type SearcherOrder: PooledSearcherOrder;
+    type SearcherOrder: PooledOrder;
 
     /// The transaction type of the composable limit order pool
-    type ComposableLimitOrder: PooledComposableOrder + PooledLimitOrder;
+    type ComposableLimitOrder: PooledOrder;
 
     /// The transaction type of the composable searcher order pool
-    type ComposableSearcherOrder: PooledComposableOrder + PooledSearcherOrder;
+    type ComposableSearcherOrder: PooledOrder;
 
     /// Validates the order and returns a [`OrderValidationOutcome`]
     /// describing the validity of the given order

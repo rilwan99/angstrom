@@ -12,8 +12,8 @@ pub use order_metadata::*;
 pub use origin::*;
 pub use searcher::*;
 
-pub trait PooledOrder: fmt::Debug + Send + Sync + Clone {
-    type ValidationData: Send + Sync + Clone;
+pub trait PooledOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
+    type ValidationData: Send + Sync + Clone + Unpin + 'static;
 
     /// Hash of the order
     fn hash(&self) -> TxHash;
