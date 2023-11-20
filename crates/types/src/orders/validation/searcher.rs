@@ -1,8 +1,11 @@
 use alloy_primitives::{Address, Bytes, TxHash, U256};
 
-use super::{OrderId, OrderOrigin, OrderPriorityData, PooledComposableOrder, PooledOrder};
+use super::{
+    super::{OrderId, OrderOrigin, PooledComposableOrder, PooledOrder},
+    ValidatedOrder
+};
 use crate::{
-    primitive::{ComposableOrder, Order, PoolKey},
+    primitive::{ComposableOrder, Order, PoolId, PoolKey},
     rpc::{EcRecoveredComposableSearcherOrder, EcRecoveredSearcherOrder}
 };
 
@@ -19,22 +22,53 @@ pub trait PooledSearcherOrder: PooledOrder {
     fn donated(&self) -> u128;
 }
 
-pub trait SearcherOrderValidation {
-    fn data(&self) -> u8;
+impl<O> ValidatedOrder<O, SearcherPriorityData>
+where
+    O: PooledSearcherOrder
+{
+    pub fn pool_id(&self) -> usize {
+        self.pool_id
+    }
+
+    pub fn is_bid(&self) -> bool {
+        self.is_bid
+    }
+
+    pub fn priority_data(&self) -> SearcherPriorityData {
+        self.data.clone()
+    }
 }
 
-pub trait ComposableSearcherOrderValidation {
-    fn data(&self) -> u8;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SearcherPriorityData {
+    pub donated: u128,
+    pub volume:  u128,
+    pub gas:     u128
+}
+
+/// Reverse ordering for arb priority data to sort donated value in descending
+/// order
+impl PartialOrd for SearcherPriorityData {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(
+            other
+                .donated
+                .cmp(&self.donated)
+                .then_with(|| other.volume.cmp(&self.volume))
+        )
+    }
+}
+
+impl Ord for SearcherPriorityData {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
 }
 
 impl PooledOrder for EcRecoveredSearcherOrder {
-    type ValidationData = ();
+    type ValidationData = ValidatedOrder<Self, SearcherPriorityData>;
 
     fn is_valid(&self) -> bool {
-        todo!()
-    }
-
-    fn order_priority_data(&self) -> OrderPriorityData {
         todo!()
     }
 
@@ -113,10 +147,6 @@ impl PooledOrder for EcRecoveredComposableSearcherOrder {
     type ValidationData = ();
 
     fn is_valid(&self) -> bool {
-        todo!()
-    }
-
-    fn order_priority_data(&self) -> OrderPriorityData {
         todo!()
     }
 

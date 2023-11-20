@@ -17,9 +17,7 @@ use eth::manager::EthNetworkEvent;
 use futures_util::{stream::FuturesUnordered, Future, Stream};
 use guard_types::{
     orders::{
-        ComposableLimitOrderValidation, ComposableSearcherOrderValidation, LimitOrderValidation,
-        OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder,
-        SearcherOrderValidation
+        OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder
     },
     rpc::{
         EcRecoveredComposableLimitOrder, EcRecoveredComposableSearcherOrder, EcRecoveredLimitOrder,
@@ -84,9 +82,6 @@ where
     /// Transaction fetcher to handle inflight and missing transaction requests.
     // transaction_fetcher:   TransactionFetcher,
     /// All currently pending transactions grouped by peers.
-    ///
-    /// This way we can track incoming transactions and prevent multiple pool
-    /// imports for the same transaction
     transactions_by_peers: HashMap<TxHash, Vec<PeerId>>,
 
     // /// Transactions that are currently imported into the `Pool`
@@ -112,11 +107,7 @@ where
         SearcherOrder = S,
         ComposableLimitOrder = CL,
         ComposableSearcherOrder = CS
-    >,
-    <L as PooledOrder>::ValidationData: LimitOrderValidation,
-    <CL as PooledOrder>::ValidationData: ComposableLimitOrderValidation,
-    <S as PooledOrder>::ValidationData: SearcherOrderValidation,
-    <CS as PooledOrder>::ValidationData: ComposableSearcherOrderValidation
+    >
 {
     type Output = ();
 

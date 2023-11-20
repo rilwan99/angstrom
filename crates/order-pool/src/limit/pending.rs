@@ -1,15 +1,15 @@
 use std::{cmp::Reverse, collections::BTreeMap};
 
-use guard_types::orders::{OrderPriorityData, PooledOrder};
+use guard_types::orders::{OrderPriorityData, PooledOrder, ValidatedOrder};
 use reth_primitives::B256;
 use revm::primitives::HashMap;
 use tokio::sync::broadcast;
 
-use crate::common::{BidAndAsks, ValidOrder};
+use crate::common::BidAndAsks;
 
 pub struct PendingPool<O: PooledOrder> {
     /// all order hashes
-    orders:                   HashMap<B256, ValidOrder<O>>,
+    orders:                   HashMap<B256, ValidatedOrder<O, OrderPriorityData>>,
     /// bids are sorted descending by price, TODO: This should be binned into
     /// ticks based off of the underlying pools params
     bids:                     BTreeMap<Reverse<OrderPriorityData>, B256>,
@@ -17,11 +17,14 @@ pub struct PendingPool<O: PooledOrder> {
     /// ticks based off of the underlying pools params
     asks:                     BTreeMap<OrderPriorityData, B256>,
     /// Notifier for new transactions
-    new_transaction_notifier: broadcast::Sender<ValidOrder<O>>
+    new_transaction_notifier: broadcast::Sender<ValidatedOrder<O, OrderPriorityData>>
 }
 
-impl<O: PooledOrder> PendingPool<O> {
-    pub fn new(notifier: broadcast::Sender<ValidOrder<O>>) -> Self {
+impl<O: PooledOrder> PendingPool<O>
+where
+    O: PooledOrder<ValidationData = ValidatedOrder<O, OrderPriorityData>>
+{
+    pub fn new(notifier: broadcast::Sender<ValidatedOrder<O, OrderPriorityData>>) -> Self {
         Self {
             orders:                   HashMap::new(),
             bids:                     BTreeMap::new(),
@@ -30,9 +33,9 @@ impl<O: PooledOrder> PendingPool<O> {
         }
     }
 
-    pub fn new_order(&mut self, order: ValidOrder<O>) {
+    pub fn new_order(&mut self, order: ValidatedOrder<O, OrderPriorityData>) {
         let hash = order.hash();
-        let priority = order.order_priority_data();
+        let priority = order.priority_data();
 
         if order.is_bid() {
             if self.bids.contains_key(&Reverse(priority)) {
@@ -53,9 +56,9 @@ impl<O: PooledOrder> PendingPool<O> {
         let _ = self.new_transaction_notifier.send(order);
     }
 
-    pub fn remove_order(&mut self, hash: B256) -> Option<ValidOrder<O>> {
+    pub fn remove_order(&mut self, hash: B256) -> Option<ValidatedOrder<O, OrderPriorityData>> {
         let order = self.orders.remove(&hash)?;
-        let priority = order.order_priority_data();
+        let priority = order.priority_data();
 
         if order.is_bid() {
             self.bids.remove(&Reverse(priority))?;
@@ -66,11 +69,11 @@ impl<O: PooledOrder> PendingPool<O> {
         Some(order)
     }
 
-    pub fn fetch_all_orders(&self) -> Vec<&ValidOrder<O>> {
+    pub fn fetch_all_orders(&self) -> Vec<&ValidatedOrder<O, OrderPriorityData>> {
         self.orders.values().collect()
     }
 
-    pub fn fetch_all_bids(&self) -> Vec<&ValidOrder<O>> {
+    pub fn fetch_all_bids(&self) -> Vec<&ValidatedOrder<O, OrderPriorityData>> {
         self.bids
             .values()
             .map(|v| {
@@ -81,7 +84,7 @@ impl<O: PooledOrder> PendingPool<O> {
             .collect()
     }
 
-    pub fn fetch_all_asks(&self) -> Vec<&ValidOrder<O>> {
+    pub fn fetch_all_asks(&self) -> Vec<&ValidatedOrder<O, OrderPriorityData>> {
         self.asks
             .values()
             .map(|v| {
@@ -101,7 +104,7 @@ impl<O: PooledOrder> PendingPool<O> {
     }
 
     /// Fetches supply and demand intersection
-    pub fn fetch_intersection(&self) -> BidAndAsks<ValidOrder<O>> {
+    pub fn fetch_intersection(&self) -> BidAndAsks<ValidatedOrder<O, OrderPriorityData>> {
         // TODO: this will change when we tick bin, waiting till then
         // self.bids
         //     .iter()
@@ -125,7 +128,10 @@ impl<O: PooledOrder> PendingPool<O> {
     }
 
     /// Fetches supply and demand intersection with a tick price buffer
-    pub fn fetch_intersection_with_buffer(&self, _buffer: u8) -> BidAndAsks<ValidOrder<O>> {
+    pub fn fetch_intersection_with_buffer(
+        &self,
+        _buffer: u8
+    ) -> BidAndAsks<ValidatedOrder<O, OrderPriorityData>> {
         todo!("Blocked until added tick impl")
     }
 }

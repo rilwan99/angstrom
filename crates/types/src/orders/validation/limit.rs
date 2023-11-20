@@ -1,7 +1,10 @@
+use std::fmt::Debug;
+
 use alloy_primitives::{Address, Bytes, TxHash, U256};
 
 use super::{
-    OrderId, OrderOrigin, OrderPriorityData, PooledComposableOrder, PooledOrder, ValidationMetadata
+    super::{OrderId, OrderOrigin, PooledComposableOrder, PooledOrder},
+    ValidatedOrder
 };
 use crate::{
     primitive::{ComposableOrder, Order, PoolId},
@@ -16,38 +19,50 @@ pub trait PooledLimitOrder: PooledOrder {
     fn pool_and_direction(&self) -> (PoolId, bool);
 }
 
-pub trait LimitOrderValidation {
-    fn pool_id(&self) -> PoolId;
-    fn is_bid(&self) -> bool;
-    fn priority_data(&self) -> OrderPriorityData;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OrderPriorityData {
+    pub price:  u128,
+    pub volume: u128,
+    pub gas:    u128
 }
 
-impl LimitOrderValidation for ValidationMetadata {
-    fn is_bid(&self) -> bool {
-        self.is_bid
+impl PartialOrd for OrderPriorityData {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.price.cmp(&other.price).then_with(|| {
+            self.volume
+                .cmp(&other.volume)
+                .then_with(|| self.gas.cmp(&other.gas))
+        }))
     }
+}
 
-    fn pool_id(&self) -> PoolId {
+impl Ord for OrderPriorityData {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl<O> ValidatedOrder<O, OrderPriorityData>
+where
+    O: PooledOrder
+{
+    pub fn pool_id(&self) -> usize {
         self.pool_id
     }
 
-    fn priority_data(&self) -> OrderPriorityData {
-        self.priority_data.clone()
+    pub fn is_bid(&self) -> bool {
+        self.is_bid
     }
-}
 
-pub trait ComposableLimitOrderValidation {
-    fn data(&self) -> u8;
+    pub fn priority_data(&self) -> OrderPriorityData {
+        self.data.clone()
+    }
 }
 
 impl PooledOrder for EcRecoveredLimitOrder {
-    type ValidationData = ValidationMetadata;
+    type ValidationData = ValidatedOrder<Self, OrderPriorityData>;
 
     fn is_valid(&self) -> bool {
-        todo!()
-    }
-
-    fn order_priority_data(&self) -> OrderPriorityData {
         todo!()
     }
 
@@ -108,13 +123,9 @@ impl PooledLimitOrder for EcRecoveredLimitOrder {
 }
 
 impl PooledOrder for EcRecoveredComposableLimitOrder {
-    type ValidationData = ValidationMetadata;
+    type ValidationData = ValidatedOrder<Self, OrderPriorityData>;
 
     fn is_valid(&self) -> bool {
-        todo!()
-    }
-
-    fn order_priority_data(&self) -> OrderPriorityData {
         todo!()
     }
 

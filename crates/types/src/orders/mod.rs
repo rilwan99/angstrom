@@ -1,19 +1,17 @@
-mod limit;
 mod order_id;
-mod order_metadata;
 mod origin;
-mod searcher;
 use std::fmt;
 
-use alloy_primitives::{Address, Bytes, TxHash, U128, U256};
-pub use limit::*;
-pub use order_id::*;
-pub use order_metadata::*;
-pub use origin::*;
-pub use searcher::*;
+mod validation;
 
+use std::fmt::Debug;
+
+use alloy_primitives::{Address, Bytes, TxHash, U128, U256};
+pub use order_id::*;
+pub use origin::*;
+pub use validation::*;
 pub trait PooledOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
-    type ValidationData: Send + Sync + Clone + Unpin + 'static;
+    type ValidationData: Send + Debug + Sync + Clone + Unpin + 'static;
 
     /// Hash of the order
     fn hash(&self) -> TxHash;
@@ -35,8 +33,6 @@ pub trait PooledOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
     /// Limit Price
     fn limit_price(&self) -> u128;
 
-    fn order_priority_data(&self) -> OrderPriorityData;
-
     /// Order deadline
     fn deadline(&self) -> U256;
 
@@ -45,8 +41,6 @@ pub trait PooledOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
     fn size(&self) -> usize;
 
     /// Returns the length of the rlp encoded transaction object
-    ///
-    /// Note: Implementations should cache this value.
     fn encoded_length(&self) -> usize;
 
     /// Returns chain_id

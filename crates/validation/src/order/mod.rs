@@ -1,15 +1,15 @@
+use std::fmt::Debug;
+
 use alloy_primitives::{TxHash, U256};
 use derive_more::{AsRef, Deref};
 use guard_types::orders::{
-    OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder
+    OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder,
+    ValidatedOrder
 };
 
 use crate::common::error::ValidationError;
 
 /// A valid order in the pool.
-///
-/// This is used as the internal representation of a order inside the
-/// pool.
 pub enum OrderValidationOutcome<O: PooledOrder> {
     /// The transaction is considered _currently_ valid and can be inserted into
     /// the pool.
@@ -24,14 +24,6 @@ pub enum OrderValidationOutcome<O: PooledOrder> {
     Invalid(O, ValidationError),
     /// An error occurred while trying to validate the transaction
     Error(TxHash, Box<dyn std::error::Error + Send + Sync>)
-}
-
-#[derive(Debug, AsRef, Deref, Clone)]
-pub struct ValidatedOrder<O: PooledOrder, Data: Clone> {
-    #[deref]
-    #[as_ref]
-    pub order: O,
-    pub data:  Data
 }
 
 /// Provides support for validating transaction at any given state of the chain
