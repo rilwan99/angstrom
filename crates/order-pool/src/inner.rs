@@ -14,7 +14,9 @@ use crate::{
 pub struct OrderPoolInner<L, CL, S, CS, V>
 where
     L: PooledLimitOrder,
+    <L as PooledOrder>::ValidationData: LimitOrderValidation,
     CL: PooledComposableOrder + PooledLimitOrder,
+    <CL as PooledOrder>::ValidationData: ComposableLimitOrderValidation,
     S: PooledSearcherOrder,
     CS: PooledComposableOrder + PooledSearcherOrder,
     V: OrderValidator

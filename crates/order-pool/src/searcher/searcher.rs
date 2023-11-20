@@ -4,9 +4,13 @@ use std::{
 };
 
 use alloy_primitives::B256;
-use guard_types::orders::{OrderId, PooledSearcherOrder};
+use guard_types::{
+    orders::{OrderId, PooledSearcherOrder},
+    primitive::PoolId
+};
 
-use crate::common::PoolId;
+use super::{SearcherOrderLocation, SearcherPoolError};
+use crate::common::ValidOrder;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ArbPriorityData {
@@ -45,16 +49,11 @@ impl<T: PooledSearcherOrder> PendingPool<T> {
         Self { orders: HashMap::new(), ordered_arbs: BTreeMap::new() }
     }
 
-    pub fn new_order(&mut self, order: T) {
-        unreachable!();
-        let order_id = order.order_id();
-        let arb_data = ArbPriorityData {
-            donated: order.donated(),
-            volume:  order.volume(),
-            gas:     order.gas()
-        };
-        self.ordered_arbs.insert(arb_data, order_id.hash);
-        self.orders.insert(order_id.hash, order);
+    pub fn add_order(
+        &mut self,
+        order: ValidOrder<T>
+    ) -> Result<SearcherOrderLocation, SearcherPoolError> {
+        todo!()
     }
 
     pub fn check_for_duplicates(&self, priority_data: ArbPriorityData) -> bool {

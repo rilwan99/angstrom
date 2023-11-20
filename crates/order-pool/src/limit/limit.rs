@@ -1,19 +1,28 @@
 use std::collections::HashMap;
 
-use guard_types::orders::{OrderId, PooledLimitOrder};
+use guard_types::{
+    orders::{LimitOrderValidation, OrderId, PooledLimitOrder},
+    primitive::PoolId
+};
 
 use super::{parked::ParkedPool, pending::PendingPool, LimitOrderLocation, LimitPoolError};
 use crate::{
-    common::{BidAndAsks, PoolId},
-    limit::ValidOrder
+    common::{BidAndAsks, ValidOrder},
+    limit::PooledOrder
 };
 
-pub struct LimitPool<T: PooledLimitOrder> {
-    pending_orders: HashMap<PoolId, PendingPool<T>>,
-    parked_orders:  HashMap<PoolId, ParkedPool<T>>
+pub struct LimitPool<T: PooledLimitOrder>
+where
+    <T as PooledOrder>::ValidationData: LimitOrderValidation
+{
+    pending_orders: Vec<PendingPool<T>>,
+    parked_orders:  Vec<ParkedPool<T>>
 }
 
-impl<T: PooledLimitOrder> LimitPool<T> {
+impl<T: PooledLimitOrder> LimitPool<T>
+where
+    <T as PooledOrder>::ValidationData: LimitOrderValidation
+{
     pub fn new() -> Self {
         todo!()
     }
@@ -22,19 +31,19 @@ impl<T: PooledLimitOrder> LimitPool<T> {
         &mut self,
         order: ValidOrder<T>
     ) -> Result<LimitOrderLocation, LimitPoolError> {
-        let pool_addr = order.order_id().pool_id;
+        let pool_id = order.data.pool_id();
 
         if order.is_valid() {
             self.pending_orders
-                .get_mut(&pool_addr)
+                .get_mut(pool_id)
                 .map(|pool| pool.new_order(order))
-                .ok_or_else(|| LimitPoolError::NoPool(pool_addr))?;
+                .ok_or_else(|| LimitPoolError::NoPool(pool_id))?;
             Ok(LimitOrderLocation::LimitPending)
         } else {
             self.parked_orders
-                .get_mut(&pool_addr)
+                .get_mut(pool_id)
                 .map(|pool| pool.new_order(order))
-                .ok_or_else(|| LimitPoolError::NoPool(pool_addr))?;
+                .ok_or_else(|| LimitPoolError::NoPool(pool_id))?;
             Ok(LimitOrderLocation::LimitParked)
         }
     }
@@ -47,42 +56,42 @@ impl<T: PooledLimitOrder> LimitPool<T> {
         match location {
             LimitOrderLocation::LimitPending => self
                 .pending_orders
-                .get_mut(&order_id.pool_id)
-                .and_then(|pool| pool.remove_order(order_id.hash)),
+                .get_mut(order_id.pool_id)
+                .and_then(|pool: &mut _| pool.remove_order(order_id.hash)),
             LimitOrderLocation::LimitParked => self
                 .parked_orders
-                .get_mut(&order_id.pool_id)
-                .and_then(|pool| pool.remove_order(order_id)),
+                .get_mut(order_id.pool_id)
+                .and_then(|pool: &mut _| pool.remove_order(order_id)),
             _ => unreachable!()
         }
     }
 
     pub fn fetch_all_pool_orders(&self, id: &PoolId) -> Vec<&ValidOrder<T>> {
         self.pending_orders
-            .get(id)
-            .map(|inner| inner.fetch_all_orders())
+            .get(*id)
+            .map(|inner: &_| inner.fetch_all_orders())
             .unwrap()
     }
 
     pub fn fetch_all_pool_bids(&self, id: &PoolId) -> Vec<&ValidOrder<T>> {
         self.pending_orders
-            .get(id)
-            .map(|inner| inner.fetch_all_bids())
+            .get(*id)
+            .map(|inner: &_| inner.fetch_all_bids())
             .unwrap()
     }
 
     pub fn fetch_all_pool_asks(&self, id: &PoolId) -> Vec<&ValidOrder<T>> {
         self.pending_orders
-            .get(id)
-            .map(|inner| inner.fetch_all_asks())
+            .get(*id)
+            .map(|inner: &_| inner.fetch_all_asks())
             .unwrap()
     }
 
     /// Fetches supply and demand intersection
     pub fn fetch_pool_intersection(&self, id: &PoolId) -> BidAndAsks<ValidOrder<T>> {
         self.pending_orders
-            .get(id)
-            .map(|inner| inner.fetch_intersection())
+            .get(*id)
+            .map(|inner: &_| inner.fetch_intersection())
             .unwrap()
     }
 
@@ -93,21 +102,21 @@ impl<T: PooledLimitOrder> LimitPool<T> {
 
     pub fn fetch_all_orders(&self) -> Vec<Vec<&ValidOrder<T>>> {
         self.pending_orders
-            .values()
+            .iter()
             .map(|inner| inner.fetch_all_orders())
             .collect()
     }
 
     pub fn fetch_all_bids(&self) -> Vec<Vec<&ValidOrder<T>>> {
         self.pending_orders
-            .values()
+            .iter()
             .map(|inner| inner.fetch_all_bids())
             .collect()
     }
 
     pub fn fetch_all_asks(&self) -> Vec<Vec<&ValidOrder<T>>> {
         self.pending_orders
-            .values()
+            .iter()
             .map(|inner| inner.fetch_all_asks())
             .collect()
     }
@@ -115,7 +124,7 @@ impl<T: PooledLimitOrder> LimitPool<T> {
     /// Fetches supply and demand intersection
     pub fn fetch_intersection(&self) -> Vec<BidAndAsks<ValidOrder<T>>> {
         self.pending_orders
-            .values()
+            .iter()
             .map(|inner| inner.fetch_intersection())
             .collect()
     }
