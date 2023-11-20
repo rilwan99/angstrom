@@ -83,6 +83,7 @@ guard-types = { path = "./crates/types/" }
 common = { path = "./crates/common/" }
 validation = { path = "./crates/validation/" }
 order-pool= { path = "./crates/order-pool/" }
+eth = { path = "./crates/eth/" }
 
 # anvil = { git = "https://github.com/SorellaLabs/fastfoundry" }
 # anvil-core = { git = "https://github.com/SorellaLabs/fastfoundry" }

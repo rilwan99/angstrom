@@ -1,14 +1,9 @@
-use std::{
-    sync::Arc,
-    task::{Context, Poll}
-};
+use std::task::{Context, Poll};
 
-use common::PollExt;
-use ethers_core::types::{Block, H256};
+use alloy_primitives::B256;
 use ethers_flashbots::PendingBundleError;
 use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
 use futures::Future;
-use futures_util::StreamExt;
 use guard_types::submission::SubmissionBundle;
 use reth_provider::{CanonStateNotification, CanonStateNotifications, StateProviderFactory};
 use tokio::sync::mpsc::{channel, Sender};
@@ -19,7 +14,11 @@ use crate::{
     relay_sender::RelaySender
 };
 
-pub enum EthNetworkEvent {}
+pub enum EthNetworkEvent {
+    FilledOrders(Vec<B256>),
+    EOAStateChanges(Vec<B256>),
+    ReorgedOrders(Vec<B256>)
+}
 
 /// Holds all of our eth network state.
 /// Will do the following

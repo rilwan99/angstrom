@@ -22,5 +22,5 @@ ethers-signers.workspace = true
 ethers-providers.workspace = true
 ethers-flashbots = "0.14.0"
 reth-provider.workspace = true
-
+alloy-primitives.workspace = true
 futures-util = "0.3.28"

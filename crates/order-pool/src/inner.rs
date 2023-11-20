@@ -16,10 +16,8 @@ where
     CS: PooledComposableOrder + PooledSearcherOrder,
     V: OrderValidator
 {
-    limit_pool:      LimitOrderPool<L, CL>,
-    sercher_pool:    SearcherPool<S, CS>,
-    /// event listeners
-    event_listeners: Vec<Sender<()>>,
+    limit_pool:   LimitOrderPool<L, CL>,
+    sercher_pool: SearcherPool<S, CS>,
 
     validator: V
 }
@@ -56,5 +54,3 @@ where
         todo!()
     }
 }
-
-pub struct EventListener {}

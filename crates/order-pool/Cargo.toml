@@ -12,8 +12,8 @@ Order pool implementation
 
 [package.metadata.cargo-udeps.ignore]
 normal = [
-    # Used for diagrams in docs
-    "aquamarine",
+  # Used for diagrams in docs
+  "aquamarine",
 ]
 
 [dependencies]
@@ -22,10 +22,12 @@ reth-primitives.workspace = true
 reth-provider.workspace = true
 reth-interfaces.workspace = true
 reth-tasks.workspace = true
+reth-network.workspace = true
 revm.workspace = true
-alloy-rlp.workspace = true  
+alloy-rlp.workspace = true
 guard-types.workspace = true
 validation.workspace = true
+eth.workspace = true
 alloy-primitives.workspace = true
 
 # async/futures
