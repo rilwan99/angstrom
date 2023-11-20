@@ -45,11 +45,11 @@ where
         ComposableSearcherOrder = CS
     >
 {
-    pub fn validate_order(&self, origin: OrderOrigin, transaction: L) {
+    pub fn validate_order(&self, origin: OrderOrigin, order: L) {
         let val = self.validator.clone();
         self.pending.push(
             async move {
-                val.validate_order(origin, transaction)
+                val.validate_order(origin, order)
                     .map(|res| ValidationResults::Limit(res))
                     .await
             }
@@ -57,17 +57,17 @@ where
         );
     }
 
-    pub fn validate_orders(&self, transactions: Vec<(OrderOrigin, L)>) {
-        transactions
+    pub fn validate_orders(&self, orders: Vec<(OrderOrigin, L)>) {
+        orders
             .into_iter()
             .for_each(|(origin, tx)| self.validate_order(origin, tx))
     }
 
-    pub fn validate_composable_order(&self, origin: OrderOrigin, transaction: CL) {
+    pub fn validate_composable_order(&self, origin: OrderOrigin, order: CL) {
         let val = self.validator.clone();
         self.pending.push(
             async move {
-                val.validate_composable_order(origin, transaction)
+                val.validate_composable_order(origin, order)
                     .map(|res| ValidationResults::ComposableLimit(res))
                     .await
             }
@@ -75,17 +75,17 @@ where
         );
     }
 
-    pub fn validate_composable_orders(&self, transactions: Vec<(OrderOrigin, CL)>) {
-        transactions
+    pub fn validate_composable_orders(&self, orders: Vec<(OrderOrigin, CL)>) {
+        orders
             .into_iter()
             .for_each(|(origin, tx)| self.validate_composable_order(origin, tx))
     }
 
-    pub fn validate_searcher_order(&self, origin: OrderOrigin, transaction: S) {
+    pub fn validate_searcher_order(&self, origin: OrderOrigin, order: S) {
         let val = self.validator.clone();
         self.pending.push(
             async move {
-                val.validate_searcher_order(origin, transaction)
+                val.validate_searcher_order(origin, order)
                     .map(|res| ValidationResults::Searcher(res))
                     .await
             }
@@ -93,17 +93,17 @@ where
         );
     }
 
-    pub fn validate_searcher_orders(&self, transactions: Vec<(OrderOrigin, S)>) {
-        transactions
+    pub fn validate_searcher_orders(&self, orders: Vec<(OrderOrigin, S)>) {
+        orders
             .into_iter()
             .for_each(|(origin, tx)| self.validate_searcher_order(origin, tx))
     }
 
-    pub fn validate_composable_searcher_order(&self, origin: OrderOrigin, transaction: CS) {
+    pub fn validate_composable_searcher_order(&self, origin: OrderOrigin, order: CS) {
         let val = self.validator.clone();
         self.pending.push(
             async move {
-                val.validate_composable_searcher_order(origin, transaction)
+                val.validate_composable_searcher_order(origin, order)
                     .map(|res| ValidationResults::ComposableSearcher(res))
                     .await
             }
@@ -111,8 +111,8 @@ where
         );
     }
 
-    pub fn validate_composable_searcher_orders(&self, transactions: Vec<(OrderOrigin, CS)>) {
-        transactions
+    pub fn validate_composable_searcher_orders(&self, orders: Vec<(OrderOrigin, CS)>) {
+        orders
             .into_iter()
             .for_each(|(origin, tx)| self.validate_composable_searcher_order(origin, tx))
     }
@@ -124,12 +124,7 @@ where
     CL: PooledOrder,
     S: PooledOrder,
     CS: PooledOrder,
-    V: OrderValidator<
-        LimitOrder = L,
-        SearcherOrder = S,
-        ComposableLimitOrder = CL,
-        ComposableSearcherOrder = CS
-    >
+    V: OrderValidator
 {
     type Item = ValidationResults<L, CL, S, CS>;
 
