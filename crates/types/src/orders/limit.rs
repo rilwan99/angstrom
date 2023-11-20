@@ -15,7 +15,13 @@ pub trait PooledLimitOrder: PooledOrder {
 }
 
 pub trait LimitOrderValidation {
-    fn data(&self) -> u8;
+    fn priority_data(&self) -> OrderPriorityData;
+}
+
+impl LimitOrderValidation for OrderPriorityData {
+    fn priority_data(&self) -> OrderPriorityData {
+        self.clone()
+    }
 }
 
 pub trait ComposableLimitOrderValidation {
@@ -23,7 +29,7 @@ pub trait ComposableLimitOrderValidation {
 }
 
 impl PooledOrder for EcRecoveredLimitOrder {
-    type ValidationData = ();
+    type ValidationData = OrderPriorityData;
 
     fn is_valid(&self) -> bool {
         todo!()
