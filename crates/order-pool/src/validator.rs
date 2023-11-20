@@ -3,7 +3,7 @@ use std::{
     task::{Context, Poll}
 };
 
-use futures_util::{stream::FuturesUnordered, Future, Stream, StreamExt};
+use futures_util::{stream::FuturesUnordered, Future, FutureExt, Stream, StreamExt};
 use guard_types::orders::{OrderOrigin, PooledOrder};
 use validation::order::{OrderValidationOutcome, OrderValidator};
 
@@ -20,8 +20,6 @@ where
     ComposableSearcher(OrderValidationOutcome<CS>)
 }
 
-
-
 pub struct Validator<L, CL, S, CS, V>
 where
     L: PooledOrder,
@@ -31,9 +29,7 @@ where
     V: OrderValidator
 {
     validator: V,
-    pending: FuturesUnordered<
-        Pin<Box<dyn Future<Output = ValidationResults<L, CL, S, CS>> + Send + Sync>>
-    >
+    pending:   FuturesUnordered<Pin<Box<dyn Future<Output = ValidationResults<L, CL, S, CS>>>>>
 }
 
 impl<L, CL, S, CS, V> Validator<L, CL, S, CS, V>
@@ -49,43 +45,73 @@ where
         ComposableSearcherOrder = CS
     >
 {
-    fn validate_order(&self, origin: OrderOrigin, transaction: L) {
-        self.validator.validate_order(origin, transaction).map(|
-        todo!()
+    pub fn validate_order(&self, origin: OrderOrigin, transaction: L) {
+        let val = self.validator.clone();
+        self.pending.push(
+            async move {
+                val.validate_order(origin, transaction)
+                    .map(|res| ValidationResults::Limit(res))
+                    .await
+            }
+            .boxed()
+        );
     }
 
-    /// Validates a batch of orders.
-    ///
-    /// Must return all outcomes for the given orders in the same order.
-
-    fn validate_orders(&self, transactions: Vec<(OrderOrigin, L)>) {
+    pub fn validate_orders(&self, transactions: Vec<(OrderOrigin, L)>) {
+        transactions
+            .into_iter()
+            .for_each(|(origin, tx)| self.validate_order(origin, tx))
     }
 
-    fn validate_composable_order(&self, origin: OrderOrigin, transaction: CL) {
-        todo!()
+    pub fn validate_composable_order(&self, origin: OrderOrigin, transaction: CL) {
+        let val = self.validator.clone();
+        self.pending.push(
+            async move {
+                val.validate_composable_order(origin, transaction)
+                    .map(|res| ValidationResults::ComposableLimit(res))
+                    .await
+            }
+            .boxed()
+        );
     }
 
-    fn validate_composable_orders(&self, transactions: Vec<(OrderOrigin, CL)>) {
+    pub fn validate_composable_orders(&self, transactions: Vec<(OrderOrigin, CL)>) {
         transactions
             .into_iter()
             .for_each(|(origin, tx)| self.validate_composable_order(origin, tx))
     }
 
-    fn validate_searcher_order(&self, origin: OrderOrigin, transaction: S) {
-        todo!()
+    pub fn validate_searcher_order(&self, origin: OrderOrigin, transaction: S) {
+        let val = self.validator.clone();
+        self.pending.push(
+            async move {
+                val.validate_searcher_order(origin, transaction)
+                    .map(|res| ValidationResults::Searcher(res))
+                    .await
+            }
+            .boxed()
+        );
     }
 
-    fn validate_searcher_orders(&self, transactions: Vec<(OrderOrigin, S)>) {
+    pub fn validate_searcher_orders(&self, transactions: Vec<(OrderOrigin, S)>) {
         transactions
             .into_iter()
             .for_each(|(origin, tx)| self.validate_searcher_order(origin, tx))
     }
 
-    fn validate_composable_searcher_order(&self, origin: OrderOrigin, transaction: CS) {
-        todo!()
+    pub fn validate_composable_searcher_order(&self, origin: OrderOrigin, transaction: CS) {
+        let val = self.validator.clone();
+        self.pending.push(
+            async move {
+                val.validate_composable_searcher_order(origin, transaction)
+                    .map(|res| ValidationResults::ComposableSearcher(res))
+                    .await
+            }
+            .boxed()
+        );
     }
 
-    fn validate_composable_searcher_orders(&self, transactions: Vec<(OrderOrigin, CS)>) {
+    pub fn validate_composable_searcher_orders(&self, transactions: Vec<(OrderOrigin, CS)>) {
         transactions
             .into_iter()
             .for_each(|(origin, tx)| self.validate_composable_searcher_order(origin, tx))

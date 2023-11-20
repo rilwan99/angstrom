@@ -6,7 +6,7 @@ use guard_types::orders::{
 use tokio::sync::mpsc::Sender;
 use validation::order::{OrderValidationOutcome, OrderValidator};
 
-use crate::{limit::LimitOrderPool, searcher::SearcherPool};
+use crate::{limit::LimitOrderPool, searcher::SearcherPool, validator::Validator};
 
 pub struct OrderPoolInner<L, CL, S, CS, V>
 where
@@ -19,7 +19,7 @@ where
     limit_pool:   LimitOrderPool<L, CL>,
     sercher_pool: SearcherPool<S, CS>,
 
-    validator: V
+    validator: Validator<L, CL, S, CS, V>
 }
 
 impl<L, CL, S, CS, V> OrderPoolInner<L, CL, S, CS, V>
@@ -43,3 +43,4 @@ where
         todo!()
     }
 }
+

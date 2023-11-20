@@ -12,7 +12,7 @@ pub use origin::*;
 pub use priority::*;
 pub use searcher::*;
 
-pub trait PooledOrder: fmt::Debug + Send + Sync + Clone {
+pub trait PooledOrder: fmt::Debug + Send + Sync + Clone + 'static{
     type ValidationData: Send + Sync + Clone;
 
     /// Hash of the order
