@@ -53,6 +53,13 @@ where
     pub fn new_composable_limit(&mut self, origin: OrderOrigin, order: CL) {
         self.validator.validate_composable_order(origin, order);
     }
+
+    pub fn new_searcher_order(&mut self, origin: OrderOrigin, order: S) {
+        self.validator.validate_searcher_order(origin, order)
+    }
+    pub fn new_composable_searcher_order(&mut self, origin: OrderOrigin, order: CS) {
+        self.validator.validate_composable_searcher_order(origin, order)
+    }
 }
 
 // impl Future for OrderPoolInner<>
