@@ -305,18 +305,18 @@ impl TryFrom<usize> for EthMessageID {
 /// message payload and request id.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct RequestPair<T> {
+pub struct RequestPair<O> {
     /// id for the contained request or response message
     pub request_id: u64,
 
     /// the request or response message payload
-    pub message: T
+    pub message: O
 }
 
 /// Allows messages with request ids to be serialized into RLP bytes.
-impl<T> Encodable for RequestPair<T>
+impl<O> Encodable for RequestPair<O>
 where
-    T: Encodable
+    O: Encodable
 {
     fn encode(&self, out: &mut dyn alloy_rlp::BufMut) {
         let header = Header {
@@ -339,13 +339,13 @@ where
 }
 
 /// Allows messages with request ids to be deserialized into RLP bytes.
-impl<T> Decodable for RequestPair<T>
+impl<O> Decodable for RequestPair<O>
 where
-    T: Decodable
+    O: Decodable
 {
     fn decode(buf: &mut &[u8]) -> Result<Self, alloy_rlp::Error> {
         let _header = Header::decode(buf)?;
-        Ok(Self { request_id: u64::decode(buf)?, message: T::decode(buf)? })
+        Ok(Self { request_id: u64::decode(buf)?, message: O::decode(buf)? })
     }
 }
 

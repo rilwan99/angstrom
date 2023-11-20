@@ -1,15 +1,15 @@
 use std::collections::HashMap;
 
-use guard_types::orders::{OrderId, PooledComposableOrder, PooledLimitOrder};
-
-use super::{pending::PendingPool, LimitPoolError};
-use crate::{
-    common::{BidAndAsks, PoolId},
-    limit::ValidOrder
+use guard_types::{
+    orders::{OrderId, PooledComposableOrder, PooledLimitOrder},
+    primitive::PoolId
 };
 
-pub struct ComposableLimitPool<T: PooledComposableOrder + PooledLimitOrder>(
-    HashMap<PoolId, PendingPool<T>>
+use super::{pending::PendingPool, LimitPoolError};
+use crate::common::{BidAndAsks, ValidOrder};
+
+pub struct ComposableLimitPool<O: PooledComposableOrder + PooledLimitOrder>(
+    HashMap<PoolId, PendingPool<O>>
 );
 
 impl<T: PooledComposableOrder + PooledLimitOrder> ComposableLimitPool<T> {

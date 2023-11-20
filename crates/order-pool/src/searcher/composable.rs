@@ -1,8 +1,9 @@
 use std::collections::{BTreeMap, HashMap};
 
-use guard_types::orders::{OrderId, PooledComposableOrder, PooledSearcherOrder};
-
-use crate::common::PoolId;
+use guard_types::{
+    orders::{OrderId, PooledComposableOrder, PooledSearcherOrder},
+    primitive::PoolId
+};
 
 pub struct ComposableSearcherPool<T: PooledComposableOrder + PooledSearcherOrder>(
     HashMap<PoolId, PendingPool<T>>

@@ -1,15 +1,15 @@
 mod limit;
 mod order_id;
+mod order_metadata;
 mod origin;
-mod priority;
 mod searcher;
 use std::fmt;
 
 use alloy_primitives::{Address, Bytes, TxHash, U128, U256};
 pub use limit::*;
 pub use order_id::*;
+pub use order_metadata::*;
 pub use origin::*;
-pub use priority::*;
 pub use searcher::*;
 
 pub trait PooledOrder: fmt::Debug + Send + Sync + Clone {

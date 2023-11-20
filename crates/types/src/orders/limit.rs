@@ -1,8 +1,10 @@
 use alloy_primitives::{Address, Bytes, TxHash, U256};
 
-use super::{OrderId, OrderOrigin, OrderPriorityData, PooledComposableOrder, PooledOrder};
+use super::{
+    OrderId, OrderOrigin, OrderPriorityData, PooledComposableOrder, PooledOrder, ValidationMetadata
+};
 use crate::{
-    primitive::{ComposableOrder, Order, PoolKey},
+    primitive::{ComposableOrder, Order, PoolId},
     rpc::{
         EcRecoveredComposableLimitOrder, EcRecoveredComposableSearcherOrder, EcRecoveredLimitOrder,
         EcRecoveredSearcherOrder, SignedComposableLimitOrder
@@ -11,16 +13,26 @@ use crate::{
 
 pub trait PooledLimitOrder: PooledOrder {
     /// The liquidity pool this order trades in
-    fn pool_and_direction(&self) -> (u8, bool);
+    fn pool_and_direction(&self) -> (PoolId, bool);
 }
 
 pub trait LimitOrderValidation {
+    fn pool_id(&self) -> PoolId;
+    fn is_bid(&self) -> bool;
     fn priority_data(&self) -> OrderPriorityData;
 }
 
-impl LimitOrderValidation for OrderPriorityData {
+impl LimitOrderValidation for ValidationMetadata {
+    fn is_bid(&self) -> bool {
+        self.is_bid
+    }
+
+    fn pool_id(&self) -> PoolId {
+        self.pool_id
+    }
+
     fn priority_data(&self) -> OrderPriorityData {
-        self.clone()
+        self.priority_data.clone()
     }
 }
 
@@ -29,7 +41,7 @@ pub trait ComposableLimitOrderValidation {
 }
 
 impl PooledOrder for EcRecoveredLimitOrder {
-    type ValidationData = OrderPriorityData;
+    type ValidationData = ValidationMetadata;
 
     fn is_valid(&self) -> bool {
         todo!()
@@ -89,14 +101,14 @@ impl PooledOrder for EcRecoveredLimitOrder {
 }
 
 impl PooledLimitOrder for EcRecoveredLimitOrder {
-    fn pool_and_direction(&self) -> (u8, bool) {
+    fn pool_and_direction(&self) -> (PoolId, bool) {
         //(self.signed_order.order.pool, self.signed_order.order.direction)
         todo!()
     }
 }
 
 impl PooledOrder for EcRecoveredComposableLimitOrder {
-    type ValidationData = ();
+    type ValidationData = ValidationMetadata;
 
     fn is_valid(&self) -> bool {
         todo!()
@@ -156,7 +168,7 @@ impl PooledOrder for EcRecoveredComposableLimitOrder {
 }
 
 impl PooledLimitOrder for EcRecoveredComposableLimitOrder {
-    fn pool_and_direction(&self) -> (u8, bool) {
+    fn pool_and_direction(&self) -> (usize, bool) {
         //(self.signed_order.order.pool, self.signed_order.order.direction)
         todo!()
     }
