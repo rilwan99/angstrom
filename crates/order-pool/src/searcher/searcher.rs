@@ -11,7 +11,21 @@ use guard_types::{
 
 use super::{SearcherOrderLocation, SearcherPoolError};
 
-pub struct VanillaSearcherPool<T: PooledSearcherOrder>(HashMap<PoolId, PendingPool<T>>);
+pub struct VanillaSearcherPool<O: PooledSearcherOrder> {
+    sub_pools: Vec<PendingPool<O>>
+}
+
+impl<O: PooledSearcherOrder> VanillaSearcherPool<O>
+where
+    O: PooledSearcherOrder<ValidationData = ValidatedOrder<O, SearcherPriorityData>>
+{
+    pub fn new(max_size: Option<usize>) -> Self {
+        let sub_pools = (0..max_size.unwrap_or(15)) // Default to 15 if None
+            .map(|_| PendingPool::new())
+            .collect();
+        VanillaSearcherPool { sub_pools }
+    }
+}
 
 pub struct PendingPool<O: PooledSearcherOrder> {
     orders:       HashMap<B256, O>,

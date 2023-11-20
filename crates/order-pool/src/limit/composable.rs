@@ -27,7 +27,7 @@ where
         let id = order.order_id();
         self.0
             .get_mut(&id.pool_id)
-            .map(|pool| pool.new_order(order))
+            .map(|pool| pool.add_order(order))
             .ok_or_else(|| LimitPoolError::NoPool(id.pool_id))
     }
 

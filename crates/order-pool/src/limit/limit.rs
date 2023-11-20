@@ -29,7 +29,7 @@ where
         if order.is_valid() {
             self.pending_orders
                 .get_mut(pool_id)
-                .map(|pool| pool.new_order(order))
+                .map(|pool| pool.add_order(order))
                 .ok_or_else(|| LimitPoolError::NoPool(pool_id))?;
             Ok(LimitOrderLocation::LimitPending)
         } else {
