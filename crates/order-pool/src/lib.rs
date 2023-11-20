@@ -3,6 +3,7 @@ mod inner;
 mod limit;
 mod searcher;
 mod traits;
+mod validator;
 
 use std::{
     collections::HashMap,
@@ -27,16 +28,17 @@ use guard_types::{
 };
 use inner::OrderPoolInner;
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
-use reth_network::NetworkEvent;
+use reth_network::{peers::Peer, NetworkEvent, NetworkHandle};
 use reth_primitives::PeerId;
 use tokio::sync::{
     mpsc,
-    mpsc::{Receiver, Sender}
+    mpsc::{Receiver, Sender},
+    oneshot
 };
 use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
 use validation::{order::OrderValidator, RevmClient};
 
-pub type DefaultOrderPool = OrderPool<
+type DefaultOrderPool = OrderPool<
     EcRecoveredLimitOrder,
     EcRecoveredComposableLimitOrder,
     EcRecoveredSearcherOrder,
@@ -70,13 +72,11 @@ where
     inner: OrderPoolInner<L, CL, S, CS, V>,
 
     /// Ethereum Data updates
-    eth_network_events: Pin<Box<dyn Stream<Item = EthNetworkEvent>>>,
+    eth_network_events:    Pin<Box<dyn Stream<Item = EthNetworkEvent>>>,
     /// allows for external services to access data.
-    command_rx:         ReceiverStream<OrderPoolCommand>,
-
-    // subscribers:
+    command_rx:            ReceiverStream<OrderPoolCommand>,
     /// Network access.
-    // network:               NetworkHandle,
+    network:               NetworkHandle,
     /// Subscriptions to all network related events.
     ///
     /// From which we get all new incoming transaction related messages.
@@ -92,19 +92,13 @@ where
     // /// Transactions that are currently imported into the `Pool`
     // pool_imports:          FuturesUnordered<PoolImportFuture>,
     // /// All the connected peers.
-    // peers:                 HashMap<PeerId, Peer>,
-    // /// Send half for the command channel.
-    // command_tx:            mpsc::UnboundedSender<TransactionsCommand>,
-    // /// Incoming commands from [`TransactionsHandle`].
-    // command_rx:            UnboundedReceiverStream<TransactionsCommand>,
-    // /// Incoming commands from [`TransactionsHandle`].
-    // pending_transactions:  ReceiverStream<TxHash>,
+    peers: HashMap<PeerId, Peer>,
     // /// Incoming events from the [`NetworkManager`](crate::NetworkManager).
     // transaction_events:    UnboundedMeteredReceiver<NetworkTransactionEvent>,
     // /// TransactionsManager metrics
     // metrics:               TransactionsManagerMetrics
     // TODO: placeholder to avoid bad fmt
-    _p: ()
+    _p:    ()
 }
 
 impl<L, CL, S, CS, V> Future for OrderPool<L, CL, S, CS, V>

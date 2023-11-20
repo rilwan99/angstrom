@@ -33,24 +33,13 @@ where
         SearcherOrder = S,
         ComposableLimitOrder = CL,
         ComposableSearcherOrder = CS
-    >,
-    <L as PooledOrder>::ValidationData: LimitOrderValidation,
-    <CL as PooledOrder>::ValidationData: ComposableLimitOrderValidation,
-    <S as PooledOrder>::ValidationData: SearcherOrderValidation,
-    <CS as PooledOrder>::ValidationData: ComposableSearcherOrderValidation
+    >
 {
     pub async fn validate_limit(
         &mut self,
         origin: OrderOrigin,
         order: L
     ) -> OrderValidationOutcome<L> {
-        let res = self.validator.validate_order(origin, order).await;
-        match res {
-            OrderValidationOutcome::Valid { order, propagate } => {
-                let a = order.data.priority_data();
-            }
-            _ => todo!()
-        }
         todo!()
     }
 }
