@@ -1,15 +1,13 @@
 use std::marker::PhantomData;
 
 use guard_types::orders::{
-    OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder
+    ComposableLimitOrderValidation, LimitOrderValidation, OrderOrigin, PooledComposableOrder,
+    PooledLimitOrder, PooledOrder, PooledSearcherOrder, SearcherOrderValidation
 };
 use tokio::sync::mpsc::Sender;
 use validation::order::{OrderValidationOutcome, OrderValidator};
 
-use crate::{
-    limit::LimitOrderPool, searcher::SearcherPool, ComposableLimitOrderValidation,
-    LimitOrderValidation, SearcherOrderValidation
-};
+use crate::{limit::LimitOrderPool, searcher::SearcherPool};
 
 pub struct OrderPoolInner<L, CL, S, CS, V>
 where
@@ -54,7 +52,7 @@ where
         let res = self.validator.validate_order(origin, order).await;
         match res {
             OrderValidationOutcome::Valid { order, propagate } => {
-                let a = order.data.data();
+                let a = order.data.priority_data();
             }
             _ => todo!()
         }

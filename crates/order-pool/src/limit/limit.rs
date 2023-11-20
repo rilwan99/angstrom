@@ -1,15 +1,12 @@
 use std::collections::HashMap;
 
 use guard_types::{
-    orders::{LimitOrderValidation, OrderId, PooledLimitOrder},
+    orders::{LimitOrderValidation, OrderId, PooledLimitOrder, PooledOrder},
     primitive::PoolId
 };
 
 use super::{parked::ParkedPool, pending::PendingPool, LimitOrderLocation, LimitPoolError};
-use crate::{
-    common::{BidAndAsks, ValidOrder},
-    limit::PooledOrder
-};
+use crate::common::{BidAndAsks, ValidOrder};
 
 pub struct LimitPool<T: PooledLimitOrder>
 where
