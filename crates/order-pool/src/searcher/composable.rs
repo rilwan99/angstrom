@@ -6,7 +6,7 @@ use guard_types::{
 };
 
 pub struct ComposableSearcherPool<T: PooledComposableOrder + PooledSearcherOrder>(
-    HashMap<PoolId, PendingPool<T>>
+    Vec<PendingPool<T>>
 );
 
 pub struct PendingPool<T: PooledSearcherOrder + PooledComposableOrder> {

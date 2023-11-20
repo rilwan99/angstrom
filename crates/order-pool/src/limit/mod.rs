@@ -2,16 +2,15 @@ use std::{collections::HashMap, fmt::Debug};
 
 use guard_types::{
     orders::{
-        ComposableLimitOrderValidation, LimitOrderValidation, OrderId, PooledComposableOrder,
-        PooledLimitOrder, PooledOrder
+        OrderId, OrderPriorityData, PooledComposableOrder, PooledLimitOrder, PooledOrder,
+        ValidatedOrder
     },
     primitive::PoolId
 };
 use reth_primitives::{alloy_primitives::Address, B256, U256};
-use validation::order::ValidatedOrder;
 
 use self::{composable::ComposableLimitPool, limit::LimitPool};
-use crate::{common::SizeTracker, ValidOrder};
+use crate::common::SizeTracker;
 
 mod composable;
 mod limit;
@@ -38,12 +37,11 @@ where
     size:                SizeTracker
 }
 
-impl<T: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrderPool<T, C>
+impl<O: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrderPool<O, C>
 where
-    T: PooledLimitOrder,
-    C: PooledComposableOrder + PooledLimitOrder,
-    <T as PooledOrder>::ValidationData: LimitOrderValidation,
-    <C as PooledOrder>::ValidationData: ComposableLimitOrderValidation
+    O: PooledLimitOrder<ValidationData = ValidatedOrder<O, OrderPriorityData>>,
+    C: PooledComposableOrder
+        + PooledLimitOrder<ValidationData = ValidatedOrder<C, OrderPriorityData>>
 {
     pub fn new(max_size: Option<usize>) -> Self {
         Self {
@@ -56,7 +54,10 @@ where
         }
     }
 
-    pub fn new_composable_order(&mut self, order: ValidOrder<C>) -> Result<(), LimitPoolError> {
+    pub fn new_composable_order(
+        &mut self,
+        order: ValidatedOrder<C, OrderPriorityData>
+    ) -> Result<(), LimitPoolError> {
         let id = order.order_id();
 
         let size = order.size();
@@ -72,7 +73,10 @@ where
         Ok(())
     }
 
-    pub fn new_limit_order(&mut self, order: ValidOrder<T>) -> Result<(), LimitPoolError> {
+    pub fn new_limit_order(
+        &mut self,
+        order: ValidatedOrder<O, OrderPriorityData>
+    ) -> Result<(), LimitPoolError> {
         let id = order.order_id();
 
         let size = order.size();
@@ -91,7 +95,8 @@ where
     pub fn filled_orders(
         &mut self,
         orders: &Vec<B256>
-    ) -> RegularAndLimit<ValidOrder<T>, ValidOrder<C>> {
+    ) -> RegularAndLimit<ValidatedOrder<O, OrderPriorityData>, ValidatedOrder<C, OrderPriorityData>>
+    {
         // remove from lower level + hash locations;
         let (left, right): (Vec<_>, Vec<_>) = orders
             .iter()
@@ -127,7 +132,8 @@ where
     pub fn changed_user_state(
         &mut self,
         users: &Vec<Address>
-    ) -> RegularAndLimit<ValidOrder<T>, ValidOrder<C>> {
+    ) -> RegularAndLimit<ValidatedOrder<O, OrderPriorityData>, ValidatedOrder<C, OrderPriorityData>>
+    {
         let (left, right): (Vec<_>, Vec<_>) = users
             .iter()
             // remove user
@@ -154,7 +160,10 @@ where
     pub fn fetch_all_pool_orders(
         &mut self,
         id: &PoolId
-    ) -> RegularAndLimitRef<ValidOrder<T>, ValidOrder<C>> {
+    ) -> RegularAndLimitRef<
+        ValidatedOrder<O, OrderPriorityData>,
+        ValidatedOrder<C, OrderPriorityData>
+    > {
         (
             self.limit_orders.fetch_all_pool_orders(id),
             self.composable_orders.fetch_all_pool_orders(id)
@@ -166,15 +175,13 @@ where
 impl<T, C> LimitOrderPool<T, C>
 where
     T: PooledLimitOrder,
-    C: PooledComposableOrder + PooledLimitOrder,
-    <T as PooledOrder>::ValidationData: LimitOrderValidation,
-    <C as PooledOrder>::ValidationData: ComposableLimitOrderValidation
+    C: PooledComposableOrder + PooledLimitOrder
 {
     /// Helper function for unzipping and size adjustment
     fn filter_option_and_adjust_size<O: PooledOrder>(
         &mut self,
-        order: Vec<Option<ValidOrder<O>>>
-    ) -> Vec<ValidOrder<O>> {
+        order: Vec<Option<ValidatedOrder<O, OrderPriorityData>>>
+    ) -> Vec<ValidatedOrder<O, OrderPriorityData>> {
         order
             .into_iter()
             .filter_map(|order| order)

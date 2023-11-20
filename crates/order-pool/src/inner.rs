@@ -5,9 +5,7 @@ use std::{
 
 use futures_util::{Future, Stream, StreamExt};
 use guard_types::orders::{
-    ComposableLimitOrderValidation, ComposableSearcherOrderValidation, LimitOrderValidation,
-    OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder,
-    SearcherOrderValidation
+    OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder
 };
 use tokio::sync::mpsc::Sender;
 use validation::order::{OrderValidationOutcome, OrderValidator};
@@ -70,11 +68,7 @@ where
     CL: PooledComposableOrder + PooledLimitOrder,
     S: PooledSearcherOrder,
     CS: PooledComposableOrder + PooledSearcherOrder,
-    V: OrderValidator,
-    <L as PooledOrder>::ValidationData: LimitOrderValidation,
-    <CL as PooledOrder>::ValidationData: ComposableLimitOrderValidation,
-    <S as PooledOrder>::ValidationData: SearcherOrderValidation,
-    <CS as PooledOrder>::ValidationData: ComposableSearcherOrderValidation
+    V: OrderValidator
 {
     fn handle_validated_order(&mut self, res: ValidationResults<L, CL, S, CS>) {}
 }
@@ -86,11 +80,7 @@ where
     CL: PooledComposableOrder + PooledLimitOrder,
     S: PooledSearcherOrder,
     CS: PooledComposableOrder + PooledSearcherOrder,
-    V: OrderValidator,
-    <L as PooledOrder>::ValidationData: LimitOrderValidation,
-    <CL as PooledOrder>::ValidationData: ComposableLimitOrderValidation,
-    <S as PooledOrder>::ValidationData: SearcherOrderValidation,
-    <CS as PooledOrder>::ValidationData: ComposableSearcherOrderValidation
+    V: OrderValidator
 {
     type Item = ();
 
