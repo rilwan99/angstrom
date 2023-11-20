@@ -14,19 +14,10 @@ pub enum OrderValidationOutcome<O: PooledOrder> {
     /// The transaction is considered _currently_ valid and can be inserted into
     /// the pool.
     Valid {
-        /// Balance of the sender at the current point.
-        balance:     U256,
-        /// Current nonce of the sender.
-        state_nonce: u64,
-        /// The validated transaction.
-        ///
-        /// See also [ValidTransaction].
-        ///
-        /// If this is a _new_ EIP-4844 blob transaction, then this must contain
-        /// the extracted sidecar.
-        order:       ValidatedOrder<O, O::ValidationData>,
-        /// Whether to propagate the transaction to the network.
-        propagate:   bool
+        /// The validated order
+        order:     ValidatedOrder<O, O::ValidationData>,
+        /// Whether to propagate the order to the network.
+        propagate: bool
     },
     /// The transaction is considered invalid indefinitely: It violates
     /// constraints that prevent this transaction from ever becoming valid.
@@ -58,45 +49,23 @@ pub trait OrderValidator: Send + Sync {
     /// The transaction type of the composable searcher order pool
     type ComposableSearcherOrder: PooledComposableOrder + PooledSearcherOrder;
 
-    /// Validates the transaction and returns a [`OrderValidationOutcome`]
-    /// describing the validity of the given transaction.
+    /// Validates the order and returns a [`OrderValidationOutcome`]
+    /// describing the validity of the given order
     ///
-    /// This will be used by the transaction-pool to check whether the
+    /// This will be used by the order-pool to check whether the
     /// transaction should be inserted into the pool or discarded right
     /// away.
-    ///
-    /// Implementers of this trait must ensure that the transaction is
-    /// well-formed, i.e. that it complies at least all static constraints,
-    /// which includes checking for:
-    ///
-    ///    * chain id
-    ///    * gas limit
-    ///    * max cost
-    ///    * nonce >= next nonce of the sender
-    ///    * ...
-    ///
-    /// See [InvalidTransactionError](reth_primitives::InvalidTransactionError)
-    /// for common errors variants.
-    ///
-    /// The transaction pool makes no additional assumptions about the validity
-    /// of the transaction at the time of this call before it inserts it
-    /// into the pool. However, the validity of this transaction is still
-    /// subject to future (dynamic) changes enforced by the pool, for
-    /// example nonce or balance changes. Hence, any validation checks must be
-    /// applied in this function.
-    ///
-    /// See [TransactionValidationTaskExecutor] for a reference implementation.
+
     async fn validate_order(
         &self,
         origin: OrderOrigin,
         transaction: Self::LimitOrder
     ) -> OrderValidationOutcome<Self::LimitOrder>;
 
-    /// Validates a batch of transactions.
+    /// Validates a batch of orders.
     ///
-    /// Must return all outcomes for the given transactions in the same order.
-    ///
-    /// See also [Self::validate_transaction].
+    /// Must return all outcomes for the given orders in the same order.
+
     async fn validate_orders(
         &self,
         transactions: Vec<(OrderOrigin, Self::LimitOrder)>

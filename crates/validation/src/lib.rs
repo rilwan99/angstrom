@@ -83,6 +83,8 @@ impl OrderValidator for RevmClient {
 /// Bundle Impl
 #[async_trait::async_trait]
 impl BundleValidator for RevmClient {
+    //TODO: Fix this, to whitebox simulate the swap directly, because it isn't a
+    // full transaction and should not be validated as such
     async fn validate_v4_tx(&self, tx: TypedTransaction) -> Result<SimResult, SimError> {
         let (sender, rx) = channel();
         self.transaction_tx.send(SimEvent::UniswapV4(tx, sender))?;
