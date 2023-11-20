@@ -3,7 +3,9 @@ use std::collections::{BTreeMap, HashMap};
 use alloy_primitives::{Address, B256};
 use composable::ComposableSearcherPool;
 use guard_types::{
-    orders::{OrderId, PooledComposableOrder, PooledSearcherOrder},
+    orders::{
+        OrderId, PooledComposableOrder, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
+    },
     primitive::PoolId
 };
 
@@ -13,13 +15,31 @@ use crate::common::SizeTracker;
 mod composable;
 mod searcher;
 
-pub struct SearcherPool<T: PooledSearcherOrder, C: PooledComposableOrder + PooledSearcherOrder> {
+pub struct SearcherPool<O: PooledSearcherOrder, C: PooledComposableOrder + PooledSearcherOrder> {
+    /// used for nonce lookup.
+    user_to_id: HashMap<Address, Vec<OrderId>>,
     /// Holds all non composable searcher order pools
-    searcher_orders: VanillaSearcherPool<T>,
+    searcher_orders: VanillaSearcherPool<O>,
     /// Holds all composable searcher order pools
     composable_searcher_orders: ComposableSearcherPool<C>,
     /// The size of the current transactions.
     size: SizeTracker
+}
+
+impl<O: PooledSearcherOrder, C: PooledSearcherOrder + PooledComposableOrder> SearcherPool<O, C>
+where
+    O: PooledSearcherOrder<ValidationData = ValidatedOrder<O, SearcherPriorityData>>,
+    C: PooledComposableOrder
+        + PooledSearcherOrder<ValidationData = ValidatedOrder<C, SearcherPriorityData>>
+{
+    pub fn new(max_size: Option<usize>) -> Self {
+        Self {
+            user_to_id: HashMap::new(),
+            searcher_orders: VanillaSearcherPool::new(Some(15)),
+            composable_searcher_orders: ComposableSearcherPool::new(),
+            size: SizeTracker { max: max_size, current: 0 }
+        }
+    }
 }
 
 pub enum SearcherOrderLocation {

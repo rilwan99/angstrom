@@ -54,7 +54,7 @@ where
         }
     }
 
-    pub fn new_composable_order(
+    pub fn add_composable_order(
         &mut self,
         order: ValidatedOrder<C, OrderPriorityData>
     ) -> Result<(), LimitPoolError> {
@@ -73,7 +73,7 @@ where
         Ok(())
     }
 
-    pub fn new_limit_order(
+    pub fn add_limit_order(
         &mut self,
         order: ValidatedOrder<O, OrderPriorityData>
     ) -> Result<(), LimitPoolError> {

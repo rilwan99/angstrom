@@ -33,7 +33,7 @@ where
         }
     }
 
-    pub fn new_order(&mut self, order: ValidatedOrder<O, OrderPriorityData>) {
+    pub fn add_order(&mut self, order: ValidatedOrder<O, OrderPriorityData>) {
         let hash = order.hash();
         let priority = order.priority_data();
 
@@ -141,9 +141,8 @@ pub mod test {
     use std::cmp::Ordering;
 
     use alloy_primitives::{Address, U256};
-    use guard_types::orders::*;
+    use guard_types::orders::{ValidatedOrder, *};
     use rand::Rng;
-    use validation::order::ValidatedOrder;
 
     use super::*;
 
@@ -160,10 +159,6 @@ pub mod test {
 
     impl PooledOrder for NoopOrder {
         type ValidationData = ();
-
-        fn order_priority_data(&self) -> OrderPriorityData {
-            OrderPriorityData { price: self.price, balls: self.volume, gas: self.gas }
-        }
 
         fn is_bid(&self) -> bool {
             self.is_bid
