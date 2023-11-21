@@ -1,5 +1,3 @@
-use std::mem::transmute;
-
 use guard_types::orders::{
     OrderLocation, OrderPriorityData, PooledComposableOrder, PooledLimitOrder, PooledOrder,
     PooledSearcherOrder, ValidatedOrder
@@ -43,6 +41,6 @@ where
     }
 
     pub fn new_composable_searcher(order: CS) -> Self {
-        Self::Limit(order)
+        Self::ComposableSearcher(order)
     }
 }

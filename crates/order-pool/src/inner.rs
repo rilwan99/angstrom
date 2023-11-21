@@ -8,8 +8,8 @@ use alloy_primitives::{Address, B256, U256};
 use futures_util::{Future, Stream, StreamExt};
 use guard_types::{
     orders::{
-        OrderId, OrderLocation, OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder,
-        PooledSearcherOrder
+        OrderId, OrderLocation, OrderOrigin, OrderPriorityData, PooledComposableOrder,
+        PooledLimitOrder, PooledOrder, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
     },
     primitive::PoolId
 };
