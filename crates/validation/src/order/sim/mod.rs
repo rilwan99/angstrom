@@ -5,7 +5,4 @@
 /// data (Approvals transfers etc)
 /// 2) Then normal State sim will occur
 /// 3) post-hook will be simmed with updated data to ensure success
-pub struct SimValidation {
-
-}
-
+pub struct SimValidation {}

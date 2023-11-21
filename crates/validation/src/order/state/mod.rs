@@ -8,7 +8,7 @@ mod upkeepers;
 /// 2) checking token balances
 /// 3) checking token approvals
 pub struct StateValidation<DB> {
-    db: DB,
+    db: DB
 }
 
 impl<DB> StateValidation<DB>

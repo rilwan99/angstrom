@@ -9,8 +9,11 @@ use guard_types::orders::{
 
 use crate::common::error::ValidationError;
 
-mod state;
-mod sim;
+pub mod order_validator;
+pub mod sim;
+pub mod state;
+
+pub enum OrderValidationRequest {}
 
 /// A valid order in the pool.
 pub enum OrderValidationOutcome<O: PooledOrder> {

@@ -1,2 +1,1 @@
-pub struct Nonces {
-}
+pub struct Nonces {}
