@@ -2,12 +2,13 @@ use std::collections::{BTreeMap, HashMap};
 
 use guard_types::{
     orders::{
-        OrderId, PooledComposableOrder, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
+        OrderId, OrderLocation, PooledComposableOrder, PooledSearcherOrder, SearcherPriorityData,
+        ValidatedOrder
     },
     primitive::PoolId
 };
 
-use super::{SearcherOrderLocation, SearcherPoolError};
+use super::SearcherPoolError;
 pub struct ComposableSearcherPool<O: PooledComposableOrder + PooledSearcherOrder>(
     Vec<PendingPool<O>>
 );
@@ -33,7 +34,7 @@ where
     pub fn add_order(
         &mut self,
         order: ValidatedOrder<O, SearcherPriorityData>
-    ) -> Result<SearcherOrderLocation, SearcherPoolError> {
+    ) -> Result<OrderLocation, SearcherPoolError> {
         todo!()
     }
 

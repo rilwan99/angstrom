@@ -5,12 +5,11 @@ use std::{
 
 use alloy_primitives::B256;
 use guard_types::{
-    orders::{OrderId, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder},
+    orders::{OrderId, OrderLocation, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder},
     primitive::PoolId
 };
 
-use super::{SearcherOrderLocation, SearcherPoolError};
-
+use super::SearcherPoolError;
 pub struct VanillaSearcherPool<O: PooledSearcherOrder> {
     sub_pools: Vec<PendingPool<O>>
 }
@@ -43,7 +42,7 @@ where
     pub fn add_order(
         &mut self,
         order: ValidatedOrder<O, SearcherPriorityData>
-    ) -> Result<SearcherOrderLocation, SearcherPoolError> {
+    ) -> Result<OrderLocation, SearcherPoolError> {
         todo!()
     }
 

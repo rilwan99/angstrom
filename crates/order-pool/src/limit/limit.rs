@@ -5,7 +5,7 @@ use guard_types::{
     primitive::PoolId
 };
 
-use super::{parked::ParkedPool, pending::PendingPool, LimitOrderLocation, LimitPoolError};
+use super::{parked::ParkedPool, pending::PendingPool, LimitPoolError, OrderLocation};
 use crate::common::BidAndAsks;
 pub struct LimitPool<T: PooledLimitOrder> {
     pending_orders: Vec<PendingPool<T>>,
@@ -23,7 +23,7 @@ where
     pub fn add_order(
         &mut self,
         order: ValidatedOrder<O, OrderPriorityData>
-    ) -> Result<LimitOrderLocation, LimitPoolError> {
+    ) -> Result<OrderLocation, LimitPoolError> {
         let pool_id = order.pool_id();
 
         if order.is_valid() {
@@ -31,30 +31,29 @@ where
                 .get_mut(pool_id)
                 .map(|pool| pool.add_order(order))
                 .ok_or_else(|| LimitPoolError::NoPool(pool_id))?;
-            Ok(LimitOrderLocation::LimitPending)
+            Ok(OrderLocation::LimitPending)
         } else {
             self.parked_orders
                 .get_mut(pool_id)
                 .map(|pool| pool.new_order(order))
                 .ok_or_else(|| LimitPoolError::NoPool(pool_id))?;
-            Ok(LimitOrderLocation::LimitParked)
+            Ok(OrderLocation::LimitParked)
         }
     }
 
     pub fn remove_order(
         &mut self,
-        order_id: &OrderId,
-        location: LimitOrderLocation
+        order_id: &OrderId
     ) -> Option<ValidatedOrder<O, OrderPriorityData>> {
-        match location {
-            LimitOrderLocation::LimitPending => self
+        match order_id.location {
+            OrderLocation::LimitPending => self
                 .pending_orders
                 .get_mut(order_id.pool_id)
                 .and_then(|pool: &mut _| pool.remove_order(order_id.hash)),
-            LimitOrderLocation::LimitParked => self
+            OrderLocation::LimitParked => self
                 .parked_orders
                 .get_mut(order_id.pool_id)
-                .and_then(|pool: &mut _| pool.remove_order(order_id)),
+                .and_then(|pool: &mut _| pool.remove_order(&order_id.hash)),
             _ => unreachable!()
         }
     }
