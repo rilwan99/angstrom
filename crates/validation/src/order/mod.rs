@@ -9,6 +9,9 @@ use guard_types::orders::{
 
 use crate::common::error::ValidationError;
 
+mod state;
+mod sim;
+
 /// A valid order in the pool.
 pub enum OrderValidationOutcome<O: PooledOrder> {
     /// The transaction is considered _currently_ valid and can be inserted into
