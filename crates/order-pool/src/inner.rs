@@ -19,7 +19,8 @@ use validation::order::{OrderValidationOutcome, OrderValidator};
 use crate::{
     limit::LimitOrderPool,
     searcher::SearcherPool,
-    validator::{ValidationResults, Validator}
+    validator::{ValidationResults, Validator},
+    FilledOrders
 };
 
 pub struct OrderPoolInner<L, CL, S, CS, V>
@@ -42,10 +43,13 @@ where
 
 impl<L, CL, S, CS, V> OrderPoolInner<L, CL, S, CS, V>
 where
-    L: PooledLimitOrder,
-    CL: PooledComposableOrder + PooledLimitOrder,
-    S: PooledSearcherOrder,
-    CS: PooledComposableOrder + PooledSearcherOrder,
+    L: PooledLimitOrder<ValidationData = ValidatedOrder<L, OrderPriorityData>>,
+    CL: PooledComposableOrder
+        + PooledLimitOrder<ValidationData = ValidatedOrder<CL, OrderPriorityData>>,
+
+    S: PooledSearcherOrder<ValidationData = ValidatedOrder<S, SearcherPriorityData>>,
+    CS: PooledComposableOrder
+        + PooledSearcherOrder<ValidationData = ValidatedOrder<CS, SearcherPriorityData>>,
     V: OrderValidator<
         LimitOrder = L,
         SearcherOrder = S,
@@ -133,32 +137,37 @@ where
         (self.filter_option_and_adjust_size(left), self.filter_option_and_adjust_size(right))
     } */
 
-    /*
     /// Removes all filled orders from the pools
-    pub fn filled_orders(
-        &mut self,
-        orders: &Vec<B256>
-    ) -> RegularAndLimit<ValidatedOrder<O, OrderPriorityData>, ValidatedOrder<C, OrderPriorityData>>
-    {
+    pub fn filled_orders(&mut self, orders: &Vec<B256>) -> FilledOrders<L, CL, S, CS> {
         // remove from lower level + hash locations;
-        let (left, right): (Vec<_>, Vec<_>) =
-            orders
-                .iter()
-                .filter_map(|order_hash| match location {
-                    OrderLocation::Composable => {
-                        Some((None, self.composable_orders.remove_order(&id)))
-                    }
-                    OrderLocation::LimitPending => {
-                        Some((self.limit_orders.remove_order(&id, location), None))
-                    }
-                    _ => {
-                        unreachable!()
-                    }
-                })
-                .unzip();
+        orders.iter().filter_map(|order_hash| {
+            let pool_id = self.hash_to_order_id.remove(order_hash)?;
+            let loc = pool_id.location;
+            match loc {
+                OrderLocation::Composable => self.limit_pool.remove_limit_order(),
+                OrderLocation::LimitParked => {}
+                OrderLocation::LimitPending => {}
+                OrderLocation::VanillaSearcher => {}
+                OrderLocation::ComposableSearcher => {}
+            }
+
+            Some(0)
+        });
+        let (left, right): (Vec<_>, Vec<_>) = orders
+            .iter()
+            .filter_map(|order_hash| match location {
+                OrderLocation::Composable => Some((None, self.composable_orders.remove_order(&id))),
+                OrderLocation::LimitPending => {
+                    Some((self.limit_orders.remove_order(&id, location), None))
+                }
+                _ => {
+                    unreachable!()
+                }
+            })
+            .unzip();
 
         (self.filter_option_and_adjust_size(left), self.filter_option_and_adjust_size(right))
-    }*/
+    }
 }
 
 impl<L, CL, S, CS, V> OrderPoolInner<L, CL, S, CS, V>
@@ -173,7 +182,7 @@ where
 }
 
 // impl Future for OrderPoolInner<>
-impl<L, CL, S, CS, V> Stream for OrderPoolInner<L, CL, S, CS, V>
+impl<L, CL, S, CS, V> Future for OrderPoolInner<L, CL, S, CS, V>
 where
     L: PooledLimitOrder,
     CL: PooledComposableOrder + PooledLimitOrder,
@@ -181,9 +190,9 @@ where
     CS: PooledComposableOrder + PooledSearcherOrder,
     V: OrderValidator
 {
-    type Item = ();
+    type Output = ();
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         while let Poll::Ready(Some(next)) = self.validator.poll_next_unpin(cx) {
             self.handle_validated_order(next)
         }
