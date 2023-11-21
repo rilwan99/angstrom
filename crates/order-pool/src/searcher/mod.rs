@@ -42,11 +42,6 @@ where
     }
 }
 
-pub enum SearcherOrderLocation {
-    Vanilla,
-    Composable
-}
-
 #[derive(Debug, thiserror::Error)]
 pub enum SearcherPoolError {
     #[error("Pool has reached max size, and order doesn't satisify replacment requirements")]

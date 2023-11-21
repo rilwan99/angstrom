@@ -1,15 +1,13 @@
-mod order_id;
 mod origin;
 use std::fmt;
 
 mod validation;
-
 use std::fmt::Debug;
 
 use alloy_primitives::{Address, Bytes, TxHash, U128, U256};
-pub use order_id::*;
 pub use origin::*;
 pub use validation::*;
+
 pub trait PooledOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
     type ValidationData: Send + Debug + Sync + Clone + Unpin + 'static;
 
