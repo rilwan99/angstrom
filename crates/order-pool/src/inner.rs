@@ -8,8 +8,8 @@ use alloy_primitives::{Address, B256, U256};
 use futures_util::{Future, Stream, StreamExt};
 use guard_types::{
     orders::{
-        OrderId, OrderLocation, OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder,
-        PooledSearcherOrder
+        OrderId, OrderLocation, OrderOrigin, OrderPriorityData, PooledComposableOrder,
+        PooledLimitOrder, PooledOrder, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
     },
     primitive::PoolId
 };
@@ -19,7 +19,8 @@ use validation::order::{OrderValidationOutcome, OrderValidator};
 use crate::{
     limit::LimitOrderPool,
     searcher::SearcherPool,
-    validator::{ValidationResults, Validator}
+    validator::{ValidationResults, Validator},
+    FilledOrder
 };
 
 pub struct OrderPoolInner<L, CL, S, CS, V>
@@ -31,7 +32,7 @@ where
     V: OrderValidator
 {
     limit_pool:        LimitOrderPool<L, CL>,
-    sercher_pool:      SearcherPool<S, CS>,
+    searcher_pool:     SearcherPool<S, CS>,
     /// Address to order id, used for nonce lookups
     address_to_orders: HashMap<Address, Vec<OrderId>>,
     /// Order hash to order id, used for order inclusion lookups
@@ -42,10 +43,13 @@ where
 
 impl<L, CL, S, CS, V> OrderPoolInner<L, CL, S, CS, V>
 where
-    L: PooledLimitOrder,
-    CL: PooledComposableOrder + PooledLimitOrder,
-    S: PooledSearcherOrder,
-    CS: PooledComposableOrder + PooledSearcherOrder,
+    L: PooledLimitOrder<ValidationData = ValidatedOrder<L, OrderPriorityData>>,
+    CL: PooledComposableOrder
+        + PooledLimitOrder<ValidationData = ValidatedOrder<CL, OrderPriorityData>>,
+
+    S: PooledSearcherOrder<ValidationData = ValidatedOrder<S, SearcherPriorityData>>,
+    CS: PooledComposableOrder
+        + PooledSearcherOrder<ValidationData = ValidatedOrder<CS, SearcherPriorityData>>,
     V: OrderValidator<
         LimitOrder = L,
         SearcherOrder = S,
@@ -133,32 +137,35 @@ where
         (self.filter_option_and_adjust_size(left), self.filter_option_and_adjust_size(right))
     } */
 
-    /*
     /// Removes all filled orders from the pools
-    pub fn filled_orders(
-        &mut self,
-        orders: &Vec<B256>
-    ) -> RegularAndLimit<ValidatedOrder<O, OrderPriorityData>, ValidatedOrder<C, OrderPriorityData>>
-    {
+    pub fn filled_orders(&mut self, orders: &Vec<B256>) -> Vec<FilledOrder<L, CL, S, CS>> {
         // remove from lower level + hash locations;
-        let (left, right): (Vec<_>, Vec<_>) =
-            orders
-                .iter()
-                .filter_map(|order_hash| match location {
-                    OrderLocation::Composable => {
-                        Some((None, self.composable_orders.remove_order(&id)))
-                    }
-                    OrderLocation::LimitPending => {
-                        Some((self.limit_orders.remove_order(&id, location), None))
-                    }
-                    _ => {
-                        unreachable!()
-                    }
-                })
-                .unzip();
-
-        (self.filter_option_and_adjust_size(left), self.filter_option_and_adjust_size(right))
-    }*/
+        orders
+            .iter()
+            .filter_map(|order_hash| {
+                let pool_id = self.hash_to_order_id.remove(order_hash)?;
+                let loc = pool_id.location;
+                match loc {
+                    OrderLocation::Composable => self
+                        .limit_pool
+                        .remove_composable_limit_order(order_hash)
+                        .map(FilledOrder::new_composable_limit),
+                    OrderLocation::LimitParked | OrderLocation::LimitPending => self
+                        .limit_pool
+                        .remove_limit_order(order_hash, loc)
+                        .map(FilledOrder::new_limit),
+                    OrderLocation::VanillaSearcher => self
+                        .searcher_pool
+                        .remove_searcher_order(order_hash)
+                        .map(FilledOrder::new_searcher),
+                    OrderLocation::ComposableSearcher => self
+                        .searcher_pool
+                        .remove_composable_searcher_order(order_hash)
+                        .map(FilledOrder::new_composable_searcher)
+                }
+            })
+            .collect()
+    }
 }
 
 impl<L, CL, S, CS, V> OrderPoolInner<L, CL, S, CS, V>
@@ -173,7 +180,7 @@ where
 }
 
 // impl Future for OrderPoolInner<>
-impl<L, CL, S, CS, V> Stream for OrderPoolInner<L, CL, S, CS, V>
+impl<L, CL, S, CS, V> Future for OrderPoolInner<L, CL, S, CS, V>
 where
     L: PooledLimitOrder,
     CL: PooledComposableOrder + PooledLimitOrder,
@@ -181,9 +188,9 @@ where
     CS: PooledComposableOrder + PooledSearcherOrder,
     V: OrderValidator
 {
-    type Item = ();
+    type Output = ();
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         while let Poll::Ready(Some(next)) = self.validator.poll_next_unpin(cx) {
             self.handle_validated_order(next)
         }

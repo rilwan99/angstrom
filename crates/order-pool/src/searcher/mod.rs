@@ -40,6 +40,14 @@ where
             size: SizeTracker { max: max_size, current: 0 }
         }
     }
+
+    pub fn remove_searcher_order(&mut self, order_hash: &B256) -> Option<O> {
+        todo!()
+    }
+
+    pub fn remove_composable_searcher_order(&mut self, order_hash: &B256) -> Option<C> {
+        todo!()
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
