@@ -20,7 +20,7 @@ use crate::{
     limit::LimitOrderPool,
     searcher::SearcherPool,
     validator::{ValidationResults, Validator},
-    FilledOrders
+    FilledOrder
 };
 
 pub struct OrderPoolInner<L, CL, S, CS, V>
@@ -32,7 +32,7 @@ where
     V: OrderValidator
 {
     limit_pool:        LimitOrderPool<L, CL>,
-    sercher_pool:      SearcherPool<S, CS>,
+    searcher_pool:     SearcherPool<S, CS>,
     /// Address to order id, used for nonce lookups
     address_to_orders: HashMap<Address, Vec<OrderId>>,
     /// Order hash to order id, used for order inclusion lookups
@@ -138,35 +138,33 @@ where
     } */
 
     /// Removes all filled orders from the pools
-    pub fn filled_orders(&mut self, orders: &Vec<B256>) -> FilledOrders<L, CL, S, CS> {
+    pub fn filled_orders(&mut self, orders: &Vec<B256>) -> Vec<FilledOrder<L, CL, S, CS>> {
         // remove from lower level + hash locations;
-        orders.iter().filter_map(|order_hash| {
-            let pool_id = self.hash_to_order_id.remove(order_hash)?;
-            let loc = pool_id.location;
-            match loc {
-                OrderLocation::Composable => self.limit_pool.remove_limit_order(),
-                OrderLocation::LimitParked => {}
-                OrderLocation::LimitPending => {}
-                OrderLocation::VanillaSearcher => {}
-                OrderLocation::ComposableSearcher => {}
-            }
-
-            Some(0)
-        });
-        let (left, right): (Vec<_>, Vec<_>) = orders
+        orders
             .iter()
-            .filter_map(|order_hash| match location {
-                OrderLocation::Composable => Some((None, self.composable_orders.remove_order(&id))),
-                OrderLocation::LimitPending => {
-                    Some((self.limit_orders.remove_order(&id, location), None))
-                }
-                _ => {
-                    unreachable!()
+            .filter_map(|order_hash| {
+                let pool_id = self.hash_to_order_id.remove(order_hash)?;
+                let loc = pool_id.location;
+                match loc {
+                    OrderLocation::Composable => self
+                        .limit_pool
+                        .remove_composable_limit_order(order_hash)
+                        .map(FilledOrder::new_composable_limit),
+                    OrderLocation::LimitParked | OrderLocation::LimitPending => self
+                        .limit_pool
+                        .remove_limit_order(order_hash, loc)
+                        .map(FilledOrder::new_limit),
+                    OrderLocation::VanillaSearcher => self
+                        .searcher_pool
+                        .remove_searcher_order(order_hash)
+                        .map(FilledOrder::new_searcher),
+                    OrderLocation::ComposableSearcher => self
+                        .searcher_pool
+                        .remove_composable_searcher_order(order_hash)
+                        .map(FilledOrder::new_composable_searcher)
                 }
             })
-            .unzip();
-
-        (self.filter_option_and_adjust_size(left), self.filter_option_and_adjust_size(right))
+            .collect()
     }
 }
 

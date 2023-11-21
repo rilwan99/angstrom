@@ -93,11 +93,11 @@ where
         )
     }
 
-    pub fn remove_limit_order(&mut self, order_hash: &H256) -> Option<O> {
+    pub fn remove_limit_order(&mut self, order_hash: &B256, location: OrderLocation) -> Option<O> {
         todo!()
     }
 
-    pub fn remove_composable_limit_order(&mut self, order_hash: &H256) -> Option<C> {
+    pub fn remove_composable_limit_order(&mut self, order_hash: &B256) -> Option<C> {
         todo!()
     }
 }
