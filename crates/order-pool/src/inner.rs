@@ -143,25 +143,29 @@ where
         orders
             .iter()
             .filter_map(|order_hash| {
-                let pool_id = self.hash_to_order_id.remove(order_hash)?;
-                let loc = pool_id.location;
+                let order_id = self.hash_to_order_id.remove(order_hash)?;
+                let loc = order_id.location;
                 match loc {
                     OrderLocation::Composable => self
                         .limit_pool
                         .remove_composable_limit_order(order_hash)
-                        .map(FilledOrder::new_composable_limit),
+                        .map(FilledOrder::add_composable_limit),
                     OrderLocation::LimitParked | OrderLocation::LimitPending => self
                         .limit_pool
                         .remove_limit_order(order_hash, loc)
-                        .map(FilledOrder::new_limit),
+                        .map(FilledOrder::add_limit),
                     OrderLocation::VanillaSearcher => self
                         .searcher_pool
-                        .remove_searcher_order(order_hash)
-                        .map(FilledOrder::new_searcher),
+                        .remove_searcher_order(order_id)
+                        .inspect_err(|e| eprint!("{e:?}"))
+                        .ok()
+                        .map(FilledOrder::add_searcher),
                     OrderLocation::ComposableSearcher => self
                         .searcher_pool
-                        .remove_composable_searcher_order(order_hash)
-                        .map(FilledOrder::new_composable_searcher)
+                        .remove_composable_searcher_order(order_id)
+                        .inspect_err(|e| eprint!("{e:?}"))
+                        .ok()
+                        .map(FilledOrder::add_composable_searcher)
                 }
             })
             .collect()

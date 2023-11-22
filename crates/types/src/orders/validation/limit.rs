@@ -113,10 +113,6 @@ impl PooledOrder for EcRecoveredLimitOrder {
     fn chain_id(&self) -> Option<u64> {
         unreachable!()
     }
-
-    fn order_id(&self) -> OrderId {
-        todo!()
-    }
 }
 
 impl PooledLimitOrder for EcRecoveredLimitOrder {
@@ -175,10 +171,6 @@ impl PooledOrder for EcRecoveredComposableLimitOrder {
 
     fn chain_id(&self) -> Option<u64> {
         unreachable!()
-    }
-
-    fn order_id(&self) -> OrderId {
-        todo!()
     }
 
     fn token_in(&self) -> Address {

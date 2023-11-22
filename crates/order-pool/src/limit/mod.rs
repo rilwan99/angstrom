@@ -51,8 +51,6 @@ where
         &mut self,
         order: ValidatedOrder<C, OrderPriorityData>
     ) -> Result<(), LimitPoolError> {
-        let id = order.order_id();
-
         let size = order.size();
         if !self.size.has_space(size) {
             return Err(LimitPoolError::MaxSize)
@@ -67,8 +65,6 @@ where
         &mut self,
         order: ValidatedOrder<O, OrderPriorityData>
     ) -> Result<(), LimitPoolError> {
-        let id = order.order_id();
-
         let size = order.size();
         if !self.size.has_space(size) {
             return Err(LimitPoolError::MaxSize)
@@ -77,6 +73,9 @@ where
         let location = self.limit_orders.add_order(order)?;
 
         Ok(())
+
+        // TODO: What do we want to return, how do we want to wire it up
+        // so it bubbles up to the highest level
     }
 
     // individual fetches

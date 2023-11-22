@@ -14,8 +14,6 @@ pub trait PooledOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
     /// Hash of the order
     fn hash(&self) -> TxHash;
 
-    fn order_id(&self) -> OrderId;
-
     /// The order signer
     fn from(&self) -> Address;
 
