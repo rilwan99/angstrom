@@ -31,14 +31,14 @@ where
     CS: PooledComposableOrder + PooledSearcherOrder,
     V: OrderValidator
 {
-    limit_pool:        LimitOrderPool<L, CL>,
-    searcher_pool:     SearcherPool<S, CS>,
+    limit_pool:       LimitOrderPool<L, CL>,
+    searcher_pool:    SearcherPool<S, CS>,
     /// Address to order id, used for nonce lookups
-    address_to_orders: HashMap<Address, Vec<OrderId>>,
+    // address_to_orders: HashMap<Address, Vec<OrderId>>,
     /// Order hash to order id, used for order inclusion lookups
-    hash_to_order_id:  HashMap<B256, OrderId>,
+    hash_to_order_id: HashMap<B256, OrderId>,
     /// Order Validator
-    validator:         Validator<L, CL, S, CS, V>
+    validator:        Validator<L, CL, S, CS, V>
 }
 
 impl<L, CL, S, CS, V> OrderPoolInner<L, CL, S, CS, V>
@@ -75,37 +75,37 @@ where
     }
 
     /// Helper function to add new orders to tracking
-    fn add_order_tracking(&mut self, id: OrderId, location: OrderLocation) {
-        let user = id.address;
-
-        // add to user tracking
-        self.address_to_orders
-            .entry(user)
-            .or_default()
-            .push(id.clone());
-        // add to hash tracking
-        self.hash_to_order_id.insert(id.hash, id);
-    }
+    // fn add_order_tracking(&mut self, id: OrderId, location: OrderLocation) {
+    //     let user = id.address;
+    //
+    //     // add to user tracking
+    //     self.address_to_orders
+    //         .entry(user)
+    //         .or_default()
+    //         .push(id.clone());
+    //     // add to hash tracking
+    //     self.hash_to_order_id.insert(id.hash, id);
+    // }
 
     /// Helper function for checking for duplicates when adding orders
-    fn check_for_duplicates(&self, id: &OrderId) -> Result<(), PoolError> {
-        // is new order
-        if self.hash_to_order_id.contains_key(&id.hash) {
-            return Err(PoolError::DuplicateOrder)
-        }
-
-        // check for duplicate nonce
-        if self
-            .address_to_orders
-            .get(&id.address)
-            .map(|inner| inner.iter().any(|other_id| other_id.nonce == id.nonce))
-            .unwrap_or(false)
-        {
-            return Err(PoolError::DuplicateNonce(id.clone()))
-        }
-
-        Ok(())
-    }
+    // fn check_for_duplicates(&self, id: &OrderId) -> Result<(), PoolError> {
+    //     // is new order
+    //     if self.hash_to_order_id.contains_key(&id.hash) {
+    //         return Err(PoolError::DuplicateOrder)
+    //     }
+    //
+    //     // check for duplicate nonce
+    //     if self
+    //         .address_to_orders
+    //         .get(&id.address)
+    //         .map(|inner| inner.iter().any(|other_id| other_id.nonce == id.nonce))
+    //         .unwrap_or(false)
+    //     {
+    //         return Err(PoolError::DuplicateNonce(id.clone()))
+    //     }
+    //
+    //     Ok(())
+    // }
 
     /*
     /// Removes all orders for a given user when there state changes for

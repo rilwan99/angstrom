@@ -12,9 +12,11 @@ mod upkeepers;
 /// 3) checking token approvals
 pub struct StateValidation<DB> {
     db:          DB,
-    // manage the upkeep of all data needed for validation
+    /// manage the upkeep of all data needed for validation
     upkeepers:   Upkeepers,
-    user_orders: UserOrders
+    /// all current user orders with the current changed deltas
+    user_orders: UserOrders,
+    // pending_validation:
 }
 
 impl<DB> StateValidation<DB>
