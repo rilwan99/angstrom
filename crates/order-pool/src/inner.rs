@@ -143,8 +143,8 @@ where
         orders
             .iter()
             .filter_map(|order_hash| {
-                let pool_id = self.hash_to_order_id.remove(order_hash)?;
-                let loc = pool_id.location;
+                let order_id = self.hash_to_order_id.remove(order_hash)?;
+                let loc = order_id.location;
                 match loc {
                     OrderLocation::Composable => self
                         .limit_pool
@@ -156,11 +156,11 @@ where
                         .map(FilledOrder::add_limit),
                     OrderLocation::VanillaSearcher => self
                         .searcher_pool
-                        .remove_searcher_order(order_hash)
+                        .remove_searcher_order(order_id)
                         .map(FilledOrder::add_searcher),
                     OrderLocation::ComposableSearcher => self
                         .searcher_pool
-                        .remove_composable_searcher_order(order_hash)
+                        .remove_composable_searcher_order(order_id)
                         .map(FilledOrder::add_composable_searcher)
                 }
             })

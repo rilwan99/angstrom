@@ -9,11 +9,8 @@ use guard_types::{
     primitive::PoolId
 };
 
-use super::SearcherPoolError;
+use super::{SearcherPoolError, V1_LP_POOlS, SEARCHER_POOL_MAX_SIZE};
 use crate::SizeTracker;
-
-pub const SEARCHER_POOL_MAX_SIZE: usize = 15;
-pub const V1_LP_POOlS: usize = 5;
 
 pub struct VanillaSearcherPool<O: PooledSearcherOrder> {
     sub_pools: Vec<PendingPool<O>>
@@ -41,25 +38,21 @@ where
     }
 
     pub fn remove_order(&mut self, order_id: OrderId) -> Option<O> {
-        self.self
+        let pool = self
             .sub_pools
-            .get_mut(order_id.pool_id)?
-            .ok_ok(SearcherPoolError::NoPool(order_id.pool_id))
-            .and_then(|pool| pool.remove_order(order_id.hash))
+            .get_mut(order_id.pool_id)
+            .ok_or(SearcherPoolError::NoPool(order_id.pool_id))?;
+
+        pool.remove_order(order_id.hash)
+            .ok_or(SearcherPoolError::OrderNotFound(order_id.hash))
     }
 
     pub fn get_winning_orders(&self) -> Vec<O> {
-        let mut winning_orders = Vec::new();
-
-        self.sub_pools.iter() {
-            .flat_map(|pool| pool.ordered_arbs.iter())
-            .map(|(priority, hash)| (Reverse(priority), hash))
-            .take(SEARCHER_POOL_MAX_SIZE)
-            .for_each(|(priority, hash)| {
-                let order = pool.orders.get(hash).unwrap();
-                winning_orders.push(order.clone());
-            });
-        }
+        self.sub_pools
+            .iter()
+            .filter_map(|pool| pool.winning_order())
+            .map(|validated_order| validated_order.order)
+            .collect()
     }
 }
 
@@ -95,14 +88,14 @@ where
         Ok(OrderLocation::VanillaSearcher)
     }
 
-    pub fn remove_order(&mut self, hash: B256) -> Option<ValidatedOrder<O, SearcherPriorityData>> {
+    pub fn remove_order(&mut self, hash: B256) -> Option<O> {
         let order = self.orders.remove(&hash)?;
         //TODO: why fetch when we could pass it as param, given that we do the initial
         // lookup?
         let priority = order.priority_data();
 
-        self.ordered_arbs.remove(&priority)?;
-        Some(order)
+        self.ordered_arbs.remove(&priority);
+        Some(order.order)
     }
 
     pub fn winning_order(&self) -> Option<&ValidatedOrder<O, SearcherPriorityData>> {
@@ -110,7 +103,6 @@ where
             .first_key_value()
             .and_then(|(_, hash)| self.orders.get(hash))
     }
-     
 
     /*pub fn add_orders(
         &mut self,
@@ -128,10 +120,9 @@ where
         &self,
         priority_data: &SearcherPriorityData
     ) -> Result<(), SearcherPoolError> {
-        if self.ordered_arbs.contains_key(priority_data) {
-            Err(SearcherPoolError::DuplicateOrder)
-        } else {
-            Ok(())
-        }
+        self.ordered_arbs
+            .contains_key(priority_data)
+            .then(|| ())
+            .ok_or(SearcherPoolError::DuplicateOrder)
     }
 }

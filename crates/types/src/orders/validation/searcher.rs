@@ -116,10 +116,6 @@ impl PooledOrder for EcRecoveredSearcherOrder {
         unreachable!()
     }
 
-    fn order_id(&self) -> OrderId {
-        todo!()
-    }
-
     fn token_in(&self) -> Address {
         todo!()
     }
@@ -200,10 +196,6 @@ impl PooledOrder for EcRecoveredComposableSearcherOrder {
 
     fn chain_id(&self) -> Option<u64> {
         unreachable!()
-    }
-
-    fn order_id(&self) -> OrderId {
-        todo!()
     }
 }
 
