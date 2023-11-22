@@ -10,7 +10,7 @@ use tokio::{runtime::Handle, sync::mpsc::UnboundedReceiver, task::JoinHandle};
 use crate::{
     bundle::{
         errors::{SimError, SimResult},
-        SimEvent
+        BundleSimRequest
     },
     common::{
         executor::{TaskKind, ThreadPool},
@@ -27,7 +27,7 @@ const ANGSTROM_ADDRESS: Address = Address::ZERO;
 
 /// revm state handler
 pub struct Revm<DB> {
-    transaction_rx: UnboundedReceiver<SimEvent>,
+    transaction_rx: UnboundedReceiver<BundleSimRequest>,
     threadpool:     ThreadPool,
     state:          Arc<RevmState<DB>>,
     slot_changes:   AddressSlots,
@@ -40,7 +40,7 @@ where
     DB: StateProviderFactory + Send + Sync + Clone + Unpin + 'static
 {
     pub fn new(
-        transaction_rx: UnboundedReceiver<SimEvent>,
+        transaction_rx: UnboundedReceiver<BundleSimRequest>,
         db: RevmLRU<DB>
     ) -> Result<Self, SimError> {
         let threadpool = ThreadPool::new()?;
@@ -71,11 +71,11 @@ where
     }
 
     /// handles incoming transactions from clients
-    fn handle_incoming_event(&mut self, tx_type: SimEvent) {
+    fn handle_incoming_event(&mut self, tx_type: BundleSimRequest) {
         let state = self.state.clone();
 
         match tx_type {
-            SimEvent::Hook(data, overrides, sender) => {
+            BundleSimRequest::Hook(data, overrides, sender) => {
                 let slots = self.slot_keeper.get_current_slots().clone();
                 let fut = async move {
                     let res = state.simulate_external_state(data, overrides, slots);
@@ -94,7 +94,7 @@ where
 
                 self.futures.push(self.threadpool.spawn_return_task_as(fut));
             }
-            SimEvent::UniswapV4(tx, sender) => {
+            BundleSimRequest::UniswapV4(tx, sender) => {
                 let fut = async move {
                     let mut map = HashMap::new();
 
@@ -112,7 +112,7 @@ where
 
                 let _ = self.threadpool.spawn_task_as(fut, TaskKind::Blocking);
             }
-            SimEvent::Bundle(tx, caller_info, sender) => {
+            BundleSimRequest::Bundle(tx, caller_info, sender) => {
                 let fut = async move {
                     let res = state.simulate_vanilla_bundle(tx, caller_info);
                     let _ = if let Err(e) = res {
@@ -123,7 +123,7 @@ where
                 };
                 let _ = self.threadpool.spawn_task_as(fut, TaskKind::Blocking);
             }
-            SimEvent::MevBundle(tx, caller_info, sender) => {
+            BundleSimRequest::MevBundle(tx, caller_info, sender) => {
                 let fut = async move {
                     let res = state.simulate_composable_bundle(tx, caller_info);
                     let _ = if let Err(e) = res {
@@ -134,7 +134,7 @@ where
                 };
                 let _ = self.threadpool.spawn_task_as(fut, TaskKind::Blocking);
             }
-            SimEvent::NewBlock(sender) => {
+            BundleSimRequest::NewBlock(sender) => {
                 let slot_changes = self.slot_changes.clone();
                 let fut = async move {
                     let res = RevmState::update_evm_state(state, &slot_changes);

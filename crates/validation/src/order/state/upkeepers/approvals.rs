@@ -1,2 +1,1 @@
-pub struct Approvals {
-}
+pub struct Approvals {}

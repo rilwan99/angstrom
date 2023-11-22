@@ -15,8 +15,7 @@ pub struct StateValidation<DB> {
     /// manage the upkeep of all data needed for validation
     upkeepers:   Upkeepers,
     /// all current user orders with the current changed deltas
-    user_orders: UserOrders,
-    // pending_validation:
+    user_orders: UserOrders // pending_validation:
 }
 
 impl<DB> StateValidation<DB>

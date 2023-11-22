@@ -1,6 +1,6 @@
 use std::task::{Context, Poll};
 
-use alloy_primitives::{B256, B160};
+use alloy_primitives::{B160, B256};
 use ethers_flashbots::PendingBundleError;
 use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
 use futures::Future;

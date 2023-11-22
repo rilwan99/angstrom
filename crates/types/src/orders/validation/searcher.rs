@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, Bytes, TxHash, U256};
+use alloy_primitives::{Address, Bytes, TxHash, B160, U256};
 
 use super::{
     super::{OrderId, OrderOrigin, PooledComposableOrder, PooledOrder},
@@ -119,6 +119,10 @@ impl PooledOrder for EcRecoveredSearcherOrder {
     fn order_id(&self) -> OrderId {
         todo!()
     }
+
+    fn token_in(&self) -> B160 {
+        todo!()
+    }
 }
 
 impl PooledSearcherOrder for EcRecoveredSearcherOrder {
@@ -160,6 +164,10 @@ impl PooledOrder for EcRecoveredComposableSearcherOrder {
 
     fn from(&self) -> Address {
         self.signer
+    }
+
+    fn token_in(&self) -> B160 {
+        todo!()
     }
 
     fn nonce(&self) -> U256 {

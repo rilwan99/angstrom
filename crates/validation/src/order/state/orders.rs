@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use alloy_primitives::{Address, B160, U256};
 use guard_types::orders::{OrderId, PooledOrder, ValidatedOrder};
 use revm::primitives::HashMap;
@@ -12,7 +14,7 @@ pub struct PendingState {
 pub struct UserOrders(HashMap<Address, (PendingState, Vec<OrderId>)>);
 
 impl UserOrders {
-    pub fn new_order<O: PooledOrder, Data>(
+    pub fn new_order<O: PooledOrder, Data: Clone + Debug>(
         &mut self,
         order: ValidatedOrder<O, Data>
     ) -> Result<(), ()> {
@@ -41,7 +43,7 @@ impl UserOrders {
             .map(|inner| inner.1.iter().any(|other_id| other_id.nonce == id.nonce))
             .unwrap_or(false)
         {
-            return Err(PoolError::DuplicateNonce(id.clone()))
+            // return Err(PoolError::DuplicateNonce(id.clone()))
         }
 
         Ok(())
