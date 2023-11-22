@@ -1,6 +1,6 @@
 use std::task::{Context, Poll};
 
-use alloy_primitives::B256;
+use alloy_primitives::{B256, B160};
 use ethers_flashbots::PendingBundleError;
 use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
 use futures::Future;
@@ -16,7 +16,7 @@ use crate::{
 
 pub enum EthNetworkEvent {
     FilledOrders(Vec<B256>),
-    EOAStateChanges(Vec<B256>),
+    EOAStateChanges(Vec<B160>),
     ReorgedOrders(Vec<B256>)
 }
 

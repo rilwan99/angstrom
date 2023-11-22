@@ -3,6 +3,8 @@ use guard_types::orders::{
     PooledSearcherOrder, ValidatedOrder
 };
 mod size;
+mod user_orders;
+pub use user_orders::*;
 use alloy_primitives::Address;
 pub use size::*;
 
