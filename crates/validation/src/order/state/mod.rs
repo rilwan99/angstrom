@@ -1,7 +1,8 @@
 use reth_provider::StateProviderFactory;
 
-use self::upkeepers::Upkeepers;
+use self::{orders::UserOrders, upkeepers::Upkeepers};
 
+mod orders;
 mod upkeepers;
 
 /// State validation is all validation that requires reading from the Ethereum
@@ -10,9 +11,10 @@ mod upkeepers;
 /// 2) checking token balances
 /// 3) checking token approvals
 pub struct StateValidation<DB> {
-    db:        DB,
+    db:          DB,
     // manage the upkeep of all data needed for validation
-    upkeepers: Upkeepers
+    upkeepers:   Upkeepers,
+    user_orders: UserOrders
 }
 
 impl<DB> StateValidation<DB>
