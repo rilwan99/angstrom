@@ -149,19 +149,19 @@ where
                     OrderLocation::Composable => self
                         .limit_pool
                         .remove_composable_limit_order(order_hash)
-                        .map(FilledOrder::new_composable_limit),
+                        .map(FilledOrder::add_composable_limit),
                     OrderLocation::LimitParked | OrderLocation::LimitPending => self
                         .limit_pool
                         .remove_limit_order(order_hash, loc)
-                        .map(FilledOrder::new_limit),
+                        .map(FilledOrder::add_limit),
                     OrderLocation::VanillaSearcher => self
                         .searcher_pool
                         .remove_searcher_order(order_hash)
-                        .map(FilledOrder::new_searcher),
+                        .map(FilledOrder::add_searcher),
                     OrderLocation::ComposableSearcher => self
                         .searcher_pool
                         .remove_composable_searcher_order(order_hash)
-                        .map(FilledOrder::new_composable_searcher)
+                        .map(FilledOrder::add_composable_searcher)
                 }
             })
             .collect()

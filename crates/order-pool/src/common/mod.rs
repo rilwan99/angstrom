@@ -28,19 +28,19 @@ where
     S: PooledOrder,
     CS: PooledOrder
 {
-    pub fn new_limit(order: L) -> Self {
+    pub fn add_limit(order: L) -> Self {
         Self::Limit(order)
     }
 
-    pub fn new_composable_limit(order: CL) -> Self {
+    pub fn add_composable_limit(order: CL) -> Self {
         Self::ComposableLimit(order)
     }
 
-    pub fn new_searcher(order: S) -> Self {
+    pub fn add_searcher(order: S) -> Self {
         Self::Searcher(order)
     }
 
-    pub fn new_composable_searcher(order: CS) -> Self {
+    pub fn add_composable_searcher(order: CS) -> Self {
         Self::ComposableSearcher(order)
     }
 }

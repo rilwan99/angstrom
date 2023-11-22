@@ -4,6 +4,10 @@ pub struct SizeTracker {
 }
 
 impl SizeTracker {
+    pub fn new(max: Option<usize>) -> Self {
+        Self { max, current: 0 }
+    }
+
     pub fn has_space(&mut self, size: usize) -> bool {
         if let Some(max) = self.max {
             if self.current + size <= max {
