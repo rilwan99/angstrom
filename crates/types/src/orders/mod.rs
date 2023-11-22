@@ -4,7 +4,7 @@ use std::fmt;
 mod validation;
 use std::fmt::Debug;
 
-use alloy_primitives::{Address, Bytes, TxHash, B160, U128, U256};
+use alloy_primitives::{Address, Bytes, TxHash, U128, U256};
 pub use origin::*;
 pub use validation::*;
 
@@ -26,7 +26,7 @@ pub trait PooledOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
     fn amount_in(&self) -> u128;
 
     /// Token in
-    fn token_in(&self) -> B160;
+    fn token_in(&self) -> Address;
 
     /// Min amount of tokens to buy
     fn amount_out_min(&self) -> u128;
