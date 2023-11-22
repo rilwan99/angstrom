@@ -1,4 +1,6 @@
 use alloy_primitives::{Address, U256};
+use alloy_primitives::hex;
+use reth_provider::StateProvider;
 
 // TODO: move to actual angstrom address
 const ANGSTROM_ADDRESS: Address =
@@ -9,4 +11,9 @@ const ANGSTROM_NONCE_LOCATION: U256 = U256::ZERO;
 
 pub struct Nonces;
 
+impl Nonces {
+    pub fn is_valid_nonce<DB: StateProvider>(&self, user: Address, nonce: U256, db: DB) -> bool {
 
+        todo!()
+    }
+}
