@@ -8,6 +8,7 @@ use guard_types::{
 };
 use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
 
+pub mod bundle_validator;
 pub mod errors;
 
 #[derive(Debug)]
@@ -65,7 +66,7 @@ pub trait BundleValidator: Send + Sync + Clone + Unpin {
 }
 
 /// enum of transaction type
-pub enum SimEvent {
+pub enum BundleSimRequest {
     Hook(ExternalStateSim, CallerInfo, Sender<SimResult>),
     UniswapV4(TypedTransaction, Sender<SimResult>),
     Bundle(Bundle, CallerInfo, Sender<SimResult>),

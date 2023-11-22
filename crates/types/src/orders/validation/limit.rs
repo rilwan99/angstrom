@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use alloy_primitives::{Address, Bytes, TxHash, U256};
+use alloy_primitives::{Address, Bytes, TxHash, B160, U256};
 
 use super::{
     super::{OrderId, OrderOrigin, PooledComposableOrder, PooledOrder},
@@ -67,6 +67,10 @@ impl PooledOrder for EcRecoveredLimitOrder {
     }
 
     fn is_bid(&self) -> bool {
+        todo!()
+    }
+
+    fn token_in(&self) -> B160 {
         todo!()
     }
 
@@ -174,6 +178,10 @@ impl PooledOrder for EcRecoveredComposableLimitOrder {
     }
 
     fn order_id(&self) -> OrderId {
+        todo!()
+    }
+
+    fn token_in(&self) -> B160 {
         todo!()
     }
 }

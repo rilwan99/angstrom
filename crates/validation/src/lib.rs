@@ -1,10 +1,11 @@
 pub mod bundle;
 pub mod common;
 pub mod order;
+pub mod validator;
 
 use std::fmt::Debug;
 
-use bundle::BundleValidator;
+use bundle::{BundleSimRequest, BundleValidator};
 use ethers_core::types::transaction::eip2718::TypedTransaction;
 use guard_types::{
     orders::OrderOrigin,
@@ -18,21 +19,18 @@ use order::OrderValidator;
 use tokio::sync::{mpsc::UnboundedSender, oneshot::channel};
 
 use crate::{
-    bundle::{
-        errors::{SimError, SimResult},
-        SimEvent
-    },
+    bundle::errors::{SimError, SimResult},
     common::pool_map::PoolMapping,
     order::OrderValidationOutcome
 };
 /// clone-able handle to the simulator
 #[derive(Clone)]
 pub struct RevmClient {
-    transaction_tx: UnboundedSender<SimEvent>
+    transaction_tx: UnboundedSender<BundleSimRequest>
 }
 
 impl RevmClient {
-    pub fn new(transaction_tx: UnboundedSender<SimEvent>) -> Self {
+    pub fn new(transaction_tx: UnboundedSender<BundleSimRequest>) -> Self {
         Self { transaction_tx }
     }
 }
@@ -88,7 +86,8 @@ impl BundleValidator for RevmClient {
     // full transaction and should not be validated as such
     async fn validate_v4_tx(&self, tx: TypedTransaction) -> Result<SimResult, SimError> {
         let (sender, rx) = channel();
-        self.transaction_tx.send(SimEvent::UniswapV4(tx, sender))?;
+        self.transaction_tx
+            .send(BundleSimRequest::UniswapV4(tx, sender))?;
 
         Ok(rx.await.unwrap())
     }
@@ -106,7 +105,7 @@ impl BundleValidator for RevmClient {
         let (tx, rx) = channel();
         let hook = hook_data.try_into().unwrap();
         self.transaction_tx
-            .send(SimEvent::Hook(hook, caller_info, tx))?;
+            .send(BundleSimRequest::Hook(hook, caller_info, tx))?;
 
         Ok(rx.await.unwrap())
     }
@@ -119,7 +118,7 @@ impl BundleValidator for RevmClient {
     ) -> Result<SimResult, SimError> {
         let (tx, rx) = channel();
         self.transaction_tx
-            .send(SimEvent::Bundle(bundle, caller_info, tx))?;
+            .send(BundleSimRequest::Bundle(bundle, caller_info, tx))?;
 
         Ok(rx.await.unwrap())
     }
@@ -132,7 +131,7 @@ impl BundleValidator for RevmClient {
     ) -> Result<SimResult, SimError> {
         let (tx, rx) = channel();
         self.transaction_tx
-            .send(SimEvent::MevBundle(bundle, caller_info, tx))?;
+            .send(BundleSimRequest::MevBundle(bundle, caller_info, tx))?;
 
         Ok(rx.await.unwrap())
     }
