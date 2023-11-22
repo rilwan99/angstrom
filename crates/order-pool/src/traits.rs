@@ -13,7 +13,6 @@ use guard_types::{
     }
 };
 
-#[async_trait::async_trait]
 #[auto_impl::auto_impl(Arc)]
 pub trait OrderPool: Send + Sync + Clone {
     /// The transaction type of the limit order pool

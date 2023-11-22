@@ -1,14 +1,14 @@
 use std::fmt::Debug;
 
-use alloy_primitives::{Address, B160, U256};
+use alloy_primitives::{Address, U256};
 use guard_types::orders::{OrderId, PooledOrder, ValidatedOrder};
 use revm::primitives::HashMap;
 
 /// the sum of all pending orders for a given user. This is done
 /// so that validation of specific orders is not dependant on all other orders.
 pub struct PendingState {
-    token_balances:  HashMap<B160, U256>,
-    token_approvals: HashMap<B160, U256>
+    token_balances:  HashMap<Address, U256>,
+    token_approvals: HashMap<Address, U256>
 }
 
 pub struct UserOrders(HashMap<Address, (PendingState, Vec<OrderId>)>);
@@ -28,8 +28,8 @@ impl UserOrders {
 
     fn apply_new_order_deltas(
         &mut self,
-        token_in: B160,
-        amount_in: B160,
+        token_in: Address,
+        amount_in: Address,
         state: &mut PendingState
     ) -> Result<(), ()> {
         Ok(())
