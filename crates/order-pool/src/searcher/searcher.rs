@@ -37,7 +37,7 @@ where
             .and_then(|pool| pool.add_order(order))
     }
 
-    pub fn remove_order(&mut self, order_id: OrderId) -> Option<O> {
+    pub fn remove_order(&mut self, order_id: OrderId) -> Result<O, SearcherPoolError> {
         let pool = self
             .sub_pools
             .get_mut(order_id.pool_id)
@@ -51,7 +51,7 @@ where
         self.sub_pools
             .iter()
             .filter_map(|pool| pool.winning_order())
-            .map(|validated_order| validated_order.order)
+            .map(|validated_order| validated_order.order.clone())
             .collect()
     }
 }
@@ -78,12 +78,13 @@ where
         &mut self,
         order: ValidatedOrder<O, SearcherPriorityData>
     ) -> Result<OrderLocation, SearcherPoolError> {
-        self.check_for_duplicates(&order.priority_data())?;
+        let priority_data = order.priority_data();
+        let hash = order.hash();
+        self.check_for_duplicates(&priority_data)?;
 
-        self.orders.insert(order.hash(), order);
+        self.orders.insert(hash, order);
 
-        self.ordered_arbs
-            .insert(order.priority_data(), order.hash());
+        self.ordered_arbs.insert(priority_data, hash);
 
         Ok(OrderLocation::VanillaSearcher)
     }

@@ -24,7 +24,7 @@ where
         &mut self,
         order: ValidatedOrder<O, OrderPriorityData>
     ) -> Result<(), LimitPoolError> {
-        let id: OrderId = order.into();
+        let id: OrderId = order.clone().into();
         self.0
             .get_mut(&id.pool_id)
             .map(|pool| pool.add_order(order))

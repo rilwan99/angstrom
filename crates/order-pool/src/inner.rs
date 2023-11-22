@@ -157,10 +157,14 @@ where
                     OrderLocation::VanillaSearcher => self
                         .searcher_pool
                         .remove_searcher_order(order_id)
+                        .inspect_err(|e| eprint!("{e:?}"))
+                        .ok()
                         .map(FilledOrder::add_searcher),
                     OrderLocation::ComposableSearcher => self
                         .searcher_pool
                         .remove_composable_searcher_order(order_id)
+                        .inspect_err(|e| eprint!("{e:?}"))
+                        .ok()
                         .map(FilledOrder::add_composable_searcher)
                 }
             })

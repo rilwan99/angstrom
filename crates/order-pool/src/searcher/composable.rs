@@ -1,7 +1,4 @@
-use std::{
-    collections::{BTreeMap, HashMap},
-    str::pattern::Searcher
-};
+use std::collections::{BTreeMap, HashMap};
 
 use alloy_primitives::B256;
 use guard_types::{
@@ -39,10 +36,7 @@ where
             .and_then(|pool| pool.add_order(order))
     }
 
-    pub fn remove_order(
-        &mut self,
-        order_id: OrderId
-    ) -> Oprioin<CS, SearcherPriorityData>, SearcherPoolError> {
+    pub fn remove_order(&mut self, order_id: OrderId) -> Result<CS, SearcherPoolError> {
         self.sub_pools
             .get_mut(order_id.pool_id)
             .ok_or(SearcherPoolError::NoPool(order_id.pool_id))?
@@ -53,7 +47,7 @@ where
         self.sub_pools
             .iter()
             .filter_map(|pool| pool.winning_order())
-            .map(|validated_order| validated_order.order)
+            .map(|validated_order| validated_order.order.clone())
             .collect()
     }
 }
@@ -80,20 +74,17 @@ where
         &mut self,
         order: ValidatedOrder<O, SearcherPriorityData>
     ) -> Result<OrderLocation, SearcherPoolError> {
-        self.check_for_duplicates(&order.priority_data())?;
+        let priority_data = order.priority_data();
+        let hash = order.hash();
+        self.check_for_duplicates(&priority_data)?;
 
         self.orders.insert(order.hash(), order);
-
-        self.ordered_arbs
-            .insert(order.priority_data(), order.hash());
+        self.ordered_arbs.insert(priority_data, hash);
 
         Ok(OrderLocation::ComposableSearcher)
     }
 
-    pub fn remove_order(
-        &mut self,
-        hash: B256
-    ) -> Option<O>{
+    pub fn remove_order(&mut self, hash: B256) -> Result<O, SearcherPoolError> {
         let order = self
             .orders
             .remove(&hash)
@@ -103,10 +94,10 @@ where
 
         // Check if the priority data exists in ordered_arbs, and if so, remove it
         if self.ordered_arbs.remove(&priority).is_none() {
-            return Err(SearcherPoolError::OrderNotFound(order.hash()));
+            return Err(SearcherPoolError::OrderNotFound(order.hash()))
         }
 
-        Ok(order)
+        Ok(order.order)
     }
 
     pub fn winning_order(&self) -> Option<&ValidatedOrder<O, SearcherPriorityData>> {

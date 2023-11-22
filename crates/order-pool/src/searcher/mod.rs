@@ -67,11 +67,14 @@ where
         Ok(())
     }
 
-    pub fn remove_searcher_order(&mut self, id: OrderId) -> Option<S> {
+    pub fn remove_searcher_order(&mut self, id: OrderId) -> Result<S, SearcherPoolError> {
         self.searcher_orders.remove_order(id)
     }
 
-    pub fn remove_composable_searcher_order(&mut self, id: OrderId) -> Option<CS> {
+    pub fn remove_composable_searcher_order(
+        &mut self,
+        id: OrderId
+    ) -> Result<CS, SearcherPoolError> {
         self.composable_searcher_orders.remove_order(id)
     }
 
