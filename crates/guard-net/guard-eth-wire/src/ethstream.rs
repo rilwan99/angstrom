@@ -272,9 +272,9 @@ where
         };
 
         if matches!(msg.message, EthMessage::Status(_)) {
-            return Poll::Ready(Some(Err(EthStreamError::EthHandshakeError(
-                EthHandshakeError::StatusNotInHandshake
-            ))))
+            return Poll::Ready(Some(
+                Err(EthStreamError::EthHandshakeError(EthHandshakeError::StatusNotInHandshake))
+            ))
         }
 
         Poll::Ready(Some(Ok(msg.message)))
