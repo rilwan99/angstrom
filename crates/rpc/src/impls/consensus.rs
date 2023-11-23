@@ -1,13 +1,10 @@
 use common::ConsensusState;
 use jsonrpsee::{core::RpcResult, PendingSubscriptionSink};
 
-use crate::{
-    api::{ConsensusApiServer, ConsensusPubSubApiServer},
-    types::ConsensusSubscriptionKind
-};
+use crate::{api::ConsensusApiServer, types::ConsensusSubscriptionKind};
 
 pub struct ConsensusApi<C> {
-    consensus: C
+    pub consensus: C
 }
 
 #[async_trait::async_trait]
@@ -18,14 +15,8 @@ where
     async fn consensus_state(&self) -> RpcResult<ConsensusState> {
         todo!()
     }
-}
 
-#[async_trait::async_trait]
-impl<C> ConsensusPubSubApiServer for ConsensusApi<C>
-where
-    C: Send + Sync + 'static
-{
-    async fn subscribe(
+    async fn subscribe_consensus_state(
         &self,
         pending: PendingSubscriptionSink,
         kind: ConsensusSubscriptionKind

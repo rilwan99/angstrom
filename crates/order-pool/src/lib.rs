@@ -59,7 +59,7 @@ impl traits::OrderPool for OrderPoolHandle {
     type SearcherOrder = EcRecoveredSearcherOrder;
 }
 
-struct OrderPool<L, CL, S, CS, V>
+pub struct OrderPool<L, CL, S, CS, V>
 where
     L: PooledLimitOrder,
     CL: PooledComposableOrder + PooledLimitOrder,

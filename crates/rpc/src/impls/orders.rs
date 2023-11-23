@@ -6,13 +6,10 @@ use guard_types::rpc::{
 };
 use jsonrpsee::{core::RpcResult, PendingSubscriptionSink};
 
-use crate::{
-    api::{OrderApiServer, OrderPubSubApiServer},
-    types::OrderSubscriptionKind
-};
+use crate::{api::OrderApiServer, types::OrderSubscriptionKind};
 
 pub struct OrderApi<OrderPool> {
-    order: OrderPool
+    pub pool: OrderPool
 }
 
 #[async_trait::async_trait]
@@ -55,14 +52,8 @@ where
             Ok(false)
         }
     }
-}
 
-#[async_trait::async_trait]
-impl<OrderPool> OrderPubSubApiServer for OrderApi<OrderPool>
-where
-    OrderPool: Send + Sync + 'static
-{
-    async fn subscribe(
+    async fn subscribe_orders(
         &self,
         pending: PendingSubscriptionSink,
         kind: OrderSubscriptionKind

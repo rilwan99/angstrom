@@ -30,11 +30,9 @@ metrics.workspace = true
 
 strum = { workspace = true, features = ["derive"] }
 tracing.workspace = true
-guard-ipc = { path = "../ipc/" }
+
 
 tower-http = { version = "0.4", features = ["full"] }
 tower = { version = "0.4", features = ["full"] }
 hyper = "0.14"
 
-[features]
-client = ["jsonrpsee/client", "jsonrpsee/async-client"]
