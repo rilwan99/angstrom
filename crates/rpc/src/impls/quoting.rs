@@ -2,16 +2,16 @@ use alloy_primitives::{Address, U256};
 use jsonrpsee::{core::RpcResult, PendingSubscriptionSink};
 
 use crate::{
-    api::{QuotingApiServer, QuotingPubSubApiServer},
+    api::QuotingApiServer,
     types::{QuotingSubscriptionKind, QuotingSubscriptionParam}
 };
 
-pub struct QuotingApi<OrderPool> {
-    order_pool: OrderPool
+pub struct QuotesApi<OrderPool> {
+    pub pool: OrderPool
 }
 
 #[async_trait::async_trait]
-impl<OrderPool> QuotingApiServer for QuotingApi<OrderPool>
+impl<OrderPool> QuotingApiServer for QuotesApi<OrderPool>
 where
     OrderPool: Send + Sync + 'static
 {
@@ -24,14 +24,8 @@ where
     ) -> RpcResult<U256> {
         todo!()
     }
-}
 
-#[async_trait::async_trait]
-impl<OrderPool> QuotingPubSubApiServer for QuotingApi<OrderPool>
-where
-    OrderPool: Send + Sync + 'static
-{
-    async fn subscribe(
+    async fn subscribe_quotes(
         &self,
         pending: PendingSubscriptionSink,
         kind: QuotingSubscriptionKind,

@@ -101,6 +101,7 @@ where
             .latest()?
             .storage(*address, index.into())
             .map(|inner| inner.unwrap_or_default())
+            .map_err(RethError::from)
     }
 }
 
@@ -122,7 +123,6 @@ where
     fn code_by_hash_ref(&self, code_hash: B256) -> Result<Bytecode, Self::Error> {
         unreachable!() // this should never be reached since the code hash is
                        // defined in basic()
-                       //
     }
 
     fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
