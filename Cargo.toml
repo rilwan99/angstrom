@@ -4,7 +4,7 @@ members = [
   "crates/guard-net/*",
   "crates/consensus",
   "crates/types",
-  "crates/common",
+  "crates/utils",
   "crates/validation",
   "crates/order-pool",
   "crates/rpc",
@@ -48,30 +48,30 @@ revm = { git = "https://github.com/bluealloy/revm", branch = "reth_freeze",  fea
 revm-primitives = { git = "https://github.com/bluealloy/revm", branch = "reth_freeze", features = ["std"], default-features = false }
 
 # reth
-reth = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-interfaces = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-rlp = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23", features = [
+reth = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-interfaces = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-rlp = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31", features = [
   "alloc",
 ] }
-reth-codecs = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-ecies = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-rpc-builder = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-blockchain-tree = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-beacon-consensus = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-metrics = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-revm = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-payload-builder = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-tasks = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-network = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-network-api = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
-reth-libmdbx = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
+reth-codecs = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-ecies = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-rpc-builder = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-blockchain-tree = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-beacon-consensus = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-metrics = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-revm = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-payload-builder = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-tasks = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-network = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-network-api = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
+reth-libmdbx = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
 
 
 # alloy
@@ -81,6 +81,9 @@ alloy-rlp = { version = "0.3.3" }
 alloy-rlp-derive = { version = "0.3.3" }
 alloy-primitives = { version = "0.4.2", features = ["rlp"] }
 
+# alloy rpc
+#alloy-providers = { git = "https://github.com/alloy-rs/alloy"}
+#alloy-rpc-types = { git = "https://github.com/alloy-rs/alloy"}
 
 hex-literal = "0.4.1"
 ethers-core = { version = "2.0.10", default-features = false }
@@ -90,7 +93,7 @@ ethers-middleware = { version = "2.0.10", default-features = false }
 
 consensus = { path = "./crates/consensus/" }
 guard-types = { path = "./crates/types/" }
-common = { path = "./crates/common/" }
+guard-utils = { path = "./crates/utils/" }
 validation = { path = "./crates/validation/" }
 order-pool = { path = "./crates/order-pool/" }
 eth = { path = "./crates/eth/" }
@@ -128,8 +131,8 @@ tokio-util = { version = "0.7.4", features = ["codec"] }
 ## async
 async-trait = "0.1.68"
 futures = "0.3.26"
-pin-project = "1.0.12"
-futures-util = "0.3.25"
+pin-project = "1.1.3"
+futures-util = "0.3.29"
 
 ## json
 jsonrpsee = { version = "0.20" }

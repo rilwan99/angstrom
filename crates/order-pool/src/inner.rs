@@ -17,10 +17,10 @@ use tokio::sync::mpsc::Sender;
 use validation::order::{OrderValidationOutcome, OrderValidator};
 
 use crate::{
+    common::FilledOrder,
     limit::LimitOrderPool,
     searcher::SearcherPool,
-    validator::{ValidationResults, Validator},
-    FilledOrder
+    validator::{ValidationResults, Validator}
 };
 
 pub struct OrderPoolInner<L, CL, S, CS, V>

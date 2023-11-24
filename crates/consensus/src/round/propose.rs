@@ -3,8 +3,8 @@ use std::{
     task::{Context, Poll, Waker}
 };
 
-use common::{ConsensusState, SUBMIT};
 use guard_types::{consensus::Proposal, submission::BestBundles};
+use guard_utils::{ConsensusState, SUBMIT};
 
 use super::{
     submit::SubmitState, GlobalStateContext, RoundAction, RoundStateMessage, StateTransition

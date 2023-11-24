@@ -1,4 +1,4 @@
-use common::ConsensusState;
+use guard_utils::ConsensusState;
 use jsonrpsee::{core::RpcResult, PendingSubscriptionSink};
 
 use crate::{api::ConsensusApiServer, types::ConsensusSubscriptionKind};

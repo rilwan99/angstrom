@@ -4,9 +4,9 @@ use std::{
     time::Duration
 };
 
-use common::{ConsensusState, IsLeader, PRE_PROPOSE};
 use futures::FutureExt;
 use guard_types::submission::BestBundles;
+use guard_utils::{ConsensusState, IsLeader, PRE_PROPOSE};
 
 use super::{
     pre_propose::PreProposeState, GlobalStateContext, RoundAction, RoundStateMessage,
