@@ -20,7 +20,7 @@ reth-codecs.workspace = true
 reth-primitives.workspace = true
 reth-ecies.workspace = true
 alloy-rlp.workspace = true
-reth-discv4 = { git = "https://github.com/paradigmxyz/reth", rev = "3598a23" }
+reth-discv4 = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
 
 # metrics
 reth-metrics.workspace = true

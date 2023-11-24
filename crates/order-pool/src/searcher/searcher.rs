@@ -10,7 +10,7 @@ use guard_types::{
 };
 
 use super::{SearcherPoolError, V1_LP_POOlS, SEARCHER_POOL_MAX_SIZE};
-use crate::SizeTracker;
+use crate::common::SizeTracker;
 
 pub struct VanillaSearcherPool<O: PooledSearcherOrder> {
     sub_pools: Vec<PendingPool<O>>

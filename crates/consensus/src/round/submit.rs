@@ -3,9 +3,9 @@ use std::{
     task::{Context, Poll}
 };
 
-use common::{ConsensusState, WAITING_NEXT_BLOCK};
 use futures::FutureExt;
 use guard_types::submission::BestBundles;
+use guard_utils::{ConsensusState, WAITING_NEXT_BLOCK};
 
 use super::{
     completed::CompletedState, GlobalStateContext, RoundAction, RoundStateMessage, StateTransition,

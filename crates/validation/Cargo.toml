@@ -11,7 +11,7 @@ exclude.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-common.workspace = true
+guard-utils.workspace = true
 # ethers
 ethers = "2.0.10"
 ethers-middleware.workspace = true
@@ -42,7 +42,7 @@ reth-interfaces.workspace = true
 tokio.workspace = true
 futures = "0.3.26"
 pin-project = "1.0.12"
-futures-util = "0.3.25"
+futures-util.worskpace = true
 async-trait = "0.1.68"
 parking_lot = "0.12.1"
 

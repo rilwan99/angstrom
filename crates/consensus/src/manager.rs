@@ -3,8 +3,8 @@ use std::{
     task::{Context, Poll}
 };
 
-use common::{ConsensusState, PollExt};
 use futures::{Future, Stream, StreamExt};
+use guard_utils::{ConsensusState, PollExt};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::warn;

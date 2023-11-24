@@ -242,6 +242,7 @@ impl EthBroadcastMessage {
 encodable_enum!(EthBroadcastMessage, PropagateOrder, PrePropose, Proposal, Commit);
 
 /// Represents message IDs for eth protocol messages.
+// TODO: Fix ids because: 0x00-0x10 are reserved for the `eth` protocol.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

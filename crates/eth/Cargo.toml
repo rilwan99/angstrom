@@ -11,16 +11,26 @@ exclude.workspace = true
 
 [dependencies]
 guard-types.workspace = true
-common.workspace = true
+guard-utils.workspace = true
+
 tokio.workspace = true
-anyhow.workspace = true
 futures.workspace = true
-ethers-core.workspace = true
 tokio-stream.workspace = true
+futures-util.worskpace = true
+
+# reth
+reth-provider.workspace = true
+
+# alloy  
+alloy-primitives.workspace = true
+#alloy-providers.workspace = true
+
+# ethers
 ethers-middleware.workspace = true
 ethers-signers.workspace = true
 ethers-providers.workspace = true
 ethers-flashbots = "0.14.0"
-reth-provider.workspace = true
-alloy-primitives.workspace = true
-futures-util = "0.3.28"
+ethers-core.workspace = true
+
+# misc
+anyhow.workspace = true
