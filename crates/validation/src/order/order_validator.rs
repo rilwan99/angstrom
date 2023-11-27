@@ -5,5 +5,4 @@ pub struct OrderValidator<DB> {
     state: StateValidation<DB>
 }
 
-impl<DB> OrderValidator<DB> {
-}
+impl<DB> OrderValidator<DB> {}
