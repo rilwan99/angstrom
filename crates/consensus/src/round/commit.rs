@@ -3,8 +3,8 @@ use std::{
     task::{Context, Poll, Waker}
 };
 
-use common::{ConsensusState, WAITING_NEXT_BLOCK};
 use guard_types::{consensus::Proposal, primitive::Angstrom::Bundle};
+use guard_utils::{ConsensusState, WAITING_NEXT_BLOCK};
 
 use super::{
     completed::CompletedState, GlobalStateContext, RoundAction, RoundStateMessage, StateTransition

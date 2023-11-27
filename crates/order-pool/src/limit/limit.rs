@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use guard_types::{
     orders::{OrderId, OrderPriorityData, PooledLimitOrder, PooledOrder, ValidatedOrder},
     primitive::PoolId

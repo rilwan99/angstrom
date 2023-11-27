@@ -18,7 +18,7 @@ impl UserOrders {
         &mut self,
         order: ValidatedOrder<O, Data>
     ) -> Result<(), ()> {
-        let id: OrderId = order.order_id();
+        let id: OrderId = order.into();
         let _ = self.check_for_nonce_overlap(&id)?;
 
         let user = id.address;

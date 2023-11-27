@@ -32,5 +32,5 @@ rayon.workspace = true
 alloy-rlp.workspace = true
 
 guard-types.workspace = true
-common.workspace = true
+guard-utils.workspace = true
 tokio-stream.workspace = true

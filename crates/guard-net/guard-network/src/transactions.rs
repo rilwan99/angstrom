@@ -155,9 +155,6 @@ pub struct TransactionsManager<Pool> {
     /// All currently active requests for pooled transactions.
     inflight_requests:     FuturesUnordered<GetPooledTxRequestFut>,
     /// All currently pending transactions grouped by peers.
-    ///
-    /// This way we can track incoming transactions and prevent multiple pool
-    /// imports for the same transaction
     transactions_by_peers: HashMap<TxHash, Vec<PeerId>>,
     /// Transactions that are currently imported into the `Pool`
     pool_imports:          FuturesUnordered<PoolImportFuture>,
@@ -177,9 +174,6 @@ pub struct TransactionsManager<Pool> {
 
 impl<Pool: TransactionPool> TransactionsManager<Pool> {
     /// Sets up a new instance.
-    ///
-    /// Note: This expects an existing [`NetworkManager`](crate::NetworkManager)
-    /// instance.
     pub fn new(
         network: NetworkHandle,
         pool: Pool,
@@ -252,18 +246,6 @@ where
     }
 
     /// Invoked when a new transaction is pending in the local pool.
-    ///
-    /// When new transactions appear in the pool, we propagate them to the
-    /// network using the `Transactions` and `NewPooledTransactionHashes`
-    /// messages. The Transactions message relays complete transaction
-    /// objects and is typically sent to a small, random fraction of connected
-    /// peers.
-    ///
-    /// All other peers receive a notification of the transaction hash and can
-    /// request the complete transaction object if it is unknown to them.
-    /// The dissemination of complete transactions to a fraction of peers
-    /// usually ensures that all nodes receive the transaction
-    /// and won't need to request it.
     fn on_new_transactions(&mut self, hashes: Vec<TxHash>) {
         // Nothing to propagate while initially syncing
         if self.network.is_initially_syncing() {
@@ -445,9 +427,6 @@ where
     }
 
     /// Propagate the transaction hashes to the given peer
-    ///
-    /// Note: This will only send the hashes for transactions that exist in the
-    /// pool.
     fn propagate_hashes_to(&mut self, hashes: Vec<TxHash>, peer_id: PeerId) {
         trace!(target: "net::tx", "Start propagating transactions as hashes");
 
@@ -677,12 +656,13 @@ where
         if let Some(peer) = self.peers.get_mut(&peer_id) {
             for tx in transactions {
                 // recover transaction
-                let tx = if let Ok(tx) = tx.try_into_ecrecovered() {
-                    tx
-                } else {
-                    has_bad_transactions = true;
-                    continue
-                };
+                let tx =
+                    if let Ok(tx) = tx.try_into_ecrecovered() {
+                        tx
+                    } else {
+                        has_bad_transactions = true;
+                        continue
+                    };
 
                 // track that the peer knows this transaction, but only if this is a new
                 // broadcast. If we received the transactions as the response to
@@ -702,13 +682,14 @@ where
                         // this is a new transaction that should be imported into the pool
                         let pool_transaction = <
                             Pool::Transaction as FromRecoveredPooledTransaction
-                        >::from_recovered_transaction(tx);
+                        >::from_recovered_pooled_transaction(tx);
 
                         let pool = self.pool.clone();
 
-                        let import = Box::pin(async move {
-                            pool.add_external_transaction(pool_transaction).await
-                        });
+                        let import =
+                            Box::pin(async move {
+                                pool.add_external_transaction(pool_transaction).await
+                            });
 
                         self.pool_imports.push(import);
                         entry.insert(vec![peer_id]);
@@ -1107,10 +1088,11 @@ mod tests {
 
         let client = NoopProvider::default();
         let pool = testing_pool();
-        let config = NetworkConfigBuilder::new(secret_key)
-            .disable_discovery()
-            .listener_port(0)
-            .build();
+        let config =
+            NetworkConfigBuilder::new(secret_key)
+                .disable_discovery()
+                .listener_port(0)
+                .build();
         let (network_handle, network, mut transactions, _) = NetworkManager::new(config)
             .await
             .unwrap()
@@ -1190,10 +1172,11 @@ mod tests {
 
         let client = NoopProvider::default();
         let pool = testing_pool();
-        let config = NetworkConfigBuilder::new(secret_key)
-            .disable_discovery()
-            .listener_port(0)
-            .build(client);
+        let config =
+            NetworkConfigBuilder::new(secret_key)
+                .disable_discovery()
+                .listener_port(0)
+                .build(client);
         let (network_handle, network, mut transactions, _) = NetworkManager::new(config)
             .await
             .unwrap()
@@ -1278,10 +1261,11 @@ mod tests {
 
         let client = NoopProvider::default();
         let pool = testing_pool();
-        let config = NetworkConfigBuilder::new(secret_key)
-            .disable_discovery()
-            .listener_port(0)
-            .build(client);
+        let config =
+            NetworkConfigBuilder::new(secret_key)
+                .disable_discovery()
+                .listener_port(0)
+                .build(client);
         let (network_handle, network, mut transactions, _) = NetworkManager::new(config)
             .await
             .unwrap()
@@ -1370,10 +1354,11 @@ mod tests {
 
         let client = NoopProvider::default();
         let pool = testing_pool();
-        let config = NetworkConfigBuilder::new(secret_key)
-            .disable_discovery()
-            .listener_port(0)
-            .build(client);
+        let config =
+            NetworkConfigBuilder::new(secret_key)
+                .disable_discovery()
+                .listener_port(0)
+                .build(client);
         let (network_handle, network, mut transactions, _) = NetworkManager::new(config)
             .await
             .unwrap()

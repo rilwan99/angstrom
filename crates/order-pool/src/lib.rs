@@ -12,7 +12,6 @@ use std::{
 };
 
 use alloy_primitives::TxHash;
-pub use common::*;
 use eth::manager::EthNetworkEvent;
 use futures_util::{stream::FuturesUnordered, Future, Stream};
 use guard_types::{
@@ -24,6 +23,7 @@ use guard_types::{
         EcRecoveredSearcherOrder
     }
 };
+pub use guard_utils::*;
 use inner::OrderPoolInner;
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_network::{peers::Peer, NetworkEvent, NetworkHandle};
@@ -59,7 +59,7 @@ impl traits::OrderPool for OrderPoolHandle {
     type SearcherOrder = EcRecoveredSearcherOrder;
 }
 
-struct OrderPool<L, CL, S, CS, V>
+pub struct OrderPool<L, CL, S, CS, V>
 where
     L: PooledLimitOrder,
     CL: PooledComposableOrder + PooledLimitOrder,

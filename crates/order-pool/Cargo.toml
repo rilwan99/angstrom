@@ -17,18 +17,26 @@ normal = [
 ]
 
 [dependencies]
+# guard 
+guard-types.workspace = true
+validation.workspace = true
+eth.workspace = true
+guard-utils.workspace = true
+
 # reth
 reth-primitives.workspace = true
 reth-provider.workspace = true
 reth-interfaces.workspace = true
 reth-tasks.workspace = true
 reth-network.workspace = true
+
+# revm
 revm.workspace = true
+
+# alloy 
 alloy-rlp.workspace = true
-guard-types.workspace = true
-validation.workspace = true
-eth.workspace = true
 alloy-primitives.workspace = true
+
 
 # async/futures
 async-trait.workspace = true
