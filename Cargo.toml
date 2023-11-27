@@ -75,11 +75,11 @@ reth-libmdbx = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
 reth-eth-wire = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
 
 # alloy
-alloy-sol-types = { version = "0.4.0", features = ["json"] }
-alloy-sol-macro = { version = "0.4.0", features = ["json"] }
+alloy-sol-types = { version = "0.5.0", features = ["json"] }
+alloy-sol-macro = { version = "0.5.0", features = ["json"] }
 alloy-rlp = { version = "0.3.3" }
 alloy-rlp-derive = { version = "0.3.3" }
-alloy-primitives = { version = "0.4.2", features = ["rlp"] }
+alloy-primitives = { version = "0.5.0", features = ["rlp"] }
 
 # alloy rpc
 #alloy-providers = { git = "https://github.com/alloy-rs/alloy"}
