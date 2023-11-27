@@ -1,7 +1,7 @@
 [workspace]
 members = [
   "bin/stale-guard",
-  "crates/guard-net/*",
+  "crates/guard-net",
   "crates/consensus",
   "crates/types",
   "crates/utils",
@@ -72,7 +72,7 @@ reth-network = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
 reth-network-api = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
 reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
 reth-libmdbx = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-
+reth-eth-wire = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
 
 # alloy
 alloy-sol-types = { version = "0.4.0", features = ["json"] }

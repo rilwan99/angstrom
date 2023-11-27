@@ -50,7 +50,6 @@ impl RethNodeCommandConfig for StaleGuardConfig {
         let order_api = OrderApi { pool: pool.clone() };
         let quotes_api = QuotesApi { pool: pool.clone() };
         let consensus_api = ConsensusApi { consensus };
-
         rpc_components
             .modules
             .merge_configured(order_api.into_rpc())?;
