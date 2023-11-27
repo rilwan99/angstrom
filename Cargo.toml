@@ -1,7 +1,7 @@
 [workspace]
 members = [
   "bin/stale-guard",
-  "crates/guard-net/*",
+  "crates/guard-net",
   "crates/consensus",
   "crates/types",
   "crates/utils",
@@ -48,38 +48,38 @@ revm = { git = "https://github.com/bluealloy/revm", branch = "reth_freeze",  fea
 revm-primitives = { git = "https://github.com/bluealloy/revm", branch = "reth_freeze", features = ["std"], default-features = false }
 
 # reth
-reth = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-interfaces = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-rlp = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31", features = [
+reth = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-interfaces = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-provider = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-db = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-rlp = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea", features = [
   "alloc",
 ] }
-reth-codecs = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-ecies = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-rpc-builder = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-blockchain-tree = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-beacon-consensus = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-metrics = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-revm = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-payload-builder = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-tasks = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-network = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-network-api = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-reth-libmdbx = { git = "https://github.com/paradigmxyz/reth", rev = "337fb31" }
-
+reth-codecs = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-ecies = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-rpc-builder = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-blockchain-tree = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-beacon-consensus = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-metrics = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-revm = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-payload-builder = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-transaction-pool = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-tasks = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-network = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-network-api = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-libmdbx = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
+reth-eth-wire = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
 
 # alloy
-alloy-sol-types = { version = "0.4.0", features = ["json"] }
-alloy-sol-macro = { version = "0.4.0", features = ["json"] }
+alloy-sol-types = { version = "0.5.0", features = ["json"] }
+alloy-sol-macro = { version = "0.5.0", features = ["json"] }
 alloy-rlp = { version = "0.3.3" }
 alloy-rlp-derive = { version = "0.3.3" }
-alloy-primitives = { version = "0.4.2", features = ["rlp"] }
+alloy-primitives = { version = "0.5.0", features = ["rlp"] }
 
 # alloy rpc
 #alloy-providers = { git = "https://github.com/alloy-rs/alloy"}

@@ -7,8 +7,8 @@ use guard_types::{
         Signature
     }
 };
-use reth_primitives::{keccak256, H256, H512};
-use revm_primitives::{bytes::BytesMut, Address};
+use reth_primitives::{keccak256, BytesMut, H256, H512};
+use revm_primitives::Address;
 
 /// The Signer deals with verifying external signatures as well as
 /// signing our payloads
