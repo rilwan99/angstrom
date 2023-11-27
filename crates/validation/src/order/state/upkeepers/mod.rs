@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use alloy_primitives::{Address, Bytes, B256, U256};
 use reth_provider::StateProviderFactory;
-use revm::{interpreter::opcode, Inspector, new};
+use revm::{db::WrapDatabaseRef, interpreter::opcode, new, Database, Inspector, EVM};
 
 use crate::common::lru_db::RevmLRU;
 
@@ -63,12 +63,14 @@ impl<DB: Database> Inspector<DB> for SlotInspector {
 /// location. Mappings work by taking the hash of the concatenated
 /// (USER_ADDRESS, i) where i is the location of the mapping. We find the
 /// storage slots that link
-pub fn find_storage_slot<DB>(call_data: Bytes, wanted_address: Address, db: DB) -> U256
+pub fn find_storage_slot<DB>(call_data: Bytes, wanted_address: Address, db: RevmLRU<DB>) -> U256
 where
     DB: StateProviderFactory + Send + Sync + Clone + 'static
 {
     let inspector = SlotInspector::default();
-    let evm = new();
+
+    let mut evm: EVM<RevmLRU<DB>> = new();
+    evm.database(db);
 
     todo!()
 }
