@@ -11,50 +11,50 @@ use reth_primitives::bytes::{Buf, BufMut};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::Status;
+use super::version::StromVersion;
 use crate::{
-    errors::EthStreamError, EthVersion, GetLimitOrders, GetSearcherOrders, GetUsersOrders,
-    LimitOrders, SearcherOrders, UserOrders
+    errors::EthStreamError, GetLimitOrders, GetSearcherOrders, GetUsersOrders, LimitOrders,
+    SearcherOrders, Status, UserOrders
 };
 
 /// An `eth` protocol message, containing a message ID and payload.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ProtocolMessage {
-    pub message_type: EthMessageID,
-    pub message:      EthMessage
+    pub message_type: StromMessageID,
+    pub message:      StromMessage
 }
 
 impl ProtocolMessage {
     /// Create a new ProtocolMessage from a message type and message rlp bytes.
-    pub fn decode_message(_version: EthVersion, buf: &mut &[u8]) -> Result<Self, EthStreamError> {
-        let message_type = EthMessageID::decode(buf)?;
+    pub fn decode_message(_version: StromVersion, buf: &mut &[u8]) -> Result<Self, EthStreamError> {
+        let message_type = StromMessageID::decode(buf)?;
 
         let message = match message_type {
-            EthMessageID::Status => EthMessage::Status(Status::decode(buf)?),
-            EthMessageID::PropagateOrder => {
-                EthMessage::PropagateOrder(SignedLimitOrder::decode(buf)?)
+            StromMessageID::Status => StromMessage::Status(Status::decode(buf)?),
+            StromMessageID::PropagateOrder => {
+                StromMessage::PropagateOrder(SignedLimitOrder::decode(buf)?)
             }
-            EthMessageID::PrePropose => EthMessage::PrePropose(PreProposal::decode(buf)?),
-            EthMessageID::Proposal => EthMessage::Proposal(Proposal::decode(buf)?),
-            EthMessageID::Commit => EthMessage::Commit(Commit::decode(buf)?),
-            EthMessageID::UserOrder => {
-                EthMessage::UserOrders(RequestPair::<UserOrders>::decode(buf)?)
+            StromMessageID::PrePropose => StromMessage::PrePropose(PreProposal::decode(buf)?),
+            StromMessageID::Proposal => StromMessage::Proposal(Proposal::decode(buf)?),
+            StromMessageID::Commit => StromMessage::Commit(Commit::decode(buf)?),
+            StromMessageID::UserOrder => {
+                StromMessage::UserOrders(RequestPair::<UserOrders>::decode(buf)?)
             }
-            EthMessageID::LimitOrder => {
-                EthMessage::LimitOrders(RequestPair::<LimitOrders>::decode(buf)?)
+            StromMessageID::LimitOrder => {
+                StromMessage::LimitOrders(RequestPair::<LimitOrders>::decode(buf)?)
             }
-            EthMessageID::SearcherOrder => {
-                EthMessage::SearcherOrders(RequestPair::<SearcherOrders>::decode(buf)?)
+            StromMessageID::SearcherOrder => {
+                StromMessage::SearcherOrders(RequestPair::<SearcherOrders>::decode(buf)?)
             }
-            EthMessageID::GetUserOrder => {
-                EthMessage::GetUserOrders(RequestPair::<GetUsersOrders>::decode(buf)?)
+            StromMessageID::GetUserOrder => {
+                StromMessage::GetUserOrders(RequestPair::<GetUsersOrders>::decode(buf)?)
             }
-            EthMessageID::GetLimitOrder => {
-                EthMessage::GetLimitOrders(RequestPair::<GetLimitOrders>::decode(buf)?)
+            StromMessageID::GetLimitOrder => {
+                StromMessage::GetLimitOrders(RequestPair::<GetLimitOrders>::decode(buf)?)
             }
-            EthMessageID::GetSearcherOrder => {
-                EthMessage::GetSearcherOrders(RequestPair::<GetSearcherOrders>::decode(buf)?)
+            StromMessageID::GetSearcherOrder => {
+                StromMessage::GetSearcherOrders(RequestPair::<GetSearcherOrders>::decode(buf)?)
             }
         };
         Ok(ProtocolMessage { message_type, message })
@@ -74,8 +74,8 @@ impl Encodable for ProtocolMessage {
     }
 }
 
-impl From<EthMessage> for ProtocolMessage {
-    fn from(message: EthMessage) -> Self {
+impl From<StromMessage> for ProtocolMessage {
+    fn from(message: StromMessage) -> Self {
         ProtocolMessage { message_type: message.message_id(), message }
     }
 }
@@ -83,8 +83,8 @@ impl From<EthMessage> for ProtocolMessage {
 /// Represents messages that can be sent to multiple peers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ProtocolBroadcastMessage {
-    pub message_type: EthMessageID,
-    pub message:      EthBroadcastMessage
+    pub message_type: StromMessageID,
+    pub message:      StromBroadcastMessage
 }
 
 /// Encodes the protocol message into bytes.
@@ -100,8 +100,8 @@ impl Encodable for ProtocolBroadcastMessage {
     }
 }
 
-impl From<EthBroadcastMessage> for ProtocolBroadcastMessage {
-    fn from(message: EthBroadcastMessage) -> Self {
+impl From<StromBroadcastMessage> for ProtocolBroadcastMessage {
+    fn from(message: StromBroadcastMessage) -> Self {
         ProtocolBroadcastMessage { message_type: message.message_id(), message }
     }
 }
@@ -129,7 +129,7 @@ impl From<EthBroadcastMessage> for ProtocolBroadcastMessage {
 /// defined.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum EthMessage {
+pub enum StromMessage {
     // init
     Status(Status),
     // broadcast
@@ -154,21 +154,21 @@ pub enum EthMessage {
 // RlpEncodableWrapper, RlpDecodableWrapper which completely removes the fuckery
 // we had intially
 //
-impl EthMessage {
+impl StromMessage {
     /// Returns the message's ID.
-    pub fn message_id(&self) -> EthMessageID {
+    pub fn message_id(&self) -> StromMessageID {
         match self {
-            EthMessage::Status(_) => EthMessageID::Status,
-            EthMessage::PropagateOrder(_) => EthMessageID::PropagateOrder,
-            EthMessage::PrePropose(_) => EthMessageID::PrePropose,
-            EthMessage::Proposal(_) => EthMessageID::Proposal,
-            EthMessage::Commit(_) => EthMessageID::Commit,
-            EthMessage::UserOrders(_) => EthMessageID::UserOrder,
-            EthMessage::LimitOrders(_) => EthMessageID::LimitOrder,
-            EthMessage::SearcherOrders(_) => EthMessageID::SearcherOrder,
-            EthMessage::GetUserOrders(_) => EthMessageID::GetUserOrder,
-            EthMessage::GetLimitOrders(_) => EthMessageID::GetLimitOrder,
-            EthMessage::GetSearcherOrders(_) => EthMessageID::GetSearcherOrder
+            StromMessage::Status(_) => StromMessageID::Status,
+            StromMessage::PropagateOrder(_) => StromMessageID::PropagateOrder,
+            StromMessage::PrePropose(_) => StromMessageID::PrePropose,
+            StromMessage::Proposal(_) => StromMessageID::Proposal,
+            StromMessage::Commit(_) => StromMessageID::Commit,
+            StromMessage::UserOrders(_) => StromMessageID::UserOrder,
+            StromMessage::LimitOrders(_) => StromMessageID::LimitOrder,
+            StromMessage::SearcherOrders(_) => StromMessageID::SearcherOrder,
+            StromMessage::GetUserOrders(_) => StromMessageID::GetUserOrder,
+            StromMessage::GetLimitOrders(_) => StromMessageID::GetLimitOrder,
+            StromMessage::GetSearcherOrders(_) => StromMessageID::GetSearcherOrder
         }
     }
 }
@@ -192,7 +192,7 @@ macro_rules! encodable_enum {
 }
 
 encodable_enum!(
-    EthMessage,
+    StromMessage,
     Status,
     PropagateOrder,
     Commit,
@@ -206,7 +206,7 @@ encodable_enum!(
     GetSearcherOrders
 );
 
-/// Represents broadcast messages of [`EthMessage`] with the same object that
+/// Represents broadcast messages of [`StromMessage`] with the same object that
 /// can be sent to multiple peers.
 ///
 /// Messages that contain a list of hashes depend on the peer the message is
@@ -215,7 +215,7 @@ encodable_enum!(
 ///
 /// Note: This is only useful for outgoing messages.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum EthBroadcastMessage {
+pub enum StromBroadcastMessage {
     // broadcast
     PrePropose(Arc<PreProposal>),
     Proposal(Arc<Proposal>),
@@ -225,28 +225,28 @@ pub enum EthBroadcastMessage {
     PropagateOrder(Arc<SignedLimitOrder>)
 }
 
-// === impl EthBroadcastMessage ===
+// === impl StromBroadcastMessage ===
 
-impl EthBroadcastMessage {
+impl StromBroadcastMessage {
     /// Returns the message's ID.
-    pub fn message_id(&self) -> EthMessageID {
+    pub fn message_id(&self) -> StromMessageID {
         match self {
-            EthBroadcastMessage::PropagateOrder(_) => EthMessageID::PropagateOrder,
-            EthBroadcastMessage::PrePropose(_) => EthMessageID::PrePropose,
-            EthBroadcastMessage::Proposal(_) => EthMessageID::Proposal,
-            EthBroadcastMessage::Commit(_) => EthMessageID::Commit
+            StromBroadcastMessage::PropagateOrder(_) => StromMessageID::PropagateOrder,
+            StromBroadcastMessage::PrePropose(_) => StromMessageID::PrePropose,
+            StromBroadcastMessage::Proposal(_) => StromMessageID::Proposal,
+            StromBroadcastMessage::Commit(_) => StromMessageID::Commit
         }
     }
 }
 
-encodable_enum!(EthBroadcastMessage, PropagateOrder, PrePropose, Proposal, Commit);
+encodable_enum!(StromBroadcastMessage, PropagateOrder, PrePropose, Proposal, Commit);
 
 /// Represents message IDs for eth protocol messages.
 // TODO: Fix ids because: 0x00-0x10 are reserved for the `eth` protocol.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum EthMessageID {
+pub enum StromMessageID {
     Status           = 0,
     PropagateOrder   = 2,
     PrePropose       = 3,
@@ -260,7 +260,7 @@ pub enum EthMessageID {
     GetLimitOrder    = 11
 }
 
-impl Encodable for EthMessageID {
+impl Encodable for StromMessageID {
     fn encode(&self, out: &mut dyn BufMut) {
         out.put_u8(*self as u8);
     }
@@ -270,15 +270,15 @@ impl Encodable for EthMessageID {
     }
 }
 
-impl Decodable for EthMessageID {
+impl Decodable for StromMessageID {
     fn decode(buf: &mut &[u8]) -> Result<Self, alloy_rlp::Error> {
         let id = buf.first().ok_or(alloy_rlp::Error::InputTooShort)?;
         let id = match id {
-            0 => EthMessageID::Status,
-            2 => EthMessageID::PropagateOrder,
-            3 => EthMessageID::PrePropose,
-            4 => EthMessageID::Proposal,
-            5 => EthMessageID::Commit,
+            0 => StromMessageID::Status,
+            2 => StromMessageID::PropagateOrder,
+            3 => StromMessageID::PrePropose,
+            4 => StromMessageID::Proposal,
+            5 => StromMessageID::Commit,
             _ => return Err(alloy_rlp::Error::Custom("Invalid message ID"))
         };
         buf.advance(1);
@@ -286,16 +286,16 @@ impl Decodable for EthMessageID {
     }
 }
 
-impl TryFrom<usize> for EthMessageID {
+impl TryFrom<usize> for StromMessageID {
     type Error = &'static str;
 
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         match value {
-            0 => Ok(EthMessageID::Status),
-            2 => Ok(EthMessageID::PropagateOrder),
-            3 => Ok(EthMessageID::PrePropose),
-            4 => Ok(EthMessageID::Proposal),
-            5 => Ok(EthMessageID::Commit),
+            0 => Ok(StromMessageID::Status),
+            2 => Ok(StromMessageID::PropagateOrder),
+            3 => Ok(StromMessageID::PrePropose),
+            4 => Ok(StromMessageID::Proposal),
+            5 => Ok(StromMessageID::Commit),
             _ => Err("Invalid message ID")
         }
     }
@@ -354,66 +354,4 @@ where
 mod test {
     // use hex_literal::hex;
     // use alloy_rlp::{Decodable, Encodable};
-    //
-    // use crate::{
-    //     errors::EthStreamError, types::message::RequestPair, EthMessage,
-    // EthMessageID,     ProtocolMessage
-    // };
-    //
-    // fn encode<T: Encodable>(value: T) -> Vec<u8> {
-    //     let mut buf = vec![];
-    //     value.encode(&mut buf);
-    //     buf
-    // }
-    //
-    // #[test]
-    // fn test_removed_message_at_eth67() {
-    //     let get_node_data = EthMessage::GetNodeData(RequestPair {
-    //         request_id: 1337,
-    //         message:    GetNodeData(vec![])
-    //     });
-    //     let buf = encode(ProtocolMessage {
-    //         message_type: EthMessageID::GetNodeData,
-    //         message:      get_node_data
-    //     });
-    //     let msg = ProtocolMessage::decode_message(crate::EthVersion::Eth67,
-    // &mut &buf[..]);     assert!(matches!(msg,
-    // Err(EthStreamError::EthInvalidMessageError(..))));
-    //
-    //     let node_data =
-    //         EthMessage::NodeData(RequestPair { request_id: 1337, message:
-    // NodeData(vec![]) });     let buf = encode(ProtocolMessage {
-    //         message_type: EthMessageID::NodeData,
-    //         message:      node_data
-    //     });
-    //     let msg = ProtocolMessage::decode_message(crate::EthVersion::Eth67,
-    // &mut &buf[..]);     assert!(matches!(msg,
-    // Err(EthStreamError::EthInvalidMessageError(..)))); }
-    //
-    // #[test]
-    // fn request_pair_encode() {
-    //     let request_pair = RequestPair { request_id: 1337, message: vec![5u8]
-    // };
-    //
-    //     // c5: start of list (c0) + len(full_list) (length is <55 bytes)
-    //     // 82: 0x80 + len(1337)
-    //     // 05 39: 1337 (request_id)
-    //     // === full_list ===
-    //     // c1: start of list (c0) + len(list) (length is <55 bytes)
-    //     // 05: 5 (message)
-    //     let expected = hex!("c5820539c105");
-    //     let got = encode(request_pair);
-    //     assert_eq!(expected[..], got, "expected: {expected:X?}, got:
-    // {got:X?}",); }
-    //
-    // #[test]
-    // fn request_pair_decode() {
-    //     let raw_pair = &hex!("c5820539c105")[..];
-    //
-    //     let expected = RequestPair { request_id: 1337, message: vec![5u8] };
-    //
-    //     let got = RequestPair::<Vec<u8>>::decode(&mut &*raw_pair).unwrap();
-    //     assert_eq!(expected.length(), raw_pair.len());
-    //     assert_eq!(expected, got);
-    // }
 }
