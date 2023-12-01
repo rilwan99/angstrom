@@ -12,3 +12,6 @@ pub use manager::*;
 
 pub mod pool_manager;
 pub use pool_manager::*;
+
+pub mod reputation;
+pub use reputation::*;

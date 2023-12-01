@@ -121,8 +121,8 @@ pub enum StromMessage {
     Proposal(Proposal),
     Commit(Commit),
 
-    /// Order Propagation
-    PropagateOrder(SignedLimitOrder),
+    /// Propagation messages that broadcast new orders to all peers
+    PropagateOrder(Vec<SignedLimitOrder),
     PropagateComposableOrder(SignedComposableLimitOrder),
     PropagateSearcherOrder(SignedSearcherOrder),
     PropagetComposableSearcherOrder(SignedComposableSearcherOrder),
@@ -141,27 +141,33 @@ pub enum StromMessage {
     AllOrders(RequestPair<Orders>)
 }
 
-//TODO: Will, you have to implement the request pair model so that you can have
-//TODO: the message & request pair is rlp encode/decodable but the type that
-// the request pair holds is not rlp encode/decodable it is only
-// RlpEncodableWrapper, RlpDecodableWrapper which completely removes the fuckery
-// we had intially
-//
 impl StromMessage {
     /// Returns the message's ID.
     pub fn message_id(&self) -> StromMessageID {
         match self {
             StromMessage::Status(_) => StromMessageID::Status,
             StromMessage::PropagateOrder(_) => StromMessageID::PropagateOrder,
+            StromMessage::PropagateComposableOrder(_) => StromMessageID::PropagateComposableOrder,
+            StromMessage::PropagateSearcherOrder(_) => StromMessageID::PropagateSearcherOrder,
+            StromMessage::PropagetComposableSearcherOrder(_) => {
+                StromMessageID::PropagetComposableSearcherOrder
+            }
+            StromMessage::PropagateOrders(_) => StromMessageID::PropagateOrders,
+            StromMessage::GetLimitOrders(_) => StromMessageID::GetLimitOrders,
+            StromMessage::LimitOrders(_) => StromMessageID::LimitOrders,
+            StromMessage::GetComposableLimitOrders(_) => StromMessageID::GetComposableLimitOrders,
+            StromMessage::ComposableLimitOrders(_) => StromMessageID::ComposableLimitOrders,
+            StromMessage::GetSearcherOrders(_) => StromMessageID::GetSearcherOrders,
+            StromMessage::SearcherOrders(_) => StromMessageID::SearcherOrders,
+            StromMessage::GetCompasableSearcherOrders(_) => {
+                StromMessageID::GetCompasableSearcherOrders
+            }
+            StromMessage::ComposableSearcherOrders(_) => StromMessageID::ComposableSearcherOrders,
+            StromMessage::GetAllOrders(_) => StromMessageID::GetAllOrders,
+            StromMessage::AllOrders(_) => StromMessageID::AllOrders,
             StromMessage::PrePropose(_) => StromMessageID::PrePropose,
             StromMessage::Proposal(_) => StromMessageID::Proposal,
-            StromMessage::Commit(_) => StromMessageID::Commit,
-            StromMessage::UserOrders(_) => StromMessageID::UserOrder,
-            StromMessage::LimitOrders(_) => StromMessageID::LimitOrder,
-            StromMessage::SearcherOrders(_) => StromMessageID::SearcherOrder,
-            StromMessage::GetUserOrders(_) => StromMessageID::GetUserOrder,
-            StromMessage::GetLimitOrders(_) => StromMessageID::GetLimitOrder,
-            StromMessage::GetSearcherOrders(_) => StromMessageID::GetSearcherOrder
+            StromMessage::Commit(_) => StromMessageID::Commit
         }
     }
 }
@@ -188,15 +194,23 @@ encodable_enum!(
     StromMessage,
     Status,
     PropagateOrder,
-    Commit,
-    Proposal,
-    PrePropose,
-    UserOrders,
-    SearcherOrders,
-    LimitOrders,
-    GetUserOrders,
+    PropagateComposableOrder,
+    PropagateSearcherOrder,
+    PropagetComposableSearcherOrder,
+    PropagateOrders,
     GetLimitOrders,
-    GetSearcherOrders
+    LimitOrders,
+    GetComposableLimitOrders,
+    ComposableLimitOrders,
+    GetSearcherOrders,
+    SearcherOrders,
+    GetCompasableSearcherOrders,
+    ComposableSearcherOrders,
+    GetAllOrders,
+    AllOrders,
+    PrePropose,
+    Proposal,
+    Commit
 );
 
 /// Represents broadcast messages of [`StromMessage`] with the same object that
@@ -214,10 +228,10 @@ pub enum StromBroadcastMessage {
     Proposal(Arc<Proposal>),
     Commit(Arc<Commit>),
 
-    PropagateOrder(Arc<SignedLimitOrder>),
     PropagateComposableOrder(Arc<SignedComposableLimitOrder>),
     PropagateSearcherOrder(Arc<SignedSearcherOrder>),
-    PropagetComposableSearcherOrder(Arc<SignedComposableSearcherOrder>)
+    PropagetComposableSearcherOrder(Arc<SignedComposableSearcherOrder>),
+    PropagateOrders(Arc<Vec<Orders>>)
 }
 
 // === impl StromBroadcastMessage ===
@@ -238,7 +252,6 @@ impl StromBroadcastMessage {
 encodable_enum!(StromBroadcastMessage, PropagateOrder, PrePropose, Proposal, Commit);
 
 /// Represents message IDs for eth protocol messages.
-// TODO: Fix ids because: 0x00-0x10 are reserved for the `eth` protocol.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]

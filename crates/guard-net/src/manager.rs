@@ -1,4 +1,9 @@
-use std::{fmt, net::SocketAddr, pin::Pin};
+use std::{
+    fmt,
+    net::SocketAddr,
+    pin::Pin,
+    sync::{atomic::AtomicUsize, Arc}
+};
 
 use futures::Stream;
 use reth_eth_wire::{
@@ -10,22 +15,51 @@ use reth_network_api::Direction;
 use reth_primitives::BytesMut;
 use reth_rpc_types::PeerId;
 
-use crate::{pool_manager::PoolHandle, StromNetworkEvent};
+use crate::{
+    pool_manager::PoolHandle,
+    types::orders::{
+        ComposableLimitOrders, ComposableSearcherOrders, LimitOrders, Orders, SearcherOrders
+    },
+    StromNetworkEvent
+};
 
 //TODO:
 // 1) Implement the order pool manager
 // 2) Implement the consensus manager
 // 3)
 #[derive(Debug)]
-pub struct StromManager {
-    to_order_manager: UnboundedMeteredSender<StromNetworkEvent>
+pub struct StromProtocolHandle {
+    inner: Arc<StromInner>
 }
 
+#[derive(Debug)]
+struct StromInner {
+    num_active_peers: Arc<AtomicUsize>
+}
 /// All events related to orders emitted by the network.
 #[derive(Debug)]
 pub enum NetworkOrderEvent {
     /// Received list of orders from a peer
-    IncomingOrders { peer_id: PeerId, orders: Vec }
+    IncomingLimitOrders {
+        peer_id: PeerId,
+        orders:  Vec<LimitOrders>
+    },
+    IncomingComposableOrders {
+        peer_id: PeerId,
+        orders:  Vec<ComposableLimitOrders>
+    },
+    IncomingSearcherOrders {
+        peer_id: PeerId,
+        orders:  Vec<SearcherOrders>
+    },
+    IncommingComposableSearcherOrders {
+        peer_id: PeerId,
+        orders:  Vec<ComposableSearcherOrders>
+    },
+    IncomingOrders {
+        peer_id: PeerId,
+        orders:  Vec<Orders>
+    }
 }
 
 /*

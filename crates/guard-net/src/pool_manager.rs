@@ -3,8 +3,8 @@ use std::{
     pin::Pin,
     task::{Context, Poll}
 };
-use crate::types::events::StromNetworkEvent;
-use crate::types::{GetLimitOrders, NetworkHandle};
+use crate::{types::events::StromNetworkEvent, StromProtocolHandle, NetworkOrderEvent};
+use crate::types::{GetLimitOrders};
 use reth_primitives::TxHash;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -15,6 +15,8 @@ use reth_network::peers::Peer;
 use futures::Future;
 use tokio_stream::wrappers::ReceiverStream;
 use futures::stream::FuturesUnordered;
+use crate::ReputationChangeKind;
+
 /// Api to interact with [`PoolManager`] task.
 #[derive(Debug, Clone)]
 pub struct PoolHandle {
@@ -38,7 +40,7 @@ pub struct PoolManager<Pool> {
     /// Access to the order pool
     pool:               Pool,
     /// Network access.
-    network:             NetworkHandle,
+    network:             StromProtocolHandle,
     /// Subscriptions to all the strom-network related events.
     ///
     /// From which we get all new incoming order related messages.
@@ -57,14 +59,14 @@ pub struct PoolManager<Pool> {
     /// All currently pending orders grouped by peers.
     orders_by_peers:     HashMap<TxHash, Vec<PeerId>>,
     /// Incoming events from the ProtocolManager.
-    order_events: UnboundedReceiverStream<OrderEvent>,
+    order_events: UnboundedReceiverStream<NetworkOrderEvent>,
     /// All the connected peers.
     peers: HashMap<PeerId, Peer>
 }
 
 impl<Pool: OrderPool> PoolManager<Pool> {
     
-    pub fn new(pool: Pool, network: NetworkHandle, from_network: UnboundedReceiver<NetworkTransactionEvent>) {
+    pub fn new(pool: Pool, network: StromProtocolHandle, from_network: UnboundedReceiver<NetworkOrderEvent>) {
         let network_events = network.event_listener();
     }
 }
@@ -95,7 +97,7 @@ struct OrderFetcher {
 
 impl<Pool> PoolManager<Pool>
 where
-    Pool: TransactionPool + 'static,
+    Pool: OrderPool + 'static,
 {
     /*#[inline]
     fn update_import_metrics(&self) {
@@ -622,10 +624,6 @@ where
         self.report_peer(peer_id, kind);
     }
 
-    fn report_already_seen(&self, peer_id: PeerId) {
-        trace!(target: "net::tx", ?peer_id, "Penalizing peer for already seen transaction");
-        self.network.reputation_change(peer_id, ReputationChangeKind::AlreadySeenTransaction);
-    }
 
     /// Clear the transaction
     fn on_good_import(&mut self, hash: TxHash) {
