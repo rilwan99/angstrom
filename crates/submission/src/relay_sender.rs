@@ -11,22 +11,49 @@ use ethers_providers::Middleware;
 use ethers_signers::{LocalWallet, Signer};
 use futures::{Future, FutureExt};
 use guard_types::submission::SubmissionBundle;
-
+use tokio::sync::{mpsc, mpsc::UnboundedSender};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 type StakedWallet = LocalWallet;
 type BundleKey = LocalWallet;
 
 pub type SubmissionFut = Pin<Box<dyn Future<Output = Result<(), PendingBundleError>> + Send>>;
 
-pub struct RelaySender<M: Middleware + 'static> {
-    signer: Arc<SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>>,
-    future: Option<SubmissionFut>
+pub enum SubmissionCommand {
+    SubmitBundle(SubmissionBundle)
+}
+
+/// Api to interact with [`TransactionsManager`] task.
+#[derive(Debug, Clone)]
+pub struct SubmissionHandle {
+    /// Command channel to the [`TransactionsManager`]
+    manager_tx: mpsc::UnboundedSender<SubmissionCommand>
+}
+
+pub struct RelaySender<M>
+where
+    M: Middleware + 'static
+{
+    signer:     Arc<SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>>,
+    future:     Option<SubmissionFut>,
+    command_tx: UnboundedSender<SubmissionCommand>,
+    command_rx: UnboundedReceiverStream<SubmissionCommand>
 }
 
 impl<M: Middleware + 'static> RelaySender<M> {
     pub fn new(
         signer: Arc<SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>>
     ) -> Self {
-        Self { signer, future: None }
+        let (command_tx, command_rx) = mpsc::unbounded_channel();
+        Self {
+            signer,
+            future: None,
+            command_tx,
+            command_rx: UnboundedReceiverStream::new(command_rx)
+        }
+    }
+
+    pub fn handle(&self) -> SubmissionHandle {
+        SubmissionHandle { manager_tx: self.command_tx.clone() }
     }
 
     pub fn has_submitted(&self) -> bool {

@@ -31,7 +31,6 @@ pub enum BundleOrTransactionResult {
 }
 
 // the simulator is a handle that we use to simulate transactions.
-#[async_trait::async_trait]
 pub trait BundleValidator: Send + Sync + Clone + Unpin {
     /// executes the swap on the underlying v4 pool in order to see what the
     /// limit price for everyone will be

@@ -1,22 +1,25 @@
 mod common;
+mod config;
 mod inner;
 mod limit;
 mod searcher;
-mod traits;
+pub mod traits;
 mod validator;
-
 use std::{
     collections::HashMap,
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll}
 };
 
 use alloy_primitives::TxHash;
-use eth::manager::EthNetworkEvent;
+use config::PoolConfig;
 use futures_util::{stream::FuturesUnordered, Future, Stream};
+use guard_eth::manager::EthEvent;
 use guard_types::{
     orders::{
-        OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder
+        OrderOrigin, OrderPriorityData, PooledComposableOrder, PooledLimitOrder, PooledOrder,
+        PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
     },
     rpc::{
         EcRecoveredComposableLimitOrder, EcRecoveredComposableSearcherOrder, EcRecoveredLimitOrder,
@@ -34,32 +37,11 @@ use tokio::sync::{
     oneshot
 };
 use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
+use traits::OrderPool;
 use validation::{order::OrderValidator, RevmClient};
 
-type DefaultOrderPool = OrderPool<
-    EcRecoveredLimitOrder,
-    EcRecoveredComposableLimitOrder,
-    EcRecoveredSearcherOrder,
-    EcRecoveredComposableSearcherOrder,
-    RevmClient
->;
-
-#[derive(Debug, Clone)]
-pub struct OrderPoolHandle {
-    sender: Sender<OrderPoolCommand>
-}
-
-#[derive(Debug, Clone)]
-pub enum OrderPoolCommand {}
-
-impl traits::OrderPool for OrderPoolHandle {
-    type ComposableLimitOrder = EcRecoveredComposableLimitOrder;
-    type ComposableSearcherOrder = EcRecoveredComposableSearcherOrder;
-    type LimitOrder = EcRecoveredLimitOrder;
-    type SearcherOrder = EcRecoveredSearcherOrder;
-}
-
-pub struct OrderPool<L, CL, S, CS, V>
+#[derive(Clone)]
+pub struct Pool<L, CL, S, CS, V>
 where
     L: PooledLimitOrder,
     CL: PooledComposableOrder + PooledLimitOrder,
@@ -67,41 +49,18 @@ where
     CS: PooledComposableOrder + PooledSearcherOrder,
     V: OrderValidator
 {
-    inner: OrderPoolInner<L, CL, S, CS, V>,
-
-    /// Ethereum Data updates
-    eth_network_events:    Pin<Box<dyn Stream<Item = EthNetworkEvent>>>,
-    /// allows for external services to access data.
-    command_rx:            ReceiverStream<OrderPoolCommand>,
-    /// Network access.
-    network:               NetworkHandle,
-    /// Subscriptions to all network related events.
-    ///
-    /// From which we get all new incoming transaction related messages.
-    network_events:        UnboundedReceiverStream<NetworkEvent>,
-    /// Transaction fetcher to handle inflight and missing transaction requests.
-    // transaction_fetcher:   TransactionFetcher,
-    /// All currently pending transactions grouped by peers.
-    transactions_by_peers: HashMap<TxHash, Vec<PeerId>>,
-
-    // /// Transactions that are currently imported into the `Pool`
-    // pool_imports:          FuturesUnordered<PoolImportFuture>,
-    // /// All the connected peers.
-    peers: HashMap<PeerId, Peer>,
-    // /// Incoming events from the [`NetworkManager`](crate::NetworkManager).
-    // transaction_events:    UnboundedMeteredReceiver<NetworkTransactionEvent>,
-    // /// TransactionsManager metrics
-    // metrics:               TransactionsManagerMetrics
-    // TODO: placeholder to avoid bad fmt
-    _p:    ()
+    pool: Arc<OrderPoolInner<L, CL, S, CS, V>>
 }
 
-impl<L, CL, S, CS, V> Future for OrderPool<L, CL, S, CS, V>
+impl<L, CL, S, CS, V> Pool<L, CL, S, CS, V>
 where
-    L: PooledLimitOrder,
-    CL: PooledComposableOrder + PooledLimitOrder,
-    S: PooledSearcherOrder,
-    CS: PooledComposableOrder + PooledSearcherOrder,
+    L: PooledLimitOrder<ValidationData = ValidatedOrder<L, OrderPriorityData>>,
+    CL: PooledComposableOrder
+        + PooledLimitOrder<ValidationData = ValidatedOrder<CL, OrderPriorityData>>,
+
+    S: PooledSearcherOrder<ValidationData = ValidatedOrder<S, SearcherPriorityData>>,
+    CS: PooledComposableOrder
+        + PooledSearcherOrder<ValidationData = ValidatedOrder<CS, SearcherPriorityData>>,
     V: OrderValidator<
         LimitOrder = L,
         SearcherOrder = S,
@@ -109,9 +68,30 @@ where
         ComposableSearcherOrder = CS
     >
 {
-    type Output = ();
+    pub fn new(validator: V, config: PoolConfig) -> Self {
+        let pool = Arc::new(OrderPoolInner::new(validator, config));
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        todo!()
+        Self { pool }
     }
+
+    pub fn inner(&self) -> &OrderPoolInner<L, CL, S, CS, V> {
+        &self.pool
+    }
+}
+
+//TODO: Tmrw, finish the impl of the pool handle that impls the Pool trait
+// which will be the pool api
+
+impl<L, CL, S, CS, V> OrderPool for Pool<L, CL, S, CS, V>
+where
+    L: PooledLimitOrder,
+    CL: PooledComposableOrder + PooledLimitOrder,
+    S: PooledSearcherOrder,
+    CS: PooledComposableOrder + PooledSearcherOrder,
+    V: OrderValidator
+{
+    type ComposableLimitOrder = CL;
+    type ComposableSearcherOrder = CS;
+    type LimitOrder = L;
+    type SearcherOrder = S;
 }

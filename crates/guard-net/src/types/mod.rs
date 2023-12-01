@@ -10,3 +10,6 @@ pub use version::*;
 
 pub mod message;
 pub use message::*;
+
+pub mod events;
+pub use events::*;

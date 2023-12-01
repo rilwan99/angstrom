@@ -92,9 +92,9 @@ where
                     };
 
                     // bad but needed to convert directly. ideally we can remove this
-                    let result = U256::from_be_bytes(unsafe {
-                        *(output.to_vec().as_slice() as *const _ as *mut [u8; 32])
-                    });
+                    let result = U256::from_be_bytes(
+                        unsafe { *(output.to_vec().as_slice() as *const _ as *mut [u8; 32]) }
+                    );
 
                     if U256::MAX == result {
                         return ((*token_addr).into(), U256::from(i))

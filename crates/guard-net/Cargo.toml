@@ -27,7 +27,7 @@ reth-transaction-pool.workspace = true
 reth-provider.workspace = true
 reth-rpc-types.workspace = true
 reth-eth-wire.workspace = true
-
+reth-network.workspace = true
 reth-net-common = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
 reth-tokio-util = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
 reth-discv4 = { git = "https://github.com/paradigmxyz/reth", rev = "3d291ea" }
@@ -41,9 +41,10 @@ anyhow.workspace = true
 
 
 
-
+guard-eth.workspace = true
 guard-types.workspace = true
 guard-utils.workspace = true
+order-pool.workspace = true
 
 # async/futures
 futures.workspace = true

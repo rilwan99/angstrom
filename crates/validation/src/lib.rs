@@ -3,12 +3,19 @@ pub mod common;
 pub mod order;
 pub mod validator;
 
-use std::fmt::Debug;
+use std::{fmt::Debug, pin::Pin};
 
 use bundle::{BundleSimRequest, BundleValidator};
 use ethers_core::types::transaction::eip2718::TypedTransaction;
+use futures::{
+    task::{Context, Poll},
+    Stream
+};
 use guard_types::{
-    orders::OrderOrigin,
+    orders::{
+        OrderOrigin, OrderValidationOutcome, PooledComposableOrder, PooledLimitOrder, PooledOrder,
+        PooledSearcherOrder, ValidationResults
+    },
     primitive::{Angstrom::Bundle, ExternalStateSim},
     rpc::{
         CallerInfo, EcRecoveredComposableLimitOrder, EcRecoveredComposableSearcherOrder,
@@ -20,11 +27,10 @@ use tokio::sync::{mpsc::UnboundedSender, oneshot::channel};
 
 use crate::{
     bundle::errors::{SimError, SimResult},
-    common::pool_map::PoolMapping,
-    order::OrderValidationOutcome
+    common::pool_map::PoolMapping
 };
 /// clone-able handle to the simulator
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RevmClient {
     transaction_tx: UnboundedSender<BundleSimRequest>
 }
@@ -35,52 +41,70 @@ impl RevmClient {
     }
 }
 
-#[async_trait::async_trait]
 impl OrderValidator for RevmClient {
     /// The transaction type of the composable limit order pool
     type ComposableLimitOrder = EcRecoveredComposableLimitOrder;
-    /// The transaction type of the composable searcher order pool
-    type ComposableSearcherOrder = EcRecoveredComposableSearcherOrder;
+    /// The transaction type of the composable searcher pool
+    type ComposableSearcherOrder = EcRecoveredSearcherOrder;
     /// The order type of the limit order pool
     type LimitOrder = EcRecoveredLimitOrder;
     /// The transaction type of the searcher order pool
-    type SearcherOrder = EcRecoveredSearcherOrder;
+    type SearcherOrder = EcRecoveredComposableSearcherOrder;
 
-    async fn validate_order(
+    fn validate_order(
         &self,
         origin: OrderOrigin,
         transaction: Self::LimitOrder
-    ) -> OrderValidationOutcome<Self::LimitOrder> {
+    ) -> Pin<
+        Box<dyn futures::Future<Output = OrderValidationOutcome<Self::LimitOrder>> + Send + Sync>
+    > {
         todo!()
     }
 
-    async fn validate_composable_order(
+    fn validate_composable_order(
         &self,
         origin: OrderOrigin,
         transaction: Self::ComposableLimitOrder
-    ) -> OrderValidationOutcome<Self::ComposableLimitOrder> {
+    ) -> Pin<
+        Box<
+            dyn futures::prelude::Future<
+                    Output = OrderValidationOutcome<Self::ComposableLimitOrder>
+                > + Send
+                + Sync
+        >
+    > {
         todo!()
     }
 
-    async fn validate_searcher_order(
+    fn validate_searcher_order(
         &self,
         origin: OrderOrigin,
         transaction: Self::SearcherOrder
-    ) -> OrderValidationOutcome<Self::SearcherOrder> {
+    ) -> Pin<
+        Box<
+            dyn futures::Future<Output = OrderValidationOutcome<Self::SearcherOrder>> + Send + Sync
+        >
+    > {
         todo!()
     }
 
-    async fn validate_composable_searcher_order(
+    fn validate_composable_searcher_order(
         &self,
         origin: OrderOrigin,
         transaction: Self::ComposableSearcherOrder
-    ) -> OrderValidationOutcome<Self::ComposableSearcherOrder> {
+    ) -> Pin<
+        Box<
+            dyn futures::prelude::Future<
+                    Output = OrderValidationOutcome<Self::ComposableSearcherOrder>
+                > + Send
+                + Sync
+        >
+    > {
         todo!()
     }
 }
 
 /// Bundle Impl
-#[async_trait::async_trait]
 impl BundleValidator for RevmClient {
     //TODO: Fix this, to whitebox simulate the swap directly, because it isn't a
     // full transaction and should not be validated as such

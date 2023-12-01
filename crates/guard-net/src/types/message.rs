@@ -146,7 +146,8 @@ pub enum StromMessage {
 
     GetUserOrders(RequestPair<GetUsersOrders>),
     GetSearcherOrders(RequestPair<GetSearcherOrders>),
-    GetLimitOrders(RequestPair<GetLimitOrders>)
+    GetLimitOrders(RequestPair<GetLimitOrders>),
+    GetAllOrders(RequestPair<GetUsersOrders>)
 }
 //TODO: Will, you have to implement the request pair model so that you can have
 //TODO: the message & request pair is rlp encode/decodable but the type that

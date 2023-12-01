@@ -9,8 +9,10 @@ members = [
   "crates/order-pool",
   "crates/rpc",
   "crates/eth/",
+  "crates/submission"
   #"it-harness",
 ]
+
 
 
 #default-members = ["bin/stale-guard"]
@@ -43,6 +45,17 @@ incremental = false
 
 
 [workspace.dependencies]
+consensus = { path = "./crates/consensus/" }
+guard-types = { path = "./crates/types/" }
+guard-utils = { path = "./crates/utils/" }
+validation = { path = "./crates/validation/" }
+order-pool = { path = "./crates/order-pool/" }
+guard-eth = { path = "./crates/eth/" }
+guard-rpc = { path = "./crates/rpc/" }
+
+
+
+
 # revm
 revm = { git = "https://github.com/bluealloy/revm", branch = "reth_freeze",  features = ["std", "secp256k1"], default-features = false }
 revm-primitives = { git = "https://github.com/bluealloy/revm", branch = "reth_freeze", features = ["std"], default-features = false }
@@ -91,13 +104,7 @@ ethers-providers = { version = "2.0.10", features = ["ws"] }
 ethers-signers = { version = "2.0.10", default-features = false }
 ethers-middleware = { version = "2.0.10", default-features = false }
 
-consensus = { path = "./crates/consensus/" }
-guard-types = { path = "./crates/types/" }
-guard-utils = { path = "./crates/utils/" }
-validation = { path = "./crates/validation/" }
-order-pool = { path = "./crates/order-pool/" }
-eth = { path = "./crates/eth/" }
-guard-rpc = { path = "./crates/rpc/" }
+
 # anvil = { git = "https://github.com/SorellaLabs/fastfoundry" }
 # anvil-core = { git = "https://github.com/SorellaLabs/fastfoundry" }
 

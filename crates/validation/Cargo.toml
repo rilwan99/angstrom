@@ -12,6 +12,7 @@ exclude.workspace = true
 
 [dependencies]
 guard-utils.workspace = true
+
 # ethers
 ethers = "2.0.10"
 ethers-middleware.workspace = true

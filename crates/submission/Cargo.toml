@@ -1,5 +1,5 @@
 [package]
-name = "guard-eth"
+name = "guard-submission"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,16 +8,21 @@ homepage.workspace = true
 repository.workspace = true
 exclude.workspace = true
 
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+
+pin-project.workspace = true
+serde.workspace = true
+
+
 guard-types.workspace = true
 guard-utils.workspace = true
 
-tokio.workspace = true
-futures.workspace = true
 tokio-stream.workspace = true
 futures-util.worskpace = true
-
+tokio.workspace = true
+futures.workspace = true
 # reth
 reth-provider.workspace = true
 

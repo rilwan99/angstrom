@@ -6,3 +6,9 @@ use types::*;
 
 pub mod builder;
 pub use builder::*;
+
+pub mod manager;
+pub use manager::*;
+
+pub mod pool_manager;
+pub use pool_manager::*;

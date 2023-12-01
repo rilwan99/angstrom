@@ -1,13 +1,12 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, future::Future, pin::Pin};
 
 use alloy_primitives::{TxHash, U256};
 use derive_more::{AsRef, Deref};
+use futures_util::StreamExt;
 use guard_types::orders::{
-    OrderOrigin, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder,
-    ValidatedOrder
+    OrderOrigin, OrderValidationOutcome, PooledComposableOrder, PooledLimitOrder, PooledOrder,
+    PooledSearcherOrder, ValidatedOrder, ValidationError
 };
-
-use crate::common::error::ValidationError;
 
 pub mod order_validator;
 pub mod sim;
@@ -15,26 +14,8 @@ pub mod state;
 
 pub enum OrderValidationRequest {}
 
-/// A valid order in the pool.
-pub enum OrderValidationOutcome<O: PooledOrder> {
-    /// The transaction is considered _currently_ valid and can be inserted into
-    /// the pool.
-    Valid {
-        /// The validated order
-        order:     ValidatedOrder<O, O::ValidationData>,
-        /// Whether to propagate the order to the network.
-        propagate: bool
-    },
-    /// The transaction is considered invalid indefinitely: It violates
-    /// constraints that prevent this transaction from ever becoming valid.
-    Invalid(O, ValidationError),
-    /// An error occurred while trying to validate the transaction
-    Error(TxHash, Box<dyn std::error::Error + Send + Sync>)
-}
-
 /// Provides support for validating transaction at any given state of the chain
-#[async_trait::async_trait]
-pub trait OrderValidator: Send + Sync + Clone + Unpin + 'static {
+pub trait OrderValidator: Send + Sync + Clone + Debug + Unpin + 'static {
     /// The order type of the limit order pool
     type LimitOrder: PooledOrder;
 
@@ -54,79 +35,96 @@ pub trait OrderValidator: Send + Sync + Clone + Unpin + 'static {
     /// transaction should be inserted into the pool or discarded right
     /// away.
 
-    async fn validate_order(
+    fn validate_order(
         &self,
         origin: OrderOrigin,
         transaction: Self::LimitOrder
-    ) -> OrderValidationOutcome<Self::LimitOrder>;
+    ) -> Pin<Box<dyn Future<Output = OrderValidationOutcome<Self::LimitOrder>> + Send + Sync>>;
 
     /// Validates a batch of orders.
     ///
     /// Must return all outcomes for the given orders in the same order.
 
-    async fn validate_orders(
+    fn validate_orders(
         &self,
         transactions: Vec<(OrderOrigin, Self::LimitOrder)>
-    ) -> Vec<OrderValidationOutcome<Self::LimitOrder>> {
-        futures_util::future::join_all(
+    ) -> Pin<Box<dyn Future<Output = Vec<OrderValidationOutcome<Self::LimitOrder>>> + Send + Sync>>
+    {
+        Box::pin(futures_util::future::join_all(
             transactions
                 .into_iter()
                 .map(|(origin, tx)| self.validate_order(origin, tx))
-        )
-        .await
+        ))
     }
 
-    async fn validate_composable_order(
+    fn validate_composable_order(
         &self,
         origin: OrderOrigin,
         transaction: Self::ComposableLimitOrder
-    ) -> OrderValidationOutcome<Self::ComposableLimitOrder>;
+    ) -> Pin<
+        Box<dyn Future<Output = OrderValidationOutcome<Self::ComposableLimitOrder>> + Send + Sync>
+    >;
 
-    async fn validate_composable_orders(
+    fn validate_composable_orders(
         &self,
         transactions: Vec<(OrderOrigin, Self::ComposableLimitOrder)>
-    ) -> Vec<OrderValidationOutcome<Self::ComposableLimitOrder>> {
-        futures_util::future::join_all(
+    ) -> Pin<
+        Box<
+            dyn Future<Output = Vec<OrderValidationOutcome<Self::ComposableLimitOrder>>>
+                + Send
+                + Sync
+        >
+    > {
+        Box::pin(futures_util::future::join_all(
             transactions
                 .into_iter()
                 .map(|(origin, tx)| self.validate_composable_order(origin, tx))
-        )
-        .await
+        ))
     }
 
-    async fn validate_searcher_order(
+    fn validate_searcher_order(
         &self,
         origin: OrderOrigin,
         transaction: Self::SearcherOrder
-    ) -> OrderValidationOutcome<Self::SearcherOrder>;
+    ) -> Pin<Box<dyn Future<Output = OrderValidationOutcome<Self::SearcherOrder>> + Send + Sync>>;
 
-    async fn validate_searcher_orders(
+    fn validate_searcher_orders(
         &self,
         transactions: Vec<(OrderOrigin, Self::SearcherOrder)>
-    ) -> Vec<OrderValidationOutcome<Self::SearcherOrder>> {
-        futures_util::future::join_all(
+    ) -> Pin<Box<dyn Future<Output = Vec<OrderValidationOutcome<Self::SearcherOrder>>> + Send + Sync>> {
+        Box::pin(futures_util::future::join_all(
             transactions
                 .into_iter()
                 .map(|(origin, tx)| self.validate_searcher_order(origin, tx))
-        )
-        .await
+        ))
     }
 
-    async fn validate_composable_searcher_order(
+    fn validate_composable_searcher_order(
         &self,
         origin: OrderOrigin,
         transaction: Self::ComposableSearcherOrder
-    ) -> OrderValidationOutcome<Self::ComposableSearcherOrder>;
+    ) -> Pin<
+        Box<
+            dyn Future<Output = OrderValidationOutcome<Self::ComposableSearcherOrder>>
+                + Send
+                + Sync
+        >
+    >;
 
-    async fn validate_composable_searcher_orders(
+    fn validate_composable_searcher_orders(
         &self,
         transactions: Vec<(OrderOrigin, Self::ComposableSearcherOrder)>
-    ) -> Vec<OrderValidationOutcome<Self::ComposableSearcherOrder>> {
-        futures_util::future::join_all(
+    ) -> Pin<
+        Box<
+            dyn Future<Output = Vec<OrderValidationOutcome<Self::ComposableSearcherOrder>>>
+                + Send
+                + Sync
+        >
+    > {
+        Box::pin(futures_util::future::join_all(
             transactions
                 .into_iter()
                 .map(|(origin, tx)| self.validate_composable_searcher_order(origin, tx))
-        )
-        .await
+        ))
     }
 }
