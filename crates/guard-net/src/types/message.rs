@@ -5,16 +5,20 @@ use alloy_rlp::{length_of_length, Decodable, Encodable, Header};
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
     primitive::Angstrom::Bundle,
-    rpc::SignedLimitOrder
+    rpc::{
+        SignedComposableLimitOrder, SignedComposableSearcherOrder, SignedLimitOrder,
+        SignedSearcherOrder
+    }
 };
 use reth_primitives::bytes::{Buf, BufMut};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use super::version::StromVersion;
+use super::{orders::GetComposableLimitOrders, version::StromVersion};
 use crate::{
-    errors::EthStreamError, GetLimitOrders, GetSearcherOrders, GetUsersOrders, LimitOrders,
-    SearcherOrders, Status, UserOrders
+    errors::EthStreamError, ComposableLimitOrders, ComposableSearcherOrders,
+    GetComposableSearcherOrders, GetLimitOrders, GetOrders, GetSearcherOrders, LimitOrders, Orders,
+    SearcherOrders, Status
 };
 
 /// An `eth` protocol message, containing a message ID and payload.
@@ -106,49 +110,37 @@ impl From<StromBroadcastMessage> for ProtocolBroadcastMessage {
     }
 }
 
-/// Represents a message in the eth wire protocol, versions 66, 67 and 68.
-///
-/// The ethereum wire protocol is a set of messages that are broadcast to the
-/// network in two styles:
-///  * A request message sent by a peer (such as [`GetPooledTransactions`]), and
-///    an associated
-///  response message (such as [`PooledTransactions`]).
-///  * A message that is broadcast to the network, without a corresponding
-///    request.
-///
-/// The newer `eth/66` is an efficiency upgrade on top of `eth/65`, introducing
-/// a request id to correlate request-response message pairs. This allows for
-/// request multiplexing.
-///
-/// The `eth/67` is based on `eth/66` but only removes two messages,
-/// [`GetNodeData`] and [``NodeData].
-///
-/// The `eth/68` changes only NewPooledTransactionHashes to include `types` and
-/// `sized`. For it, NewPooledTransactionHashes is renamed as
-/// [`NewPooledTransactionHashes66`] and [`NewPooledTransactionHashes68`] is
-/// defined.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum StromMessage {
-    // init
+    /// init
     Status(Status),
-    // broadcast
+
+    /// Consensus
     PrePropose(PreProposal),
     Proposal(Proposal),
     Commit(Commit),
 
-    // default communication
+    /// Order Propagation
     PropagateOrder(SignedLimitOrder),
+    PropagateComposableOrder(SignedComposableLimitOrder),
+    PropagateSearcherOrder(SignedSearcherOrder),
+    PropagetComposableSearcherOrder(SignedComposableSearcherOrder),
+    PropagateOrders(Vec<Orders>),
 
-    UserOrders(RequestPair<UserOrders>),
-    SearcherOrders(RequestPair<SearcherOrders>),
-    LimitOrders(RequestPair<LimitOrders>),
-
-    GetUserOrders(RequestPair<GetUsersOrders>),
-    GetSearcherOrders(RequestPair<GetSearcherOrders>),
+    // Order Request / Response pairs
     GetLimitOrders(RequestPair<GetLimitOrders>),
-    GetAllOrders(RequestPair<GetUsersOrders>)
+    LimitOrders(RequestPair<LimitOrders>),
+    GetComposableLimitOrders(RequestPair<GetComposableLimitOrders>),
+    ComposableLimitOrders(RequestPair<ComposableLimitOrders>),
+    GetSearcherOrders(RequestPair<GetSearcherOrders>),
+    SearcherOrders(RequestPair<SearcherOrders>),
+    GetCompasableSearcherOrders(RequestPair<GetComposableSearcherOrders>),
+    ComposableSearcherOrders(RequestPair<ComposableSearcherOrders>),
+    GetAllOrders(RequestPair<GetOrders>),
+    AllOrders(RequestPair<Orders>)
 }
+
 //TODO: Will, you have to implement the request pair model so that you can have
 //TODO: the message & request pair is rlp encode/decodable but the type that
 // the request pair holds is not rlp encode/decodable it is only
@@ -217,13 +209,15 @@ encodable_enum!(
 /// Note: This is only useful for outgoing messages.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum StromBroadcastMessage {
-    // broadcast
+    // Consensus Broadcast
     PrePropose(Arc<PreProposal>),
     Proposal(Arc<Proposal>),
     Commit(Arc<Commit>),
 
-    // default communication
-    PropagateOrder(Arc<SignedLimitOrder>)
+    PropagateOrder(Arc<SignedLimitOrder>),
+    PropagateComposableOrder(Arc<SignedComposableLimitOrder>),
+    PropagateSearcherOrder(Arc<SignedSearcherOrder>),
+    PropagetComposableSearcherOrder(Arc<SignedComposableSearcherOrder>)
 }
 
 // === impl StromBroadcastMessage ===
@@ -233,6 +227,7 @@ impl StromBroadcastMessage {
     pub fn message_id(&self) -> StromMessageID {
         match self {
             StromBroadcastMessage::PropagateOrder(_) => StromMessageID::PropagateOrder,
+
             StromBroadcastMessage::PrePropose(_) => StromMessageID::PrePropose,
             StromBroadcastMessage::Proposal(_) => StromMessageID::Proposal,
             StromBroadcastMessage::Commit(_) => StromMessageID::Commit

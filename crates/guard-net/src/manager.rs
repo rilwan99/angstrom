@@ -25,7 +25,7 @@ pub struct StromManager {
 #[derive(Debug)]
 pub enum NetworkOrderEvent {
     /// Received list of orders from a peer
-    IncomingOrders { peer_id: PeerId, orders: Vec<BytesMut> }
+    IncomingOrders { peer_id: PeerId, orders: Vec }
 }
 
 /*
