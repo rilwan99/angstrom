@@ -1,12 +1,10 @@
-use alloy_primitives::{Address, TxHash, U256};
-use alloy_rlp::{Decodable, Encodable, Error};
+use alloy_primitives::{Address, TxHash};
+use alloy_rlp::{Decodable, Encodable};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_types::SolStruct;
 use derive_more::{AsRef, Deref};
-use reth_primitives::{recover_signer, Signature as ESignature};
 use secp256k1::Error as SigError;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 use crate::primitive::{Angstrom::Order, ComposableOrder, Signature, ANGSTROM_DOMAIN};
 

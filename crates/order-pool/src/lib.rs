@@ -5,40 +5,18 @@ mod limit;
 mod searcher;
 pub mod traits;
 mod validator;
-use std::{
-    collections::HashMap,
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll}
-};
+use std::sync::Arc;
 
 use alloy_primitives::TxHash;
 use config::PoolConfig;
-use futures_util::{stream::FuturesUnordered, Future, Stream};
-use guard_eth::manager::EthEvent;
-use guard_types::{
-    orders::{
-        OrderOrigin, OrderPriorityData, PooledComposableOrder, PooledLimitOrder, PooledOrder,
-        PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
-    },
-    rpc::{
-        EcRecoveredComposableLimitOrder, EcRecoveredComposableSearcherOrder, EcRecoveredLimitOrder,
-        EcRecoveredSearcherOrder
-    }
+use guard_types::orders::{
+    OrderPriorityData, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder,
+    SearcherPriorityData, ValidatedOrder
 };
 pub use guard_utils::*;
 use inner::OrderPoolInner;
-use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
-use reth_network::{peers::Peer, NetworkEvent, NetworkHandle};
-use reth_primitives::PeerId;
-use tokio::sync::{
-    mpsc,
-    mpsc::{Receiver, Sender},
-    oneshot
-};
-use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
 use traits::OrderPool;
-use validation::{order::OrderValidator, RevmClient};
+use validation::order::OrderValidator;
 
 #[derive(Clone)]
 pub struct Pool<L, CL, S, CS, V>
@@ -94,4 +72,13 @@ where
     type ComposableSearcherOrder = CS;
     type LimitOrder = L;
     type SearcherOrder = S;
+
+    #[allow(dead_code)]
+    fn get_pooled_orders_by_hashes(
+        &self,
+        tx_hashes: Vec<TxHash>,
+        limit: Option<usize>
+    ) -> Vec<PooledOrder> {
+        todo!()
+    }
 }

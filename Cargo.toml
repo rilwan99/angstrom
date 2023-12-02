@@ -52,7 +52,7 @@ validation = { path = "./crates/validation/" }
 order-pool = { path = "./crates/order-pool/" }
 guard-eth = { path = "./crates/eth/" }
 guard-rpc = { path = "./crates/rpc/" }
-
+guard-network = { path = "./crates/guard-net/" }
 
 
 

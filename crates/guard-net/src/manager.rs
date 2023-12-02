@@ -1,27 +1,12 @@
-use std::{
-    fmt,
-    net::SocketAddr,
-    pin::Pin,
-    sync::{atomic::AtomicUsize, Arc}
-};
+use std::sync::{atomic::AtomicUsize, Arc};
 
-use futures::Stream;
-use reth_eth_wire::{
-    capability::SharedCapabilities, multiplex::ProtocolConnection, protocol::Protocol
+use guard_types::orders::{
+    ComposableLimitOrders, ComposableSearcherOrders, LimitOrders, Orders, SearcherOrders
 };
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
-use reth_network::protocol::{ConnectionHandler, ProtocolHandler};
-use reth_network_api::Direction;
-use reth_primitives::BytesMut;
 use reth_rpc_types::PeerId;
 
-use crate::{
-    pool_manager::PoolHandle,
-    types::orders::{
-        ComposableLimitOrders, ComposableSearcherOrders, LimitOrders, Orders, SearcherOrders
-    },
-    StromNetworkEvent
-};
+use crate::{pool_manager::PoolHandle, StromNetworkEvent};
 
 //TODO:
 // 1) Implement the order pool manager
@@ -34,7 +19,8 @@ pub struct StromProtocolHandle {
 
 #[derive(Debug)]
 struct StromInner {
-    num_active_peers: Arc<AtomicUsize>
+    num_active_peers: Arc<AtomicUsize>,
+    to_manager_tx:    UnboundedMeteredSender<StromNetworkEvent>
 }
 /// All events related to orders emitted by the network.
 #[derive(Debug)]
@@ -60,6 +46,11 @@ pub enum NetworkOrderEvent {
         peer_id: PeerId,
         orders:  Vec<Orders>
     }
+}
+
+pub struct StromNetworkManager {
+    inner:  Arc<StromInner>,
+    handle: PoolHandle
 }
 
 /*

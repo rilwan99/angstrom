@@ -9,10 +9,10 @@ pub use limit::*;
 use reth_primitives::TxHash;
 pub use searcher::*;
 
-use crate::{orders::PooledOrder, primitive::PoolId};
+use crate::{orders::PoolOrder, primitive::PoolId};
 
 #[derive(Debug, AsRef, Deref, Clone)]
-pub struct ValidatedOrder<O: PooledOrder, Data: Clone + Debug> {
+pub struct ValidatedOrder<O: PoolOrder, Data: Clone + Debug> {
     #[deref]
     #[as_ref]
     pub order:    O,
@@ -37,7 +37,7 @@ pub struct OrderId {
     pub location: OrderLocation
 }
 
-impl<O: PooledOrder, Data: Clone + Debug> From<ValidatedOrder<O, Data>> for OrderId {
+impl<O: PoolOrder, Data: Clone + Debug> From<ValidatedOrder<O, Data>> for OrderId {
     fn from(order: ValidatedOrder<O, Data>) -> Self {
         Self {
             address:  order.order.from(),
@@ -61,10 +61,10 @@ pub enum OrderLocation {
 
 pub enum ValidationResults<L, CL, S, CS>
 where
-    L: PooledOrder,
-    CL: PooledOrder,
-    S: PooledOrder,
-    CS: PooledOrder
+    L: PoolOrder,
+    CL: PoolOrder,
+    S: PoolOrder,
+    CS: PoolOrder
 {
     Limit(OrderValidationOutcome<L>),
     ComposableLimit(OrderValidationOutcome<CL>),
@@ -74,7 +74,7 @@ where
 
 /// A valid order in the pool.
 #[derive(Debug)]
-pub enum OrderValidationOutcome<O: PooledOrder> {
+pub enum OrderValidationOutcome<O: PoolOrder> {
     /// The transaction is considered _currently_ valid and can be inserted into
     /// the pool.
     Valid {

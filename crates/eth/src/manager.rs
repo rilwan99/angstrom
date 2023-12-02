@@ -16,6 +16,7 @@ use crate::handle::{EthCommand, EthHandle};
 
 /// Commands to send to the [`TransactionsManager`]
 #[derive(Debug)]
+#[allow(dead_code)]
 enum Command {
     /// Submit a bundle to the [`TransactionsManager`]
     RemoveFilledOrders(SubmissionBundle),
@@ -24,6 +25,7 @@ enum Command {
 
 /// Listens for CanonStateNotifications and sends the appropriate updatdes to be
 /// executed by the order pool
+#[allow(dead_code)]
 pub struct OrderPoolMaintainer<DB> {
     /// our command receiver
     commander:       ReceiverStream<EthCommand>,
@@ -52,10 +54,11 @@ where
         Ok(handle)
     }
 
+    #[allow(dead_code)]
     fn on_canon_update(&mut self, canonical_updates: CanonStateNotification) {
         match canonical_updates {
-            CanonStateNotification::Reorg { old, new } => {}
-            CanonStateNotification::Commit { new } => {}
+            CanonStateNotification::Reorg { old: _old, new } => {}
+            CanonStateNotification::Commit { new: _new } => {}
         }
     }
 }
@@ -66,7 +69,7 @@ where
 {
     type Output = ();
 
-    fn poll(self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: std::pin::Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         todo!()
     }
 }

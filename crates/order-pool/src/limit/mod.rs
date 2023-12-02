@@ -2,8 +2,8 @@ use std::{collections::HashMap, fmt::Debug};
 
 use guard_types::{
     orders::{
-        OrderId, OrderLocation, OrderPriorityData, PooledComposableOrder, PooledLimitOrder,
-        PooledOrder, ValidatedOrder
+        OrderId, OrderLocation, OrderPriorityData, PoolOrder, PooledComposableOrder,
+        PooledLimitOrder, ValidatedOrder
     },
     primitive::PoolId
 };
@@ -108,7 +108,7 @@ where
     C: PooledComposableOrder + PooledLimitOrder
 {
     /// Helper function for unzipping and size adjustment
-    fn filter_option_and_adjust_size<O: PooledOrder>(
+    fn filter_option_and_adjust_size<O: PoolOrder>(
         &mut self,
         order: Vec<Option<ValidatedOrder<O, OrderPriorityData>>>
     ) -> Vec<ValidatedOrder<O, OrderPriorityData>> {

@@ -1,6 +1,4 @@
 //! Types for the eth wire protocol.
-pub mod orders;
-pub use orders::*;
 
 pub mod status;
 pub use status::*;

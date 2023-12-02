@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use alloy_primitives::{Address, U256};
-use guard_types::orders::{OrderId, PooledOrder, ValidatedOrder};
+use guard_types::orders::{OrderId, PoolOrder, ValidatedOrder};
 use revm::primitives::HashMap;
 
 /// the sum of all pending orders for a given user. This is done
@@ -14,7 +14,7 @@ pub struct PendingState {
 pub struct UserOrders(HashMap<Address, (PendingState, Vec<OrderId>)>);
 
 impl UserOrders {
-    pub fn new_order<O: PooledOrder, Data: Clone + Debug>(
+    pub fn new_order<O: PoolOrder, Data: Clone + Debug>(
         &mut self,
         order: ValidatedOrder<O, Data>
     ) -> Result<(), ()> {

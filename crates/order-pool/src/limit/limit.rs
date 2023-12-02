@@ -1,5 +1,5 @@
 use guard_types::{
-    orders::{OrderId, OrderPriorityData, PooledLimitOrder, PooledOrder, ValidatedOrder},
+    orders::{OrderId, OrderPriorityData, PoolOrder, PooledLimitOrder, ValidatedOrder},
     primitive::PoolId
 };
 
@@ -12,7 +12,7 @@ pub struct LimitPool<T: PooledLimitOrder> {
 
 impl<O: PooledLimitOrder> LimitPool<O>
 where
-    O: PooledOrder<ValidationData = ValidatedOrder<O, OrderPriorityData>>
+    O: PoolOrder<ValidationData = ValidatedOrder<O, OrderPriorityData>>
 {
     pub fn new() -> Self {
         todo!()

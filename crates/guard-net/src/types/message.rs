@@ -18,7 +18,7 @@ use super::{orders::GetComposableLimitOrders, version::StromVersion};
 use crate::{
     errors::EthStreamError, ComposableLimitOrders, ComposableSearcherOrders,
     GetComposableSearcherOrders, GetLimitOrders, GetOrders, GetSearcherOrders, LimitOrders, Orders,
-    SearcherOrders, Status
+    PooledOrder, SearcherOrders, Status
 };
 
 /// An `eth` protocol message, containing a message ID and payload.
@@ -31,6 +31,7 @@ pub struct ProtocolMessage {
 
 impl ProtocolMessage {
     /// Create a new ProtocolMessage from a message type and message rlp bytes.
+    //TODO: fix enum given new enum
     pub fn decode_message(_version: StromVersion, buf: &mut &[u8]) -> Result<Self, EthStreamError> {
         let message_type = StromMessageID::decode(buf)?;
 
@@ -42,9 +43,7 @@ impl ProtocolMessage {
             StromMessageID::PrePropose => StromMessage::PrePropose(PreProposal::decode(buf)?),
             StromMessageID::Proposal => StromMessage::Proposal(Proposal::decode(buf)?),
             StromMessageID::Commit => StromMessage::Commit(Commit::decode(buf)?),
-            StromMessageID::UserOrder => {
-                StromMessage::UserOrders(RequestPair::<UserOrders>::decode(buf)?)
-            }
+
             StromMessageID::LimitOrder => {
                 StromMessage::LimitOrders(RequestPair::<LimitOrders>::decode(buf)?)
             }
@@ -118,25 +117,13 @@ pub enum StromMessage {
 
     /// Consensus
     PrePropose(PreProposal),
-    Proposal(Proposal),
+    Propose(Proposal),
     Commit(Commit),
 
     /// Propagation messages that broadcast new orders to all peers
-    PropagateOrder(Vec<SignedLimitOrder),
-    PropagateComposableOrder(SignedComposableLimitOrder),
-    PropagateSearcherOrder(SignedSearcherOrder),
-    PropagetComposableSearcherOrder(SignedComposableSearcherOrder),
     PropagateOrders(Vec<Orders>),
 
     // Order Request / Response pairs
-    GetLimitOrders(RequestPair<GetLimitOrders>),
-    LimitOrders(RequestPair<LimitOrders>),
-    GetComposableLimitOrders(RequestPair<GetComposableLimitOrders>),
-    ComposableLimitOrders(RequestPair<ComposableLimitOrders>),
-    GetSearcherOrders(RequestPair<GetSearcherOrders>),
-    SearcherOrders(RequestPair<SearcherOrders>),
-    GetCompasableSearcherOrders(RequestPair<GetComposableSearcherOrders>),
-    ComposableSearcherOrders(RequestPair<ComposableSearcherOrders>),
     GetAllOrders(RequestPair<GetOrders>),
     AllOrders(RequestPair<Orders>)
 }
@@ -231,11 +218,11 @@ pub enum StromBroadcastMessage {
     PropagateComposableOrder(Arc<SignedComposableLimitOrder>),
     PropagateSearcherOrder(Arc<SignedSearcherOrder>),
     PropagetComposableSearcherOrder(Arc<SignedComposableSearcherOrder>),
-    PropagateOrders(Arc<Vec<Orders>>)
+    PropagatePooledOrders(Arc<Vec<PooledOrder>>)
 }
 
 // === impl StromBroadcastMessage ===
-
+//TODO: fix this
 impl StromBroadcastMessage {
     /// Returns the message's ID.
     pub fn message_id(&self) -> StromMessageID {
@@ -256,17 +243,17 @@ encodable_enum!(StromBroadcastMessage, PropagateOrder, PrePropose, Proposal, Com
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum StromMessageID {
-    Status           = 0,
-    PropagateOrder   = 2,
-    PrePropose       = 3,
-    Proposal         = 4,
-    Commit           = 5,
-    UserOrder        = 6,
-    SearcherOrder    = 7,
-    LimitOrder       = 8,
-    GetUserOrder     = 9,
-    GetSearcherOrder = 10,
-    GetLimitOrder    = 11
+    Status          = 0,
+    /// Consensus
+    PrePropose      = 1,
+    Propose         = 2,
+    Commit          = 3,
+    /// Propagation messages that broadcast new orders to all peers
+    PropagetOrders  = 8,
+
+    /// Order Request / Response pairs
+    GetPooledOrders = 17,
+    PooledOrders    = 18
 }
 
 impl Encodable for StromMessageID {
@@ -278,7 +265,7 @@ impl Encodable for StromMessageID {
         1
     }
 }
-
+// TODO: Implement correct for enum
 impl Decodable for StromMessageID {
     fn decode(buf: &mut &[u8]) -> Result<Self, alloy_rlp::Error> {
         let id = buf.first().ok_or(alloy_rlp::Error::InputTooShort)?;
@@ -357,10 +344,4 @@ where
         let _header = Header::decode(buf)?;
         Ok(Self { request_id: u64::decode(buf)?, message: O::decode(buf)? })
     }
-}
-
-#[cfg(test)]
-mod test {
-    // use hex_literal::hex;
-    // use alloy_rlp::{Decodable, Encodable};
 }

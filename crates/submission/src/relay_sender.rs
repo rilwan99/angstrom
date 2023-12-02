@@ -24,6 +24,7 @@ pub enum SubmissionCommand {
 
 /// Api to interact with [`TransactionsManager`] task.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct SubmissionHandle {
     /// Command channel to the [`TransactionsManager`]
     manager_tx: mpsc::UnboundedSender<SubmissionCommand>
@@ -36,6 +37,7 @@ where
     signer:     Arc<SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>>,
     future:     Option<SubmissionFut>,
     command_tx: UnboundedSender<SubmissionCommand>,
+    #[allow(dead_code)]
     command_rx: UnboundedReceiverStream<SubmissionCommand>
 }
 
@@ -60,7 +62,7 @@ impl<M: Middleware + 'static> RelaySender<M> {
         self.future.is_some()
     }
 
-    pub fn submit_bundle(&mut self, bundle: SubmissionBundle) {
+    pub fn submit_bundle(&mut self, _bundle: SubmissionBundle) {
         let client = self.signer.clone();
 
         self.future = Some(Box::pin(async move {
@@ -90,10 +92,12 @@ impl<M: Middleware + 'static> RelaySender<M> {
             for result in results {
                 match result {
                     Ok(pending_bundle) => match pending_bundle.await {
-                        Ok(bundle_hash) => println!(
-                            "Bundle with hash {:?} was included in target block",
-                            bundle_hash
-                        ),
+                        Ok(bundle_hash) => {
+                            println!(
+                                "Bundle with hash {:?} was included in target block",
+                                bundle_hash
+                            )
+                        }
                         Err(PendingBundleError::BundleNotIncluded) => {
                             println!("Bundle was not included in target block.")
                         }

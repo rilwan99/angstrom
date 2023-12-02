@@ -4,17 +4,17 @@ use std::{
 };
 
 use futures_util::{stream::FuturesUnordered, Future, FutureExt, Stream, StreamExt};
-use guard_types::orders::{OrderOrigin, OrderValidationOutcome, PooledOrder, ValidationResults};
+use guard_types::orders::{OrderOrigin, OrderValidationOutcome, PoolOrder, ValidationResults};
 use validation::order::OrderValidator;
 
 type ValidationFuture<L, CL, S, CS> =
     Pin<Box<dyn Future<Output = ValidationResults<L, CL, S, CS>> + Send + Sync>>;
 pub struct Validator<L, CL, S, CS, V>
 where
-    L: PooledOrder,
-    CL: PooledOrder,
-    S: PooledOrder,
-    CS: PooledOrder,
+    L: PoolOrder,
+    CL: PoolOrder,
+    S: PoolOrder,
+    CS: PoolOrder,
     V: OrderValidator
 {
     validator: V,
@@ -23,10 +23,10 @@ where
 
 impl<L, CL, S, CS, V> Validator<L, CL, S, CS, V>
 where
-    L: PooledOrder,
-    CL: PooledOrder,
-    S: PooledOrder,
-    CS: PooledOrder,
+    L: PoolOrder,
+    CL: PoolOrder,
+    S: PoolOrder,
+    CS: PoolOrder,
     V: OrderValidator<
         LimitOrder = L,
         SearcherOrder = S,
@@ -101,10 +101,10 @@ where
 
 impl<L, CL, S, CS, V> Stream for Validator<L, CL, S, CS, V>
 where
-    L: PooledOrder,
-    CL: PooledOrder,
-    S: PooledOrder,
-    CS: PooledOrder,
+    L: PoolOrder,
+    CL: PoolOrder,
+    S: PoolOrder,
+    CS: PoolOrder,
     V: OrderValidator
 {
     type Item = ValidationResults<L, CL, S, CS>;

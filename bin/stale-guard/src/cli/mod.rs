@@ -35,6 +35,7 @@ struct StaleGuardConfig {
 }
 
 impl RethNodeCommandConfig for StaleGuardConfig {
+    #[allow(dead_code)]
     fn configure_network<Conf, Reth>(
         &mut self,
         config: &mut Conf,
@@ -48,6 +49,7 @@ impl RethNodeCommandConfig for StaleGuardConfig {
         todo!()
     }
 
+    #[allow(dead_code)]
     fn on_components_initialized<Reth: RethNodeComponents>(
         &mut self,
         components: &Reth
@@ -60,7 +62,7 @@ impl RethNodeCommandConfig for StaleGuardConfig {
         &mut self,
         _config: &Conf,
         _components: &Reth,
-        mut rpc_components: RethRpcComponents<'_, Reth>
+        rpc_components: RethRpcComponents<'_, Reth>
     ) -> eyre::Result<()>
     where
         Conf: RethRpcConfig,
