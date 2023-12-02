@@ -1,4 +1,20 @@
-use reth_eth_wire::{multiplex::ProtocolConnection, ConnectionHandler, ProtocolHandler};
+use std::{collections::VecDeque, net::SocketAddr, pin::Pin, sync::Arc};
+
+use fnv::FnvHashMap;
+use futures::{future::Fuse, task::Context, Stream};
+use reth_eth_wire::{capability::Capabilities, multiplex::ProtocolConnection, Status};
+use reth_metrics::common::mpsc::MeteredPollSender;
+use reth_network::{
+    protocol::{ConnectionHandler, ProtocolHandler},
+    SessionId
+};
+use reth_network_api::Direction;
+use reth_primitives::PeerId;
+use tokio::{sync::mpsc, time::Instant};
+use tokio_stream::wrappers::ReceiverStream;
+
+use super::handle::SessionCommand;
+use crate::StromSessionMessage;
 
 /// An established session with a remote peer.
 #[derive(Debug)]
@@ -25,10 +41,10 @@ pub struct ProtocolSessionHandle {
 }
 
 pub struct ProtocolSession {
-    pub(crate) conn: ProtocolStream,
+    pub(crate) conn: ProtocolConnection,
     pub(crate) peer_id: PeerId,
     pub(crate) commands_rx: ReceiverStream<SessionCommand>,
-    pub(crate) to_session_manager: MeteredPollSender<ActiveSessionMessage>,
+    pub(crate) to_session_manager: MeteredPollSender<StromSessionMessage>,
     /// Incoming internal requests which are delegated to the remote peer.
     pub(crate) internal_request_tx: Fuse<ReceiverStream<PeerRequest>>,
     /// All requests sent to the remote peer we're waiting on a response
@@ -42,8 +58,10 @@ pub struct ProtocolSession {
 
 impl ProtocolSession {
     pub fn new(
-        conn: ProtocolStream,
-        to_session_manager: MeteredPollSender<ActiveSessionMessage>
+        conn: ProtocolConnection,
+        to_session_manager: MeteredPollSender<StromSessionMessage>,
+        peer_id: PeerId,
+        commands_rx: ReceiverStream<SessionCommand>
     ) -> Self {
         Self {
             conn,
@@ -59,7 +77,7 @@ impl ProtocolSession {
 }
 
 impl Stream for ProtocolSession {
-    type Output = ();
+    type Item = ();
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();

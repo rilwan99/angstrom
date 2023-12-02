@@ -6,7 +6,7 @@ use guard_types::{
     primitive::{Angstrom::Bundle, ExternalStateSim},
     rpc::{CallerInfo, SignedLimitOrder}
 };
-use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
+use tokio::sync::oneshot::Sender;
 
 pub mod bundle_validator;
 pub mod errors;

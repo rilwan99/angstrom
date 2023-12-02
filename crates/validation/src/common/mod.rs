@@ -12,9 +12,8 @@ use tokio::sync::mpsc::unbounded_channel;
 use crate::{
     bundle::errors::SimError,
     common::{lru_db::RevmLRU, revm::Revm},
-    RevmClient
+    order::RevmClient
 };
-
 pub struct ValidatorSimConfig<DB: StateProviderFactory + Clone + Send + Sync + Unpin + 'static> {
     pub db:          DB,
     pub cache_bytes: usize

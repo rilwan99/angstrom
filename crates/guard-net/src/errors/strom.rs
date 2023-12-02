@@ -1,84 +1,22 @@
-//! Error handling for (`Strom Stream`)
-use std::io;
+//! Error handling for Strom protocol stream
+use reth_primitives::GotExpected;
 
-use reth_eth_wire::{
-    errors::P2PStreamError, DisconnectReason, EthMessage, EthMessageID, ProtocolVersion
-};
-use reth_primitives::{Chain, GotExpected, GotExpectedBoxed, ValidationError, B256};
-
-use crate::{version::ParseVersionError, StromVersion};
 /// Errors when sending/receiving messages
 #[derive(thiserror::Error, Debug)]
 
-pub enum EthStreamError {
-    #[error(transparent)]
-    /// Error of the underlying P2P connection.
-    P2PStreamError(#[from] P2PStreamError),
-    #[error(transparent)]
-    /// Failed to parse peer's version.
-    ParseVersionError(#[from] ParseVersionError),
-    #[error(transparent)]
+pub enum StromStreamError {
+    #[error("Strom handshake failed")]
     /// Failed Ethereum handshake.
-    EthHandshakeError(#[from] EthHandshakeError),
-    #[error("message id {1:?} is invalid for version {0:?}")]
-    /// Flags an unrecognized message ID for a given protocol version.
-    EthInvalidMessageError(StromVersion, EthMessageID),
+    StromHandshakeError(StromHandshakeError),
     #[error("message size ({0}) exceeds max length (10MB)")]
     /// Received a message whose size exceeds the standard limit.
-    MessageTooBig(usize),
-    #[error(
-        "TransactionHashes invalid len of fields: hashes_len={hashes_len} types_len={types_len} \
-         sizes_len={sizes_len}"
-    )]
-    /// Received malformed transaction hashes message with discrepancies in
-    /// field lengths.
-    TransactionHashesInvalidLenOfFields {
-        /// The number of transaction hashes.
-        hashes_len: usize,
-        /// The number of transaction types.
-        types_len:  usize,
-        /// The number of transaction sizes.
-        sizes_len:  usize
-    }
-}
-
-// === impl EthStreamError ===
-
-impl EthStreamError {
-    /// Returns the [`DisconnectReason`] if the error is a disconnect message
-    pub fn as_disconnected(&self) -> Option<DisconnectReason> {
-        if let EthStreamError::P2PStreamError(err) = self {
-            err.as_disconnected()
-        } else {
-            None
-        }
-    }
-
-    /// Returns the [io::Error] if it was caused by IO
-    pub fn as_io(&self) -> Option<&io::Error> {
-        if let EthStreamError::P2PStreamError(P2PStreamError::Io(io)) = self {
-            return Some(io)
-        }
-        None
-    }
-}
-
-impl From<io::Error> for EthStreamError {
-    fn from(err: io::Error) -> Self {
-        P2PStreamError::from(err).into()
-    }
-}
-
-impl From<alloy_rlp::Error> for EthStreamError {
-    fn from(err: alloy_rlp::Error) -> Self {
-        P2PStreamError::from(err).into()
-    }
+    MessageTooBig(usize)
 }
 
 /// Error  that can occur during the `eth` sub-protocol handshake.
 #[derive(thiserror::Error, Debug)]
 
-pub enum EthHandshakeError {
+pub enum StromHandshakeError {
     /// Status message received or sent outside of the handshake process.
     #[error("status message can only be recv/sent in handshake")]
     StatusNotInHandshake,
@@ -88,24 +26,14 @@ pub enum EthHandshakeError {
     #[error("no response received when sending out handshake")]
     /// No response received during the handshake process.
     NoResponse,
-    #[error(transparent)]
-    /// Invalid fork data.
-    InvalidFork(#[from] ValidationError),
-    #[error("mismatched genesis in status message: {0}")]
-    /// Mismatch in the genesis block during status exchange.
-    MismatchedGenesis(GotExpectedBoxed<B256>),
     #[error("mismatched protocol version in status message: {0}")]
     /// Mismatched protocol versions in status messages.
     MismatchedProtocolVersion(GotExpected<u8>),
-    #[error("mismatched chain in status message: {0}")]
-    /// Mismatch in chain details in status messages.
-    MismatchedChain(GotExpected<Chain>),
-    #[error("total difficulty bitlen is too large: got {got}, maximum {maximum}")]
-    /// Excessively large total difficulty bit lengths.
-    TotalDifficultyBitLenTooLarge {
-        /// The actual bit length of the total difficulty.
-        got:     usize,
-        /// The maximum allowed bit length for the total difficulty.
-        maximum: usize
-    }
+    #[error("Not a valid Stale-Guard node: {0}")]
+    /// The guard node does not have sufficient stake to be a validator
+    NotAValidGuardNode(usize),
+    #[error("Invalid signature on stake verification message")]
+    /// The signature on the stake verification message is invalid / does not
+    /// match the staking address' public key
+    InvalidStakeVerificationSignature
 }

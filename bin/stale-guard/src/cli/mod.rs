@@ -35,11 +35,10 @@ struct StaleGuardConfig {
 }
 
 impl RethNodeCommandConfig for StaleGuardConfig {
-    #[allow(dead_code)]
     fn configure_network<Conf, Reth>(
         &mut self,
-        config: &mut Conf,
-        components: &Reth
+        _config: &mut Conf,
+        _components: &Reth
     ) -> eyre::Result<()>
     where
         Conf: RethNetworkConfig,
@@ -52,7 +51,7 @@ impl RethNodeCommandConfig for StaleGuardConfig {
     #[allow(dead_code)]
     fn on_components_initialized<Reth: RethNodeComponents>(
         &mut self,
-        components: &Reth
+        _components: &Reth
     ) -> eyre::Result<()> {
         // Initialize the eth interacting modules, aka pool upkeep + consensus
         todo!()

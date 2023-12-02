@@ -1,9 +1,6 @@
 use std::{fmt::Debug, future::Future, pin::Pin};
 
-use guard_types::orders::{
-    OrderOrigin, OrderValidationOutcome, PoolOrder, PooledComposableOrder, PooledLimitOrder,
-    PooledSearcherOrder, ValidatedOrder, ValidationError
-};
+use guard_types::orders::{OrderOrigin, OrderValidationOutcome, PoolOrder};
 
 pub mod order_validator;
 pub mod sim;
@@ -53,7 +50,7 @@ pub trait OrderValidator: Send + Sync + Clone + Debug + Unpin + 'static {
     fn validate_orders(
         &self,
         transactions: Vec<(OrderOrigin, Self::LimitOrder)>
-    ) -> ValidationsFutures<Self::LimitOrder> {
+    ) -> ValidationsFuture<Self::LimitOrder> {
         Box::pin(futures_util::future::join_all(
             transactions
                 .into_iter()

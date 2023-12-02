@@ -4,22 +4,24 @@ use std::{fmt::Debug, sync::Arc};
 use alloy_rlp::{length_of_length, Decodable, Encodable, Header};
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
+    orders::{GetOrders, Orders, PooledOrder},
     primitive::Angstrom::Bundle,
     rpc::{
         SignedComposableLimitOrder, SignedComposableSearcherOrder, SignedLimitOrder,
         SignedSearcherOrder
     }
 };
+use reth_interfaces::p2p::error::RequestError;
 use reth_primitives::bytes::{Buf, BufMut};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use tokio::sync::oneshot;
 
-use super::{orders::GetComposableLimitOrders, version::StromVersion};
-use crate::{
-    errors::EthStreamError, ComposableLimitOrders, ComposableSearcherOrders,
-    GetComposableSearcherOrders, GetLimitOrders, GetOrders, GetSearcherOrders, LimitOrders, Orders,
-    PooledOrder, SearcherOrders, Status
-};
+/// Result alias for result of a request.
+pub type RequestResult<T> = Result<T, RequestError>;
+
+use super::version::StromVersion;
+use crate::Status;
 
 /// An `eth` protocol message, containing a message ID and payload.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -343,5 +345,85 @@ where
     fn decode(buf: &mut &[u8]) -> Result<Self, alloy_rlp::Error> {
         let _header = Header::decode(buf)?;
         Ok(Self { request_id: u64::decode(buf)?, message: O::decode(buf)? })
+    }
+}
+
+/// Protocol related request messages that expect a response
+#[derive(Debug)]
+#[allow(clippy::enum_variant_names, missing_docs)]
+pub enum PeerRequest {
+    GetAllOrders { request: GetOrders, response: oneshot::Sender<RequestResult<Orders>> }
+}
+
+// === impl PeerRequest ===
+
+impl PeerRequest {
+    /// Invoked if we received a response which does not match the request
+    pub(crate) fn send_bad_response(self) {
+        self.send_err_response(RequestError::BadResponse)
+    }
+
+    /// Send an error back to the receiver.
+    pub(crate) fn send_err_response(self, err: RequestError) {
+        let _ = match self {
+            Self::GetAllOrders { response, .. } => response.send(Err(err)).ok()
+        };
+    }
+
+    /// Returns the [`EthMessage`] for this type
+    pub fn create_request_message(&self, request_id: u64) -> StromMessage {
+        match self {
+            PeerRequest::GetAllOrders { request, .. } => {
+                StromMessage::GetOrders(RequestPair { request_id, message: request.clone() })
+            }
+        }
+    }
+
+    /// Consumes the type and returns the inner [`GetPooledTransactions`]
+    /// variant.
+    pub fn into_get_all_orders(self) -> Option<GetOrders> {
+        match self {
+            PeerRequest::GetPooledTransactions { request, .. } => Some(request),
+            _ => None
+        }
+    }
+}
+
+/// Corresponding variant for [`PeerRequest`].
+#[derive(Debug)]
+pub enum PeerResponse {
+    BlockHeaders { response: oneshot::Receiver<RequestResult<Orders>> }
+}
+
+impl PeerResponse {
+    /// Polls the type to completion.
+    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<PeerResponseResult> {
+        macro_rules! poll_request {
+            ($response:ident, $item:ident, $cx:ident) => {
+                match ready!($response.poll_unpin($cx)) {
+                    Ok(res) => PeerResponseResult::$item(res.map(|item| item.0)),
+                    Err(err) => PeerResponseResult::$item(Err(err.into()))
+                }
+            };
+        }
+
+        let res = match self {
+            PeerResponse::BlockHeaders { response } => {
+                poll_request!(response, BlockHeaders, cx)
+            }
+            PeerResponse::BlockBodies { response } => {
+                poll_request!(response, BlockBodies, cx)
+            }
+            PeerResponse::PooledTransactions { response } => {
+                poll_request!(response, PooledTransactions, cx)
+            }
+            PeerResponse::NodeData { response } => {
+                poll_request!(response, NodeData, cx)
+            }
+            PeerResponse::Receipts { response } => {
+                poll_request!(response, Receipts, cx)
+            }
+        };
+        Poll::Ready(res)
     }
 }

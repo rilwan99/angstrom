@@ -1,24 +1,23 @@
-use std::{fmt::Debug, pin::Pin};
+use std::fmt::Debug;
 
-use bundle::{BundleSimRequest, BundleValidator};
 use ethers_core::types::transaction::eip2718::TypedTransaction;
-use futures::Future;
 use guard_types::{
-    orders::{OrderOrigin, OrderValidationOutcome},
+    orders::OrderOrigin,
     primitive::{Angstrom::Bundle, ExternalStateSim},
     rpc::{
         CallerInfo, EcRecoveredComposableLimitOrder, EcRecoveredComposableSearcherOrder,
         EcRecoveredLimitOrder, EcRecoveredSearcherOrder
     }
 };
-use order::OrderValidator;
 use tokio::sync::{mpsc::UnboundedSender, oneshot::channel};
 
 use crate::{
-    bundle::errors::{SimError, SimResult},
-    ValidationFuture, ValidationFutures
+    bundle::{
+        errors::{SimError, SimResult},
+        BundleSimRequest, BundleValidator
+    },
+    order::{OrderValidator, ValidationFuture}
 };
-
 /// clone-able handle to the simulator
 #[derive(Clone, Debug)]
 pub struct RevmClient {
