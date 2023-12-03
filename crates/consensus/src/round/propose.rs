@@ -3,7 +3,7 @@ use std::{
     task::{Context, Poll, Waker}
 };
 
-use guard_types::{consensus::Proposal, submission::BestBundles};
+use guard_types::submission::BestBundles;
 use guard_utils::{ConsensusState, SUBMIT};
 
 use super::{

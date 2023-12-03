@@ -1,6 +1,8 @@
 //! Error handling for Strom protocol stream
 use reth_primitives::GotExpected;
 
+use crate::types::{message::StromMessageID, version::StromVersion};
+
 /// Errors when sending/receiving messages
 #[derive(thiserror::Error, Debug)]
 
@@ -10,7 +12,10 @@ pub enum StromStreamError {
     StromHandshakeError(StromHandshakeError),
     #[error("message size ({0}) exceeds max length (10MB)")]
     /// Received a message whose size exceeds the standard limit.
-    MessageTooBig(usize)
+    MessageTooBig(usize),
+    #[error("message id is invalid")]
+    /// Flags an unrecognized message ID for a given protocol version.
+    InvalidMessageError
 }
 
 /// Error  that can occur during the `eth` sub-protocol handshake.
@@ -36,4 +41,10 @@ pub enum StromHandshakeError {
     /// The signature on the stake verification message is invalid / does not
     /// match the staking address' public key
     InvalidStakeVerificationSignature
+}
+
+impl From<alloy_rlp::Error> for StromStreamError {
+    fn from(err: alloy_rlp::Error) -> Self {
+        StromStreamError::InvalidMessageError
+    }
 }

@@ -10,7 +10,6 @@ members = [
   "crates/rpc",
   "crates/eth/",
   "crates/submission"
-  #"it-harness",
 ]
 
 

@@ -1,7 +1,11 @@
 use std::{collections::VecDeque, net::SocketAddr, pin::Pin, sync::Arc};
 
 use fnv::FnvHashMap;
-use futures::{future::Fuse, task::Context, Stream};
+use futures::{
+    future::Fuse,
+    task::{Context, Poll},
+    Stream
+};
 use reth_eth_wire::{capability::Capabilities, multiplex::ProtocolConnection, Status};
 use reth_metrics::common::mpsc::MeteredPollSender;
 use reth_network::{
@@ -9,7 +13,7 @@ use reth_network::{
     SessionId
 };
 use reth_network_api::Direction;
-use reth_primitives::PeerId;
+use reth_primitives::{BytesMut, PeerId};
 use tokio::{sync::mpsc, time::Instant};
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -40,23 +44,27 @@ pub struct ProtocolSessionHandle {
     pub(crate) status:              Arc<Status>
 }
 
-pub struct ProtocolSession {
-    pub(crate) conn: ProtocolConnection,
-    pub(crate) peer_id: PeerId,
-    pub(crate) commands_rx: ReceiverStream<SessionCommand>,
+
+pub struct StromSession {
+    pub(crate) conn:               ProtocolConnection,
+    pub(crate) peer_id:            PeerId,
+    pub(crate) commands_rx:        ReceiverStream<SessionCommand>,
     pub(crate) to_session_manager: MeteredPollSender<StromSessionMessage>,
     /// Incoming internal requests which are delegated to the remote peer.
-    pub(crate) internal_request_tx: Fuse<ReceiverStream<PeerRequest>>,
+    //pub(crate) internal_request_tx: Fuse<ReceiverStream<PeerRequest>>,
     /// All requests sent to the remote peer we're waiting on a response
-    pub(crate) inflight_requests: FnvHashMap<u64, InflightRequest>,
+    //pub(crate) inflight_requests:   FnvHashMap<u64, InflightRequest>,
     /// All requests that were sent by the remote peer and we're waiting on an
     /// internal response
-    pub(crate) received_requests_from_remote: Vec<ReceivedRequest>,
+    //pub(crate) received_requests_from_remote: Vec<ReceivedRequest>,
     /// Buffered messages that should be handled and sent to the peer.
-    pub(crate) queued_outgoing: VecDeque<OutgoingMessage>
+   //pub(crate) queued_outgoing:    VecDeque<OutgoingMessage>
 }
 
-impl ProtocolSession {
+
+
+
+impl StromSession {
     pub fn new(
         conn: ProtocolConnection,
         to_session_manager: MeteredPollSender<StromSessionMessage>,
@@ -68,18 +76,22 @@ impl ProtocolSession {
             peer_id,
             commands_rx,
             to_session_manager,
-            internal_request_tx: internal_request_rx.fuse(),
-            inflight_requests: FnvHashMap::default(),
-            received_requests_from_remote: Vec::new(),
-            queued_outgoing: VecDeque::new()
+            //internal_request_tx: internal_request_rx.fuse(),
+            //inflight_requests: FnvHashMap::default(),
+            //received_requests_from_remote: Vec::new(),
+            //queued_outgoing: VecDeque::new()
         }
+    }
+
+    pub fn on_command(command: SessionCommand) -> Poll<Option<SessionCommand>> {
+        Poll::Ready(Some(command))
     }
 }
 
-impl Stream for ProtocolSession {
-    type Item = ();
+impl Stream for StromSession {
+    type Item = BytesMut;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
 
         'main: loop {
@@ -87,8 +99,25 @@ impl Stream for ProtocolSession {
 
             // we prioritize incoming commands sent from the session manager
             loop {
-                match this.commands_rx.poll_next_unpin(cx) {}
-            }
+                match this.commands_rx.poll_next_unpin(cx) {
+                    Poll::Ready(Some(command)) => match command {
+                        SessionCommand::Send(data) => {
+                            // Implement logic to handle the send command
+                            this.conn.send(data);
+                        }
+                        SessionCommand::Disconnect => {
+                            // Implement logic to handle the disconnect command
+                            this.conn.close();
+                        }
+                    },
+                    Poll::Ready(None) => {
+                        // Implement logic for when the stream of commands is finished
+                        return Poll::Ready(None);
+                    },
+                    Poll::Pending => break, // No more commands, break the loop
+                } 
+                }
+    
         }
     }
 }

@@ -142,63 +142,8 @@ where
 {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
-
-        // drain network/peer related events
-        while let Poll::Ready(Some(event)) = this.network_events.poll_next_unpin(cx) {
-            this.on_network_event(event);
-        }
-
-        // drain commands
-        while let Poll::Ready(Some(cmd)) = this.command_rx.poll_next_unpin(cx) {
-            this.on_command(cmd);
-        }
-
-        // drain incoming transaction events
-        while let Poll::Ready(Some(event)) = this.transaction_events.poll_next_unpin(cx) {
-            this.on_network_tx_event(event);
-        }
-
-        this.update_request_metrics();
-
-        this.update_request_metrics();
-        this.update_import_metrics();
-
-        // Advance all imports
-        while let Poll::Ready(Some(import_res)) = this.pool_imports.poll_next_unpin(cx) {
-            match import_res {
-                Ok(hash) => {
-                    this.on_good_import(hash);
-                }
-                Err(err) => {
-                    // if we're _currently_ syncing and the transaction is bad we ignore it,
-                    // otherwise we penalize the peer that sent the bad
-                    // transaction with the assumption that the peer should have
-                    // known that this transaction is bad. (e.g. consensus
-                    // rules)
-                    if err.is_bad_transaction() && !this.network.is_syncing() {
-                        trace!(target: "net::tx", ?err, "bad pool transaction import");
-                        this.on_bad_import(err.hash);
-                        continue
-                    }
-                    this.on_good_import(err.hash);
-                }
-            }
-        }
-
-        this.update_import_metrics();
-
-        // handle and propagate new transactions
-        let mut new_txs = Vec::new();
-        while let Poll::Ready(Some(hash)) = this.pending_transactions.poll_next_unpin(cx) {
-            new_txs.push(hash);
-        }
-        if !new_txs.is_empty() {
-            this.on_new_transactions(new_txs);
-        }
-
-        // all channels are fully drained and import futures pending
 
         Poll::Pending
     }

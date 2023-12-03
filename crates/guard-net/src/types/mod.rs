@@ -9,5 +9,8 @@ pub use version::*;
 pub mod message;
 pub use message::*;
 
+pub mod broadcast;
+pub use broadcast::*;
+
 pub mod events;
 pub use events::*;

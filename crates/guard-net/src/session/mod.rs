@@ -9,7 +9,7 @@ use reth_eth_wire::{
     capability::{Capabilities, CapabilityMessage, RawCapabilityMessage, SharedCapabilities},
     multiplex::{ProtocolConnection, ProtocolProxy, RlpxProtocolMultiplexer, RlpxSatelliteStream},
     protocol::Protocol,
-    EthStream, EthVersion, Status
+    DisconnectReason, EthStream, EthVersion, Status
 };
 use reth_metrics::common::mpsc::MeteredPollSender;
 use reth_network::{
@@ -17,30 +17,44 @@ use reth_network::{
     Direction
 };
 use reth_primitives::{ForkFilter, PeerId};
+use tokio::sync::mpsc;
 
 use crate::{
     errors::{StromHandshakeError, StromStreamError},
-    types::message::StromMessage
+    types::message::{StromBroadcastMessage, StromMessage}
 };
 pub struct StromSessionManager {
     // All pending session that are currently handshaking, exchanging `Hello`s.
     //pending_sessions: FnvHashMap<SessionId, PendingSessionHandle>,
     // All active sessions that are ready to exchange messages.
     //active_sessions:  HashMap<PeerId, ActiveProtocolSessionHandle>
+    to_sessions: Vec<mpsc::Sender<StromSessionCommand>>,
+
+    from_sessions: mpsc::Receiver<StromSessionMessage>
+}
+
+/// The protocol handler that is used to announce the strom capability upon
+/// successfully establishing a hello handshake on an incoming tcp connection.
+pub struct StromProtocolHandler {
+    /// When a new connection is created, the conection handler will use
+    /// this channel to send the sender half of the sessions command channel to
+    /// the manager via the `Established` event.
+    pub to_session_manager: MeteredPollSender<StromSessionMessage>
 }
 
 pub struct StromConnectionHandler {
     pub protocol:           Protocol,
     pub to_session_manager: MeteredPollSender<StromSessionMessage>,
     pub status:             Status,
-    pub fork_filter:        ForkFilter
+    pub fork_filter:        ForkFilter,
+    pub to_wire:            mpsc::Sender<StromBroadcastMessage>
 }
 
 impl ConnectionHandler for StromConnectionHandler {
-    type Connection = RlpxSatelliteStream<ProtocolSession, EthStream<ProtocolProxy>>;
+    type Connection = StromSession;
 
     fn protocol(&self) -> Protocol {
-        self.protocol
+        StromProtocol::default()
     }
 
     fn on_unsupported_by_peer(
@@ -58,19 +72,17 @@ impl ConnectionHandler for StromConnectionHandler {
         peer_id: PeerId,
         conn: ProtocolConnection
     ) -> Self::Connection {
-        let cap = self.protocol.capability();
-        let mut st = RlpxProtocolMultiplexer::new(conn)
-            .into_eth_satellite_stream(
-                EthVersion::Eth68,
-                self.status.clone(),
-                self.fork_filter.clone()
-            )
-            .unwrap();
-
-        st.install_protocol(&cap, |mut conn| {
-            ProtocolSession::new(conn, self.to_session_manager.clone())
-        })
-        .unwrap()
+        let (tx, rx) = mpsc::unbounded_channel();
+        self.to_session_manager
+            .events
+            .send(ProtocolEvent::Established { direction, peer_id: _peer_id, to_connection: tx })
+            .ok();
+        PingPongProtoConnection {
+            conn,
+            initial_ping: direction.is_outgoing().then(PingPongProtoMessage::ping),
+            commands: UnboundedReceiverStream::new(rx),
+            pending_pong: None
+        }
     }
 }
 
@@ -78,6 +90,13 @@ impl ConnectionHandler for StromConnectionHandler {
 /// [`SessionManager`](crate::session::SessionManager)
 #[derive(Debug)]
 pub enum StromSessionMessage {
+    /// Session was established.
+    Established {
+        direction:     Direction,
+        peer_id:       PeerId,
+        to_connection: mpsc::UnboundedSender<StromSessionCommand>
+    },
+
     /// Session was gracefully disconnected.
     Disconnected {
         /// The remote node's public key
@@ -111,4 +130,15 @@ pub enum StromSessionMessage {
         /// Identifier of the remote peer.
         peer_id: PeerId
     }
+}
+
+#[derive(Debug)]
+pub enum StromSessionCommand {
+    /// Disconnect the connection
+    Disconnect {
+        /// Why the disconnect was initiated
+        reason: Option<DisconnectReason>
+    },
+    /// Sends a message to the peer
+    Message(StromMessage)
 }

@@ -1,15 +1,9 @@
-use alloy_rlp::Encodable;
-use ethers_signers::{LocalWallet, Signer as ESigner, WalletError};
+use alloy_primitives::B512;
+use ethers_signers::{LocalWallet, WalletError};
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
-    primitive::{
-        Angstrom::{Bundle, LowerBound},
-        Signature
-    }
+    primitive::Angstrom::{Bundle, LowerBound}
 };
-use reth_primitives::{keccak256, BytesMut, H256, H512};
-use revm_primitives::Address;
-
 /// The Signer deals with verifying external signatures as well as
 /// signing our payloads
 #[repr(transparent)]
@@ -44,7 +38,7 @@ impl Signer {
         todo!()
     }
 
-    pub fn is_us(&self, addr: &H512) -> bool {
+    pub fn is_us(&self, addr: &B512) -> bool {
         todo!("change key to proper")
     }
 }

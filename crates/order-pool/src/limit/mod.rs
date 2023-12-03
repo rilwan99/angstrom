@@ -70,7 +70,7 @@ where
             return Err(LimitPoolError::MaxSize)
         }
 
-        let location = self.limit_orders.add_order(order)?;
+        let _location = self.limit_orders.add_order(order)?;
 
         Ok(())
 
@@ -92,6 +92,7 @@ where
         )
     }
 
+    #[allow(dead_code)]
     pub fn remove_limit_order(&mut self, order_hash: &B256, location: OrderLocation) -> Option<O> {
         todo!()
     }

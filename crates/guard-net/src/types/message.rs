@@ -4,7 +4,7 @@ use std::{fmt::Debug, sync::Arc};
 use alloy_rlp::{length_of_length, Decodable, Encodable, Header};
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
-    orders::{GetOrders, Orders, PooledOrder},
+    orders::{GetOrders, GetPooledOrders, Orders, PooledOrder},
     primitive::Angstrom::Bundle,
     rpc::{
         SignedComposableLimitOrder, SignedComposableSearcherOrder, SignedLimitOrder,
@@ -17,11 +17,16 @@ use reth_primitives::bytes::{Buf, BufMut};
 use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 
+use crate::errors::StromStreamError;
 /// Result alias for result of a request.
 pub type RequestResult<T> = Result<T, RequestError>;
 
 use super::version::StromVersion;
 use crate::Status;
+
+/// [`MAX_MESSAGE_SIZE`] is the maximum cap on the size of a protocol message.
+// https://github.com/ethereum/go-ethereum/blob/30602163d5d8321fbc68afdcbbaf2362b2641bde/eth/protocols/eth/protocol.go#L50
+pub const MAX_MESSAGE_SIZE: usize = 10 * 1024 * 1024;
 
 /// An `eth` protocol message, containing a message ID and payload.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -33,34 +38,24 @@ pub struct ProtocolMessage {
 
 impl ProtocolMessage {
     /// Create a new ProtocolMessage from a message type and message rlp bytes.
-    //TODO: fix enum given new enum
-    pub fn decode_message(_version: StromVersion, buf: &mut &[u8]) -> Result<Self, EthStreamError> {
+    pub fn decode_message(
+        _version: StromVersion,
+        buf: &mut &[u8]
+    ) -> Result<Self, StromStreamError> {
         let message_type = StromMessageID::decode(buf)?;
 
         let message = match message_type {
             StromMessageID::Status => StromMessage::Status(Status::decode(buf)?),
-            StromMessageID::PropagateOrder => {
-                StromMessage::PropagateOrder(SignedLimitOrder::decode(buf)?)
-            }
             StromMessageID::PrePropose => StromMessage::PrePropose(PreProposal::decode(buf)?),
-            StromMessageID::Proposal => StromMessage::Proposal(Proposal::decode(buf)?),
+            StromMessageID::Propose => StromMessage::Propose(Proposal::decode(buf)?),
             StromMessageID::Commit => StromMessage::Commit(Commit::decode(buf)?),
-
-            StromMessageID::LimitOrder => {
-                StromMessage::LimitOrders(RequestPair::<LimitOrders>::decode(buf)?)
+            StromMessageID::PropagatePooledOrders => {
+                StromMessage::PropagatePooledOrders(Orders::decode(buf)?)
             }
-            StromMessageID::SearcherOrder => {
-                StromMessage::SearcherOrders(RequestPair::<SearcherOrders>::decode(buf)?)
+            StromMessageID::GetPooledOrders => {
+                StromMessage::GetPooledOrders(RequestPair::decode(buf)?)
             }
-            StromMessageID::GetUserOrder => {
-                StromMessage::GetUserOrders(RequestPair::<GetUsersOrders>::decode(buf)?)
-            }
-            StromMessageID::GetLimitOrder => {
-                StromMessage::GetLimitOrders(RequestPair::<GetLimitOrders>::decode(buf)?)
-            }
-            StromMessageID::GetSearcherOrder => {
-                StromMessage::GetSearcherOrders(RequestPair::<GetSearcherOrders>::decode(buf)?)
-            }
+            StromMessageID::PooledOrders => StromMessage::PooledOrders(RequestPair::decode(buf)?)
         };
         Ok(ProtocolMessage { message_type, message })
     }
@@ -123,42 +118,11 @@ pub enum StromMessage {
     Commit(Commit),
 
     /// Propagation messages that broadcast new orders to all peers
-    PropagateOrders(Vec<Orders>),
+    PropagatePooledOrders(Vec<PooledOrder>),
 
     // Order Request / Response pairs
-    GetAllOrders(RequestPair<GetOrders>),
-    AllOrders(RequestPair<Orders>)
-}
-
-impl StromMessage {
-    /// Returns the message's ID.
-    pub fn message_id(&self) -> StromMessageID {
-        match self {
-            StromMessage::Status(_) => StromMessageID::Status,
-            StromMessage::PropagateOrder(_) => StromMessageID::PropagateOrder,
-            StromMessage::PropagateComposableOrder(_) => StromMessageID::PropagateComposableOrder,
-            StromMessage::PropagateSearcherOrder(_) => StromMessageID::PropagateSearcherOrder,
-            StromMessage::PropagetComposableSearcherOrder(_) => {
-                StromMessageID::PropagetComposableSearcherOrder
-            }
-            StromMessage::PropagateOrders(_) => StromMessageID::PropagateOrders,
-            StromMessage::GetLimitOrders(_) => StromMessageID::GetLimitOrders,
-            StromMessage::LimitOrders(_) => StromMessageID::LimitOrders,
-            StromMessage::GetComposableLimitOrders(_) => StromMessageID::GetComposableLimitOrders,
-            StromMessage::ComposableLimitOrders(_) => StromMessageID::ComposableLimitOrders,
-            StromMessage::GetSearcherOrders(_) => StromMessageID::GetSearcherOrders,
-            StromMessage::SearcherOrders(_) => StromMessageID::SearcherOrders,
-            StromMessage::GetCompasableSearcherOrders(_) => {
-                StromMessageID::GetCompasableSearcherOrders
-            }
-            StromMessage::ComposableSearcherOrders(_) => StromMessageID::ComposableSearcherOrders,
-            StromMessage::GetAllOrders(_) => StromMessageID::GetAllOrders,
-            StromMessage::AllOrders(_) => StromMessageID::AllOrders,
-            StromMessage::PrePropose(_) => StromMessageID::PrePropose,
-            StromMessage::Proposal(_) => StromMessageID::Proposal,
-            StromMessage::Commit(_) => StromMessageID::Commit
-        }
-    }
+    GetPooledOrders(RequestPair<GetPooledOrders>),
+    PooledOrders(RequestPair<Orders>)
 }
 
 macro_rules! encodable_enum {
@@ -182,25 +146,29 @@ macro_rules! encodable_enum {
 encodable_enum!(
     StromMessage,
     Status,
-    PropagateOrder,
-    PropagateComposableOrder,
-    PropagateSearcherOrder,
-    PropagetComposableSearcherOrder,
-    PropagateOrders,
-    GetLimitOrders,
-    LimitOrders,
-    GetComposableLimitOrders,
-    ComposableLimitOrders,
-    GetSearcherOrders,
-    SearcherOrders,
-    GetCompasableSearcherOrders,
-    ComposableSearcherOrders,
-    GetAllOrders,
-    AllOrders,
     PrePropose,
-    Proposal,
-    Commit
+    Propose,
+    Commit,
+    PropagatePooledOrders,
+    GetPooledOrders,
+    PooledOrders
 );
+
+impl StromMessage {
+    /// Returns the message's ID.
+    pub fn message_id(&self) -> StromMessageID {
+        match self {
+            StromMessage::Status(_) => StromMessageID::Status,
+            StromMessage::PrePropose(_) => StromMessageID::PrePropose,
+            StromMessage::Propose(_) => StromMessageID::Propose,
+            StromMessage::Commit(_) => StromMessageID::Commit,
+
+            StromMessage::PropagatePooledOrders(_) => StromMessageID::PropagatePooledOrders,
+            StromMessage::GetPooledOrders(_) => StromMessageID::GetPooledOrders,
+            StromMessage::PooledOrders(_) => StromMessageID::PooledOrders
+        }
+    }
+}
 
 /// Represents broadcast messages of [`StromMessage`] with the same object that
 /// can be sent to multiple peers.
@@ -214,31 +182,37 @@ encodable_enum!(
 pub enum StromBroadcastMessage {
     // Consensus Broadcast
     PrePropose(Arc<PreProposal>),
-    Proposal(Arc<Proposal>),
+    Propose(Arc<Proposal>),
     Commit(Arc<Commit>),
-
-    PropagateComposableOrder(Arc<SignedComposableLimitOrder>),
-    PropagateSearcherOrder(Arc<SignedSearcherOrder>),
-    PropagetComposableSearcherOrder(Arc<SignedComposableSearcherOrder>),
-    PropagatePooledOrders(Arc<Vec<PooledOrder>>)
+    // Order Broadcast
+    PropagatePooledOrders(Arc<RequestPair<GetOrders>>),
+    GetPooledOrders(Arc<RequestPair<Orders>>)
 }
 
 // === impl StromBroadcastMessage ===
-//TODO: fix this
 impl StromBroadcastMessage {
     /// Returns the message's ID.
     pub fn message_id(&self) -> StromMessageID {
         match self {
-            StromBroadcastMessage::PropagateOrder(_) => StromMessageID::PropagateOrder,
-
             StromBroadcastMessage::PrePropose(_) => StromMessageID::PrePropose,
-            StromBroadcastMessage::Proposal(_) => StromMessageID::Proposal,
-            StromBroadcastMessage::Commit(_) => StromMessageID::Commit
+            StromBroadcastMessage::Propose(_) => StromMessageID::Propose,
+            StromBroadcastMessage::Commit(_) => StromMessageID::Commit,
+            StromBroadcastMessage::PropagatePooledOrders(_) => {
+                StromMessageID::PropagatePooledOrders
+            }
+            StromBroadcastMessage::GetPooledOrders(_) => StromMessageID::GetPooledOrders
         }
     }
 }
 
-encodable_enum!(StromBroadcastMessage, PropagateOrder, PrePropose, Proposal, Commit);
+encodable_enum!(
+    StromBroadcastMessage,
+    PrePropose,
+    Propose,
+    Commit,
+    PropagatePooledOrders,
+    GetPooledOrders
+);
 
 /// Represents message IDs for eth protocol messages.
 #[repr(u8)]
@@ -251,11 +225,11 @@ pub enum StromMessageID {
     Propose         = 2,
     Commit          = 3,
     /// Propagation messages that broadcast new orders to all peers
-    PropagetOrders  = 8,
+    PropagatePooledOrders = 4,
 
     /// Order Request / Response pairs
-    GetPooledOrders = 17,
-    PooledOrders    = 18
+    GetPooledOrders = 5,
+    PooledOrders    = 6
 }
 
 impl Encodable for StromMessageID {
@@ -267,16 +241,18 @@ impl Encodable for StromMessageID {
         1
     }
 }
-// TODO: Implement correct for enum
+
 impl Decodable for StromMessageID {
     fn decode(buf: &mut &[u8]) -> Result<Self, alloy_rlp::Error> {
         let id = buf.first().ok_or(alloy_rlp::Error::InputTooShort)?;
         let id = match id {
             0 => StromMessageID::Status,
-            2 => StromMessageID::PropagateOrder,
-            3 => StromMessageID::PrePropose,
-            4 => StromMessageID::Proposal,
-            5 => StromMessageID::Commit,
+            1 => StromMessageID::PrePropose,
+            2 => StromMessageID::Propose,
+            3 => StromMessageID::Commit,
+            4 => StromMessageID::PropagatePooledOrders,
+            5 => StromMessageID::GetPooledOrders,
+            6 => StromMessageID::PooledOrders,
             _ => return Err(alloy_rlp::Error::Custom("Invalid message ID"))
         };
         buf.advance(1);
@@ -290,10 +266,12 @@ impl TryFrom<usize> for StromMessageID {
     fn try_from(value: usize) -> Result<Self, Self::Error> {
         match value {
             0 => Ok(StromMessageID::Status),
-            2 => Ok(StromMessageID::PropagateOrder),
-            3 => Ok(StromMessageID::PrePropose),
-            4 => Ok(StromMessageID::Proposal),
-            5 => Ok(StromMessageID::Commit),
+            1 => Ok(StromMessageID::PrePropose),
+            2 => Ok(StromMessageID::Propose),
+            3 => Ok(StromMessageID::Commit),
+            4 => Ok(StromMessageID::PropagatePooledOrders),
+            5 => Ok(StromMessageID::GetPooledOrders),
+            6 => Ok(StromMessageID::PooledOrders),
             _ => Err("Invalid message ID")
         }
     }
@@ -348,6 +326,7 @@ where
     }
 }
 
+/*
 /// Protocol related request messages that expect a response
 #[derive(Debug)]
 #[allow(clippy::enum_variant_names, missing_docs)]
@@ -426,4 +405,4 @@ impl PeerResponse {
         };
         Poll::Ready(res)
     }
-}
+} */
