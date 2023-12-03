@@ -1,12 +1,12 @@
 //! CLI definition and entrypoint to executable
 
-use clap::{value_parser, ArgAction, Args, Parser, Subcommand, ValueEnum};
-use eyre::Result;
+use clap::{Parser};
+
 use guard_rpc::{
     api::{ConsensusApiServer, OrderApiServer, QuotingApiServer},
     ConsensusApi, OrderApi, QuotesApi
 };
-use order_pool::Pool;
+
 use reth::cli::{
     components::{RethNodeComponents, RethRpcComponents},
     config::{RethNetworkConfig, RethRpcConfig},
