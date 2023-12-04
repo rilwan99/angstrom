@@ -1,6 +1,7 @@
 use guard_types::orders::{OrderValidationOutcome, PoolOrder, ValidatedOrder, ValidationResults};
 
-use super::{sim::SimValidation, state::StateValidation};
+use super::{sim::SimValidation, state::StateValidation, OrderValidator};
+use crate::common::lru_db::RevmLRU;
 
 #[allow(dead_code)]
 pub struct OrderValidator<DB> {
@@ -21,3 +22,4 @@ impl<DB> OrderValidator<DB> {
         todo!()
     }
 }
+

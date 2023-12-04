@@ -5,8 +5,9 @@ use guard_types::orders::{OrderOrigin, OrderValidationOutcome, PoolOrder};
 pub mod order_validator;
 pub mod sim;
 pub mod state;
-mod validator;
-pub use validator::*;
+
+use self::order_validator::OrderValidator;
+use crate::validator::ValidationClient;
 
 pub type ValidationFuture<O> =
     Pin<Box<dyn Future<Output = OrderValidationOutcome<O>> + Send + Sync>>;
@@ -107,5 +108,48 @@ pub trait OrderValidator: Send + Sync + Clone + Debug + Unpin + 'static {
                 .into_iter()
                 .map(|(origin, tx)| self.validate_composable_searcher_order(origin, tx))
         ))
+    }
+}
+
+impl OrderValidator for ValidationClient {
+    /// The transaction type of the composable limit order pool
+    type ComposableLimitOrder = EcRecoveredComposableLimitOrder;
+    /// The transaction type of the composable searcher pool
+    type ComposableSearcherOrder = EcRecoveredSearcherOrder;
+    /// The order type of the limit order pool
+    type LimitOrder = EcRecoveredLimitOrder;
+    /// The transaction type of the searcher order pool
+    type SearcherOrder = EcRecoveredComposableSearcherOrder;
+
+    fn validate_order(
+        &self,
+        _origin: OrderOrigin,
+        _transaction: Self::LimitOrder
+    ) -> ValidationFuture<Self::LimitOrder> {
+        todo!()
+    }
+
+    fn validate_composable_order(
+        &self,
+        _origin: OrderOrigin,
+        _transaction: Self::ComposableLimitOrder
+    ) -> ValidationFuture<Self::ComposableLimitOrder> {
+        todo!()
+    }
+
+    fn validate_searcher_order(
+        &self,
+        _origin: OrderOrigin,
+        _transaction: Self::SearcherOrder
+    ) -> ValidationFuture<Self::SearcherOrder> {
+        todo!()
+    }
+
+    fn validate_composable_searcher_order(
+        &self,
+        _origin: OrderOrigin,
+        _transaction: Self::ComposableSearcherOrder
+    ) -> ValidationFuture<Self::ComposableSearcherOrder> {
+        todo!()
     }
 }

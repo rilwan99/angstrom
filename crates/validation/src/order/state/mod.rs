@@ -1,10 +1,12 @@
-use std::{sync::Arc, thread::JoinHandle};
+use std::sync::Arc;
 
+use alloy_primitives::Address;
+use futures::{Stream, StreamExt};
 use futures_util::stream::FuturesUnordered;
 use guard_types::orders::{OrderValidationOutcome, PoolOrder};
 use parking_lot::RwLock;
 use reth_provider::StateProviderFactory;
-use tokio::sync::oneshot::Sender;
+use tokio::{sync::oneshot::Sender, task::JoinHandle};
 
 use self::{
     orders::UserOrders,
@@ -28,7 +30,8 @@ pub struct StateValidation<DB> {
     user_orders: UserOrders,
 
     /// upkeeps all state specific checks.
-    upkeepers:   Arc<RwLock<Upkeepers>>,
+    upkeepers: Arc<RwLock<Upkeepers>>,
+
     thread_pool: ThreadPool,
     tasks: FuturesUnordered<
         JoinHandle<(
@@ -75,5 +78,42 @@ where
 
                 (tx, order, details)
             }));
+    }
+
+    pub fn new_block(&mut self) {
+        todo!()
+    }
+
+    pub fn filled_orders(&mut self, orders: Vec<B256>) {
+        todo!()
+    }
+
+    pub fn eoa_state_changes(&mut self, eoas: Vec<Address>) {
+        todo!()
+    }
+
+    fn on_task_resolve(
+        &mut self,
+        tx: Sender<OrderValidationOutcome<Box<dyn PoolOrder>>>,
+        order: O,
+        details: UserAccountDetails
+    ) {
+        let res = self.user_orders.new_limit_order(order, details).unwrap();
+        let _ = tx.send(res);
+    }
+}
+
+impl<DB> Stream for StateValidation<DB> {
+    type Item = ();
+
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>
+    ) -> std::task::Poll<Option<Self::Item>> {
+        while let Poll::Ready(Some(Ok((tx, order, details)))) = self.tasks.poll_next_unpin(cx) {
+            self.on_task_resolve(tx, order, details);
+        }
+
+        Poll::Pending
     }
 }

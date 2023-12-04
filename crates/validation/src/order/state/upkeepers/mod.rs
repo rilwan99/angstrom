@@ -12,7 +12,10 @@ use reth_provider::StateProviderFactory;
 use revm::{db::WrapDatabaseRef, interpreter::opcode, new, Database, Inspector, EVM};
 use revm_primitives::{Env, TransactTo, TxEnv};
 
-use self::{angstrom_tokens::AngstromTokens, approvals::Approvals, balances::Balances};
+use self::{
+    angstrom_pools::AngstromPools, angstrom_tokens::AngstromTokens, approvals::Approvals,
+    balances::Balances
+};
 use crate::common::lru_db::RevmLRU;
 
 pub struct UserAccountDetails {
@@ -27,17 +30,20 @@ pub struct UserAccountDetails {
 pub struct Upkeepers {
     new_pairs: AngstromTokens,
     approvals: Approvals,
-    balances:  Balances
+    balances:  Balances,
+    pools:     AngstromPools
 }
 
 impl Upkeepers {
-    pub fn new<DB>(db: DB) -> Self {}
+    pub fn new<DB>(db: DB) -> Self {
+        todo!()
+    }
 
     pub fn verify_order<O: PoolOrder, DB>(
         &self,
         order: O,
         db: Arc<RevmLRU<DB>>
-    ) -> (UserAccountDetails, O){
+    ) -> (UserAccountDetails, O) {
         todo!();
     }
 }

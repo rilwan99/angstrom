@@ -21,7 +21,6 @@ pub struct PendingState {
 pub struct UserOrders(HashMap<Address, (PendingState, Vec<U256>)>);
 
 impl UserOrders {
-    #[allow(dead_code)]
     pub fn new_searcher_order<O: PoolOrder<ValidationData = SearcherPriorityData>>(
         &mut self,
         order: O,

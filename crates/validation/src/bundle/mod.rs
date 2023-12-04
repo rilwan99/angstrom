@@ -30,6 +30,15 @@ pub enum BundleOrTransactionResult {
     }
 }
 
+/// enum of transaction type
+pub enum BundleSimRequest {
+    Hook(ExternalStateSim, CallerInfo, Sender<SimResult>),
+    UniswapV4(TypedTransaction, Sender<SimResult>),
+    Bundle(Bundle, CallerInfo, Sender<SimResult>),
+    MevBundle(Bundle, CallerInfo, Sender<SimResult>),
+    NewBlock(Sender<SimResult>)
+}
+
 // the simulator is a handle that we use to simulate transactions.
 #[allow(async_fn_in_trait)]
 pub trait BundleValidator: Send + Sync + Clone + Unpin {
@@ -70,11 +79,58 @@ pub trait BundleValidator: Send + Sync + Clone + Unpin {
     ) -> Result<SimResult, SimError>;
 }
 
-/// enum of transaction type
-pub enum BundleSimRequest {
-    Hook(ExternalStateSim, CallerInfo, Sender<SimResult>),
-    UniswapV4(TypedTransaction, Sender<SimResult>),
-    Bundle(Bundle, CallerInfo, Sender<SimResult>),
-    MevBundle(Bundle, CallerInfo, Sender<SimResult>),
-    NewBlock(Sender<SimResult>)
+impl BundleValidator for ValidationClient {
+    //TODO: Fix this, to whitebox simulate the swap directly, because it isn't a
+    // full transaction and should not be validated as such
+    async fn validate_v4_tx(&self, tx: TypedTransaction) -> Result<SimResult, SimError> {
+        let (sender, rx) = channel();
+        self.transaction_tx
+            .send(BundleSimRequest::UniswapV4(tx, sender))?;
+
+        Ok(rx.await.unwrap())
+    }
+
+    //TODO:
+    async fn validate_external_state<T>(
+        &self,
+        hook_data: T,
+        caller_info: CallerInfo
+    ) -> Result<SimResult, SimError>
+    where
+        T: TryInto<ExternalStateSim> + Send,
+        <T as TryInto<ExternalStateSim>>::Error: Debug
+    {
+        let (tx, rx) = channel();
+        let hook = hook_data.try_into().unwrap();
+        self.transaction_tx
+            .send(BundleSimRequest::Hook(hook, caller_info, tx))?;
+
+        Ok(rx.await.unwrap())
+    }
+
+    /// validates the full bundle in order to make sure it is valid and passes
+    async fn validate_vanilla_bundle(
+        &self,
+        caller_info: CallerInfo,
+        bundle: Bundle
+    ) -> Result<SimResult, SimError> {
+        let (tx, rx) = channel();
+        self.transaction_tx
+            .send(BundleSimRequest::Bundle(bundle, caller_info, tx))?;
+
+        Ok(rx.await.unwrap())
+    }
+
+    /// validates the full bundle in order to make sure it is valid and passes
+    async fn validate_composable_bundle(
+        &self,
+        caller_info: CallerInfo,
+        bundle: Bundle
+    ) -> Result<SimResult, SimError> {
+        let (tx, rx) = channel();
+        self.transaction_tx
+            .send(BundleSimRequest::MevBundle(bundle, caller_info, tx))?;
+
+        Ok(rx.await.unwrap())
+    }
 }
