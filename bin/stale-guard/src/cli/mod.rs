@@ -1,12 +1,10 @@
 //! CLI definition and entrypoint to executable
 
-use clap::{Parser};
-
+use clap::Parser;
 use guard_rpc::{
     api::{ConsensusApiServer, OrderApiServer, QuotingApiServer},
     ConsensusApi, OrderApi, QuotesApi
 };
-
 use reth::cli::{
     components::{RethNodeComponents, RethRpcComponents},
     config::{RethNetworkConfig, RethRpcConfig},

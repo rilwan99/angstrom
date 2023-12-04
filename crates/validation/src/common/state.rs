@@ -1,7 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use alloy_primitives::{Address, Bytes, U256};
-
 use ethers_core::types::{transaction::eip2718::TypedTransaction, I256, U256 as EU256};
 use eyre::Result;
 use guard_types::{
@@ -10,9 +9,7 @@ use guard_types::{
 };
 use reth_provider::StateProviderFactory;
 use revm::EVM;
-use revm_primitives::{
-    db::DatabaseRef, Bytecode, ExecutionResult, TransactTo, TxEnv
-};
+use revm_primitives::{db::DatabaseRef, Bytecode, ExecutionResult, TransactTo, TxEnv};
 
 use crate::{
     bundle::{

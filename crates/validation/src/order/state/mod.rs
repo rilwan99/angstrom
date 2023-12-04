@@ -1,8 +1,9 @@
 use reth_provider::StateProviderFactory;
 
-use self::orders::UserOrders;
+use self::{orders::UserOrders, upkeepers::Upkeepers};
 
 mod orders;
+mod upkeepers;
 
 /// State validation is all validation that requires reading from the Ethereum
 /// database, these operations are:
@@ -14,7 +15,8 @@ pub struct StateValidation<DB> {
     db:          DB,
     /// manage the upkeep of all data needed for validation
     /// all current user orders with the current changed deltas
-    user_orders: UserOrders // pending_validation:
+    user_orders: UserOrders, // pending_validation:
+    upkeepers:   Upkeepers
 }
 
 impl<DB> StateValidation<DB>
