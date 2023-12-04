@@ -92,9 +92,16 @@ pub enum OrderValidationOutcome<O: PoolOrder> {
 
 #[derive(Debug, Error)]
 pub enum ValidationError {
-    #[error]
+    #[error("{0}")]
     StateValidationError(#[from] StateValidationError)
 }
 
 #[derive(Debug, Error)]
-pub enum StateValidationError {}
+pub enum StateValidationError {
+    #[error("order: {0:?} nonce was invalid: {1}")]
+    InvalidNonce(B256, U256),
+    #[error("order: {0:?} did not have enough of {1:?}")]
+    NotEnoughApproval(B256, Address),
+    #[error("order: {0:?} did not have enough of {1:?}")]
+    NotEnoughBalance(B256, Address)
+}

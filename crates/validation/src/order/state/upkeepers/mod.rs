@@ -14,13 +14,13 @@ use revm_primitives::{Env, TransactTo, TxEnv};
 
 use self::{
     angstrom_pools::AngstromPools, angstrom_tokens::AngstromTokens, approvals::Approvals,
-    balances::Balances
+    balances::Balances, nonces::Nonces
 };
 use crate::common::lru_db::RevmLRU;
 
 pub struct UserAccountDetails {
-    pub token_bals:      HashMap<Address, U256>,
-    pub token_approvals: HashMap<Address, U256>,
+    pub token_bals:      (Address, U256),
+    pub token_approvals: (Address, U256),
     pub is_valid_nonce:  bool,
     pub is_valid_pool:   bool,
     pub is_bid:          bool,
@@ -31,7 +31,8 @@ pub struct Upkeepers {
     new_pairs: AngstromTokens,
     approvals: Approvals,
     balances:  Balances,
-    pools:     AngstromPools
+    pools:     AngstromPools,
+    nonces:    Nonces
 }
 
 impl Upkeepers {
@@ -44,7 +45,38 @@ impl Upkeepers {
         order: O,
         db: Arc<RevmLRU<DB>>
     ) -> (UserAccountDetails, O) {
-        todo!();
+        todo!("add early returns here");
+
+        let is_valid_nonce = self
+            .nonces
+            .is_valid_nonce(order.from(), order.nonce(), db.clone());
+
+        let (is_bid, pool_id) = self
+            .pools
+            .order_info(order.token_in(), order.token_out())
+            .unwrap();
+
+        let approvals = self
+            .approvals
+            .fetch_approval_balance_for_token(order.from(), order.token_in(), db.clone())
+            .unwrap();
+
+        let balances = self
+            .balances
+            .fetch_balance_for_token(order.from(), order.token_in(), db.clone())
+            .unwrap();
+
+        (
+            UserAccountDetails {
+                pool_id,
+                is_bid,
+                is_valid_nonce,
+                token_bals: (order.token_in(), balances),
+                is_valid_pool: true,
+                token_approvals: (order.token_in(), approvals)
+            },
+            order
+        )
     }
 }
 

@@ -32,6 +32,9 @@ pub trait PoolOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
     /// Min amount of tokens to buy
     fn amount_out_min(&self) -> u128;
 
+    /// Token out
+    fn token_out(&self) -> Address;
+
     /// Limit Price
     fn limit_price(&self) -> u128;
 

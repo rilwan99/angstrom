@@ -53,13 +53,13 @@ where
         self.tasks
             .push(self.thread_pool.spawn_return_task_as(async move {
                 match order {
-                    OrderValidationRequest::ValidateLimit(tx, o) => {
+                    OrderValidationRequest::ValidateLimit(tx, origin, o) => {
                         let (details, order) = keeper.read().verify_order(o, db);
-                        (OrderValidationRequest::ValidateLimit(tx, order), details)
+                        (OrderValidationRequest::ValidateLimit(tx, origin, order), details)
                     }
-                    OrderValidationRequest::ValidateSearcher(tx, o) => {
+                    OrderValidationRequest::ValidateSearcher(tx, origin, o) => {
                         let (details, order) = keeper.read().verify_order(o, db);
-                        (OrderValidationRequest::ValidateSearcher(tx, order), details)
+                        (OrderValidationRequest::ValidateSearcher(tx, origin, order), details)
                     }
                     _ => unreachable!()
                 }
@@ -67,10 +67,6 @@ where
     }
 
     pub fn validate_composable_order(&mut self, order: OrderValidationRequest) {
-        todo!()
-    }
-
-    pub fn new_block(&mut self) {
         todo!()
     }
 
@@ -84,11 +80,11 @@ where
 
     fn on_task_resolve(&mut self, request: OrderValidationRequest, details: UserAccountDetails) {
         match request {
-            OrderValidationRequest::ValidateLimit(tx, order) => {
+            OrderValidationRequest::ValidateLimit(tx, orign, order) => {
                 let result = self.user_orders.new_limit_order(order, details).unwrap();
                 tx.send(result);
             }
-            OrderValidationRequest::ValidateSearcher(tx, order) => {
+            OrderValidationRequest::ValidateSearcher(tx, origin, order) => {
                 let result = self.user_orders.new_searcher_order(order, details).unwrap();
                 tx.send(result);
             }
@@ -98,6 +94,7 @@ where
 }
 
 impl<DB> Stream for StateValidation<DB> {
+    // if the task is a composable order, we stream it up
     type Item = ();
 
     fn poll_next(

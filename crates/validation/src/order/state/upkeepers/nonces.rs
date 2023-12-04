@@ -11,7 +11,12 @@ const ANGSTROM_NONCE_LOCATION: U256 = U256::ZERO;
 pub struct Nonces;
 
 impl Nonces {
-    pub fn is_valid_nonce<DB: StateProvider>(&self, user: Address, nonce: U256, db: DB) -> bool {
+    pub fn is_valid_nonce<DB: StateProvider>(
+        &self,
+        user: Address,
+        nonce: U256,
+        db: Arc<RevmLRU<DB>>
+    ) -> bool {
         todo!()
     }
 }

@@ -21,7 +21,7 @@ impl Approvals {
         &self,
         user: Address,
         token: Address,
-        db: DB
+        db: Arc<RevmLRU<DB>>
     ) -> Option<U256> {
         let slot_i: U256 = self.0.get(&token)?.clone();
         let mut slot = user.to_vec();

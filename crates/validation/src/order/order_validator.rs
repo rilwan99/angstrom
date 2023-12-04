@@ -1,3 +1,6 @@
+use std::task::Poll;
+
+use futures::{Future, StreamExt};
 use guard_types::orders::{OrderValidationOutcome, PoolOrder, ValidatedOrder, ValidationResults};
 
 use super::{sim::SimValidation, state::StateValidation, OrderValidationRequest, OrderValidator};
@@ -11,14 +14,28 @@ pub struct OrderValidator<DB> {
 
 impl<DB> OrderValidator<DB> {
     /// only checks state
-    pub fn validate_non_composable(&mut self, order: OrderValidationRequest) {
-        self.validate_non_composable(order);
+    pub fn validate_order(&mut self, order: OrderValidationRequest) {
+        match order {
+            res @ OrderValidationRequest::ValidateLimit(..) => {
+                self.state.validate_non_composable_order(res);
+            }
+            res @ OrderValidationRequest::ValidateSearcher(..) => {
+                self.state.validate_non_composable_order(res);
+            }
+            res @ OrderValidationRequest::ValidateComposableLimit(..) => {}
+            res @ OrderValidationRequest::ValidateComposableSearcher(..) => {}
+        }
     }
+}
 
-    pub fn validate_composable_order<O: PoolOrder>(
-        &mut self,
-        order: O
-    ) -> OrderValidationOutcome<O> {
-        todo!()
+impl Future for OrderValidator {
+    type Output = ();
+
+    fn poll(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>
+    ) -> std::task::Poll<Self::Output> {
+        let _ = self.state.poll_next_unpin(cx);
+        Poll::Pending
     }
 }

@@ -7,7 +7,7 @@ use guard_types::{
         EcRecoveredSearcherOrder
     }
 };
-use tokio::sync::oneshot::Sender;
+use tokio::sync::oneshot::{channel, Sender};
 
 pub mod order_validator;
 pub mod sim;
@@ -23,17 +23,24 @@ pub type ValidationsFuture<O> =
     Pin<Box<dyn Future<Output = Vec<OrderValidationOutcome<O>>> + Send + Sync>>;
 
 pub enum OrderValidationRequest {
-    ValidateLimit(Sender<OrderValidationOutcome<EcRecoveredLimitOrder>>, EcRecoveredLimitOrder),
+    ValidateLimit(
+        Sender<OrderValidationOutcome<EcRecoveredLimitOrder>>,
+        OrderOrigin,
+        EcRecoveredLimitOrder
+    ),
     ValidateSearcher(
         Sender<OrderValidationOutcome<EcRecoveredSearcherOrder>>,
+        OrderOrigin,
         EcRecoveredSearcherOrder
     ),
     ValidateComposableLimit(
         Sender<OrderValidationOutcome<EcRecoveredComposableLimitOrder>>,
+        OrderOrigin,
         EcRecoveredComposableLimitOrder
     ),
     ValidateComposableSearcher(
         Sender<OrderValidationOutcome<EcRecoveredComposableSearcherOrder>>,
+        OrderOrigin,
         EcRecoveredComposableSearcherOrder
     )
 }
@@ -144,33 +151,63 @@ impl OrderValidator for ValidationClient {
 
     fn validate_order(
         &self,
-        _origin: OrderOrigin,
-        _transaction: Self::LimitOrder
+        origin: OrderOrigin,
+        transaction: Self::LimitOrder
     ) -> ValidationFuture<Self::LimitOrder> {
-        todo!()
+        Box::pin(async {
+            let (tx, rx) = channel();
+            let _ = self
+                .0
+                .send(OrderValidationRequest::ValidateLimit(tx, origin, transaction));
+
+            rx.await.unwrap()
+        })
     }
 
     fn validate_composable_order(
         &self,
-        _origin: OrderOrigin,
-        _transaction: Self::ComposableLimitOrder
+        origin: OrderOrigin,
+        transaction: Self::ComposableLimitOrder
     ) -> ValidationFuture<Self::ComposableLimitOrder> {
-        todo!()
+        Box::pin(async {
+            let (tx, rx) = channel();
+            let _ = self.0.send(OrderValidationRequest::ValidateComposableLimit(
+                tx,
+                origin,
+                transaction
+            ));
+
+            rx.await.unwrap()
+        })
     }
 
     fn validate_searcher_order(
         &self,
-        _origin: OrderOrigin,
-        _transaction: Self::SearcherOrder
+        origin: OrderOrigin,
+        transaction: Self::SearcherOrder
     ) -> ValidationFuture<Self::SearcherOrder> {
-        todo!()
+        Box::pin(async {
+            let (tx, rx) = channel();
+            let _ = self
+                .0
+                .send(OrderValidationRequest::ValidateSearcher(tx, origin, transaction));
+
+            rx.await.unwrap()
+        })
     }
 
     fn validate_composable_searcher_order(
         &self,
-        _origin: OrderOrigin,
-        _transaction: Self::ComposableSearcherOrder
+        origin: OrderOrigin,
+        transaction: Self::ComposableSearcherOrder
     ) -> ValidationFuture<Self::ComposableSearcherOrder> {
-        todo!()
+        Box::pin(async {
+            let (tx, rx) = channel();
+            let _ = self
+                .0
+                .send(OrderValidationRequest::ValidateComposableSearcher(tx, origin, transaction));
+
+            rx.await.unwrap()
+        })
     }
 }

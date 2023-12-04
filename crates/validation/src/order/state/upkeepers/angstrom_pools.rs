@@ -24,7 +24,7 @@ impl AngstromPools {
     }
 
     #[allow(dead_code)]
-    fn order_info(&self, currency_in: Address, currency_out: Address) -> Option<(usize, bool)> {
+    pub fn order_info(&self, currency_in: Address, currency_out: Address) -> Option<(usize, bool)> {
         self.map
             .get(&self.get_key(currency_in, currency_out))
             .copied()

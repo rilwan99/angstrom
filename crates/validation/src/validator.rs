@@ -17,14 +17,14 @@ pub enum ValidationRequest {
 }
 
 #[derive(Debug, Clone)]
-pub struct ValidationClient(UnboundedSender<ValidationRequest>);
+pub struct ValidationClient(pub(crate) UnboundedSender<ValidationRequest>);
 
 /// HeadModule that deals with all validation
 #[allow(dead_code)]
 pub struct Validator<DB> {
     rx:               UnboundedReceiver<ValidationRequest>,
     /// used to update state
-    new_block_stream: Pin<Box<dyn Stream<Item = EthEvent>>>,
+    new_block_stream: Pin<Box<dyn Stream<Item = EthEvent> + Send>>,
     db:               Arc<RevmLRU<DB>>,
 
     order_validator:  OrderValidator<DB>,
@@ -32,8 +32,17 @@ pub struct Validator<DB> {
 }
 
 impl<DB> Validator<DB> {
-    pub fn block_state_changes(&mut self, state: BundleState) {
+    fn block_state_changes(&mut self, state: BundleState) {
         // TODO: update the db
+    }
+
+    fn on_new_validation_request(&mut self, req: ValidationRequest) {
+        match req {
+            ValidationRequest::Order(order) => self.order_validator.validate_order(order),
+            ValidationRequest::Bundle(bundle) => {
+                todo!()
+            }
+        }
     }
 }
 
@@ -41,9 +50,13 @@ impl<DB> Future for Validator<DB> {
     type Output = ();
 
     fn poll(
-        self: std::pin::Pin<&mut Self>,
+        mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>
     ) -> std::task::Poll<Self::Output> {
+        while let Poll::Ready(Some(req)) = self.rx.poll_recv(cx) {
+            self.on_new_validation_request(req);
+        }
+
         Poll::Pending
     }
 }
