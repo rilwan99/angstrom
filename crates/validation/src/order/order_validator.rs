@@ -22,4 +22,3 @@ impl<DB> OrderValidator<DB> {
         todo!()
     }
 }
-

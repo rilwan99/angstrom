@@ -19,8 +19,6 @@ pub enum ValidationRequest {
 #[derive(Debug, Clone)]
 pub struct ValidationClient(UnboundedSender<ValidationRequest>);
 
-
-
 /// HeadModule that deals with all validation
 #[allow(dead_code)]
 pub struct Validator<DB> {
