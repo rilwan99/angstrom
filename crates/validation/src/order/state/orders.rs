@@ -2,8 +2,8 @@ use std::fmt::Debug;
 
 use alloy_primitives::{Address, U256};
 use guard_types::orders::{
-    OrderId, OrderPriorityData, OrderValidationOutcome, PoolOrder, SearcherPriorityData,
-    ValidatedOrder
+    OrderId, OrderLocation, OrderPriorityData, OrderValidationOutcome, PoolOrder,
+    SearcherPriorityData, ValidatedOrder
 };
 use revm::primitives::HashMap;
 
@@ -27,7 +27,7 @@ impl UserOrders {
         order: O,
         deltas: UserAccountDetails
     ) -> Result<OrderValidationOutcome<O>, ()> {
-        Ok(self.basic_order_validation(order, deltas, |order, deltas| todo!()))
+        Ok(self.basic_order_validation(order, deltas, false, |order, deltas| todo!()))
     }
 
     pub fn new_limit_order<O: PoolOrder<ValidationData = OrderPriorityData>>(
@@ -35,7 +35,7 @@ impl UserOrders {
         order: O,
         deltas: UserAccountDetails
     ) -> Result<OrderValidationOutcome<O>, ()> {
-        Ok(self.basic_order_validation(order, deltas, |order, deltas| todo!()))
+        Ok(self.basic_order_validation(order, deltas, true, |order, deltas| todo!()))
     }
 
     fn basic_order_validation<
@@ -45,6 +45,7 @@ impl UserOrders {
         &mut self,
         order: O,
         deltas: UserAccountDetails,
+        limit: bool,
         build_priority: FnOnce(O, UserAccountDetails) -> Data
     ) -> OrderValidationOutcome<O> {
         let _ = self.check_for_nonce_overlap(&order.from(), &order.nonce())?;
@@ -100,12 +101,17 @@ impl UserOrders {
         }
 
         let data = build_priority(order, deltas);
+
         let res = ValidatedOrder {
             order,
             data,
-            is_bid: false,
-            pool_id: 0,
-            location: guard_types::orders::OrderLocation::Composable
+            is_bid: deltas.is_bid,
+            pool_id: deltas.pool_id,
+            location: if limit {
+                OrderLocation::LimitPending
+            } else {
+                OrderLocation::VanillaSearcher
+            }
         };
 
         Ok(OrderValidationOutcome::Valid { order: res, propagate: true })

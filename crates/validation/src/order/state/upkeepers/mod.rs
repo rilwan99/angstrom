@@ -1,8 +1,8 @@
+pub mod angstrom_pools;
 pub mod angstrom_tokens;
 pub mod approvals;
 pub mod balances;
 pub mod nonces;
-pub mod angstrom_pools;
 
 use std::collections::HashMap;
 
@@ -19,7 +19,8 @@ pub struct UserAccountDetails {
     pub token_approvals: HashMap<Address, U256>,
     pub is_valid_nonce:  bool,
     pub is_valid_pool:   bool,
-
+    pub is_bid:          bool,
+    pub pool_id:         usize
 }
 
 pub struct Upkeepers {
