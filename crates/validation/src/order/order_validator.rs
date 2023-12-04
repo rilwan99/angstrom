@@ -2,8 +2,9 @@ use std::task::Poll;
 
 use futures::{Future, StreamExt};
 use guard_types::orders::{OrderValidationOutcome, PoolOrder, ValidatedOrder, ValidationResults};
+use reth_provider::StateProviderFactory;
 
-use super::{sim::SimValidation, state::StateValidation, OrderValidationRequest, OrderValidator};
+use super::{sim::SimValidation, state::StateValidation, OrderValidationRequest};
 use crate::{common::lru_db::RevmLRU, validator::ValidationRequest};
 
 #[allow(dead_code)]
@@ -12,7 +13,10 @@ pub struct OrderValidator<DB> {
     state: StateValidation<DB>
 }
 
-impl<DB> OrderValidator<DB> {
+impl<DB> OrderValidator<DB>
+where
+    DB: StateProviderFactory
+{
     /// only checks state
     pub fn validate_order(&mut self, order: OrderValidationRequest) {
         match order {
@@ -28,14 +32,15 @@ impl<DB> OrderValidator<DB> {
     }
 }
 
-impl Future for OrderValidator {
+impl<DB> Future for OrderValidator<DB> {
     type Output = ();
 
     fn poll(
         mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>
     ) -> std::task::Poll<Self::Output> {
-        let _ = self.state.poll_next_unpin(cx);
+        while let Poll::Ready(Some(_)) = self.state.poll_next_unpin(cx) {}
+
         Poll::Pending
     }
 }

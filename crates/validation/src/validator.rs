@@ -1,14 +1,15 @@
-use std::pin::Pin;
+use std::{pin::Pin, sync::Arc, task::Poll};
 
 use futures::{Stream, StreamExt};
 use futures_util::Future;
 use guard_eth::manager::EthEvent;
+use reth_revm::db::BundleState;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{
-    bundle::{bundle_validator::BundleValidator, BundleSimRequest, BundleValidator},
+    bundle::{bundle_validator::BundleValidator, BundleSimRequest},
     common::lru_db::RevmLRU,
-    order::{order_validator::OrderValidator, OrderValidationRequest, OrderValidator}
+    order::{order_validator::OrderValidator, OrderValidationRequest}
 };
 
 pub enum ValidationRequest {

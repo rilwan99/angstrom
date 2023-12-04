@@ -5,7 +5,6 @@ use guard_types::orders::{
     OrderId, OrderLocation, OrderPriorityData, OrderValidationOutcome, PoolOrder, PooledLimitOrder,
     PooledSearcherOrder, SearcherPriorityData, StateValidationError, ValidatedOrder
 };
-use revm::primitives::HashMap;
 
 use super::upkeepers::UserAccountDetails;
 
@@ -80,40 +79,37 @@ impl UserOrders {
         let (pending_state, ids) = self.0.entry(user).or_default();
         ids.push(id);
 
+        // insert approvals if empty
+        pending_state
+            .token_approvals
+            .entry(deltas.token_approvals.0)
+            .or_insert(deltas.token_approvals.1);
+
+        // insert balance if empty
+        pending_state
+            .token_balances
+            .entry(deltas.token_bals.0)
+            .or_insert(deltas.token_bals.1);
+
         // track which pool this should go into
         let mut has_balances = true;
 
-        // first order so we init instead of apply deltas
-        if pending_state.token_balances.is_empty() && pending_state.token_approvals.is_empty() {
-            pending_state.token_balances = deltas.token_bals;
-            pending_state.token_approvals = deltas.token_approvals;
-        } else {
-            // subtract token in from approval
-            if let Some(token) = pending_state.token_approvals.get_mut(&order.token_in()) {
-                if token.clone().checked_sub(order.amount_in()).is_none() {
-                    has_balances = false;
-                } else {
-                    token -= order.amount_in();
-                }
-            } else {
+        // subtract token in from approval
+        if let Some(token) = pending_state.token_approvals.get_mut(&order.token_in()) {
+            if token.clone().checked_sub(order.amount_in()).is_none() {
                 has_balances = false;
+            } else {
+                token -= order.amount_in();
             }
+        } else {
+            has_balances = false;
+        }
 
-            if has_balances {
-                if let Some(token) = pending_state.token_balances.get_mut(&order.token_in()) {
-                    if token.clone().checked_sub(order.amount_in()).is_none() {
-                        // add balance back to approval
-                        // NOTE: default will never be called here
-                        *pending_state
-                            .token_approvals
-                            .entry(&order.token_in())
-                            .or_default() += order.amount_in();
-
-                        has_balances = false;
-                    } else {
-                        token -= order.amount_in();
-                    }
-                } else {
+        // if approvals passed check balances
+        if has_balances {
+            if let Some(token) = pending_state.token_balances.get_mut(&order.token_in()) {
+                if token.clone().checked_sub(order.amount_in()).is_none() {
+                    // add balance back to approval
                     // NOTE: default will never be called here
                     *pending_state
                         .token_approvals
@@ -121,13 +117,23 @@ impl UserOrders {
                         .or_default() += order.amount_in();
 
                     has_balances = false;
+                } else {
+                    token -= order.amount_in();
                 }
+            } else {
+                // NOTE: default will never be called here
+                *pending_state
+                    .token_approvals
+                    .entry(&order.token_in())
+                    .or_default() += order.amount_in();
+
+                has_balances = false;
             }
-            // NOTE: because we can't guarentee the order of execution with
-            // these orders, we cannot add the amount out balance to
-            // token balances to allow multi hop with different
-            // intents within a single transaction
         }
+        // NOTE: because we can't guarentee the order of execution with
+        // these orders, we cannot add the amount out balance to
+        // token balances to allow multi hop with different
+        // intents within a single transaction
 
         let data = build_priority(order);
 

@@ -4,7 +4,7 @@ pub mod approvals;
 pub mod balances;
 pub mod nonces;
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256};
 use guard_types::orders::PoolOrder;
@@ -16,7 +16,7 @@ use self::{
     angstrom_pools::AngstromPools, angstrom_tokens::AngstromTokens, approvals::Approvals,
     balances::Balances, nonces::Nonces
 };
-use crate::common::lru_db::RevmLRU;
+use crate::{common::lru_db::RevmLRU, order::state::RevmLRU};
 
 pub struct UserAccountDetails {
     pub token_bals:      (Address, U256),
