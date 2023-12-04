@@ -13,6 +13,7 @@ exclude.workspace = true
 [dependencies]
 guard-utils.workspace = true
 guard-eth.workspace = true
+rayon.workspace = true
 
 # ethers
 ethers = "2.0.10"
@@ -72,3 +73,4 @@ serde_json = { workspace = true, features = ["arbitrary_precision"] }
 # alloy
 alloy-primitives.workspace = true
 alloy-sol-types.workspace = true
+alloy-sol-macro.workspace = true

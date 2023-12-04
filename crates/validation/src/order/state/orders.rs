@@ -32,7 +32,7 @@ impl UserOrders {
     fn apply_new_order_deltas(
         &mut self,
         _token_in: Address,
-        _amount_in: Address,
+        _amount_in: U256,
         _state: &mut PendingState
     ) -> Result<(), ()> {
         Ok(())

@@ -6,6 +6,7 @@ pub mod nonces;
 use std::collections::HashMap;
 
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256};
+use alloy_sol_types::sol_data::Address;
 use reth_provider::StateProviderFactory;
 use revm::{db::WrapDatabaseRef, interpreter::opcode, new, Database, Inspector, EVM};
 use revm_primitives::{Env, TransactTo, TxEnv};
@@ -14,6 +15,13 @@ use self::{
     angstrom_tokens::AngstromTokens, approvals::Approvals, balances::Balances, new_pairs::NewPairs
 };
 use crate::common::lru_db::RevmLRU;
+
+pub struct UserAccountDetails {
+    pub token_bals:      HashMap<Address, U256>,
+    pub token_approvals: HashMap<Address, U256>,
+    pub is_valid_nonce:  bool,
+    pub is_valid_pool:   bool
+}
 
 pub struct Upkeepers {
     new_pairs: AngstromTokens,
