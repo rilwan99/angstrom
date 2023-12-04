@@ -1,7 +1,6 @@
 use std::{
     collections::HashMap,
     pin::Pin,
-    sync::Arc,
     task::{Context, Poll}
 };
 
@@ -11,7 +10,7 @@ use futures_util::FutureExt;
 use guard_types::primitive::ERC20;
 use reth_provider::StateProviderFactory;
 use revm::new;
-use revm_primitives::{Address, Env, TransactTo, TxEnv, U256};
+use revm_primitives::{Address, TransactTo, TxEnv, U256};
 use tokio::{runtime::Handle, task::JoinHandle};
 
 use crate::common::lru_db::RevmLRU;
@@ -92,9 +91,9 @@ where
                     };
 
                     // bad but needed to convert directly. ideally we can remove this
-                    let result = U256::from_be_bytes(unsafe {
-                        *(output.to_vec().as_slice() as *const _ as *mut [u8; 32])
-                    });
+                    let result = U256::from_be_bytes(
+                        unsafe { *(output.to_vec().as_slice() as *const _ as *mut [u8; 32]) }
+                    );
 
                     if U256::MAX == result {
                         return ((*token_addr).into(), U256::from(i))

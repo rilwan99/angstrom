@@ -1,13 +1,13 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::fmt::Debug;
 
 use guard_types::{
     orders::{
-        OrderId, OrderLocation, OrderPriorityData, PooledComposableOrder, PooledLimitOrder,
-        PooledOrder, ValidatedOrder
+        OrderId, OrderLocation, OrderPriorityData, PoolOrder, PooledComposableOrder,
+        PooledLimitOrder, ValidatedOrder
     },
     primitive::PoolId
 };
-use reth_primitives::{alloy_primitives::Address, B256, U256};
+use reth_primitives::B256;
 
 use self::{composable::ComposableLimitPool, limit::LimitPool};
 use crate::common::SizeTracker;
@@ -16,10 +16,10 @@ mod composable;
 mod limit;
 mod parked;
 mod pending;
-
-pub type RegularAndLimit<T, C> = (Vec<T>, Vec<C>);
+#[allow(dead_code)]
 pub type RegularAndLimitRef<'a, T, C> = (Vec<&'a T>, Vec<&'a C>);
 
+#[allow(dead_code)]
 pub struct LimitOrderPool<O, C>
 where
     O: PooledLimitOrder,
@@ -47,6 +47,7 @@ where
         }
     }
 
+    #[allow(dead_code)]
     pub fn add_composable_order(
         &mut self,
         order: ValidatedOrder<C, OrderPriorityData>
@@ -61,6 +62,7 @@ where
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn add_limit_order(
         &mut self,
         order: ValidatedOrder<O, OrderPriorityData>
@@ -70,7 +72,7 @@ where
             return Err(LimitPoolError::MaxSize)
         }
 
-        let location = self.limit_orders.add_order(order)?;
+        let _location = self.limit_orders.add_order(order)?;
 
         Ok(())
 
@@ -79,6 +81,7 @@ where
     }
 
     // individual fetches
+    #[allow(dead_code)]
     pub fn fetch_all_pool_orders(
         &mut self,
         id: &PoolId
@@ -92,11 +95,16 @@ where
         )
     }
 
-    pub fn remove_limit_order(&mut self, order_hash: &B256, location: OrderLocation) -> Option<O> {
+    #[allow(dead_code)]
+    pub fn remove_limit_order(
+        &mut self,
+        _order_hash: &B256,
+        _location: OrderLocation
+    ) -> Option<O> {
         todo!()
     }
 
-    pub fn remove_composable_limit_order(&mut self, order_hash: &B256) -> Option<C> {
+    pub fn remove_composable_limit_order(&mut self, _order_hash: &B256) -> Option<C> {
         todo!()
     }
 }
@@ -108,7 +116,8 @@ where
     C: PooledComposableOrder + PooledLimitOrder
 {
     /// Helper function for unzipping and size adjustment
-    fn filter_option_and_adjust_size<O: PooledOrder>(
+    #[allow(dead_code)]
+    fn filter_option_and_adjust_size<O: PoolOrder>(
         &mut self,
         order: Vec<Option<ValidatedOrder<O, OrderPriorityData>>>
     ) -> Vec<ValidatedOrder<O, OrderPriorityData>> {
@@ -124,6 +133,7 @@ where
 }
 
 #[derive(Debug, thiserror::Error)]
+#[allow(dead_code)]
 pub enum LimitPoolError {
     #[error("Pool has reached max size, and order doesn't satisify replacment requirements")]
     MaxSize,

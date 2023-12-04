@@ -1,12 +1,10 @@
 use std::{
-    cmp::Reverse,
     collections::{BTreeMap, HashMap}
 };
 
 use alloy_primitives::B256;
 use guard_types::{
-    orders::{OrderId, OrderLocation, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder},
-    primitive::PoolId
+    orders::{OrderId, OrderLocation, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder}
 };
 
 use super::{SearcherPoolError, V1_LP_POOlS, SEARCHER_POOL_MAX_SIZE};
@@ -27,6 +25,7 @@ where
         VanillaSearcherPool { sub_pools }
     }
 
+    #[allow(dead_code)]
     pub fn add_order(
         &mut self,
         order: ValidatedOrder<O, SearcherPriorityData>
@@ -47,6 +46,7 @@ where
             .ok_or(SearcherPoolError::OrderNotFound(order_id.hash))
     }
 
+    #[allow(dead_code)]
     pub fn get_winning_orders(&self) -> Vec<O> {
         self.sub_pools
             .iter()
@@ -57,9 +57,9 @@ where
 }
 
 pub struct PendingPool<O: PooledSearcherOrder> {
-    orders:       HashMap<B256, ValidatedOrder<O, SearcherPriorityData>>,
-    ordered_arbs: BTreeMap<SearcherPriorityData, B256>,
-    size_tracker: SizeTracker
+    orders:        HashMap<B256, ValidatedOrder<O, SearcherPriorityData>>,
+    ordered_arbs:  BTreeMap<SearcherPriorityData, B256>,
+    _size_tracker: SizeTracker
 }
 
 impl<O: PooledSearcherOrder> PendingPool<O>
@@ -68,9 +68,9 @@ where
 {
     pub fn new() -> Self {
         Self {
-            orders:       HashMap::new(),
-            ordered_arbs: BTreeMap::new(),
-            size_tracker: SizeTracker::new(Some(SEARCHER_POOL_MAX_SIZE))
+            orders:        HashMap::new(),
+            ordered_arbs:  BTreeMap::new(),
+            _size_tracker: SizeTracker::new(Some(SEARCHER_POOL_MAX_SIZE))
         }
     }
 

@@ -15,6 +15,7 @@ use super::{
 
 /// During this State. Everyone continuously is updating there best bundles
 /// collecting up until the timeout occurs
+#[allow(dead_code)]
 pub struct OrderAccumulationState {
     timeout:     Timeout,
     best_bundle: Option<BestBundles>,
@@ -25,6 +26,7 @@ impl OrderAccumulationState {
         Self { timeout, best_bundle: None, is_leader }
     }
 
+    #[allow(dead_code)]
     pub fn new_bundle(&mut self, bundle: BestBundles) {
         if self
             .best_bundle

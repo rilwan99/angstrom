@@ -9,12 +9,12 @@ use guard_utils::{ConsensusState, WAITING_NEXT_BLOCK};
 use super::{
     completed::CompletedState, GlobalStateContext, RoundAction, RoundStateMessage, StateTransition
 };
-
+#[allow(dead_code)]
 pub enum CommitVote {
     Commit(()),
     Nil(())
 }
-
+#[allow(dead_code)]
 pub struct CommitState {
     /// This is specifically vanilla as this is the only bundle we care about
     /// on this state path
@@ -23,12 +23,13 @@ pub struct CommitState {
     vote:        Option<CommitVote>
 }
 
+#[allow(dead_code)]
 impl CommitState {
     pub fn new(waker: Waker, commited_bundle: Bundle) -> Self {
         Self { best_bundle: commited_bundle, waker, vote: None }
     }
 
-    pub fn on_proposal(&mut self, proposal: Proposal) {
+    pub fn on_proposal(&mut self, _proposal: Proposal) {
         // some code here to check the proposal against our bundle
         // to make sure that the lower bound and other stuff is
         // up to standard.

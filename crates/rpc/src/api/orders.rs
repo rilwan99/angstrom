@@ -1,8 +1,5 @@
 use alloy_primitives::Bytes;
-use guard_types::rpc::{
-    SignedComposableLimitOrder, SignedComposableSearcherOrder, SignedLimitOrder,
-    SignedSearcherOrder
-};
+
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 use crate::types::subscriptions::OrderSubscriptionKind;

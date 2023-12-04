@@ -1,19 +1,18 @@
 use guard_types::orders::{
-    OrderLocation, OrderPriorityData, PooledComposableOrder, PooledLimitOrder, PooledOrder,
-    PooledSearcherOrder, ValidatedOrder
+    PoolOrder
 };
 mod size;
-use alloy_primitives::Address;
+
 pub use size::*;
 
 pub type BidAndAsks<'a, T> = (Vec<&'a T>, Vec<&'a T>);
 
 pub enum FilledOrder<L, CL, S, CS>
 where
-    L: PooledOrder,
-    CL: PooledOrder,
-    S: PooledOrder,
-    CS: PooledOrder
+    L: PoolOrder,
+    CL: PoolOrder,
+    S: PoolOrder,
+    CS: PoolOrder
 {
     Limit(L),
     ComposableLimit(CL),
@@ -23,10 +22,10 @@ where
 
 impl<L, CL, S, CS> FilledOrder<L, CL, S, CS>
 where
-    L: PooledOrder,
-    CL: PooledOrder,
-    S: PooledOrder,
-    CS: PooledOrder
+    L: PoolOrder,
+    CL: PoolOrder,
+    S: PoolOrder,
+    CS: PoolOrder
 {
     pub fn add_limit(order: L) -> Self {
         Self::Limit(order)

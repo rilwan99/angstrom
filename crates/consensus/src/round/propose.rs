@@ -3,7 +3,7 @@ use std::{
     task::{Context, Poll, Waker}
 };
 
-use guard_types::{consensus::Proposal, submission::BestBundles};
+use guard_types::submission::BestBundles;
 use guard_utils::{ConsensusState, SUBMIT};
 
 use super::{
@@ -11,6 +11,7 @@ use super::{
 };
 
 /// This state is only reached if this guard is the leader
+#[allow(dead_code)]
 pub struct ProposeState {
     data: BestBundles
 }

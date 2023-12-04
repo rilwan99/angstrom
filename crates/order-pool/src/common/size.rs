@@ -22,6 +22,7 @@ impl SizeTracker {
         }
     }
 
+    #[allow(dead_code)]
     pub fn remove_order(&mut self, size: usize) {
         self.current -= size;
     }

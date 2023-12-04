@@ -1,15 +1,9 @@
-use alloy_rlp::Encodable;
-use ethers_signers::{LocalWallet, Signer as ESigner, WalletError};
+use alloy_primitives::B512;
+use ethers_signers::{LocalWallet, WalletError};
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
-    primitive::{
-        Angstrom::{Bundle, LowerBound},
-        Signature
-    }
+    primitive::Angstrom::{Bundle, LowerBound}
 };
-use reth_primitives::{keccak256, BytesMut, H256, H512};
-use revm_primitives::Address;
-
 /// The Signer deals with verifying external signatures as well as
 /// signing our payloads
 #[repr(transparent)]
@@ -19,32 +13,35 @@ pub struct Signer(
 );
 
 impl Signer {
+    #[allow(dead_code)]
     pub fn sign_proposal(
         &self,
-        ethereum_block: u64,
-        vanilla_bundle: Bundle,
-        lower_bound: LowerBound
+        _ethereum_block: u64,
+        _vanilla_bundle: Bundle,
+        _lower_bound: LowerBound
     ) -> Result<Proposal, WalletError> {
         todo!()
     }
 
+    #[allow(dead_code)]
     pub fn sign_commit(
         &self,
-        ethereum_block: u64,
-        proposal: Proposal
+        _ethereum_block: u64,
+        _proposal: Proposal
     ) -> Result<Commit, WalletError> {
         todo!()
     }
 
+    #[allow(dead_code)]
     pub fn sign_pre_propose(
         &self,
-        ethereum_block: u64,
-        bundle: Bundle
+        _ethereum_block: u64,
+        _bundle: Bundle
     ) -> Result<PreProposal, WalletError> {
         todo!()
     }
 
-    pub fn is_us(&self, addr: &H512) -> bool {
+    pub fn is_us(&self, _addr: &B512) -> bool {
         todo!("change key to proper")
     }
 }

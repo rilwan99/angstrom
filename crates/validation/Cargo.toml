@@ -12,6 +12,7 @@ exclude.workspace = true
 
 [dependencies]
 guard-utils.workspace = true
+
 # ethers
 ethers = "2.0.10"
 ethers-middleware.workspace = true
@@ -42,7 +43,7 @@ reth-interfaces.workspace = true
 tokio.workspace = true
 futures = "0.3.26"
 pin-project = "1.0.12"
-futures-util.worskpace = true
+futures-util.workspace= true
 async-trait = "0.1.68"
 parking_lot = "0.12.1"
 

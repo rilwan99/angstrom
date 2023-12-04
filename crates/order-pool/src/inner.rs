@@ -1,26 +1,25 @@
 use std::{
     collections::HashMap,
+    marker::Unpin,
     pin::Pin,
     task::{Context, Poll}
 };
 
-use alloy_primitives::{Address, B256, U256};
-use futures_util::{Future, Stream, StreamExt};
+use alloy_primitives::B256;
+use futures_util::{Future, StreamExt};
 use guard_types::{
     orders::{
         OrderId, OrderLocation, OrderOrigin, OrderPriorityData, PooledComposableOrder,
-        PooledLimitOrder, PooledOrder, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
+        PooledLimitOrder, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder,
+        ValidationResults
     },
     primitive::PoolId
 };
-use tokio::sync::mpsc::Sender;
-use validation::order::{OrderValidationOutcome, OrderValidator};
+use validation::order::OrderValidator;
 
 use crate::{
-    common::FilledOrder,
-    limit::LimitOrderPool,
-    searcher::SearcherPool,
-    validator::{ValidationResults, Validator}
+    common::FilledOrder, config::PoolConfig, limit::LimitOrderPool, searcher::SearcherPool,
+    validator::Validator
 };
 
 pub struct OrderPoolInner<L, CL, S, CS, V>
@@ -33,6 +32,7 @@ where
 {
     limit_pool:       LimitOrderPool<L, CL>,
     searcher_pool:    SearcherPool<S, CS>,
+    _config:          PoolConfig,
     /// Address to order id, used for nonce lookups
     // address_to_orders: HashMap<Address, Vec<OrderId>>,
     /// Order hash to order id, used for order inclusion lookups
@@ -57,6 +57,17 @@ where
         ComposableSearcherOrder = CS
     >
 {
+    pub(crate) fn new(validator: V, config: PoolConfig) -> Self {
+        Self {
+            limit_pool:       LimitOrderPool::new(None),
+            searcher_pool:    SearcherPool::new(None),
+            _config:          config,
+            // address_to_orders: HashMap::new(),
+            hash_to_order_id: HashMap::new(),
+            validator:        Validator::new(validator)
+        }
+    }
+
     pub fn new_limit_order(&mut self, origin: OrderOrigin, order: L) {
         self.validator.validate_order(origin, order);
     }
@@ -65,11 +76,11 @@ where
         self.validator.validate_composable_order(origin, order);
     }
 
-    pub fn new_searcher_order(&mut self, origin: OrderOrigin, order: S) {
+    pub async fn new_searcher_order(&mut self, origin: OrderOrigin, order: S) {
         self.validator.validate_searcher_order(origin, order)
     }
 
-    pub fn new_composable_searcher_order(&mut self, origin: OrderOrigin, order: CS) {
+    pub async fn new_composable_searcher_order(&mut self, origin: OrderOrigin, order: CS) {
         self.validator
             .validate_composable_searcher_order(origin, order)
     }
@@ -180,7 +191,7 @@ where
     CS: PooledComposableOrder + PooledSearcherOrder,
     V: OrderValidator
 {
-    fn handle_validated_order(&mut self, res: ValidationResults<L, CL, S, CS>) {}
+    fn handle_validated_order(&mut self, _res: ValidationResults<L, CL, S, CS>) {}
 }
 
 // impl Future for OrderPoolInner<>
@@ -190,7 +201,7 @@ where
     CL: PooledComposableOrder + PooledLimitOrder,
     S: PooledSearcherOrder,
     CS: PooledComposableOrder + PooledSearcherOrder,
-    V: OrderValidator
+    V: OrderValidator + Unpin
 {
     type Output = ();
 
@@ -203,6 +214,7 @@ where
 }
 
 #[derive(Debug, thiserror::Error)]
+#[allow(dead_code)]
 pub enum PoolError {
     #[error("Pool has reached max size, and order doesn't satisify replacment requirements")]
     MaxSize,

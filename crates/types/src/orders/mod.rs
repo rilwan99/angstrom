@@ -4,11 +4,14 @@ use std::fmt;
 mod validation;
 use std::fmt::Debug;
 
-use alloy_primitives::{Address, Bytes, TxHash, U128, U256};
+use alloy_primitives::{Address, Bytes, TxHash, U256};
 pub use origin::*;
 pub use validation::*;
 
-pub trait PooledOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
+mod orders;
+pub use orders::*;
+
+pub trait PoolOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
     type ValidationData: Send + Debug + Sync + Clone + Unpin + 'static;
 
     /// Hash of the order
@@ -52,7 +55,7 @@ pub trait PooledOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
     fn is_bid(&self) -> bool;
 }
 
-pub trait PooledComposableOrder: PooledOrder {
+pub trait PooledComposableOrder: PoolOrder {
     fn pre_hook(&self) -> Option<Bytes>;
 
     fn post_hook(&self) -> Option<Bytes>;

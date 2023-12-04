@@ -34,3 +34,5 @@ alloy-rlp.workspace = true
 guard-types.workspace = true
 guard-utils.workspace = true
 tokio-stream.workspace = true
+
+alloy-primitives.workspace = true   
