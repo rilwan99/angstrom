@@ -6,16 +6,20 @@ use futures_util::stream::FuturesUnordered;
 use guard_types::orders::{OrderValidationOutcome, PoolOrder};
 use parking_lot::RwLock;
 use reth_provider::StateProviderFactory;
+use revm::db::BundleState;
 use tokio::{sync::oneshot::Sender, task::JoinHandle};
 
 use self::{
     orders::UserOrders,
     upkeepers::{Upkeepers, UserAccountDetails}
 };
+use super::OrderValidationRequest;
 use crate::common::{executor::ThreadPool, lru_db::RevmLRU};
 
 mod orders;
 mod upkeepers;
+
+enum Orders {}
 
 /// State validation is all validation that requires reading from the Ethereum
 /// database, these operations are:
@@ -33,13 +37,7 @@ pub struct StateValidation<DB> {
     upkeepers: Arc<RwLock<Upkeepers>>,
 
     thread_pool: ThreadPool,
-    tasks: FuturesUnordered<
-        JoinHandle<(
-            Sender<OrderValidationOutcome<Box<dyn PoolOrder>>>,
-            Box<dyn PoolOrder>,
-            UserAccountDetails
-        )>
-    >
+    tasks:       FuturesUnordered<JoinHandle<(OrderValidationRequest, UserAccountDetails)>>
 }
 
 impl<DB> StateValidation<DB>
@@ -50,34 +48,28 @@ where
         todo!()
     }
 
-    pub fn validate_user_order<O: PoolOrder>(
-        &mut self,
-        tx: Sender<OrderValidationOutcome<Box<dyn PoolOrder>>>,
-        order: O
-    ) {
+    pub fn validate_non_composable_order(&mut self, order: OrderValidationRequest) {
         let db = self.db.clone();
         let keeper = self.upkeepers.clone();
+
         self.tasks
             .push(self.thread_pool.spawn_return_task_as(async move {
-                let (details, order) = keeper.read().verify_order(order.clone(), db);
-
-                (tx, order, details)
+                match order {
+                    OrderValidationRequest::ValidateLimit(tx, o) => {
+                        let (details, order) = keeper.read().verify_order(o, db);
+                        (OrderValidationRequest::ValidateLimit(tx, order), details)
+                    }
+                    OrderValidationRequest::ValidateSearcher(tx, o) => {
+                        let (details, order) = keeper.read().verify_order(o, db);
+                        (OrderValidationRequest::ValidateSearcher(tx, order), details)
+                    }
+                    _ => unreachable!()
+                }
             }));
     }
 
-    pub fn validate_searcher_order<O: PoolOrder>(
-        &mut self,
-        tx: Sender<OrderValidationOutcome<Box<dyn PoolOrder>>>,
-        order: O
-    ) {
-        let db = self.db.clone();
-        let keeper = self.upkeepers.clone();
-        self.tasks
-            .push(self.thread_pool.spawn_return_task_as(async move {
-                let (details, order) = keeper.read().verify_order(order.clone(), db);
-
-                (tx, order, details)
-            }));
+    pub fn validate_composable_order(&mut self, order: OrderValidationRequest) {
+        todo!()
     }
 
     pub fn new_block(&mut self) {
@@ -92,14 +84,18 @@ where
         todo!()
     }
 
-    fn on_task_resolve(
-        &mut self,
-        tx: Sender<OrderValidationOutcome<Box<dyn PoolOrder>>>,
-        order: O,
-        details: UserAccountDetails
-    ) {
-        let res = self.user_orders.new_limit_order(order, details).unwrap();
-        let _ = tx.send(res);
+    fn on_task_resolve(&mut self, request: OrderValidationRequest, details: UserAccountDetails) {
+        match request {
+            OrderValidationRequest::ValidateLimit(tx, order) => {
+                let result = self.user_orders.new_limit_order(order, details).unwrap();
+                tx.send(result);
+            }
+            OrderValidationRequest::ValidateSearcher(tx, order) => {
+                let result = self.user_orders.new_searcher_order(order, details).unwrap();
+                tx.send(result);
+            }
+            _ => unreachable!()
+        }
     }
 }
 

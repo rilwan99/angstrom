@@ -1,6 +1,13 @@
 use std::{fmt::Debug, future::Future, pin::Pin};
 
-use guard_types::orders::{OrderOrigin, OrderValidationOutcome, PoolOrder};
+use guard_types::{
+    orders::{OrderOrigin, OrderValidationOutcome, PoolOrder},
+    rpc::{
+        EcRecoveredComposableLimitOrder, EcRecoveredComposableSearcherOrder, EcRecoveredLimitOrder,
+        EcRecoveredSearcherOrder
+    }
+};
+use tokio::sync::oneshot::Sender;
 
 pub mod order_validator;
 pub mod sim;
@@ -15,7 +22,21 @@ pub type ValidationFuture<O> =
 pub type ValidationsFuture<O> =
     Pin<Box<dyn Future<Output = Vec<OrderValidationOutcome<O>>> + Send + Sync>>;
 
-pub enum OrderValidationRequest {}
+pub enum OrderValidationRequest {
+    ValidateLimit(Sender<OrderValidationOutcome<EcRecoveredLimitOrder>>, EcRecoveredLimitOrder),
+    ValidateSearcher(
+        Sender<OrderValidationOutcome<EcRecoveredSearcherOrder>>,
+        EcRecoveredSearcherOrder
+    ),
+    ValidateComposableLimit(
+        Sender<OrderValidationOutcome<EcRecoveredComposableLimitOrder>>,
+        EcRecoveredComposableLimitOrder
+    ),
+    ValidateComposableSearcher(
+        Sender<OrderValidationOutcome<EcRecoveredComposableSearcherOrder>>,
+        EcRecoveredComposableSearcherOrder
+    )
+}
 
 /// Provides support for validating transaction at any given state of the chain
 pub trait OrderValidator: Send + Sync + Clone + Debug + Unpin + 'static {

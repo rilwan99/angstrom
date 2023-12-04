@@ -14,8 +14,6 @@ use crate::{
     common::state::{AddressSlots, RevmBackend}
 };
 
-//TODO: Change this to:
-//
 pub struct RevmLRU<DB> {
     state_overrides:    HashMap<Address, HashMap<U256, U256>>,
     bytecode_overrides: HashMap<Address, Bytecode>,
