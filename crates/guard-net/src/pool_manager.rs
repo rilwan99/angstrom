@@ -18,11 +18,13 @@ use crate::{types::events::StromNetworkEvent, NetworkOrderEvent, StromNetworkHan
 /// Api to interact with [`PoolManager`] task.
 #[derive(Debug, Clone)]
 pub struct PoolHandle {
+    #[allow(dead_code)]
     /// Command channel to the [`TransactionsManager`]
     manager_tx: UnboundedSender<OrderCommand>
 }
 
 impl PoolHandle {
+    #[allow(dead_code)]
     fn send(&self, cmd: OrderCommand) {
         let _ = self.manager_tx.send(cmd);
     }

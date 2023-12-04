@@ -24,6 +24,7 @@ impl<O: PoolOrder> PendingPool<O>
 where
     O: PoolOrder<ValidationData = ValidatedOrder<O, OrderPriorityData>>
 {
+    #[allow(dead_code)]
     pub fn new(notifier: broadcast::Sender<ValidatedOrder<O, OrderPriorityData>>) -> Self {
         Self {
             orders:                   HashMap::new(),
@@ -95,10 +96,12 @@ where
             .collect()
     }
 
+    #[allow(dead_code)]
     pub fn fetch_all_bids_meta(&self) -> Vec<(OrderPriorityData, B256)> {
         self.bids.iter().map(|k| (k.0 .0, *k.1)).collect()
     }
 
+    #[allow(dead_code)]
     pub fn fetch_all_asks_meta(&self) -> Vec<(OrderPriorityData, B256)> {
         self.asks.iter().map(|k| (*k.0, *k.1)).collect()
     }
@@ -127,6 +130,7 @@ where
         todo!()
     }
 
+    #[allow(dead_code)]
     /// Fetches supply and demand intersection with a tick price buffer
     pub fn fetch_intersection_with_buffer(
         &self,

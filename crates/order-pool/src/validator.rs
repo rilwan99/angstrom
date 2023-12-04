@@ -4,7 +4,7 @@ use std::{
 };
 
 use futures_util::{stream::FuturesUnordered, Future, FutureExt, Stream, StreamExt};
-use guard_types::orders::{OrderOrigin, OrderValidationOutcome, PoolOrder, ValidationResults};
+use guard_types::orders::{OrderOrigin, PoolOrder, ValidationResults};
 use validation::order::OrderValidator;
 
 type ValidationFuture<L, CL, S, CS> =
@@ -38,6 +38,7 @@ where
         Self { validator, pending: FuturesUnordered::new() }
     }
 
+    #[allow(dead_code)]
     pub fn validate_order(&mut self, origin: OrderOrigin, order: L) {
         let val = self.validator.clone();
         self.pending.push(Box::pin(async move {
@@ -47,12 +48,14 @@ where
         }) as ValidationFuture<_, _, _, _>);
     }
 
+    #[allow(dead_code)]
     pub fn validate_orders(&mut self, orders: Vec<(OrderOrigin, L)>) {
         orders
             .into_iter()
             .for_each(|(origin, tx)| self.validate_order(origin, tx))
     }
 
+    #[allow(dead_code)]
     pub fn validate_composable_order(&mut self, origin: OrderOrigin, order: CL) {
         let val = self.validator.clone();
         self.pending.push(Box::pin(async move {
@@ -62,6 +65,7 @@ where
         }) as ValidationFuture<_, _, _, _>);
     }
 
+    #[allow(dead_code)]
     pub fn validate_composable_orders(&mut self, orders: Vec<(OrderOrigin, CL)>) {
         orders
             .into_iter()
@@ -77,6 +81,7 @@ where
         }) as ValidationFuture<_, _, _, _>);
     }
 
+    #[allow(dead_code)]
     pub fn validate_searcher_orders(&mut self, orders: Vec<(OrderOrigin, S)>) {
         orders
             .into_iter()
@@ -92,6 +97,7 @@ where
         }) as ValidationFuture<_, _, _, _>);
     }
 
+    #[allow(dead_code)]
     pub fn validate_composable_searcher_orders(&mut self, orders: Vec<(OrderOrigin, CS)>) {
         orders
             .into_iter()

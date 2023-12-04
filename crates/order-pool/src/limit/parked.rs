@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use alloy_primitives::B256;
 use guard_types::orders::{OrderPriorityData, PoolOrder, ValidatedOrder};
 
-use super::OrderId;
 pub struct ParkedPool<O: PoolOrder>(HashMap<B256, ValidatedOrder<O, OrderPriorityData>>);
 
 impl<O: PoolOrder> ParkedPool<O> {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         todo!()
     }

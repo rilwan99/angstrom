@@ -20,7 +20,6 @@ guard-types.workspace = true
 guard-utils.workspace = true
 
 tokio-stream.workspace = true
-futures-util.worskpace = true
 tokio.workspace = true
 futures.workspace = true
 # reth

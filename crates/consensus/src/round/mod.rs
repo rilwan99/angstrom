@@ -43,6 +43,7 @@ pub struct RoundState {
 }
 
 impl RoundState {
+    #[allow(dead_code)]
     pub fn new(
         height: u64,
         is_leader: IsLeader,

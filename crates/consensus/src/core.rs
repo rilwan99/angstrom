@@ -52,6 +52,7 @@ pub enum ConsensusError {
 /// abstract all of this out in order to keep this module as clean as possible
 /// as proper functionality is critical here to ensure that angstrom works
 /// properly.
+#[allow(dead_code)]
 pub struct ConsensusCore {
     /// keeps track of the current round state
     round_state:            RoundState,

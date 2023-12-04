@@ -13,6 +13,7 @@ use super::{
 };
 
 /// This state is only reached if this guard is the leader
+#[allow(dead_code)]
 pub struct SubmitState {
     submit_deadline: Timeout,
     best_bundle:     BestBundles,
@@ -26,6 +27,7 @@ impl SubmitState {
         todo!()
     }
 
+    #[allow(dead_code)]
     pub fn on_new_commit(&mut self, _commit: ()) {
         // check if contains if
         if self.current_commits.len() == self.needed_commits {

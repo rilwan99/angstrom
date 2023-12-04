@@ -2,18 +2,18 @@ use std::collections::HashMap;
 
 use alloy_primitives::{Address, FixedBytes};
 
-#[warn(dead_code)]
+#[allow(dead_code)]
 pub struct PoolMapping {
     map: HashMap<FixedBytes<40>, (usize, bool)>
 }
 
 impl PoolMapping {
-    #[warn(dead_code)]
+    #[allow(dead_code)]
     fn new() -> Self {
         PoolMapping { map: HashMap::new() }
     }
 
-    #[warn(dead_code)]
+    #[allow(dead_code)]
     fn add_mapping(
         &mut self,
         currency_in: Address,
@@ -25,14 +25,14 @@ impl PoolMapping {
             .insert(self.get_key(currency_in, currency_out), (pool_id, is_bid));
     }
 
-    #[warn(dead_code)]
+    #[allow(dead_code)]
     fn order_info(&self, currency_in: Address, currency_out: Address) -> Option<(usize, bool)> {
         self.map
             .get(&self.get_key(currency_in, currency_out))
             .copied()
     }
 
-    #[warn(dead_code)]
+    #[allow(dead_code)]
     fn get_key(&self, currency_in: Address, currency_out: Address) -> FixedBytes<40> {
         FixedBytes::concat_const(currency_in.0, currency_out.0)
     }

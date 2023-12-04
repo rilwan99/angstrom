@@ -5,8 +5,7 @@ use guard_types::{
     orders::{
         OrderId, OrderLocation, PooledComposableOrder, PooledSearcherOrder, SearcherPriorityData,
         ValidatedOrder
-    },
-    primitive::PoolId
+    }
 };
 
 use super::{SearcherPoolError, V1_LP_POOlS, SEARCHER_POOL_MAX_SIZE};
@@ -43,6 +42,7 @@ where
             .remove_order(order_id.hash)
     }
 
+    #[allow(dead_code)]
     pub fn get_winning_orders(&self) -> Vec<CS> {
         self.sub_pools
             .iter()

@@ -20,6 +20,7 @@ pub enum SessionCommand {
 
 /// An established session with a remote peer.
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct StromSessionHandle {
     /// The direction of the session
     pub(crate) direction:           Direction,

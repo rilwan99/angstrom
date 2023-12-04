@@ -1,12 +1,10 @@
-use std::collections::{BTreeMap, HashMap};
-
-use alloy_primitives::{Address, B256};
+use alloy_primitives::B256;
 use composable::ComposableSearcherPool;
 use guard_types::{
     orders::{
         OrderId, PooledComposableOrder, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
     },
-    primitive::{Order, PoolId}
+    primitive::PoolId
 };
 
 use self::searcher::VanillaSearcherPool;
@@ -16,6 +14,7 @@ mod composable;
 mod searcher;
 
 pub const SEARCHER_POOL_MAX_SIZE: usize = 15;
+#[allow(non_upper_case_globals)]
 pub const V1_LP_POOlS: usize = 5;
 
 pub struct SearcherPool<S: PooledSearcherOrder, CS: PooledComposableOrder + PooledSearcherOrder> {
@@ -87,6 +86,7 @@ where
 }
 
 #[derive(Debug, thiserror::Error)]
+#[allow(dead_code)]
 pub enum SearcherPoolError {
     #[error("Pool has reached max size, and order doesn't satisify replacment requirements")]
     MaxSize,

@@ -76,8 +76,8 @@ where
     #[allow(dead_code)]
     fn get_pooled_orders_by_hashes(
         &self,
-        tx_hashes: Vec<TxHash>,
-        limit: Option<usize>
+        _tx_hashes: Vec<TxHash>,
+        _limit: Option<usize>
     ) -> Vec<PooledOrder> {
         todo!()
     }

@@ -2,9 +2,7 @@ use std::fmt::{Debug, Display};
 
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use reth_codecs::derive_arbitrary;
-use reth_primitives::{
-    hex, Chain, ChainSpec, ForkId, Genesis, Hardfork, Head, NamedChain, B256, MAINNET, U256
-};
+use reth_primitives::{Chain, ChainSpec, Head, NamedChain};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -35,7 +33,7 @@ impl Status {
     }
 
     /// Create a [`StatusBuilder`] from the given [`ChainSpec`] and head block.
-    pub fn spec_builder(spec: &ChainSpec, head: &Head) -> StatusBuilder {
+    pub fn spec_builder(spec: &ChainSpec, _head: &Head) -> StatusBuilder {
         Self::builder().chain(spec.chain)
     }
 }
@@ -59,7 +57,6 @@ impl Debug for Status {
 // <https://etherscan.io/block/0>
 impl Default for Status {
     fn default() -> Self {
-        let mainnet_genesis = MAINNET.genesis_hash();
         Status { version: StromVersion::Strom0 as u8, chain: Chain::Named(NamedChain::Mainnet) }
     }
 }
