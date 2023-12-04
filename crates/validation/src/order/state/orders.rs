@@ -2,8 +2,8 @@ use std::fmt::Debug;
 
 use alloy_primitives::{Address, U256};
 use guard_types::orders::{
-    OrderId, OrderLocation, OrderPriorityData, OrderValidationOutcome, PoolOrder,
-    SearcherPriorityData, ValidatedOrder
+    OrderId, OrderLocation, OrderPriorityData, OrderValidationOutcome, PoolOrder, PooledLimitOrder,
+    PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
 };
 use revm::primitives::HashMap;
 
@@ -21,26 +21,34 @@ pub struct PendingState {
 pub struct UserOrders(HashMap<Address, (PendingState, Vec<U256>)>);
 
 impl UserOrders {
-    pub fn new_searcher_order<O: PoolOrder<ValidationData = SearcherPriorityData>>(
+    pub fn new_searcher_order<O: PooledSearcherOrder<ValidationData = SearcherPriorityData>>(
         &mut self,
         order: O,
         deltas: UserAccountDetails
     ) -> Result<OrderValidationOutcome<O>, ()> {
-        Ok(self.basic_order_validation(order, deltas, false, |order, deltas| todo!()))
+        Ok(self.basic_order_validation(order, deltas, false, |order| SearcherPriorityData {
+            donated: order.donated(),
+            volume:  order.volume(),
+            gas:     order.gas()
+        }))
     }
 
-    pub fn new_limit_order<O: PoolOrder<ValidationData = OrderPriorityData>>(
+    pub fn new_limit_order<O: PooledLimitOrder<ValidationData = OrderPriorityData>>(
         &mut self,
         order: O,
         deltas: UserAccountDetails
     ) -> Result<OrderValidationOutcome<O>, ()> {
-        Ok(self.basic_order_validation(order, deltas, true, |order, deltas| todo!()))
+        Ok(self.basic_order_validation(order, deltas, true, |order| OrderPriorityData {
+            price:  order.limit_price(),
+            volume: order.limit_price() * order.amount_out_min(),
+            gas:    order.gas()
+        }))
     }
 
     fn basic_order_validation<
         O: PoolOrder<ValidationData = Data>,
         Data: Send + Debug + Sync + Clone + Unpin + 'static,
-        F: FnOnce(O, UserAccountDetails) -> Data
+        F: FnOnce(O) -> Data
     >(
         &mut self,
         order: O,
@@ -100,7 +108,7 @@ impl UserOrders {
             // intents within a single transaction
         }
 
-        let data = build_priority(order, deltas);
+        let data = build_priority(order);
 
         let res = ValidatedOrder {
             order,

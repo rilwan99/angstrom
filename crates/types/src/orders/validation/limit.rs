@@ -14,6 +14,7 @@ use crate::{
 pub trait PooledLimitOrder: PoolOrder {
     /// The liquidity pool this order trades in
     fn pool_and_direction(&self) -> (PoolId, bool);
+    fn gas(&self) -> u128;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,6 +72,10 @@ impl PoolOrder for EcRecoveredLimitOrder {
         todo!()
     }
 
+    fn token_out(&self) -> Address {
+        todo!()
+    }
+
     fn hash(&self) -> TxHash {
         self.signed_order.hash
     }
@@ -113,6 +118,10 @@ impl PoolOrder for EcRecoveredLimitOrder {
 }
 
 impl PooledLimitOrder for EcRecoveredLimitOrder {
+    fn gas(&self) -> u128 {
+        todo!()
+    }
+
     fn pool_and_direction(&self) -> (PoolId, bool) {
         //(self.signed_order.order.pool, self.signed_order.order.direction)
         todo!()
@@ -123,6 +132,10 @@ impl PoolOrder for EcRecoveredComposableLimitOrder {
     type ValidationData = ValidatedOrder<Self, OrderPriorityData>;
 
     fn is_valid(&self) -> bool {
+        todo!()
+    }
+
+    fn token_out(&self) -> Address {
         todo!()
     }
 
@@ -176,6 +189,10 @@ impl PoolOrder for EcRecoveredComposableLimitOrder {
 }
 
 impl PooledLimitOrder for EcRecoveredComposableLimitOrder {
+    fn gas(&self) -> u128 {
+        todo!()
+    }
+
     fn pool_and_direction(&self) -> (usize, bool) {
         //(self.signed_order.order.pool, self.signed_order.order.direction)
         todo!()

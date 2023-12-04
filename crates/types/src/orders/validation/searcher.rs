@@ -65,6 +65,10 @@ impl Ord for SearcherPriorityData {
 impl PoolOrder for EcRecoveredSearcherOrder {
     type ValidationData = ValidatedOrder<Self, SearcherPriorityData>;
 
+    fn token_out(&self) -> Address {
+        todo!()
+    }
+
     fn is_valid(&self) -> bool {
         todo!()
     }
@@ -142,6 +146,10 @@ impl PooledSearcherOrder for EcRecoveredSearcherOrder {
 
 impl PoolOrder for EcRecoveredComposableSearcherOrder {
     type ValidationData = ();
+
+    fn token_out(&self) -> Address {
+        todo!()
+    }
 
     fn is_valid(&self) -> bool {
         todo!()
