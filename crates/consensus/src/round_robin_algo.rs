@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use ethers_core::types::{Block, H256};
-use reth_primitives::H512;
+use reth_primitives::B512;
 use serde::{Deserialize, Serialize};
 
 const ROUND_ROBIN_CACHE: &str = "./";
@@ -11,13 +11,14 @@ const ROUND_ROBIN_CACHE: &str = "./";
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RoundRobinAlgo {
     /// this is just a placeholder
-    guards_with_score:    HashMap<H512, u64>,
+    guards_with_score:    HashMap<B512, u64>,
     current_block_height: u64
 }
 
 impl RoundRobinAlgo {
     /// also returns what the cache height is up to in order to properly deal
     /// with syncing
+    #[allow(dead_code)]
     pub fn new() -> (Self, u64) {
         if let Some(cache) = Self::load_cache() {
             let bh = cache.current_block_height;
@@ -27,12 +28,14 @@ impl RoundRobinAlgo {
         }
     }
 
+    #[allow(dead_code)]
     fn load_cache() -> Option<Self> {
         todo!()
     }
 
+    #[allow(dead_code)]
     /// who the leader is for this round
-    pub fn on_new_block(&mut self, block: Arc<Block<H256>>) -> H512 {
+    pub fn on_new_block(&mut self, _block: Arc<Block<H256>>) -> B512 {
         todo!()
     }
 }

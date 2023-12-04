@@ -1,8 +1,6 @@
 //! Error handling for Strom protocol stream
 use reth_primitives::GotExpected;
 
-use crate::types::{message::StromMessageID, version::StromVersion};
-
 /// Errors when sending/receiving messages
 #[derive(thiserror::Error, Debug)]
 
@@ -44,7 +42,7 @@ pub enum StromHandshakeError {
 }
 
 impl From<alloy_rlp::Error> for StromStreamError {
-    fn from(err: alloy_rlp::Error) -> Self {
+    fn from(_err: alloy_rlp::Error) -> Self {
         StromStreamError::InvalidMessageError
     }
 }

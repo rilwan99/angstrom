@@ -18,8 +18,8 @@ where
 
     async fn subscribe_consensus_state(
         &self,
-        pending: PendingSubscriptionSink,
-        kind: ConsensusSubscriptionKind
+        _pending: PendingSubscriptionSink,
+        _kind: ConsensusSubscriptionKind
     ) -> jsonrpsee::core::SubscriptionResult {
         todo!()
     }

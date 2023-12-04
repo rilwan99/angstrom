@@ -4,23 +4,17 @@ use std::{fmt::Debug, sync::Arc};
 use alloy_rlp::{length_of_length, Decodable, Encodable, Header};
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
-    orders::{GetOrders, GetPooledOrders, Orders, PooledOrder},
-    primitive::Angstrom::Bundle,
-    rpc::{
-        SignedComposableLimitOrder, SignedComposableSearcherOrder, SignedLimitOrder,
-        SignedSearcherOrder
-    }
+    orders::{GetPooledOrders, Orders, PooledOrder}
 };
+use reth_eth_wire::{capability::Capability, protocol::Protocol};
 use reth_interfaces::p2p::error::RequestError;
 use reth_primitives::bytes::{Buf, BufMut};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use tokio::sync::oneshot;
 
 use crate::errors::StromStreamError;
 /// Result alias for result of a request.
 pub type RequestResult<T> = Result<T, RequestError>;
-
 use super::version::StromVersion;
 use crate::Status;
 
@@ -31,12 +25,12 @@ pub const MAX_MESSAGE_SIZE: usize = 10 * 1024 * 1024;
 /// An `eth` protocol message, containing a message ID and payload.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ProtocolMessage {
+pub struct StromProtocolMessage {
     pub message_type: StromMessageID,
     pub message:      StromMessage
 }
 
-impl ProtocolMessage {
+impl StromProtocolMessage {
     /// Create a new ProtocolMessage from a message type and message rlp bytes.
     pub fn decode_message(
         _version: StromVersion,
@@ -57,13 +51,23 @@ impl ProtocolMessage {
             }
             StromMessageID::PooledOrders => StromMessage::PooledOrders(RequestPair::decode(buf)?)
         };
-        Ok(ProtocolMessage { message_type, message })
+        Ok(StromProtocolMessage { message_type, message })
+    }
+
+    /// Returns the capability for the `ping` protocol.
+    pub fn capability() -> Capability {
+        Capability::new_static("strom", 1)
+    }
+
+    /// Returns the protocol for the `test` protocol.
+    pub fn protocol() -> Protocol {
+        Protocol::new(Self::capability(), 7)
     }
 }
 
 /// Encodes the protocol message into bytes.
 /// The message type is encoded as a single byte and prepended to the message.
-impl Encodable for ProtocolMessage {
+impl Encodable for StromProtocolMessage {
     fn encode(&self, out: &mut dyn BufMut) {
         self.message_type.encode(out);
         self.message.encode(out);
@@ -71,12 +75,6 @@ impl Encodable for ProtocolMessage {
 
     fn length(&self) -> usize {
         self.message_type.length() + self.message.length()
-    }
-}
-
-impl From<StromMessage> for ProtocolMessage {
-    fn from(message: StromMessage) -> Self {
-        ProtocolMessage { message_type: message.message_id(), message }
     }
 }
 
@@ -118,7 +116,7 @@ pub enum StromMessage {
     Commit(Commit),
 
     /// Propagation messages that broadcast new orders to all peers
-    PropagatePooledOrders(Vec<PooledOrder>),
+    PropagatePooledOrders(Orders),
 
     // Order Request / Response pairs
     GetPooledOrders(RequestPair<GetPooledOrders>),
@@ -185,7 +183,7 @@ pub enum StromBroadcastMessage {
     Propose(Arc<Proposal>),
     Commit(Arc<Commit>),
     // Order Broadcast
-    PropagatePooledOrders(Arc<RequestPair<GetOrders>>),
+    PropagatePooledOrders(Arc<Vec<PooledOrder>>),
     GetPooledOrders(Arc<RequestPair<Orders>>)
 }
 

@@ -122,7 +122,7 @@ where
             .unwrap_or_else(|| self.basic_ref_no_cache(&address))
     }
 
-    fn code_by_hash_ref(&self, code_hash: B256) -> Result<Bytecode, Self::Error> {
+    fn code_by_hash_ref(&self, _code_hash: B256) -> Result<Bytecode, Self::Error> {
         unreachable!() // this should never be reached since the code hash is
                        // defined in basic()
     }

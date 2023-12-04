@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use alloy_primitives::{Address, TxHash, U256};
-use alloy_rlp::{Decodable, Encodable};
+use alloy_rlp::Decodable;
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_types::SolStruct;
 use derive_more::{AsRef, Deref};

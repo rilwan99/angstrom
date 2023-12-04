@@ -65,6 +65,7 @@ impl ThreadPool {
     }
 }
 
+#[warn(dead_code)]
 /// specifies a blocking or non blocking task
 pub(crate) enum TaskKind {
     Default,

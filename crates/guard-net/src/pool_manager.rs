@@ -6,25 +6,20 @@ use std::{
 
 use futures::{stream::FuturesUnordered, Future};
 use guard_eth::manager::EthEvent;
-use guard_types::orders::{GetOrders, Orders};
+use guard_types::orders::GetPooledOrders;
 use order_pool::traits::OrderPool;
-use reth_interfaces::p2p::error::RequestResult;
 use reth_network::peers::Peer;
 use reth_primitives::{PeerId, TxHash};
-use tokio::sync::{
-    mpsc::{UnboundedReceiver, UnboundedSender},
-    oneshot
-};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
-use tracing::log::trace;
 
-use crate::{types::events::StromNetworkEvent, NetworkOrderEvent, StromProtocolHandle};
+use crate::{types::events::StromNetworkEvent, NetworkOrderEvent, StromNetworkHandle};
 
 /// Api to interact with [`PoolManager`] task.
 #[derive(Debug, Clone)]
 pub struct PoolHandle {
     /// Command channel to the [`TransactionsManager`]
-    manager_tx: UnboundedReceiver<OrderCommand>
+    manager_tx: UnboundedSender<OrderCommand>
 }
 
 impl PoolHandle {
@@ -37,40 +32,40 @@ impl PoolHandle {
 //TODO: Add metrics + events
 pub struct PoolManager<Pool> {
     /// Access to the order pool
-    pool:                 Pool,
+    _pool:                 Pool,
     /// Network access.
-    network:              StromProtocolHandle,
+    _network:              StromNetworkHandle,
     /// Subscriptions to all the strom-network related events.
     ///
     /// From which we get all new incoming order related messages.
-    strom_network_events: UnboundedReceiverStream<StromNetworkEvent>,
+    _strom_network_events: UnboundedReceiverStream<StromNetworkEvent>,
     /// Ethereum updates stream that tells the pool manager about orders that
     /// have been filled  
-    eth_network_events:   UnboundedReceiverStream<EthEvent>,
+    _eth_network_events:   UnboundedReceiverStream<EthEvent>,
     /// Send half for the command channel.
-    command_tx:           UnboundedSender<OrderCommand>,
+    command_tx:            UnboundedSender<OrderCommand>,
     /// receiver half of the commands to the pool manager
-    command_rx:           UnboundedReceiverStream<OrderCommand>,
+    _command_rx:           UnboundedReceiverStream<OrderCommand>,
     /// Order fetcher to handle inflight and missing order requests.
-    order_fetcher:        OrderFetcher,
+    _order_fetcher:        OrderFetcher,
     /// Incoming pending transactions from the pool that should be propagated to
     /// the network
-    pending_orders:       ReceiverStream<TxHash>,
+    _pending_orders:       ReceiverStream<TxHash>,
     /// All currently pending orders grouped by peers.
-    orders_by_peers:      HashMap<TxHash, Vec<PeerId>>,
+    _orders_by_peers:      HashMap<TxHash, Vec<PeerId>>,
     /// Incoming events from the ProtocolManager.
-    order_events:         UnboundedReceiverStream<NetworkOrderEvent>,
+    _order_events:         UnboundedReceiverStream<NetworkOrderEvent>,
     /// All the connected peers.
-    peers:                HashMap<PeerId, Peer>
+    _peers:                HashMap<PeerId, Peer>
 }
 
 impl<Pool: OrderPool> PoolManager<Pool> {
     pub fn new(
-        pool: Pool,
-        network: StromProtocolHandle,
-        from_network: UnboundedReceiver<NetworkOrderEvent>
+        _pool: Pool,
+        _network: StromNetworkHandle,
+        _from_network: UnboundedReceiver<NetworkOrderEvent>
     ) {
-        let network_events = network.event_listener();
+        todo!()
     }
 }
 
@@ -91,49 +86,9 @@ where
 #[derive(Debug, Default)]
 struct OrderFetcher {
     /// All currently active requests for pooled transactions.
-    inflight_requests:               FuturesUnordered<GetOrders>,
+    _inflight_requests:               FuturesUnordered<GetPooledOrders>,
     /// Set that tracks all hashes that are currently being fetched.
-    inflight_hash_to_fallback_peers: HashMap<TxHash, Vec<PeerId>>
-}
-
-impl<Pool> PoolManager<Pool>
-where
-    Pool: OrderPool + 'static
-{
-    /*#[inline]
-    fn update_import_metrics(&self) {
-        self.metrics.pending_pool_imports.set(self.pool_imports.len() as f64);
-    }
-
-    #[inline]
-    fn update_request_metrics(&self) {
-        self.metrics
-            .inflight_transaction_requests
-            .set(self.transaction_fetcher.inflight_requests.len() as f64);
-    }*/
-
-    /// Request handler for an incoming request for transactions
-    fn on_get_pooled_orders(
-        &mut self,
-        peer_id: PeerId,
-        request: GetOrders,
-        response: oneshot::Sender<RequestResult<Orders>>
-    ) {
-        if let Some(peer) = self.peers.get_mut(&peer_id) {
-            if self.network.tx_gossip_disabled() {
-                let _ = response.send(Ok(Orders::default()));
-                return
-            }
-            let orders = self.pool.get_pooled_orders(request.0, 8);
-
-            // we sent a response at which point we assume that the peer is aware of the
-            // transactions
-            peer.transactions.extend(orders.iter().map(|tx| *tx.hash()));
-
-            let resp = Orders(orders);
-            let _ = response.send(Ok(resp));
-        }
-    }
+    _inflight_hash_to_fallback_peers: HashMap<TxHash, Vec<PeerId>>
 }
 
 impl<Pool> Future for PoolManager<Pool>
@@ -143,7 +98,7 @@ where
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
+        let _this = self.get_mut();
 
         Poll::Pending
     }

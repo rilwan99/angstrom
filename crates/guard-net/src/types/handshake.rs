@@ -52,11 +52,11 @@ pub fn verifying_staker() -> bool {
         .try_into()
         .unwrap();
 
-    if H512::from_slice(&pub_key) != their_hello.id {
+    if B512::from_slice(&pub_key) != their_hello.id {
         self.send_disconnect(DisconnectReason::NoRecoveredSigner)
             .await?;
         return Err(P2PStreamError::HandshakeError(P2PHandshakeError::UnableToRecoverSigner(
-            format!("Address Mismatch {:#x}, {:#x}", H512::from_slice(&pub_key), their_hello.id)
+            format!("Address Mismatch {:#x}, {:#x}", B512::from_slice(&pub_key), their_hello.id)
         )))
     }
 

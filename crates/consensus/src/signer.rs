@@ -15,30 +15,30 @@ pub struct Signer(
 impl Signer {
     pub fn sign_proposal(
         &self,
-        ethereum_block: u64,
-        vanilla_bundle: Bundle,
-        lower_bound: LowerBound
+        _ethereum_block: u64,
+        _vanilla_bundle: Bundle,
+        _lower_bound: LowerBound
     ) -> Result<Proposal, WalletError> {
         todo!()
     }
 
     pub fn sign_commit(
         &self,
-        ethereum_block: u64,
-        proposal: Proposal
+        _ethereum_block: u64,
+        _proposal: Proposal
     ) -> Result<Commit, WalletError> {
         todo!()
     }
 
     pub fn sign_pre_propose(
         &self,
-        ethereum_block: u64,
-        bundle: Bundle
+        _ethereum_block: u64,
+        _bundle: Bundle
     ) -> Result<PreProposal, WalletError> {
         todo!()
     }
 
-    pub fn is_us(&self, addr: &B512) -> bool {
+    pub fn is_us(&self, _addr: &B512) -> bool {
         todo!("change key to proper")
     }
 }

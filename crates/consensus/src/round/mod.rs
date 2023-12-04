@@ -73,17 +73,17 @@ impl RoundState {
     }
 
     #[allow(dead_code)]
-    pub fn on_commit(&mut self, commit: Commit) {
+    pub fn on_commit(&mut self, _commit: Commit) {
         todo!()
     }
 
     #[allow(dead_code)]
-    pub fn on_proposal(&mut self, proposal: Proposal) {
+    pub fn on_proposal(&mut self, _proposal: Proposal) {
         todo!()
     }
 
     #[allow(dead_code)]
-    pub fn on_pre_propose(&mut self, pre_propose: PreProposal) {
+    pub fn on_pre_propose(&mut self, _pre_propose: PreProposal) {
         todo!()
     }
 
@@ -189,7 +189,7 @@ impl RoundAction {
         ))
     }
 
-    pub fn new_best_details(&mut self, bundle_details: BestBundles) {
+    pub fn new_best_details(&mut self, _bundle_details: BestBundles) {
         todo!()
     }
 }

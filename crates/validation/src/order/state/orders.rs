@@ -21,16 +21,16 @@ impl UserOrders {
         let id: OrderId = order.into();
         let _ = self.check_for_nonce_overlap(&id)?;
 
-        let user = id.address;
+        let _user = id.address;
 
         Ok(())
     }
 
     fn apply_new_order_deltas(
         &mut self,
-        token_in: Address,
-        amount_in: Address,
-        state: &mut PendingState
+        _token_in: Address,
+        _amount_in: Address,
+        _state: &mut PendingState
     ) -> Result<(), ()> {
         Ok(())
     }

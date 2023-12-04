@@ -1,4 +1,3 @@
-use alloy_rlp::{Decodable, Encodable};
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use revm::primitives::TxEnv;
 use serde::{Deserialize, Serialize};

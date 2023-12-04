@@ -20,6 +20,7 @@ where
         todo!()
     }
 
+    #[allow(dead_code)]
     pub fn add_order(
         &mut self,
         order: ValidatedOrder<O, OrderPriorityData>
@@ -31,6 +32,7 @@ where
             .ok_or_else(|| LimitPoolError::NoPool(id.pool_id))
     }
 
+    #[allow(dead_code)]
     pub fn remove_order(
         &mut self,
         tx_id: &OrderId
@@ -38,6 +40,7 @@ where
         self.0.get_mut(&tx_id.pool_id)?.remove_order(tx_id.hash)
     }
 
+    #[allow(dead_code)]
     pub fn fetch_all_pool_orders(&self, id: &PoolId) -> Vec<&ValidatedOrder<O, OrderPriorityData>> {
         self.0
             .get(id)
@@ -45,14 +48,17 @@ where
             .unwrap()
     }
 
+    #[allow(dead_code)]
     pub fn fetch_all_pool_bids(&self, id: &PoolId) -> Vec<&ValidatedOrder<O, OrderPriorityData>> {
         self.0.get(id).map(|inner| inner.fetch_all_bids()).unwrap()
     }
 
+    #[allow(dead_code)]
     pub fn fetch_all_pool_asks(&self, id: &PoolId) -> Vec<&ValidatedOrder<O, OrderPriorityData>> {
         self.0.get(id).map(|inner| inner.fetch_all_asks()).unwrap()
     }
 
+    #[allow(dead_code)]
     /// Fetches supply and demand intersection
     pub fn fetch_pool_intersection(
         &self,
@@ -64,6 +70,7 @@ where
             .unwrap()
     }
 
+    #[allow(dead_code)]
     /// Fetches supply and demand intersection with a tick price buffer
     pub fn fetch_pool_intersection_with_buffer(
         &self,
@@ -72,6 +79,7 @@ where
         todo!("Blocked until added tick impl")
     }
 
+    #[allow(dead_code)]
     pub fn fetch_all_orders(&self) -> Vec<Vec<&ValidatedOrder<O, OrderPriorityData>>> {
         self.0
             .values()
@@ -79,6 +87,7 @@ where
             .collect()
     }
 
+    #[allow(dead_code)]
     pub fn fetch_all_bids(&self) -> Vec<Vec<&ValidatedOrder<O, OrderPriorityData>>> {
         self.0
             .values()
@@ -86,6 +95,7 @@ where
             .collect()
     }
 
+    #[allow(dead_code)]
     pub fn fetch_all_asks(&self) -> Vec<Vec<&ValidatedOrder<O, OrderPriorityData>>> {
         self.0
             .values()
@@ -93,6 +103,7 @@ where
             .collect()
     }
 
+    #[allow(dead_code)]
     /// Fetches supply and demand intersection
     pub fn fetch_intersection(&self) -> Vec<BidAndAsks<ValidatedOrder<O, OrderPriorityData>>> {
         self.0
@@ -101,6 +112,7 @@ where
             .collect()
     }
 
+    #[allow(dead_code)]
     /// Fetches supply and demand intersection with a tick price buffer
     pub fn fetch_intersection_with_buffer(
         &self,

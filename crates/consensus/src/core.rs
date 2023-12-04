@@ -89,22 +89,22 @@ impl ConsensusCore {
     }
 
     #[allow(dead_code)]
-    pub fn new_pre_propose(&mut self, commit: PreProposal) {
+    pub fn new_pre_propose(&mut self, _commit: PreProposal) {
         todo!()
     }
 
     #[allow(dead_code)]
-    pub fn proposal(&mut self, proposal: Proposal) {
+    pub fn proposal(&mut self, _proposal: Proposal) {
         todo!()
     }
 
     #[allow(dead_code)]
-    pub fn proposal_commit(&mut self, commit: Commit) {
+    pub fn proposal_commit(&mut self, _commit: Commit) {
         todo!()
     }
 
     #[allow(dead_code)]
-    pub fn better_bundle(&mut self, bundle_data: BestBundles) {
+    pub fn better_bundle(&mut self, _bundle_data: BestBundles) {
         todo!()
     }
 }

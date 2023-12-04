@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use alloy_primitives::{Address, Bytes, U256};
-use byteorder::{ByteOrder, LittleEndian};
+
 use ethers_core::types::{transaction::eip2718::TypedTransaction, I256, U256 as EU256};
 use eyre::Result;
 use guard_types::{
@@ -11,7 +11,7 @@ use guard_types::{
 use reth_provider::StateProviderFactory;
 use revm::EVM;
 use revm_primitives::{
-    db::DatabaseRef, Account, Bytecode, ExecutionResult, Log, TransactTo, TxEnv
+    db::DatabaseRef, Bytecode, ExecutionResult, TransactTo, TxEnv
 };
 
 use crate::{
@@ -148,7 +148,7 @@ where
 
         evm.env.tx = tx_env.clone();
 
-        let state_change = evm
+        let _state_change = evm
             .transact_ref()
             .map_err(|_| SimError::RevmEVMTransactionError(tx_env.clone()))?;
 
@@ -175,7 +175,7 @@ where
 
         evm.env.tx = tx_env.clone();
 
-        let state_change = evm
+        let _state_change = evm
             .transact_ref()
             .map_err(|_| SimError::RevmEVMTransactionError(tx_env.clone()))?;
 

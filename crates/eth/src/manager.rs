@@ -1,13 +1,12 @@
 use std::task::{Context, Poll};
 
 use alloy_primitives::{Address, B256};
-use ethers_flashbots::PendingBundleError;
-use ethers_providers::{Middleware, PubsubClient, SubscriptionStream};
+
+
 use futures::Future;
 use guard_types::submission::SubmissionBundle;
 use reth_provider::{CanonStateNotification, CanonStateNotifications, StateProviderFactory};
 use tokio::sync::{
-    mpsc,
     mpsc::{channel, Sender}
 };
 use tokio_stream::wrappers::ReceiverStream;
@@ -57,7 +56,7 @@ where
     #[allow(dead_code)]
     fn on_canon_update(&mut self, canonical_updates: CanonStateNotification) {
         match canonical_updates {
-            CanonStateNotification::Reorg { old: _old, new } => {}
+            CanonStateNotification::Reorg { old: _old, new: _ } => {}
             CanonStateNotification::Commit { new: _new } => {}
         }
     }

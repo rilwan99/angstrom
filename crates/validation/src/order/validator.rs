@@ -42,32 +42,32 @@ impl OrderValidator for RevmClient {
 
     fn validate_order(
         &self,
-        origin: OrderOrigin,
-        transaction: Self::LimitOrder
+        _origin: OrderOrigin,
+        _transaction: Self::LimitOrder
     ) -> ValidationFuture<Self::LimitOrder> {
         todo!()
     }
 
     fn validate_composable_order(
         &self,
-        origin: OrderOrigin,
-        transaction: Self::ComposableLimitOrder
+        _origin: OrderOrigin,
+        _transaction: Self::ComposableLimitOrder
     ) -> ValidationFuture<Self::ComposableLimitOrder> {
         todo!()
     }
 
     fn validate_searcher_order(
         &self,
-        origin: OrderOrigin,
-        transaction: Self::SearcherOrder
+        _origin: OrderOrigin,
+        _transaction: Self::SearcherOrder
     ) -> ValidationFuture<Self::SearcherOrder> {
         todo!()
     }
 
     fn validate_composable_searcher_order(
         &self,
-        origin: OrderOrigin,
-        transaction: Self::ComposableSearcherOrder
+        _origin: OrderOrigin,
+        _transaction: Self::ComposableSearcherOrder
     ) -> ValidationFuture<Self::ComposableSearcherOrder> {
         todo!()
     }
