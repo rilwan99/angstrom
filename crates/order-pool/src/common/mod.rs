@@ -1,9 +1,8 @@
 use guard_types::orders::{
-    OrderLocation, OrderPriorityData, PoolOrder, PooledComposableOrder, PooledLimitOrder,
-    PooledSearcherOrder, ValidatedOrder
+    PoolOrder
 };
 mod size;
-use alloy_primitives::Address;
+
 pub use size::*;
 
 pub type BidAndAsks<'a, T> = (Vec<&'a T>, Vec<&'a T>);

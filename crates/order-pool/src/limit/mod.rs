@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug};
+use std::fmt::Debug;
 
 use guard_types::{
     orders::{
@@ -47,6 +47,7 @@ where
         }
     }
 
+    #[allow(dead_code)]
     pub fn add_composable_order(
         &mut self,
         order: ValidatedOrder<C, OrderPriorityData>
@@ -61,6 +62,7 @@ where
         Ok(())
     }
 
+    #[allow(dead_code)]
     pub fn add_limit_order(
         &mut self,
         order: ValidatedOrder<O, OrderPriorityData>
@@ -79,6 +81,7 @@ where
     }
 
     // individual fetches
+    #[allow(dead_code)]
     pub fn fetch_all_pool_orders(
         &mut self,
         id: &PoolId
@@ -93,11 +96,15 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn remove_limit_order(&mut self, order_hash: &B256, location: OrderLocation) -> Option<O> {
+    pub fn remove_limit_order(
+        &mut self,
+        _order_hash: &B256,
+        _location: OrderLocation
+    ) -> Option<O> {
         todo!()
     }
 
-    pub fn remove_composable_limit_order(&mut self, order_hash: &B256) -> Option<C> {
+    pub fn remove_composable_limit_order(&mut self, _order_hash: &B256) -> Option<C> {
         todo!()
     }
 }
@@ -109,6 +116,7 @@ where
     C: PooledComposableOrder + PooledLimitOrder
 {
     /// Helper function for unzipping and size adjustment
+    #[allow(dead_code)]
     fn filter_option_and_adjust_size<O: PoolOrder>(
         &mut self,
         order: Vec<Option<ValidatedOrder<O, OrderPriorityData>>>
@@ -125,6 +133,7 @@ where
 }
 
 #[derive(Debug, thiserror::Error)]
+#[allow(dead_code)]
 pub enum LimitPoolError {
     #[error("Pool has reached max size, and order doesn't satisify replacment requirements")]
     MaxSize,

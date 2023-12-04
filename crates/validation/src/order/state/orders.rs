@@ -6,6 +6,7 @@ use revm::primitives::HashMap;
 
 /// the sum of all pending orders for a given user. This is done
 /// so that validation of specific orders is not dependant on all other orders.
+#[allow(dead_code)]
 pub struct PendingState {
     token_balances:  HashMap<Address, U256>,
     token_approvals: HashMap<Address, U256>
@@ -14,6 +15,7 @@ pub struct PendingState {
 pub struct UserOrders(HashMap<Address, (PendingState, Vec<OrderId>)>);
 
 impl UserOrders {
+    #[allow(dead_code)]
     pub fn new_order<O: PoolOrder, Data: Clone + Debug>(
         &mut self,
         order: ValidatedOrder<O, Data>
@@ -26,6 +28,7 @@ impl UserOrders {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn apply_new_order_deltas(
         &mut self,
         _token_in: Address,
@@ -36,6 +39,7 @@ impl UserOrders {
     }
 
     /// Helper function for checking for duplicates when adding orders
+    #[allow(dead_code)]
     fn check_for_nonce_overlap(&self, id: &OrderId) -> Result<(), ()> {
         if self
             .0

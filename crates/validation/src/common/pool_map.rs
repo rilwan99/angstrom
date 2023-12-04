@@ -8,6 +8,7 @@ pub struct PoolMapping {
 }
 
 impl PoolMapping {
+    #[allow(dead_code)]
     fn new() -> Self {
         PoolMapping { map: HashMap::new() }
     }

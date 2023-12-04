@@ -5,17 +5,16 @@ use std::{
     task::{Context, Poll}
 };
 
-use alloy_primitives::{Address, B256, U256};
-use futures_util::{Future, Stream, StreamExt};
+use alloy_primitives::B256;
+use futures_util::{Future, StreamExt};
 use guard_types::{
     orders::{
-        OrderId, OrderLocation, OrderOrigin, OrderPriorityData, OrderValidationOutcome, PoolOrder,
-        PooledComposableOrder, PooledLimitOrder, PooledSearcherOrder, SearcherPriorityData,
-        ValidatedOrder, ValidationResults
+        OrderId, OrderLocation, OrderOrigin, OrderPriorityData, PooledComposableOrder,
+        PooledLimitOrder, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder,
+        ValidationResults
     },
     primitive::PoolId
 };
-use tokio::sync::mpsc::Sender;
 use validation::order::OrderValidator;
 
 use crate::{
@@ -192,7 +191,7 @@ where
     CS: PooledComposableOrder + PooledSearcherOrder,
     V: OrderValidator
 {
-    fn handle_validated_order(&mut self, res: ValidationResults<L, CL, S, CS>) {}
+    fn handle_validated_order(&mut self, _res: ValidationResults<L, CL, S, CS>) {}
 }
 
 // impl Future for OrderPoolInner<>
@@ -215,6 +214,7 @@ where
 }
 
 #[derive(Debug, thiserror::Error)]
+#[allow(dead_code)]
 pub enum PoolError {
     #[error("Pool has reached max size, and order doesn't satisify replacment requirements")]
     MaxSize,

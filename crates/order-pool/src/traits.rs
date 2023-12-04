@@ -1,15 +1,10 @@
-use std::fmt;
 
-use alloy_primitives::{Address, Bytes, TxHash, U128, U256};
+
+use alloy_primitives::{TxHash};
 use guard_types::{
     orders::{
-        OrderId, OrderPriorityData, PoolOrder, PooledComposableOrder, PooledLimitOrder,
+        PooledComposableOrder, PooledLimitOrder,
         PooledOrder, PooledSearcherOrder
-    },
-    primitive::{ComposableOrder, Order, PoolKey},
-    rpc::{
-        EcRecoveredComposableLimitOrder, EcRecoveredComposableSearcherOrder, EcRecoveredLimitOrder,
-        EcRecoveredSearcherOrder, SignedComposableLimitOrder
     }
 };
 

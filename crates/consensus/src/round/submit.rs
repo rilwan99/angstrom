@@ -27,6 +27,7 @@ impl SubmitState {
         todo!()
     }
 
+    #[allow(dead_code)]
     pub fn on_new_commit(&mut self, _commit: ()) {
         // check if contains if
         if self.current_commits.len() == self.needed_commits {
