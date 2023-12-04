@@ -111,8 +111,8 @@ impl Stream for StromSession {
             return terminate
         }
 
-        loop {
-            let mut _progress = false;
+        'main: loop {
+            let mut progress = false;
 
             // we prioritize incoming commands sent from the session manager
             loop {
@@ -157,6 +157,7 @@ impl Stream for StromSession {
                                         message: msg
                                     }
                                 );
+                                progress = true;
                             }
                             Err(e) => {
                                 let _ = this.to_session_manager.send_item(
@@ -170,6 +171,10 @@ impl Stream for StromSession {
                     }
                 }
             }
+            if !progress {
+                break 'main
+            }
         }
+        Poll::Pending
     }
 }
