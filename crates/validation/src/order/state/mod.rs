@@ -19,8 +19,6 @@ use crate::common::{executor::ThreadPool, lru_db::RevmLRU};
 mod orders;
 mod upkeepers;
 
-enum Orders {}
-
 /// State validation is all validation that requires reading from the Ethereum
 /// database, these operations are:
 /// 1) validating order nonce,

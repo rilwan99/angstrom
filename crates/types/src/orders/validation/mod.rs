@@ -91,4 +91,10 @@ pub enum OrderValidationOutcome<O: PoolOrder> {
 }
 
 #[derive(Debug, Error)]
-pub enum ValidationError {}
+pub enum ValidationError {
+    #[error]
+    StateValidationError(#[from] StateValidationError)
+}
+
+#[derive(Debug, Error)]
+pub enum StateValidationError {}
