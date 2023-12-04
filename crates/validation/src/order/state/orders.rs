@@ -1,4 +1,4 @@
-use std::{any, fmt::Debug};
+use std::{any, collections::HashMap, fmt::Debug};
 
 use alloy_primitives::{Address, U256};
 use guard_types::orders::{
@@ -43,6 +43,15 @@ impl UserOrders {
             volume: order.limit_price() * order.amount_out_min(),
             gas:    order.gas()
         })
+    }
+
+    /// called when a user has a state change on their address. When this
+    /// happens we re-evaluate all of there pending orders so we do a
+    /// hard-reset here.
+    pub fn fresh_state(&mut self, state: HashMap<Address, PendingState>) {
+        state.into_iter().for_each(|(k, v)| {
+            self.0.insert(k, (v, vec![]));
+        });
     }
 
     fn basic_order_validation<
