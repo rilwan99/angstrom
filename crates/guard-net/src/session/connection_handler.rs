@@ -1,16 +1,15 @@
-use std::net::SocketAddr;
-
 use reth_eth_wire::{
     capability::SharedCapabilities, multiplex::ProtocolConnection, protocol::Protocol,
     DisconnectReason, Status
 };
+use reth_metrics::common::mpsc::MeteredPollSender;
 use reth_network::{
     protocol::{ConnectionHandler, OnNotSupported},
     Direction
 };
 use reth_primitives::PeerId;
 use tokio::{
-    sync::{mpsc, mpsc::Sender},
+    sync::mpsc,
     time::{Duration, Instant}
 };
 use tokio_stream::wrappers::ReceiverStream;
@@ -23,7 +22,7 @@ use crate::{
 };
 
 pub struct StromConnectionHandler {
-    pub to_session_manager: Sender<StromSessionMessage>,
+    pub to_session_manager: MeteredPollSender<StromSessionMessage>,
     pub status: Option<Status>,
     pub protocol_breach_request_timeout: Duration,
     pub session_command_buffer: usize
@@ -42,11 +41,11 @@ impl ConnectionHandler for StromConnectionHandler {
         _direction: Direction,
         _peer_id: PeerId
     ) -> OnNotSupported {
-        OnNotSupported::Disconnect
+        OnNotSupported::KeepAlive
     }
 
     fn into_connection(
-        self,
+        mut self,
         direction: Direction,
         peer_id: PeerId,
         conn: ProtocolConnection
@@ -60,7 +59,7 @@ impl ConnectionHandler for StromConnectionHandler {
             commands_to_session: tx
         };
         self.to_session_manager
-            .try_send(StromSessionMessage::Established { handle })
+            .send_item(StromSessionMessage::Established { handle })
             .ok();
 
         StromSession::new(
@@ -83,18 +82,15 @@ pub enum StromSessionMessage {
     /// Session was gracefully disconnected.
     Disconnected {
         /// The remote node's public key
-        peer_id:     PeerId,
-        /// The remote node's socket address
-        remote_addr: SocketAddr
+        peer_id: PeerId
     },
     /// Session was closed due an error
     ClosedOnConnectionError {
         /// The remote node's public key
-        peer_id:     PeerId,
-        /// The remote node's socket address
-        remote_addr: SocketAddr,
+        peer_id: PeerId,
+
         /// The error that caused the session to close
-        error:       StromStreamError
+        error: StromStreamError
     },
     /// A session received a valid message via RLPx.
     ValidMessage {

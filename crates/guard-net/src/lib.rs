@@ -4,7 +4,6 @@ pub mod types;
 use types::*;
 
 pub mod manager;
-pub use manager::*;
 
 pub mod pool_manager;
 pub use pool_manager::*;
@@ -17,3 +16,6 @@ pub use session::*;
 
 pub mod builder;
 pub use builder::*;
+
+pub mod network;
+pub use network::*;
