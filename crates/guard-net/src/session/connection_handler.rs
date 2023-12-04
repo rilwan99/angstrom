@@ -97,7 +97,7 @@ pub enum StromSessionMessage {
         /// Identifier of the remote peer.
         peer_id: PeerId,
         /// Message received from the peer.
-        message: StromMessage
+        message: StromProtocolMessage
     },
     /// Received a bad message from the peer.
     BadMessage {

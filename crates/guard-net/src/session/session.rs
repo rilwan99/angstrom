@@ -1,4 +1,4 @@
-use std::pin::Pin;
+use std::{ops::Deref, pin::Pin};
 
 use alloy_rlp::Encodable;
 use futures::{
@@ -13,7 +13,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::PollSender;
 
 use super::handle::SessionCommand;
-use crate::StromSessionMessage;
+use crate::{types::message::StromProtocolMessage, StromSessionMessage};
 #[allow(dead_code)]
 pub struct StromSession {
     /// Keeps track of request ids.
@@ -134,6 +134,37 @@ impl Stream for StromSession {
                                 msg.encode(&mut bytes);
 
                                 return Poll::Ready(Some(bytes))
+                            }
+                        }
+                    }
+                }
+            }
+
+            loop {
+                match this.conn.poll_next_unpin(cx) {
+                    Poll::Pending => break,
+                    Poll::Ready(None) => {
+                        // the connection was closed, we have to terminate the session
+                        return this.emit_disconnect(cx)
+                    }
+                    Poll::Ready(Some(bytes)) => {
+                        let msg = StromProtocolMessage::decode_message(&mut bytes.deref());
+                        match msg {
+                            Ok(msg) => {
+                                let _ = this.to_session_manager.send_item(
+                                    StromSessionMessage::ValidMessage {
+                                        peer_id: this.remote_peer_id,
+                                        message: msg
+                                    }
+                                );
+                            }
+                            Err(e) => {
+                                let _ = this.to_session_manager.send_item(
+                                    StromSessionMessage::BadMessage {
+                                        peer_id: this.remote_peer_id
+                                    }
+                                );
+                                break
                             }
                         }
                     }
