@@ -15,7 +15,6 @@ use serde::{Deserialize, Serialize};
 use crate::errors::StromStreamError;
 /// Result alias for result of a request.
 pub type RequestResult<T> = Result<T, RequestError>;
-use super::version::StromVersion;
 use crate::Status;
 
 /// [`MAX_MESSAGE_SIZE`] is the maximum cap on the size of a protocol message.

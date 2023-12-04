@@ -5,21 +5,28 @@ pub mod handle;
 pub use handle::*;
 
 pub mod session;
+use futures::Stream;
 pub use session::*;
-
 pub mod config;
 pub use config::*;
-
+use futures::task::Context;
 pub mod connection_handler;
-use std::{collections::HashMap, fmt::Debug, net::SocketAddr};
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    net::SocketAddr,
+    pin::Pin,
+    sync::{atomic::AtomicU64, Arc}
+};
 
 pub use connection_handler::*;
-use reth_network::protocol::ProtocolHandler;
+use futures::{io, task::Poll};
+use reth_network::{protocol::ProtocolHandler, Direction};
 use reth_primitives::PeerId;
 use reth_provider::StateProvider;
 use tokio::time::Duration;
 
-use crate::StromNetworkHandle;
+use crate::{errors::StromStreamError, StromNetworkHandle, StromProtocolMessage};
 
 #[allow(dead_code)]
 pub struct StromSessionManager {
@@ -31,6 +38,106 @@ pub struct StromSessionManager {
     to_sessions: HashMap<PeerId, StromSessionHandle>,
 
     from_sessions: mpsc::Receiver<StromSessionMessage>
+}
+
+impl Stream for StromSessionManager {
+    type Item = SessionEvent;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<SessionEvent>> {
+        let this = self.get_mut();
+
+        loop {
+            match this.from_sessions.poll_recv(cx) {
+                Poll::Ready(Some(StromSessionMessage::Established { handle })) => {
+                    let event = SessionEvent::SessionEstablished {
+                        peer_id:   handle.remote_id,
+                        direction: handle.direction,
+                        timeout:   Arc::new(AtomicU64::new(40))
+                    };
+                    this.to_sessions.insert(handle.remote_id, handle);
+                    return Poll::Ready(Some(event))
+                }
+
+                Poll::Pending => {
+                    return Poll::Pending;
+                }
+
+                Poll::Ready(None) => {
+                    unreachable!("Manager holds both channel halves.")
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+/// Events produced by the [`SessionManager`]
+#[derive(Debug)]
+pub enum SessionEvent {
+    /// A new session was successfully authenticated.
+    ///
+    /// This session is now able to exchange data.
+    SessionEstablished {
+        /// The remote node's public key
+        peer_id:   PeerId,
+        /// The direction of the session, either `Inbound` or `Outgoing`
+        direction: Direction,
+        /// The maximum time that the session waits for a response from the peer
+        /// before timing out the connection
+        timeout:   Arc<AtomicU64>
+    },
+    /// The peer was already connected with another session.
+    AlreadyConnected {
+        /// The remote node's public key
+        peer_id:     PeerId,
+        /// The remote node's socket address
+        remote_addr: SocketAddr,
+        /// The direction of the session, either `Inbound` or `Outgoing`
+        direction:   Direction
+    },
+    /// A session received a valid message via RLPx.
+    ValidMessage {
+        /// The remote node's public key
+        peer_id: PeerId,
+        /// Message received from the peer.
+        message: StromProtocolMessage
+    },
+    /// Received a bad message from the peer.
+    BadMessage {
+        /// Identifier of the remote peer.
+        peer_id: PeerId
+    },
+    /// Remote peer is considered in protocol violation
+    ProtocolBreach {
+        /// Identifier of the remote peer.
+        peer_id: PeerId
+    },
+
+    /// Failed to establish a tcp stream
+    OutgoingConnectionError {
+        /// The remote node's socket address
+        remote_addr: SocketAddr,
+        /// The remote node's public key
+        peer_id:     PeerId,
+        /// The error that caused the outgoing connection to fail
+        error:       io::Error
+    },
+    /// Session was closed due to an error
+    SessionClosedOnConnectionError {
+        /// The id of the remote peer.
+        peer_id:     PeerId,
+        /// The socket we were connected to.
+        remote_addr: SocketAddr,
+        /// The error that caused the session to close
+        error:       StromStreamError
+    },
+    /// Active session was gracefully disconnected.
+    Disconnected {
+        /// The remote node's public key
+        peer_id:     PeerId,
+        /// The remote node's socket address that we were connected to
+        remote_addr: SocketAddr
+    }
 }
 
 /// The protocol handler that is used to announce the strom capability upon

@@ -27,13 +27,12 @@ pub struct StromSession {
     /// Sink to send messages to the [`SessionManager`](super::SessionManager).
     pub(crate) to_session_manager: MeteredPollSender<StromSessionMessage>,
     /// A message that needs to be delivered to the session manager
-    pub(crate) pending_message_to_session: Option<StromSessionMessage>,
 
     /// All requests sent to the remote peer we're waiting on a response
     //pub(crate) inflight_requests: FnvHashMap<u64, InflightRequest>,
     /// All requests that were sent by the remote peer and we're waiting on an
     /// internal response
-    //pub(crate) received_requests_from_remote: Vec<ReceivedRequest>,
+    //lub(crate) received_requests_from_remote: Vec<ReceivedRequest>,
     /// Buffered messages that should be handled and sent to the peer.
     //pub(crate) queued_outgoing: VecDeque<OutgoingMessage>,
     /// The maximum time we wait for a response from a peer.
@@ -61,7 +60,6 @@ impl StromSession {
             remote_peer_id: peer_id,
             commands_rx,
             to_session_manager,
-            pending_message_to_session: None,
             protocol_breach_request_timeout,
             terminate_message: None
         }
@@ -123,18 +121,14 @@ impl Stream for StromSession {
                         // terminate this session
                         return Poll::Ready(None)
                     }
-                    Poll::Ready(Some(command)) => {
-                        _progress = true;
-                        match command {
-                            SessionCommand::Disconnect { direction: _ } => {
-                                return this.emit_disconnect(cx)
-                            }
-                            SessionCommand::Message(msg) => {
-                                let mut bytes = BytesMut::new();
-                                msg.encode(&mut bytes);
-
-                                return Poll::Ready(Some(bytes))
-                            }
+                    Poll::Ready(Some(command)) => match command {
+                        SessionCommand::Disconnect { direction: _ } => {
+                            return this.emit_disconnect(cx)
+                        }
+                        SessionCommand::Message(msg) => {
+                            let mut bytes = BytesMut::new();
+                            msg.encode(&mut bytes);
+                            return Poll::Ready(Some(bytes))
                         }
                     }
                 }
@@ -159,7 +153,7 @@ impl Stream for StromSession {
                                 );
                                 progress = true;
                             }
-                            Err(e) => {
+                            Err(_e) => {
                                 let _ = this.to_session_manager.send_item(
                                     StromSessionMessage::BadMessage {
                                         peer_id: this.remote_peer_id
