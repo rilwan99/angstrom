@@ -13,6 +13,7 @@ pub struct Signer(
 );
 
 impl Signer {
+    #[allow(dead_code)]
     pub fn sign_proposal(
         &self,
         _ethereum_block: u64,
@@ -22,6 +23,7 @@ impl Signer {
         todo!()
     }
 
+    #[allow(dead_code)]
     pub fn sign_commit(
         &self,
         _ethereum_block: u64,
@@ -30,6 +32,7 @@ impl Signer {
         todo!()
     }
 
+    #[allow(dead_code)]
     pub fn sign_pre_propose(
         &self,
         _ethereum_block: u64,

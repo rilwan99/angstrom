@@ -13,6 +13,7 @@ use tokio_util::sync::PollSender;
 use super::handle::SessionCommand;
 use crate::StromSessionMessage;
 
+#[allow(dead_code)]
 pub struct StromSession {
     /// Keeps track of request ids.
     pub(crate) next_id: u64,

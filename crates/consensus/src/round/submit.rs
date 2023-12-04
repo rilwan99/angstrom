@@ -13,6 +13,7 @@ use super::{
 };
 
 /// This state is only reached if this guard is the leader
+#[allow(dead_code)]
 pub struct SubmitState {
     submit_deadline: Timeout,
     best_bundle:     BestBundles,

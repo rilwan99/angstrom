@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use ethers_core::types::{Block, H256};
 use reth_primitives::B512;
 use serde::{Deserialize, Serialize};
-
+#[allow(dead_code)]
 const ROUND_ROBIN_CACHE: &str = "./";
 
 /// This gets written to a cache location on your local machine

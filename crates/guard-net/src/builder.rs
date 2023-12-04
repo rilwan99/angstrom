@@ -1,6 +1,6 @@
 //! Builder structs for messages.
 
-use reth_primitives::{Chain, ForkId, B256, U256};
+use reth_primitives::Chain;
 
 use crate::Status;
 

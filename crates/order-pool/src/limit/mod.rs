@@ -7,7 +7,7 @@ use guard_types::{
     },
     primitive::PoolId
 };
-use reth_primitives::{alloy_primitives::Address, B256, U256};
+use reth_primitives::B256;
 
 use self::{composable::ComposableLimitPool, limit::LimitPool};
 use crate::common::SizeTracker;
@@ -16,10 +16,10 @@ mod composable;
 mod limit;
 mod parked;
 mod pending;
-
-pub type RegularAndLimit<T, C> = (Vec<T>, Vec<C>);
+#[allow(dead_code)]
 pub type RegularAndLimitRef<'a, T, C> = (Vec<&'a T>, Vec<&'a C>);
 
+#[allow(dead_code)]
 pub struct LimitOrderPool<O, C>
 where
     O: PooledLimitOrder,

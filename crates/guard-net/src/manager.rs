@@ -11,11 +11,13 @@ use crate::{pool_manager::PoolHandle, StromNetworkEvent};
 // 2) Implement the consensus manager
 // 3)
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct StromNetworkHandle {
     inner: Arc<StromNetworkInner>
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct StromNetworkInner {
     num_active_peers: Arc<AtomicUsize>,
     to_manager_tx:    UnboundedMeteredSender<StromNetworkEvent>
@@ -25,7 +27,7 @@ struct StromNetworkInner {
 pub enum NetworkOrderEvent {
     IncomingOrders { peer_id: PeerId, orders: Vec<Orders> }
 }
-
+#[allow(dead_code)]
 pub struct StromNetworkManager {
     inner:  Arc<StromNetworkInner>,
     handle: PoolHandle

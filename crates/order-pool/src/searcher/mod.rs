@@ -6,7 +6,7 @@ use guard_types::{
     orders::{
         OrderId, PooledComposableOrder, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
     },
-    primitive::{Order, PoolId}
+    primitive::PoolId
 };
 
 use self::searcher::VanillaSearcherPool;
@@ -16,6 +16,7 @@ mod composable;
 mod searcher;
 
 pub const SEARCHER_POOL_MAX_SIZE: usize = 15;
+#[allow(non_upper_case_globals)]
 pub const V1_LP_POOlS: usize = 5;
 
 pub struct SearcherPool<S: PooledSearcherOrder, CS: PooledComposableOrder + PooledSearcherOrder> {

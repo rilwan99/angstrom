@@ -18,6 +18,7 @@ use reth_primitives::PeerId;
 use reth_provider::StateProvider;
 use tokio::time::Duration;
 
+#[allow(dead_code)]
 pub struct StromSessionManager {
     // All pending session that are currently handshaking, exchanging `Hello`s.
     //pending_sessions: FnvHashMap<SessionId, PendingSessionHandle>,
