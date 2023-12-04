@@ -10,7 +10,7 @@ pub struct OrderValidator<DB> {
 
 impl<DB> OrderValidator<DB> {
     /// only checks state
-    pub fn validate_user_order<O: PoolOrder>(&mut self, order: O) -> OrderValidationOutcome<O> {
+    pub fn validate_limit_order<O: PoolOrder>(&mut self, order: O) -> OrderValidationOutcome<O> {
         todo!()
     }
 

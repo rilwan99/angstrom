@@ -40,13 +40,14 @@ impl UserOrders {
 
     fn basic_order_validation<
         O: PoolOrder<ValidationData = Data>,
-        Data: Send + Debug + Sync + Clone + Unpin + 'static
+        Data: Send + Debug + Sync + Clone + Unpin + 'static,
+        F: FnOnce(O, UserAccountDetails) -> Data
     >(
         &mut self,
         order: O,
         deltas: UserAccountDetails,
         limit: bool,
-        build_priority: FnOnce(O, UserAccountDetails) -> Data
+        build_priority: F
     ) -> OrderValidationOutcome<O> {
         let _ = self.check_for_nonce_overlap(&order.from(), &order.nonce())?;
 

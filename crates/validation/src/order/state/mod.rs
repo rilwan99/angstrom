@@ -1,9 +1,10 @@
 use std::{sync::Arc, thread::JoinHandle};
 
 use futures_util::stream::FuturesUnordered;
-use guard_types::orders::PoolOrder;
+use guard_types::orders::{OrderValidationOutcome, PoolOrder};
 use parking_lot::RwLock;
 use reth_provider::StateProviderFactory;
+use tokio::sync::oneshot::Sender;
 
 use self::{
     orders::UserOrders,
@@ -28,8 +29,14 @@ pub struct StateValidation<DB> {
 
     /// upkeeps all state specific checks.
     upkeepers:   Arc<RwLock<Upkeepers>>,
-    thread_pool: Theadpool,
-    tasks:       FuturesUnordered<JoinHandle<UserAccountDetails>>
+    thread_pool: ThreadPool,
+    tasks: FuturesUnordered<
+        JoinHandle<(
+            Sender<OrderValidationOutcome<Box<dyn PoolOrder>>>,
+            Box<dyn PoolOrder>,
+            UserAccountDetails
+        )>
+    >
 }
 
 impl<DB> StateValidation<DB>
@@ -40,7 +47,33 @@ where
         todo!()
     }
 
-    pub fn validate_user_order<O: PoolOrder>(&mut self, order: O) {
-        todo!()
+    pub fn validate_user_order<O: PoolOrder>(
+        &mut self,
+        tx: Sender<OrderValidationOutcome<Box<dyn PoolOrder>>>,
+        order: O
+    ) {
+        let db = self.db.clone();
+        let keeper = self.upkeepers.clone();
+        self.tasks
+            .push(self.thread_pool.spawn_return_task_as(async move {
+                let (details, order) = keeper.read().verify_order(order.clone(), db);
+
+                (tx, order, details)
+            }));
+    }
+
+    pub fn validate_searcher_order<O: PoolOrder>(
+        &mut self,
+        tx: Sender<OrderValidationOutcome<Box<dyn PoolOrder>>>,
+        order: O
+    ) {
+        let db = self.db.clone();
+        let keeper = self.upkeepers.clone();
+        self.tasks
+            .push(self.thread_pool.spawn_return_task_as(async move {
+                let (details, order) = keeper.read().verify_order(order.clone(), db);
+
+                (tx, order, details)
+            }));
     }
 }

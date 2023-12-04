@@ -7,6 +7,7 @@ pub mod nonces;
 use std::collections::HashMap;
 
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256};
+use guard_types::orders::PoolOrder;
 use reth_provider::StateProviderFactory;
 use revm::{db::WrapDatabaseRef, interpreter::opcode, new, Database, Inspector, EVM};
 use revm_primitives::{Env, TransactTo, TxEnv};
@@ -31,6 +32,14 @@ pub struct Upkeepers {
 
 impl Upkeepers {
     pub fn new<DB>(db: DB) -> Self {}
+
+    pub fn verify_order<O: PoolOrder, DB>(
+        &self,
+        order: O,
+        db: Arc<RevmLRU<DB>>
+    ) -> (UserAccountDetails, O){
+        todo!();
+    }
 }
 
 pub fn find_storage_slot<DB>(
