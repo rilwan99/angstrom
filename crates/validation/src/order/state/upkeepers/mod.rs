@@ -1,6 +1,6 @@
+pub mod angstrom_tokens;
 pub mod approvals;
 pub mod balances;
-pub mod new_pairs;
 pub mod nonces;
 
 use std::collections::HashMap;
@@ -8,18 +8,22 @@ use std::collections::HashMap;
 use alloy_primitives::{keccak256, Address, Bytes, B256, U256};
 use reth_provider::StateProviderFactory;
 use revm::{db::WrapDatabaseRef, interpreter::opcode, new, Database, Inspector, EVM};
-use revm_primitives::{TransactTo, TxEnv};
+use revm_primitives::{Env, TransactTo, TxEnv};
 
-use self::{approvals::Approvals, balances::Balances};
+use self::{
+    angstrom_tokens::AngstromTokens, approvals::Approvals, balances::Balances, new_pairs::NewPairs
+};
 use crate::common::lru_db::RevmLRU;
 
 pub struct Upkeepers {
-    token_list: Vec<Address>,
-    approvals:  Approvals,
-    balances:   Balances
+    new_pairs: AngstromTokens,
+    approvals: Approvals,
+    balances:  Balances
 }
 
-impl Upkeepers {}
+impl Upkeepers {
+    pub async fn new<DB>(db: DB) -> Self {}
+}
 
 pub fn find_storage_slot<DB>(
     call_data: Bytes,
@@ -32,13 +36,14 @@ where
     let prob_address = Address::new([0, 0, 0, 0, 0, 0, 0, 0, 0, 11, 0, 0, 0, 0, 0, 64, 0, 0, 0, 0]);
 
     let mut evm: EVM<RevmLRU<DB>> = new();
-    evm.database(db);
-    let mut env = TxEnv::default();
+    evm.database(db.clone());
 
-    env.transact_to = TransactTo::Call(wanted_address);
-    env.data = call_data;
-    env.caller = prob_address.clone();
-    evm.env = env;
+    let mut tx_env = TxEnv::default();
+
+    tx_env.transact_to = TransactTo::Call(wanted_address);
+    tx_env.data = call_data.clone();
+    tx_env.caller = prob_address.clone();
+    evm.env = Env { tx: tx_env, ..Default::default() };
 
     let res = U256::from_be_slice(&evm.transact_ref().unwrap().result.output().unwrap().0);
 
@@ -59,11 +64,12 @@ where
 
         let mut evm: EVM<RevmLRU<DB>> = new();
         evm.database(db);
-        let mut env = TxEnv::default();
-        env.transact_to = TransactTo::Call(wanted_address);
-        env.data = call_data;
-        env.caller = prob_address.clone();
-        evm.env = env;
+        let mut tx_env = TxEnv::default();
+        tx_env.transact_to = TransactTo::Call(wanted_address);
+        tx_env.data = call_data.clone();
+        tx_env.caller = prob_address.clone();
+        evm.env = Env { tx: tx_env, ..Default::default() };
+
         let res = U256::from_be_slice(&evm.transact_ref().unwrap().result.output().unwrap().0);
 
         if res == prob_value {
@@ -72,15 +78,4 @@ where
     }
 
     anyhow::bail!("should never be reached");
-
-    // let output = U256::from_be_slice(&res.result.output().unwrap().0);
-    //
-    // let err = || anyhow::anyhow!("inspector missing slot");
-    //
-    // Ok(inspector
-    //     .reads
-    //     .remove(&wanted_address)
-    //     .ok_or_else(err)?
-    //     .remove(&output)
-    //     .ok_or_else(err)?)
 }

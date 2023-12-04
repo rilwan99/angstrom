@@ -2,7 +2,7 @@ use super::{sim::SimValidation, state::StateValidation};
 
 #[allow(dead_code)]
 pub struct OrderValidator<DB> {
-    sim:   SimValidation,
+    sim:   SimValidation<DB>,
     state: StateValidation<DB>
 }
 
