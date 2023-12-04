@@ -1,3 +1,4 @@
+use reth_metrics::common::mpsc::MeteredPollSender;
 use tokio::sync::mpsc;
 
 pub mod handle;
@@ -18,8 +19,11 @@ use reth_primitives::PeerId;
 use reth_provider::StateProvider;
 use tokio::time::Duration;
 
+use crate::StromNetworkHandle;
+
 #[allow(dead_code)]
 pub struct StromSessionManager {
+    next_id:     usize,
     // All pending session that are currently handshaking, exchanging `Hello`s.
     //pending_sessions: FnvHashMap<SessionId, PendingSessionHandle>,
     // All active sessions that are ready to exchange messages.
@@ -39,12 +43,14 @@ where
     /// When a new connection is created, the conection handler will use
     /// this channel to send the sender half of the sessions command channel to
     /// the manager via the `Established` event.
-    pub to_session_manager: mpsc::Sender<StromSessionMessage>,
+    pub to_session_manager: MeteredPollSender<StromSessionMessage>,
     /// State provider to determine if the pub key is an staked validator with
     /// sufficient balance
     pub state:              DB,
     /// Protocol Sessions Config
-    pub config:             SessionsConfig
+    pub config:             SessionsConfig,
+    /// Network Handle
+    pub network:            StromNetworkHandle
 }
 
 impl<DB> ProtocolHandler for StromProtocolHandler<DB>
