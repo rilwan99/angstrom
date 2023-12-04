@@ -1,9 +1,9 @@
-use std::fmt::Debug;
+use std::{any, fmt::Debug};
 
 use alloy_primitives::{Address, U256};
 use guard_types::orders::{
     OrderId, OrderLocation, OrderPriorityData, OrderValidationOutcome, PoolOrder, PooledLimitOrder,
-    PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
+    PooledSearcherOrder, SearcherPriorityData, StateValidationError, ValidatedOrder
 };
 use revm::primitives::HashMap;
 
@@ -25,24 +25,24 @@ impl UserOrders {
         &mut self,
         order: O,
         deltas: UserAccountDetails
-    ) -> Result<OrderValidationOutcome<O>, ()> {
-        Ok(self.basic_order_validation(order, deltas, false, |order| SearcherPriorityData {
+    ) -> OrderValidationOutcome<O> {
+        self.basic_order_validation(order, deltas, false, |order| SearcherPriorityData {
             donated: order.donated(),
             volume:  order.volume(),
             gas:     order.gas()
-        }))
+        })
     }
 
     pub fn new_limit_order<O: PooledLimitOrder<ValidationData = OrderPriorityData>>(
         &mut self,
         order: O,
         deltas: UserAccountDetails
-    ) -> Result<OrderValidationOutcome<O>, ()> {
-        Ok(self.basic_order_validation(order, deltas, true, |order| OrderPriorityData {
+    ) -> OrderValidationOutcome<O> {
+        self.basic_order_validation(order, deltas, true, |order| OrderPriorityData {
             price:  order.limit_price(),
             volume: order.limit_price() * order.amount_out_min(),
             gas:    order.gas()
-        }))
+        })
     }
 
     fn basic_order_validation<
@@ -56,16 +56,23 @@ impl UserOrders {
         limit: bool,
         build_priority: F
     ) -> OrderValidationOutcome<O> {
-        let _ = self.check_for_nonce_overlap(&order.from(), &order.nonce())?;
-
-        // bad order
-        if !deltas.is_valid_nonce || !deltas.is_valid_pool {
-            return Err(())
+        // always invalid
+        if !deltas.is_valid_nonce
+            || !deltas.is_valid_pool
+            || self.has_nonce_overlap(&order.from(), &order.nonce())
+        {
+            return OrderValidationOutcome::Error(
+                order.hash(),
+                StateValidationError::InvalidNonce(order.hash(), order.nonce())
+            )
         }
 
         let user = id.address;
         let (pending_state, ids) = self.0.entry(user).or_default();
         ids.push(id);
+
+        // track which pool this should go into
+        let mut has_balances = true;
 
         // first order so we init instead of apply deltas
         if pending_state.token_balances.is_empty() && pending_state.token_approvals.is_empty() {
@@ -75,33 +82,38 @@ impl UserOrders {
             // subtract token in from approval
             if let Some(token) = pending_state.token_approvals.get_mut(&order.token_in()) {
                 if token.clone().checked_sub(order.amount_in()).is_none() {
-                    // TODO: not enough balance
+                    has_balances = false;
+                } else {
+                    token -= order.amount_in();
                 }
-                token -= order.amount_in();
             } else {
-                //TODO: error, no approval
+                has_balances = false;
             }
 
-            if let Some(token) = pending_state.token_balances.get_mut(&order.token_in()) {
-                if token.clone().checked_sub(order.amount_in()).is_none() {
-                    // add balance back to approval
+            if has_balances {
+                if let Some(token) = pending_state.token_balances.get_mut(&order.token_in()) {
+                    if token.clone().checked_sub(order.amount_in()).is_none() {
+                        // add balance back to approval
+                        // NOTE: default will never be called here
+                        *pending_state
+                            .token_approvals
+                            .entry(&order.token_in())
+                            .or_default() += order.amount_in();
+
+                        has_balances = false;
+                    } else {
+                        token -= order.amount_in();
+                    }
+                } else {
                     // NOTE: default will never be called here
                     *pending_state
                         .token_approvals
                         .entry(&order.token_in())
                         .or_default() += order.amount_in();
-                    //TODO: error, not enough balance,
-                }
-                token -= order.amount_in();
-            } else {
-                // NOTE: default will never be called here
-                *pending_state
-                    .token_approvals
-                    .entry(&order.token_in())
-                    .or_default() += order.amount_in();
-                // TODO: error, no balance, add amount back to approval
-            }
 
+                    has_balances = false;
+                }
+            }
             // NOTE: because we can't guarentee the order of execution with
             // these orders, we cannot add the amount out balance to
             // token balances to allow multi hop with different
@@ -116,7 +128,11 @@ impl UserOrders {
             is_bid: deltas.is_bid,
             pool_id: deltas.pool_id,
             location: if limit {
-                OrderLocation::LimitPending
+                if has_balances {
+                    OrderLocation::LimitPending
+                } else {
+                    OrderLocation::LimitParked
+                }
             } else {
                 OrderLocation::VanillaSearcher
             }
@@ -126,17 +142,10 @@ impl UserOrders {
     }
 
     /// Helper function for checking for duplicates when adding orders
-    #[allow(dead_code)]
-    fn check_for_nonce_overlap(&self, address: &Address, id: &U256) -> Result<(), ()> {
-        if self
-            .0
+    fn has_nonce_overlap(&self, address: &Address, id: &U256) -> bool {
+        self.0
             .get(address)
             .map(|inner| inner.1.iter().any(|other_id| other_id == id))
             .unwrap_or(false)
-        {
-            // return Err(PoolError::DuplicateNonce(id.clone()))
-        }
-
-        Ok(())
     }
 }
