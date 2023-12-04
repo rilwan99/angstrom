@@ -1,16 +1,18 @@
 use std::fmt::Debug;
 
 use derive_more::{AsRef, Deref};
+use thiserror::Error;
 pub mod limit;
 pub mod searcher;
 use alloy_primitives::{Address, B256, U256};
 pub use limit::*;
+use reth_primitives::TxHash;
 pub use searcher::*;
 
-use crate::{orders::PooledOrder, primitive::PoolId};
+use crate::{orders::PoolOrder, primitive::PoolId};
 
 #[derive(Debug, AsRef, Deref, Clone)]
-pub struct ValidatedOrder<O: PooledOrder, Data: Clone + Debug> {
+pub struct ValidatedOrder<O: PoolOrder, Data: Clone + Debug> {
     #[deref]
     #[as_ref]
     pub order:    O,
@@ -35,7 +37,7 @@ pub struct OrderId {
     pub location: OrderLocation
 }
 
-impl<O: PooledOrder, Data: Clone + Debug> From<ValidatedOrder<O, Data>> for OrderId {
+impl<O: PoolOrder, Data: Clone + Debug> From<ValidatedOrder<O, Data>> for OrderId {
     fn from(order: ValidatedOrder<O, Data>) -> Self {
         Self {
             address:  order.order.from(),
@@ -56,3 +58,37 @@ pub enum OrderLocation {
     VanillaSearcher,
     ComposableSearcher
 }
+
+pub enum ValidationResults<L, CL, S, CS>
+where
+    L: PoolOrder,
+    CL: PoolOrder,
+    S: PoolOrder,
+    CS: PoolOrder
+{
+    Limit(OrderValidationOutcome<L>),
+    ComposableLimit(OrderValidationOutcome<CL>),
+    Searcher(OrderValidationOutcome<S>),
+    ComposableSearcher(OrderValidationOutcome<CS>)
+}
+
+/// A valid order in the pool.
+#[derive(Debug)]
+pub enum OrderValidationOutcome<O: PoolOrder> {
+    /// The transaction is considered _currently_ valid and can be inserted into
+    /// the pool.
+    Valid {
+        /// The validated order
+        order:     ValidatedOrder<O, O::ValidationData>,
+        /// Whether to propagate the order to the network.
+        propagate: bool
+    },
+    /// The transaction is considered invalid indefinitely: It violates
+    /// constraints that prevent this transaction from ever becoming valid.
+    Invalid(O, ValidationError),
+    /// An error occurred while trying to validate the transaction
+    Error(TxHash, Box<dyn std::error::Error + Send + Sync>)
+}
+
+#[derive(Debug, Error)]
+pub enum ValidationError {}

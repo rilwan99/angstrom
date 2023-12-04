@@ -22,7 +22,7 @@ impl<DB> StateValidation<DB>
 where
     DB: StateProviderFactory
 {
-    pub fn new(db: DB) -> Self {
+    pub fn new(_db: DB) -> Self {
         todo!()
     }
 }

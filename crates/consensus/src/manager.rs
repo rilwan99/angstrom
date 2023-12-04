@@ -4,8 +4,8 @@ use std::{
 };
 
 use futures::{Future, Stream, StreamExt};
-use guard_utils::{ConsensusState, PollExt};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use guard_utils::PollExt;
+use tokio::sync::mpsc::{channel, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::warn;
 

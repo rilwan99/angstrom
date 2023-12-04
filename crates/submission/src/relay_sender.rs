@@ -11,29 +11,58 @@ use ethers_providers::Middleware;
 use ethers_signers::{LocalWallet, Signer};
 use futures::{Future, FutureExt};
 use guard_types::submission::SubmissionBundle;
-
+use tokio::sync::{mpsc, mpsc::UnboundedSender};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 type StakedWallet = LocalWallet;
 type BundleKey = LocalWallet;
 
 pub type SubmissionFut = Pin<Box<dyn Future<Output = Result<(), PendingBundleError>> + Send>>;
 
-pub struct RelaySender<M: Middleware + 'static> {
-    signer: Arc<SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>>,
-    future: Option<SubmissionFut>
+pub enum SubmissionCommand {
+    SubmitBundle(SubmissionBundle)
+}
+
+/// Api to interact with [`TransactionsManager`] task.
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub struct SubmissionHandle {
+    /// Command channel to the [`TransactionsManager`]
+    manager_tx: mpsc::UnboundedSender<SubmissionCommand>
+}
+
+pub struct RelaySender<M>
+where
+    M: Middleware + 'static
+{
+    signer:     Arc<SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>>,
+    future:     Option<SubmissionFut>,
+    command_tx: UnboundedSender<SubmissionCommand>,
+    #[allow(dead_code)]
+    command_rx: UnboundedReceiverStream<SubmissionCommand>
 }
 
 impl<M: Middleware + 'static> RelaySender<M> {
     pub fn new(
         signer: Arc<SignerMiddleware<BroadcasterMiddleware<&'static M, BundleKey>, StakedWallet>>
     ) -> Self {
-        Self { signer, future: None }
+        let (command_tx, command_rx) = mpsc::unbounded_channel();
+        Self {
+            signer,
+            future: None,
+            command_tx,
+            command_rx: UnboundedReceiverStream::new(command_rx)
+        }
+    }
+
+    pub fn handle(&self) -> SubmissionHandle {
+        SubmissionHandle { manager_tx: self.command_tx.clone() }
     }
 
     pub fn has_submitted(&self) -> bool {
         self.future.is_some()
     }
 
-    pub fn submit_bundle(&mut self, bundle: SubmissionBundle) {
+    pub fn submit_bundle(&mut self, _bundle: SubmissionBundle) {
         let client = self.signer.clone();
 
         self.future = Some(Box::pin(async move {
@@ -63,10 +92,12 @@ impl<M: Middleware + 'static> RelaySender<M> {
             for result in results {
                 match result {
                     Ok(pending_bundle) => match pending_bundle.await {
-                        Ok(bundle_hash) => println!(
-                            "Bundle with hash {:?} was included in target block",
-                            bundle_hash
-                        ),
+                        Ok(bundle_hash) => {
+                            println!(
+                                "Bundle with hash {:?} was included in target block",
+                                bundle_hash
+                            )
+                        }
                         Err(PendingBundleError::BundleNotIncluded) => {
                             println!("Bundle was not included in target block.")
                         }

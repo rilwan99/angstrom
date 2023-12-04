@@ -1,8 +1,7 @@
 use alloy_primitives::Bytes;
 use guard_types::rpc::{
     EcRecoveredComposableLimitOrder, EcRecoveredComposableSearcherOrder, EcRecoveredLimitOrder,
-    EcRecoveredSearcherOrder, SignedComposableLimitOrder, SignedComposableSearcherOrder,
-    SignedLimitOrder, SignedSearcherOrder
+    EcRecoveredSearcherOrder
 };
 use jsonrpsee::{core::RpcResult, PendingSubscriptionSink};
 
@@ -19,7 +18,7 @@ where
 {
     async fn submit_limit_order(&self, order: Bytes) -> RpcResult<bool> {
         if let Ok(order) = order.try_into() {
-            let order: EcRecoveredLimitOrder = order;
+            let _order: EcRecoveredLimitOrder = order;
             todo!()
         } else {
             Ok(false)
@@ -28,7 +27,7 @@ where
 
     async fn submit_searcher_order(&self, order: Bytes) -> RpcResult<bool> {
         if let Ok(order) = order.try_into() {
-            let order: EcRecoveredSearcherOrder = order;
+            let _order: EcRecoveredSearcherOrder = order;
             todo!()
         } else {
             Ok(false)
@@ -37,7 +36,7 @@ where
 
     async fn submit_composable_limit_order(&self, order: Bytes) -> RpcResult<bool> {
         if let Ok(order) = order.try_into() {
-            let order: EcRecoveredComposableLimitOrder = order;
+            let _order: EcRecoveredComposableLimitOrder = order;
             todo!()
         } else {
             Ok(false)
@@ -46,7 +45,7 @@ where
 
     async fn submit_composable_searcher_order(&self, order: Bytes) -> RpcResult<bool> {
         if let Ok(order) = order.try_into() {
-            let order: EcRecoveredComposableSearcherOrder = order;
+            let _order: EcRecoveredComposableSearcherOrder = order;
             todo!()
         } else {
             Ok(false)
@@ -55,8 +54,8 @@ where
 
     async fn subscribe_orders(
         &self,
-        pending: PendingSubscriptionSink,
-        kind: OrderSubscriptionKind
+        _pending: PendingSubscriptionSink,
+        _kind: OrderSubscriptionKind
     ) -> jsonrpsee::core::SubscriptionResult {
         todo!()
     }

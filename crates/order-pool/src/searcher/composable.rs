@@ -53,9 +53,9 @@ where
 }
 
 pub struct PendingPool<CS: PooledSearcherOrder + PooledComposableOrder> {
-    orders:       HashMap<B256, ValidatedOrder<CS, SearcherPriorityData>>,
-    ordered_arbs: BTreeMap<SearcherPriorityData, B256>,
-    size_tracker: SizeTracker
+    orders:        HashMap<B256, ValidatedOrder<CS, SearcherPriorityData>>,
+    ordered_arbs:  BTreeMap<SearcherPriorityData, B256>,
+    _size_tracker: SizeTracker
 }
 
 impl<O: PooledSearcherOrder + PooledComposableOrder> PendingPool<O>
@@ -64,12 +64,13 @@ where
 {
     pub fn new() -> Self {
         Self {
-            orders:       HashMap::new(),
-            ordered_arbs: BTreeMap::new(),
-            size_tracker: SizeTracker::new(Some(SEARCHER_POOL_MAX_SIZE))
+            orders:        HashMap::new(),
+            ordered_arbs:  BTreeMap::new(),
+            _size_tracker: SizeTracker::new(Some(SEARCHER_POOL_MAX_SIZE))
         }
     }
 
+    #[allow(dead_code)]
     pub fn add_order(
         &mut self,
         order: ValidatedOrder<O, SearcherPriorityData>
@@ -100,6 +101,7 @@ where
         Ok(order.order)
     }
 
+    #[allow(dead_code)]
     pub fn winning_order(&self) -> Option<&ValidatedOrder<O, SearcherPriorityData>> {
         self.ordered_arbs
             .first_key_value()

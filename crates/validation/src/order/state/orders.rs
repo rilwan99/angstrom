@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use alloy_primitives::{Address, U256};
-use guard_types::orders::{OrderId, PooledOrder, ValidatedOrder};
+use guard_types::orders::{OrderId, PoolOrder, ValidatedOrder};
 use revm::primitives::HashMap;
 
 /// the sum of all pending orders for a given user. This is done
@@ -14,23 +14,23 @@ pub struct PendingState {
 pub struct UserOrders(HashMap<Address, (PendingState, Vec<OrderId>)>);
 
 impl UserOrders {
-    pub fn new_order<O: PooledOrder, Data: Clone + Debug>(
+    pub fn new_order<O: PoolOrder, Data: Clone + Debug>(
         &mut self,
         order: ValidatedOrder<O, Data>
     ) -> Result<(), ()> {
         let id: OrderId = order.into();
         let _ = self.check_for_nonce_overlap(&id)?;
 
-        let user = id.address;
+        let _user = id.address;
 
         Ok(())
     }
 
     fn apply_new_order_deltas(
         &mut self,
-        token_in: Address,
-        amount_in: Address,
-        state: &mut PendingState
+        _token_in: Address,
+        _amount_in: Address,
+        _state: &mut PendingState
     ) -> Result<(), ()> {
         Ok(())
     }

@@ -1,12 +1,12 @@
 //! CLI definition and entrypoint to executable
 
-use clap::{value_parser, ArgAction, Args, Parser, Subcommand, ValueEnum};
-use eyre::Result;
+use clap::{Parser};
+
 use guard_rpc::{
     api::{ConsensusApiServer, OrderApiServer, QuotingApiServer},
     ConsensusApi, OrderApi, QuotesApi
 };
-use order_pool::OrderPool;
+
 use reth::cli::{
     components::{RethNodeComponents, RethRpcComponents},
     config::{RethNetworkConfig, RethRpcConfig},
@@ -17,12 +17,14 @@ use reth::cli::{
 /// chosen command.
 #[inline]
 pub fn run() -> eyre::Result<()> {
-    Cli::<StaleGuardCliExt>::parse().run()
+    Cli::<StromRethExt>::parse()
+        .with_node_extension(StaleGuardConfig::default())
+        .run()
 }
 
-struct StaleGuardCliExt;
+struct StromRethExt;
 
-impl RethCliExt for StaleGuardCliExt {
+impl RethCliExt for StromRethExt {
     type Node = StaleGuardConfig;
 }
 
@@ -33,11 +35,33 @@ struct StaleGuardConfig {
 }
 
 impl RethNodeCommandConfig for StaleGuardConfig {
+    fn configure_network<Conf, Reth>(
+        &mut self,
+        _config: &mut Conf,
+        _components: &Reth
+    ) -> eyre::Result<()>
+    where
+        Conf: RethNetworkConfig,
+        Reth: RethNodeComponents
+    {
+        //config.add_rlpx_sub_protocol();
+        todo!()
+    }
+
+    #[allow(dead_code)]
+    fn on_components_initialized<Reth: RethNodeComponents>(
+        &mut self,
+        _components: &Reth
+    ) -> eyre::Result<()> {
+        // Initialize the eth interacting modules, aka pool upkeep + consensus
+        todo!()
+    }
+
     fn extend_rpc_modules<Conf, Reth>(
         &mut self,
         _config: &Conf,
         _components: &Reth,
-        mut rpc_components: RethRpcComponents<'_, Reth>
+        rpc_components: RethRpcComponents<'_, Reth>
     ) -> eyre::Result<()>
     where
         Conf: RethRpcConfig,
@@ -60,19 +84,8 @@ impl RethNodeCommandConfig for StaleGuardConfig {
             .modules
             .merge_configured(consensus_api.into_rpc())?;
 
-        Ok(())
-    }
+        //_components.task_executor().spawn_critical();
 
-    fn configure_network<Conf, Reth>(
-        &mut self,
-        config: &mut Conf,
-        components: &Reth
-    ) -> eyre::Result<()>
-    where
-        Conf: RethNetworkConfig,
-        Reth: RethNodeComponents
-    {
-        //config.add_rlpx_sub_protocol();
-        todo!()
+        Ok(())
     }
 }

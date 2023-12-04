@@ -6,7 +6,7 @@ use guard_types::{
     primitive::{Angstrom::Bundle, ExternalStateSim},
     rpc::{CallerInfo, SignedLimitOrder}
 };
-use tokio::sync::{mpsc::unbounded_channel, oneshot::Sender};
+use tokio::sync::oneshot::Sender;
 
 pub mod bundle_validator;
 pub mod errors;
@@ -31,7 +31,6 @@ pub enum BundleOrTransactionResult {
 }
 
 // the simulator is a handle that we use to simulate transactions.
-#[async_trait::async_trait]
 pub trait BundleValidator: Send + Sync + Clone + Unpin {
     /// executes the swap on the underlying v4 pool in order to see what the
     /// limit price for everyone will be

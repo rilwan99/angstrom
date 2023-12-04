@@ -23,9 +23,7 @@ impl StromVersion {
 
     /// Returns the total number of messages the protocol version supports.
     pub const fn total_messages(&self) -> u8 {
-        match self {
-            StromVersion::Strom0 | StromVersion::Strom0 => 5
-        }
+        7
     }
 }
 

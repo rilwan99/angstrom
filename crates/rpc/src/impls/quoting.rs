@@ -17,19 +17,19 @@ where
 {
     async fn quote_transaction(
         &self,
-        token_in: Address,
-        token_out: Address,
-        amount_in: U256,
-        amount_out: U256
+        _token_in: Address,
+        _token_out: Address,
+        _amount_in: U256,
+        _amount_out: U256
     ) -> RpcResult<U256> {
         todo!()
     }
 
     async fn subscribe_quotes(
         &self,
-        pending: PendingSubscriptionSink,
-        kind: QuotingSubscriptionKind,
-        params: Option<QuotingSubscriptionParam>
+        _pending: PendingSubscriptionSink,
+        _kind: QuotingSubscriptionKind,
+        _params: Option<QuotingSubscriptionParam>
     ) -> jsonrpsee::core::SubscriptionResult {
         todo!()
     }

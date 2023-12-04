@@ -1,4 +1,3 @@
-#![feature(result_option_inspect)]
 mod core;
 mod evidence;
 mod manager;

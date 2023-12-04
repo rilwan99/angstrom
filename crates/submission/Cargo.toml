@@ -1,0 +1,41 @@
+[package]
+name = "guard-submission"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+pin-project.workspace = true
+serde.workspace = true
+
+
+guard-types.workspace = true
+guard-utils.workspace = true
+
+tokio-stream.workspace = true
+futures-util.worskpace = true
+tokio.workspace = true
+futures.workspace = true
+# reth
+reth-provider.workspace = true
+
+# alloy  
+alloy-primitives.workspace = true
+#alloy-providers.workspace = true
+
+# ethers
+ethers-middleware.workspace = true
+ethers-signers.workspace = true
+ethers-providers.workspace = true
+ethers-flashbots = "0.14.0"
+ethers-core.workspace = true
+
+# misc
+anyhow.workspace = true

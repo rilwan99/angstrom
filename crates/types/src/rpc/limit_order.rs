@@ -1,18 +1,12 @@
-use std::{
-    collections::HashMap,
-    ops::{Add, Deref, DerefMut}
-};
+use std::collections::HashMap;
 
 use alloy_primitives::{Address, TxHash, U256};
-use alloy_rlp::{Decodable, Encodable, Error};
+use alloy_rlp::Decodable;
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use alloy_sol_types::SolStruct;
 use derive_more::{AsRef, Deref};
-use open_fastrlp::DecodeError;
-use reth_primitives::{recover_signer, Signature as ESignature};
 use secp256k1::Error as SigError;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 use crate::primitive::{ComposableOrder, Order, Signature, ANGSTROM_DOMAIN};
 

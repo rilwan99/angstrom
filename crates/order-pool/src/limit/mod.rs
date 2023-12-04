@@ -2,8 +2,8 @@ use std::{collections::HashMap, fmt::Debug};
 
 use guard_types::{
     orders::{
-        OrderId, OrderLocation, OrderPriorityData, PooledComposableOrder, PooledLimitOrder,
-        PooledOrder, ValidatedOrder
+        OrderId, OrderLocation, OrderPriorityData, PoolOrder, PooledComposableOrder,
+        PooledLimitOrder, ValidatedOrder
     },
     primitive::PoolId
 };
@@ -70,7 +70,7 @@ where
             return Err(LimitPoolError::MaxSize)
         }
 
-        let location = self.limit_orders.add_order(order)?;
+        let _location = self.limit_orders.add_order(order)?;
 
         Ok(())
 
@@ -92,6 +92,7 @@ where
         )
     }
 
+    #[allow(dead_code)]
     pub fn remove_limit_order(&mut self, order_hash: &B256, location: OrderLocation) -> Option<O> {
         todo!()
     }
@@ -108,7 +109,7 @@ where
     C: PooledComposableOrder + PooledLimitOrder
 {
     /// Helper function for unzipping and size adjustment
-    fn filter_option_and_adjust_size<O: PooledOrder>(
+    fn filter_option_and_adjust_size<O: PoolOrder>(
         &mut self,
         order: Vec<Option<ValidatedOrder<O, OrderPriorityData>>>
     ) -> Vec<ValidatedOrder<O, OrderPriorityData>> {

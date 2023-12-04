@@ -1,13 +1,13 @@
 use std::{cmp::Reverse, collections::BTreeMap};
 
-use guard_types::orders::{OrderPriorityData, PooledOrder, ValidatedOrder};
+use guard_types::orders::{OrderPriorityData, PoolOrder, ValidatedOrder};
 use reth_primitives::B256;
 use revm::primitives::HashMap;
 use tokio::sync::broadcast;
 
 use crate::common::BidAndAsks;
 
-pub struct PendingPool<O: PooledOrder> {
+pub struct PendingPool<O: PoolOrder> {
     /// all order hashes
     orders:                   HashMap<B256, ValidatedOrder<O, OrderPriorityData>>,
     /// bids are sorted descending by price, TODO: This should be binned into
@@ -20,9 +20,9 @@ pub struct PendingPool<O: PooledOrder> {
     new_transaction_notifier: broadcast::Sender<ValidatedOrder<O, OrderPriorityData>>
 }
 
-impl<O: PooledOrder> PendingPool<O>
+impl<O: PoolOrder> PendingPool<O>
 where
-    O: PooledOrder<ValidationData = ValidatedOrder<O, OrderPriorityData>>
+    O: PoolOrder<ValidationData = ValidatedOrder<O, OrderPriorityData>>
 {
     pub fn new(notifier: broadcast::Sender<ValidatedOrder<O, OrderPriorityData>>) -> Self {
         Self {
@@ -157,7 +157,7 @@ pub mod test {
         deadline: u128
     }
 
-    impl PooledOrder for NoopOrder {
+    impl PoolOrder for NoopOrder {
         type ValidationData = ();
 
         fn is_bid(&self) -> bool {

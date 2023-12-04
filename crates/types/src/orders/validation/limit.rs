@@ -3,18 +3,15 @@ use std::fmt::Debug;
 use alloy_primitives::{Address, Bytes, TxHash, U256};
 
 use super::{
-    super::{OrderId, OrderOrigin, PooledComposableOrder, PooledOrder},
+    super::{PoolOrder, PooledComposableOrder},
     ValidatedOrder
 };
 use crate::{
-    primitive::{ComposableOrder, Order, PoolId},
-    rpc::{
-        EcRecoveredComposableLimitOrder, EcRecoveredComposableSearcherOrder, EcRecoveredLimitOrder,
-        EcRecoveredSearcherOrder, SignedComposableLimitOrder
-    }
+    primitive::PoolId,
+    rpc::{EcRecoveredComposableLimitOrder, EcRecoveredLimitOrder}
 };
 
-pub trait PooledLimitOrder: PooledOrder {
+pub trait PooledLimitOrder: PoolOrder {
     /// The liquidity pool this order trades in
     fn pool_and_direction(&self) -> (PoolId, bool);
 }
@@ -44,7 +41,7 @@ impl Ord for OrderPriorityData {
 
 impl<O> ValidatedOrder<O, OrderPriorityData>
 where
-    O: PooledOrder
+    O: PoolOrder
 {
     pub fn pool_id(&self) -> usize {
         self.pool_id
@@ -59,7 +56,7 @@ where
     }
 }
 
-impl PooledOrder for EcRecoveredLimitOrder {
+impl PoolOrder for EcRecoveredLimitOrder {
     type ValidationData = ValidatedOrder<Self, OrderPriorityData>;
 
     fn is_valid(&self) -> bool {
@@ -122,7 +119,7 @@ impl PooledLimitOrder for EcRecoveredLimitOrder {
     }
 }
 
-impl PooledOrder for EcRecoveredComposableLimitOrder {
+impl PoolOrder for EcRecoveredComposableLimitOrder {
     type ValidationData = ValidatedOrder<Self, OrderPriorityData>;
 
     fn is_valid(&self) -> bool {

@@ -26,7 +26,7 @@ impl SubmitState {
         todo!()
     }
 
-    pub fn on_new_commit(&mut self, commit: ()) {
+    pub fn on_new_commit(&mut self, _commit: ()) {
         // check if contains if
         if self.current_commits.len() == self.needed_commits {
             self.can_send = true;

@@ -8,7 +8,7 @@ use std::{
 use ethers_core::types::{Block, H256};
 use futures::{Stream, StreamExt};
 use guard_types::{
-    consensus::{Commit, Evidence, EvidenceError, PreProposal, Proposal},
+    consensus::{Commit, EvidenceError, PreProposal, Proposal},
     submission::BestBundles
 };
 use reth_provider::CanonStateNotifications;
@@ -16,9 +16,7 @@ use thiserror::Error;
 use tracing::error;
 
 use crate::{
-    evidence::EvidenceCollector,
-    round::{propose::ProposeState, RoundState},
-    round_robin_algo::RoundRobinAlgo,
+    evidence::EvidenceCollector, round::RoundState, round_robin_algo::RoundRobinAlgo,
     signer::Signer
 };
 
@@ -90,19 +88,23 @@ impl ConsensusCore {
         }
     }
 
-    pub fn new_pre_propose(&mut self, commit: PreProposal) {
+    #[allow(dead_code)]
+    pub fn new_pre_propose(&mut self, _commit: PreProposal) {
         todo!()
     }
 
-    pub fn proposal(&mut self, proposal: Proposal) {
+    #[allow(dead_code)]
+    pub fn proposal(&mut self, _proposal: Proposal) {
         todo!()
     }
 
-    pub fn proposal_commit(&mut self, commit: Commit) {
+    #[allow(dead_code)]
+    pub fn proposal_commit(&mut self, _commit: Commit) {
         todo!()
     }
 
-    pub fn better_bundle(&mut self, bundle_data: BestBundles) {
+    #[allow(dead_code)]
+    pub fn better_bundle(&mut self, _bundle_data: BestBundles) {
         todo!()
     }
 }

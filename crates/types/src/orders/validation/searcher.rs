@@ -1,15 +1,12 @@
 use alloy_primitives::{Address, Bytes, TxHash, U256};
 
 use super::{
-    super::{OrderId, OrderOrigin, PooledComposableOrder, PooledOrder},
+    super::{PoolOrder, PooledComposableOrder},
     ValidatedOrder
 };
-use crate::{
-    primitive::{ComposableOrder, Order, PoolId, PoolKey},
-    rpc::{EcRecoveredComposableSearcherOrder, EcRecoveredSearcherOrder}
-};
+use crate::rpc::{EcRecoveredComposableSearcherOrder, EcRecoveredSearcherOrder};
 
-pub trait PooledSearcherOrder: PooledOrder {
+pub trait PooledSearcherOrder: PoolOrder {
     /// The liquidity pool this order trades in
     fn pool(&self) -> u8;
     /// donate value
@@ -65,7 +62,7 @@ impl Ord for SearcherPriorityData {
     }
 }
 
-impl PooledOrder for EcRecoveredSearcherOrder {
+impl PoolOrder for EcRecoveredSearcherOrder {
     type ValidationData = ValidatedOrder<Self, SearcherPriorityData>;
 
     fn is_valid(&self) -> bool {
@@ -143,7 +140,7 @@ impl PooledSearcherOrder for EcRecoveredSearcherOrder {
     }
 }
 
-impl PooledOrder for EcRecoveredComposableSearcherOrder {
+impl PoolOrder for EcRecoveredComposableSearcherOrder {
     type ValidationData = ();
 
     fn is_valid(&self) -> bool {

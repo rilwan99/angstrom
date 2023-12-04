@@ -1,23 +1,26 @@
 use guard_types::{
-    orders::{OrderId, OrderPriorityData, PooledLimitOrder, PooledOrder, ValidatedOrder},
+    orders::{OrderId, OrderPriorityData, PoolOrder, PooledLimitOrder, ValidatedOrder},
     primitive::PoolId
 };
 
 use super::{parked::ParkedPool, pending::PendingPool, LimitPoolError, OrderLocation};
 use crate::common::BidAndAsks;
+
+#[allow(dead_code)]
 pub struct LimitPool<T: PooledLimitOrder> {
     pending_orders: Vec<PendingPool<T>>,
     parked_orders:  Vec<ParkedPool<T>>
 }
-
+#[allow(dead_code)]
 impl<O: PooledLimitOrder> LimitPool<O>
 where
-    O: PooledOrder<ValidationData = ValidatedOrder<O, OrderPriorityData>>
+    O: PoolOrder<ValidationData = ValidatedOrder<O, OrderPriorityData>>
 {
     pub fn new() -> Self {
         todo!()
     }
 
+    #[allow(dead_code)]
     pub fn add_order(
         &mut self,
         order: ValidatedOrder<O, OrderPriorityData>

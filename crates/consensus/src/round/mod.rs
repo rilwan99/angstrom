@@ -5,15 +5,13 @@ use std::{
     time::Duration
 };
 
-use futures::{Future, Stream, StreamExt};
+use futures::{Future, Stream};
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
     submission::BestBundles
 };
-use guard_utils::{
-    return_if, AtomicConsensus, ConsensusState, IsLeader, PollExt, ORDER_ACCUMULATION
-};
-use reth_primitives::H512;
+use guard_utils::{return_if, AtomicConsensus, ConsensusState, IsLeader, ORDER_ACCUMULATION};
+use reth_primitives::B512;
 
 use self::{
     commit::CommitState, completed::CompletedState, order_accumulation::OrderAccumulationState,
@@ -36,7 +34,7 @@ pub struct RoundState {
     /// If this guard is leader for the given height
     is_leader:      IsLeader,
     /// The current leader address,
-    leader_address: H512,
+    leader_address: B512,
     /// global consensus state indicator
     consensus:      AtomicConsensus,
     /// the current action we should be taking at the moment of
@@ -49,7 +47,7 @@ impl RoundState {
         height: u64,
         is_leader: IsLeader,
         consensus: AtomicConsensus,
-        leader_address: H512
+        leader_address: B512
     ) -> Self {
         Self {
             is_leader: is_leader.clone(),
@@ -60,7 +58,7 @@ impl RoundState {
         }
     }
 
-    pub fn new_height(&mut self, block_height: u64, leader_address: H512, is_leader: bool) {
+    pub fn new_height(&mut self, block_height: u64, leader_address: B512, is_leader: bool) {
         assert!(block_height > self.height);
 
         self.height = block_height;
@@ -74,18 +72,22 @@ impl RoundState {
         self.height
     }
 
-    pub fn on_commit(&mut self, commit: Commit) {
+    #[allow(dead_code)]
+    pub fn on_commit(&mut self, _commit: Commit) {
         todo!()
     }
 
-    pub fn on_proposal(&mut self, proposal: Proposal) {
+    #[allow(dead_code)]
+    pub fn on_proposal(&mut self, _proposal: Proposal) {
         todo!()
     }
 
-    pub fn on_pre_propose(&mut self, pre_propose: PreProposal) {
+    #[allow(dead_code)]
+    pub fn on_pre_propose(&mut self, _pre_propose: PreProposal) {
         todo!()
     }
 
+    #[allow(dead_code)]
     // will be updated to include the lower bound and other stuff
     pub fn new_best_details(&mut self, bundle_details: BestBundles) {
         let state = self.consensus.get_current_state();
@@ -187,7 +189,7 @@ impl RoundAction {
         ))
     }
 
-    pub fn new_best_details(&mut self, bundle_details: BestBundles) {
+    pub fn new_best_details(&mut self, _bundle_details: BestBundles) {
         todo!()
     }
 }

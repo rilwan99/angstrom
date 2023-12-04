@@ -28,7 +28,7 @@ impl CommitState {
         Self { best_bundle: commited_bundle, waker, vote: None }
     }
 
-    pub fn on_proposal(&mut self, proposal: Proposal) {
+    pub fn on_proposal(&mut self, _proposal: Proposal) {
         // some code here to check the proposal against our bundle
         // to make sure that the lower bound and other stuff is
         // up to standard.

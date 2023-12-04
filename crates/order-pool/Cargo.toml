@@ -20,8 +20,9 @@ normal = [
 # guard 
 guard-types.workspace = true
 validation.workspace = true
-eth.workspace = true
+guard-eth.workspace = true
 guard-utils.workspace = true
+
 
 # reth
 reth-primitives.workspace = true
