@@ -1,5 +1,8 @@
+use std::pin::Pin;
+
+use futures::{Stream, StreamExt};
 use futures_util::Future;
-use guard_eth::EthEvent;
+use guard_eth::manager::EthEvent;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{

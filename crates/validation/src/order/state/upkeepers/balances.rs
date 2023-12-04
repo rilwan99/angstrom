@@ -3,8 +3,10 @@ use std::{collections::HashMap, sync::Arc};
 use alloy_primitives::{keccak256, Address, B256, U256};
 use parking_lot::RwLock;
 use reth_provider::StateProvider;
+use alloy_sol_macro::sol;
 
 sol!( function balanceOf( address who ) public view returns (uint value););
+
 #[derive(Clone)]
 pub struct Balances(HashMap<Address, U256>);
 
