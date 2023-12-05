@@ -9,7 +9,7 @@ use guard_types::{
 };
 use tokio::sync::oneshot::{channel, Sender};
 
-use crate::validatior::ValidationRequest;
+use crate::validator::ValidationRequest;
 
 pub mod order_validator;
 pub mod sim;

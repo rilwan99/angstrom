@@ -4,6 +4,7 @@ use alloy_primitives::{keccak256, Address, B256, U256};
 use alloy_sol_macro::sol;
 use parking_lot::RwLock;
 use reth_provider::{StateProvider, StateProviderFactory};
+use revm::DatabaseRef;
 
 use crate::order::state::RevmLRU;
 
@@ -30,6 +31,6 @@ impl Approvals {
         slot.extend(slot_i.to_be_bytes::<32>().to_vec());
         let slot_addr = keccak256(slot);
 
-        db.storage(token, slot_addr).unwrap()
+        db.storage_ref(token, U256::from_be_bytes(*slot_addr)).ok()
     }
 }

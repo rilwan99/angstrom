@@ -1,9 +1,10 @@
-use std::{any, collections::HashMap, fmt::Debug};
+use std::{collections::HashMap, fmt::Debug};
 
 use alloy_primitives::{Address, U256};
 use guard_types::orders::{
-    OrderId, OrderLocation, OrderPriorityData, OrderValidationOutcome, PoolOrder, PooledLimitOrder,
-    PooledSearcherOrder, SearcherPriorityData, StateValidationError, ValidatedOrder
+    OrderLocation, OrderPriorityData, OrderValidationOutcome, PoolOrder, PooledLimitOrder,
+    PooledSearcherOrder, SearcherPriorityData, StateValidationError, ValidatedOrder,
+    ValidationError
 };
 
 use super::upkeepers::UserAccountDetails;
@@ -69,10 +70,13 @@ impl UserOrders {
             || !deltas.is_valid_pool
             || self.has_nonce_overlap(&order.from(), &order.nonce())
         {
-            return OrderValidationOutcome::Error(
-                order.hash(),
-                StateValidationError::InvalidNonce(order.hash(), order.nonce())
-            )
+            return OrderValidationOutcome::Invalid(
+                order,
+                ValidationError::StateValidationError(StateValidationError::InvalidNonce(
+                    order.hash(),
+                    order.nonce()
+                ))
+            );
         }
 
         let user = order.from();
@@ -96,10 +100,14 @@ impl UserOrders {
 
         // subtract token in from approval
         if let Some(token) = pending_state.token_approvals.get_mut(&order.token_in()) {
-            if token.clone().checked_sub(order.amount_in()).is_none() {
+            if token
+                .clone()
+                .checked_sub(order.amount_in().into())
+                .is_none()
+            {
                 has_balances = false;
             } else {
-                token -= order.amount_in();
+                *token -= order.amount_in().into();
             }
         } else {
             has_balances = false;
@@ -108,24 +116,28 @@ impl UserOrders {
         // if approvals passed check balances
         if has_balances {
             if let Some(token) = pending_state.token_balances.get_mut(&order.token_in()) {
-                if token.clone().checked_sub(order.amount_in()).is_none() {
+                if token
+                    .clone()
+                    .checked_sub(order.amount_in().into())
+                    .is_none()
+                {
                     // add balance back to approval
                     // NOTE: default will never be called here
                     *pending_state
                         .token_approvals
-                        .entry(&order.token_in())
-                        .or_default() += order.amount_in();
+                        .entry(order.token_in())
+                        .or_default() += order.amount_in().into();
 
                     has_balances = false;
                 } else {
-                    token -= order.amount_in();
+                    *token -= order.amount_in().into();
                 }
             } else {
                 // NOTE: default will never be called here
                 *pending_state
                     .token_approvals
-                    .entry(&order.token_in())
-                    .or_default() += order.amount_in();
+                    .entry(order.token_in())
+                    .or_default() += order.amount_in().into();
 
                 has_balances = false;
             }
@@ -153,7 +165,7 @@ impl UserOrders {
             }
         };
 
-        Ok(OrderValidationOutcome::Valid { order: res, propagate: true })
+        OrderValidationOutcome::Valid { order: res, propagate: true }
     }
 
     /// Helper function for checking for duplicates when adding orders

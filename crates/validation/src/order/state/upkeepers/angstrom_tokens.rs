@@ -1,5 +1,9 @@
+use std::{collections::HashSet, sync::Arc};
+
 use alloy_primitives::{hex, Address, FixedBytes};
-use revm_primitives::HashSet;
+use reth_provider::StateProviderFactory;
+
+use crate::common::lru_db::RevmLRU;
 
 const ANGSTROM_ADDRESS: Address =
     Address(FixedBytes(hex!("680A025Da7b1be2c204D7745e809919bCE074026")));
@@ -14,9 +18,14 @@ impl AngstromTokens {
         this
     }
 
-    pub fn get_all_tokens(&self) -> &HashSet<Address> {}
+    pub fn get_all_tokens(&self) -> &HashSet<Address> {
+        &self.current_tokens
+    }
 
-    pub fn check_for_new_tokens<DB>(&mut self, db: DB) -> HashSet<Address> {
+    pub fn check_for_new_tokens<DB: StateProviderFactory>(
+        &mut self,
+        db: Arc<RevmLRU<DB>>
+    ) -> HashSet<Address> {
         todo!()
     }
 }

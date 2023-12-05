@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use alloy_primitives::{hex, Address, U256};
-use reth_provider::StateProvider;
+use reth_provider::StateProviderFactory;
 
 use crate::order::state::RevmLRU;
 
@@ -15,7 +15,7 @@ const ANGSTROM_NONCE_LOCATION: U256 = U256::ZERO;
 pub struct Nonces;
 
 impl Nonces {
-    pub fn is_valid_nonce<DB: StateProvider>(
+    pub fn is_valid_nonce<DB: StateProviderFactory>(
         &self,
         user: Address,
         nonce: U256,

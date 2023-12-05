@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use alloy_primitives::{Address, FixedBytes};
 
 #[allow(dead_code)]
-pub struct AngstromPools(HashMap<[u8; 40], (bool, usize)>);
+pub struct AngstromPools(HashMap<FixedBytes<40>, (bool, usize)>);
 
 impl AngstromPools {
     #[allow(dead_code)]
@@ -20,7 +20,7 @@ impl AngstromPools {
         is_bid: bool
     ) {
         self.0
-            .insert(self.get_key(currency_in, currency_out), (pool_id, is_bid));
+            .insert(self.get_key(currency_in, currency_out), (is_bid, pool_id));
     }
 
     #[allow(dead_code)]

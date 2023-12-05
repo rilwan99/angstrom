@@ -36,7 +36,10 @@ where
     }
 }
 
-impl<DB> Future for OrderValidator<DB> {
+impl<DB> Future for OrderValidator<DB>
+where
+    DB: StateProviderFactory + Unpin + 'static
+{
     type Output = ();
 
     fn poll(
