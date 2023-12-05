@@ -58,7 +58,7 @@ where
 }
 
 impl PoolOrder for EcRecoveredLimitOrder {
-    type ValidationData = ValidatedOrder<Self, OrderPriorityData>;
+    type ValidationData = OrderPriorityData;
 
     fn is_valid(&self) -> bool {
         todo!()
@@ -129,7 +129,7 @@ impl PooledLimitOrder for EcRecoveredLimitOrder {
 }
 
 impl PoolOrder for EcRecoveredComposableLimitOrder {
-    type ValidationData = ValidatedOrder<Self, OrderPriorityData>;
+    type ValidationData = OrderPriorityData;
 
     fn is_valid(&self) -> bool {
         todo!()

@@ -51,7 +51,7 @@ impl Upkeepers {
             .nonces
             .is_valid_nonce(order.from(), order.nonce(), db.clone());
 
-        let (pool_id, is_bid) = self
+        let (is_bid, pool_id) = self
             .pools
             .order_info(order.token_in(), order.token_out())
             .unwrap();

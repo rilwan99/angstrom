@@ -57,7 +57,7 @@ impl UserOrders {
     fn basic_order_validation<
         O: PoolOrder<ValidationData = Data>,
         Data: Send + Debug + Sync + Clone + Unpin + 'static,
-        F: FnOnce(O) -> Data
+        F: FnOnce(&O) -> Data
     >(
         &mut self,
         order: O,
@@ -70,11 +70,12 @@ impl UserOrders {
             || !deltas.is_valid_pool
             || self.has_nonce_overlap(&order.from(), &order.nonce())
         {
+            let hash = order.hash();
+            let nonce = order.nonce();
             return OrderValidationOutcome::Invalid(
                 order,
                 ValidationError::StateValidationError(StateValidationError::InvalidNonce(
-                    order.hash(),
-                    order.nonce()
+                    hash, nonce
                 ))
             );
         }
@@ -102,12 +103,12 @@ impl UserOrders {
         if let Some(token) = pending_state.token_approvals.get_mut(&order.token_in()) {
             if token
                 .clone()
-                .checked_sub(order.amount_in().into())
+                .checked_sub(U256::from(order.amount_in()))
                 .is_none()
             {
                 has_balances = false;
             } else {
-                *token -= order.amount_in().into();
+                *token -= U256::from(order.amount_in());
             }
         } else {
             has_balances = false;
@@ -118,7 +119,7 @@ impl UserOrders {
             if let Some(token) = pending_state.token_balances.get_mut(&order.token_in()) {
                 if token
                     .clone()
-                    .checked_sub(order.amount_in().into())
+                    .checked_sub(U256::from(order.amount_in()))
                     .is_none()
                 {
                     // add balance back to approval
@@ -126,18 +127,18 @@ impl UserOrders {
                     *pending_state
                         .token_approvals
                         .entry(order.token_in())
-                        .or_default() += order.amount_in().into();
+                        .or_default() += U256::from(order.amount_in());
 
                     has_balances = false;
                 } else {
-                    *token -= order.amount_in().into();
+                    *token -= U256::from(order.amount_in());
                 }
             } else {
                 // NOTE: default will never be called here
                 *pending_state
                     .token_approvals
                     .entry(order.token_in())
-                    .or_default() += order.amount_in().into();
+                    .or_default() += U256::from(order.amount_in());
 
                 has_balances = false;
             }
@@ -147,7 +148,7 @@ impl UserOrders {
         // token balances to allow multi hop with different
         // intents within a single transaction
 
-        let data = build_priority(order);
+        let data = build_priority(&order);
 
         let res = ValidatedOrder {
             order,

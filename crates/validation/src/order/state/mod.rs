@@ -45,7 +45,7 @@ pub struct StateValidation<DB> {
 
 impl<DB> StateValidation<DB>
 where
-    DB: StateProviderFactory + Send
+    DB: StateProviderFactory + Unpin + 'static
 {
     pub fn new(_db: Arc<RevmLRU<DB>>) -> Self {
         todo!()
@@ -86,11 +86,11 @@ where
     fn on_task_resolve(&mut self, request: OrderValidationRequest, details: UserAccountDetails) {
         match request {
             OrderValidationRequest::ValidateLimit(tx, orign, order) => {
-                let result = self.user_orders.new_limit_order(order, details).unwrap();
+                let result = self.user_orders.new_limit_order(order, details);
                 tx.send(result);
             }
             OrderValidationRequest::ValidateSearcher(tx, origin, order) => {
-                let result = self.user_orders.new_searcher_order(order, details).unwrap();
+                let result = self.user_orders.new_searcher_order(order, details);
                 tx.send(result);
             }
             _ => unreachable!()
@@ -100,7 +100,7 @@ where
 
 impl<DB> Stream for StateValidation<DB>
 where
-    DB: StateProviderFactory + Send
+    DB: StateProviderFactory + Unpin + 'static
 {
     // if the task is a composable order, we stream it up
     type Item = ();

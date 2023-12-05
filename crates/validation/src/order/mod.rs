@@ -17,11 +17,11 @@ pub mod state;
 
 use crate::validator::ValidationClient;
 
-pub type ValidationFuture<O> =
-    Pin<Box<dyn Future<Output = OrderValidationOutcome<O>> + Send + Sync>>;
+pub type ValidationFuture<'a, O> =
+    Pin<Box<dyn Future<Output = OrderValidationOutcome<O>> + Send + Sync + 'a>>;
 
-pub type ValidationsFuture<O> =
-    Pin<Box<dyn Future<Output = Vec<OrderValidationOutcome<O>>> + Send + Sync>>;
+pub type ValidationsFuture<'a, O> =
+    Pin<Box<dyn Future<Output = Vec<OrderValidationOutcome<O>>> + Send + Sync + 'a>>;
 
 pub enum OrderValidationRequest {
     ValidateLimit(
@@ -155,7 +155,7 @@ impl OrderValidator for ValidationClient {
         origin: OrderOrigin,
         transaction: Self::LimitOrder
     ) -> ValidationFuture<Self::LimitOrder> {
-        Box::pin(async {
+        Box::pin(async move {
             let (tx, rx) = channel();
             let _ = self
                 .0
@@ -174,7 +174,7 @@ impl OrderValidator for ValidationClient {
         origin: OrderOrigin,
         transaction: Self::ComposableLimitOrder
     ) -> ValidationFuture<Self::ComposableLimitOrder> {
-        Box::pin(async {
+        Box::pin(async move {
             let (tx, rx) = channel();
             let _ = self.0.send(ValidationRequest::Order(
                 OrderValidationRequest::ValidateComposableLimit(tx, origin, transaction)
@@ -189,7 +189,7 @@ impl OrderValidator for ValidationClient {
         origin: OrderOrigin,
         transaction: Self::SearcherOrder
     ) -> ValidationFuture<Self::SearcherOrder> {
-        Box::pin(async {
+        Box::pin(async move {
             let (tx, rx) = channel();
             let _ =
                 self.0
@@ -208,7 +208,7 @@ impl OrderValidator for ValidationClient {
         origin: OrderOrigin,
         transaction: Self::ComposableSearcherOrder
     ) -> ValidationFuture<Self::ComposableSearcherOrder> {
-        Box::pin(async {
+        Box::pin(async move {
             let (tx, rx) = channel();
             let _ = self.0.send(ValidationRequest::Order(
                 OrderValidationRequest::ValidateComposableSearcher(tx, origin, transaction)

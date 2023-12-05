@@ -15,7 +15,7 @@ pub struct OrderValidator<DB> {
 
 impl<DB> OrderValidator<DB>
 where
-    DB: StateProviderFactory
+    DB: StateProviderFactory + Unpin + 'static
 {
     /// only checks state
     pub fn validate_order(&mut self, order: OrderValidationRequest) {
