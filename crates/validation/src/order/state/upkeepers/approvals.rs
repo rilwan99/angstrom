@@ -3,7 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use alloy_primitives::{keccak256, Address, B256, U256};
 use alloy_sol_macro::sol;
 use parking_lot::RwLock;
-use reth_provider::StateProvider;
+use reth_provider::{StateProvider, StateProviderFactory};
 
 use crate::order::state::RevmLRU;
 
@@ -19,7 +19,7 @@ impl Approvals {
         Self(current_slots)
     }
 
-    pub fn fetch_approval_balance_for_token<DB: StateProvider>(
+    pub fn fetch_approval_balance_for_token<DB: StateProviderFactory>(
         &self,
         user: Address,
         token: Address,

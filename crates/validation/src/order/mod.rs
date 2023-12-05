@@ -9,6 +9,8 @@ use guard_types::{
 };
 use tokio::sync::oneshot::{channel, Sender};
 
+use crate::validatior::ValidationRequest;
+
 pub mod order_validator;
 pub mod sim;
 pub mod state;
@@ -142,11 +144,11 @@ impl OrderValidator for ValidationClient {
     /// The transaction type of the composable limit order pool
     type ComposableLimitOrder = EcRecoveredComposableLimitOrder;
     /// The transaction type of the composable searcher pool
-    type ComposableSearcherOrder = EcRecoveredSearcherOrder;
+    type ComposableSearcherOrder = EcRecoveredComposableSearcherOrder;
     /// The order type of the limit order pool
     type LimitOrder = EcRecoveredLimitOrder;
     /// The transaction type of the searcher order pool
-    type SearcherOrder = EcRecoveredComposableSearcherOrder;
+    type SearcherOrder = EcRecoveredSearcherOrder;
 
     fn validate_order(
         &self,
@@ -157,7 +159,11 @@ impl OrderValidator for ValidationClient {
             let (tx, rx) = channel();
             let _ = self
                 .0
-                .send(OrderValidationRequest::ValidateLimit(tx, origin, transaction));
+                .send(ValidationRequest::Order(OrderValidationRequest::ValidateLimit(
+                    tx,
+                    origin,
+                    transaction
+                )));
 
             rx.await.unwrap()
         })
@@ -170,10 +176,8 @@ impl OrderValidator for ValidationClient {
     ) -> ValidationFuture<Self::ComposableLimitOrder> {
         Box::pin(async {
             let (tx, rx) = channel();
-            let _ = self.0.send(OrderValidationRequest::ValidateComposableLimit(
-                tx,
-                origin,
-                transaction
+            let _ = self.0.send(ValidationRequest::Order(
+                OrderValidationRequest::ValidateComposableLimit(tx, origin, transaction)
             ));
 
             rx.await.unwrap()
@@ -187,9 +191,13 @@ impl OrderValidator for ValidationClient {
     ) -> ValidationFuture<Self::SearcherOrder> {
         Box::pin(async {
             let (tx, rx) = channel();
-            let _ = self
-                .0
-                .send(OrderValidationRequest::ValidateSearcher(tx, origin, transaction));
+            let _ =
+                self.0
+                    .send(ValidationRequest::Order(OrderValidationRequest::ValidateSearcher(
+                        tx,
+                        origin,
+                        transaction
+                    )));
 
             rx.await.unwrap()
         })
@@ -202,9 +210,9 @@ impl OrderValidator for ValidationClient {
     ) -> ValidationFuture<Self::ComposableSearcherOrder> {
         Box::pin(async {
             let (tx, rx) = channel();
-            let _ = self
-                .0
-                .send(OrderValidationRequest::ValidateComposableSearcher(tx, origin, transaction));
+            let _ = self.0.send(ValidationRequest::Order(
+                OrderValidationRequest::ValidateComposableSearcher(tx, origin, transaction)
+            ));
 
             rx.await.unwrap()
         })
