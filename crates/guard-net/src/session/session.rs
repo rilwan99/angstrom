@@ -121,14 +121,23 @@ impl Stream for StromSession {
                         // terminate this session
                         return Poll::Ready(None)
                     }
-                    Poll::Ready(Some(command)) => match command {
-                        SessionCommand::Disconnect { direction: _ } => {
-                            return this.emit_disconnect(cx)
-                        }
-                        SessionCommand::Message(msg) => {
-                            let mut bytes = BytesMut::new();
-                            msg.encode(&mut bytes);
-                            return Poll::Ready(Some(bytes))
+                    Poll::Ready(Some(command)) => {
+                        return match command {
+                            //TODO: maybe we could find a way to disconnect by sending the
+                            // underlying disconnect reason to the wire
+                            // so the peer receives it
+                            SessionCommand::Disconnect { reason: _reason } => {
+                                this.emit_disconnect(cx)
+                            }
+                            SessionCommand::Message(msg) => {
+                                let msg = StromProtocolMessage {
+                                    message_type: msg.message_id(),
+                                    message:      msg
+                                };
+                                let mut bytes = BytesMut::with_capacity(msg.length());
+                                msg.encode(&mut bytes);
+                                Poll::Ready(Some(bytes))
+                            }
                         }
                     }
                 }

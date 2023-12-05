@@ -8,8 +8,5 @@ pub use message::*;
 
 pub mod broadcast;
 
-pub mod events;
-pub use events::*;
-
 pub mod status;
 pub use status::*;

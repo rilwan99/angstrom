@@ -2,7 +2,7 @@ use reth_network::Direction;
 use reth_primitives::PeerId;
 use tokio::{sync::mpsc, time::Instant};
 
-use crate::types::message::StromProtocolMessage;
+use crate::{session::DisconnectReason, types::message::StromMessage};
 /// Commands that can be sent to the spawned session.
 //TODO: Create a subvariant of messages only for bidirectional messages received during an active
 // session
@@ -11,10 +11,10 @@ pub enum SessionCommand {
     /// Disconnect the connection
     Disconnect {
         /// The direction of the session, either `Inbound` or `Outgoing`
-        direction: Direction
+        reason: Option<DisconnectReason>
     },
     /// Sends a message to the peer
-    Message(StromProtocolMessage)
+    Message(StromMessage)
 }
 
 /// An established session with a remote peer.
@@ -30,4 +30,16 @@ pub struct StromSessionHandle {
     /// Sender half of the command channel used send commands _to_ the spawned
     /// session
     pub(crate) commands_to_session: mpsc::Sender<SessionCommand>
+}
+
+impl StromSessionHandle {
+    /// Sends a disconnect command to the session.
+    pub fn disconnect(&self, reason: Option<DisconnectReason>) {
+        // Note: we clone the sender which ensures the channel has capacity to send the
+        // message
+        let _ = self
+            .commands_to_session
+            .clone()
+            .try_send(SessionCommand::Disconnect { reason });
+    }
 }
