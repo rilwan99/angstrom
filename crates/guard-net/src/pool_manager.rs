@@ -6,16 +6,25 @@ use std::{
     task::{Context, Poll}
 };
 
-use futures::{stream::FuturesUnordered, Future, StreamExt};
+use futures::{stream::FuturesUnordered, Future, FutureExt, StreamExt};
 use guard_eth::manager::EthEvent;
-use guard_types::orders::{GetPooledOrders, Orders};
-use order_pool::traits::OrderPool;
+use guard_types::{
+    orders::{
+        GetPooledOrders, OrderId, OrderLocation, OrderOrigin, OrderPriorityData, Orders,
+        PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder,
+        SearcherPriorityData, ValidatedOrder, ValidationResults
+    },
+    primitive::PoolId,
+    rpc::*
+};
+use order_pool::{OrderPool, OrderPoolInner};
 use reth_primitives::{PeerId, TxHash, B256};
 use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
     oneshot
 };
 use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
+use validation::order::OrderValidator;
 
 use crate::{LruCache, NetworkOrderEvent, RequestResult, StromNetworkEvent, StromNetworkHandle};
 /// Cache limit of transactions to keep track of for a single peer.
@@ -36,11 +45,37 @@ impl PoolHandle {
     }
 }
 
+impl OrderPool for PoolHandle {
+    /// The transaction type of the composable limit order pool
+    type ComposableLimitOrder = EcRecoveredComposableLimitOrder;
+    /// The transaction type of the composable searcher order pool
+    type ComposableSearcherOrder = EcRecoveredComposableSearcherOrder;
+    /// The transaction type of the limit order pool
+    type LimitOrder = EcRecoveredLimitOrder;
+    /// The transaction type of the searcher order pool
+    type SearcherOrder = EcRecoveredSearcherOrder;
+
+    fn get_pooled_orders_by_hashes(
+        &self,
+        tx_hashes: Vec<TxHash>,
+        limit: Option<usize>
+    ) -> Vec<PooledOrder> {
+        todo!()
+    }
+}
+
 //TODO: Tmrw clean up + finish pool manager + pool inner
 //TODO: Add metrics + events
-pub struct PoolManager<Pool> {
-    /// Access to the order pool
-    _pool:                Pool,
+pub struct PoolManager<L, CL, S, CS, V>
+where
+    L: PooledLimitOrder,
+    CL: PooledComposableOrder + PooledLimitOrder,
+    S: PooledSearcherOrder,
+    CS: PooledComposableOrder + PooledSearcherOrder,
+    V: OrderValidator
+{
+    /// The order pool
+    pool:                 OrderPoolInner<L, CL, S, CS, V>,
     /// Network access.
     _network:             StromNetworkHandle,
     /// Subscriptions to all the strom-network related events.
@@ -67,9 +102,16 @@ pub struct PoolManager<Pool> {
     peers:                HashMap<PeerId, StromPeer>
 }
 
-impl<Pool: OrderPool> PoolManager<Pool> {
+impl<L, CL, S, CS, V> PoolManager<L, CL, S, CS, V>
+where
+    L: PooledLimitOrder,
+    CL: PooledComposableOrder + PooledLimitOrder,
+    S: PooledSearcherOrder,
+    CS: PooledComposableOrder + PooledSearcherOrder,
+    V: OrderValidator
+{
     pub fn new(
-        _pool: Pool,
+        _pool: OrderPoolInner<L, CL, S, CS, V>,
         _network: StromNetworkHandle,
         _from_network: UnboundedReceiver<NetworkOrderEvent>
     ) {
@@ -77,9 +119,13 @@ impl<Pool: OrderPool> PoolManager<Pool> {
     }
 }
 
-impl<Pool> PoolManager<Pool>
+impl<L, CL, S, CS, V> PoolManager<L, CL, S, CS, V>
 where
-    Pool: OrderPool
+    L: PooledLimitOrder,
+    CL: PooledComposableOrder + PooledLimitOrder,
+    S: PooledSearcherOrder,
+    CS: PooledComposableOrder + PooledSearcherOrder,
+    V: OrderValidator
 {
     /// Returns a new handle that can send commands to this type.
     pub fn handle(&self) -> PoolHandle {
@@ -124,21 +170,13 @@ where
     }
 }
 
-/// The type responsible for fetching missing orders from peers.
-///
-/// This will keep track of unique transaction hashes that are currently being
-/// fetched and submits new requests on announced hashes.
-#[derive(Debug, Default)]
-struct OrderFetcher {
-    /// All currently active requests for pooled transactions.
-    _inflight_requests:               FuturesUnordered<GetPooledOrders>,
-    /// Set that tracks all hashes that are currently being fetched.
-    _inflight_hash_to_fallback_peers: HashMap<TxHash, Vec<PeerId>>
-}
-
-impl<Pool> Future for PoolManager<Pool>
+impl<L, CL, S, CS, V> Future for PoolManager<L, CL, S, CS, V>
 where
-    Pool: OrderPool + Unpin + 'static
+    L: PooledLimitOrder,
+    CL: PooledComposableOrder + PooledLimitOrder,
+    S: PooledSearcherOrder,
+    CS: PooledComposableOrder + PooledSearcherOrder,
+    V: OrderValidator + Unpin
 {
     type Output = ();
 
@@ -158,6 +196,10 @@ where
         // drain incoming transaction events
         while let Poll::Ready(Some(event)) = this.order_events.poll_next_unpin(cx) {
             this.on_network_order_event(event);
+        }
+
+        if let Poll::Ready(_) = this.pool.poll_unpin(cx) {
+            return Poll::Ready(())
         }
 
         Poll::Pending
@@ -198,4 +240,16 @@ struct StromPeer {
     /// The peer's client version.
     #[allow(unused)]
     client_version: Arc<str>
+}
+
+/// The type responsible for fetching missing orders from peers.
+///
+/// This will keep track of unique transaction hashes that are currently being
+/// fetched and submits new requests on announced hashes.
+#[derive(Debug, Default)]
+struct OrderFetcher {
+    /// All currently active requests for pooled transactions.
+    _inflight_requests:               FuturesUnordered<GetPooledOrders>,
+    /// Set that tracks all hashes that are currently being fetched.
+    _inflight_hash_to_fallback_peers: HashMap<TxHash, Vec<PeerId>>
 }
