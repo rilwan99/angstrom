@@ -13,7 +13,6 @@ pub mod order_validator;
 pub mod sim;
 pub mod state;
 
-use self::order_validator::OrderValidator;
 use crate::validator::ValidationClient;
 
 pub type ValidationFuture<O> =
@@ -203,9 +202,7 @@ impl OrderValidator for ValidationClient {
     ) -> ValidationFuture<Self::ComposableSearcherOrder> {
         Box::pin(async {
             let (tx, rx) = channel();
-            let _ = self
-                .0
-                .send(OrderValidationRequest::ValidateComposableSearcher(tx, origin, transaction));
+            let _ = self.0.send(OrderValidationRequest(tx, origin, transaction));
 
             rx.await.unwrap()
         })

@@ -5,7 +5,10 @@ use revm_primitives::{Account, Address, HashMap, TxEnv};
 use thiserror::Error;
 use tokio::sync::mpsc::error::SendError;
 
-use crate::bundle::{BundleOrTransactionResult, BundleSimRequest};
+use crate::{
+    bundle::{BundleOrTransactionResult, BundleSimRequest},
+    validator::ValidationRequest
+};
 
 #[derive(Debug)]
 pub enum SimResult {
@@ -30,8 +33,6 @@ impl SimResult {
 pub enum SimError {
     #[error("Unable to read Revm-Reth StateProvider Database")]
     RevmDatabaseError(reth_interfaces::RethError),
-    #[error("Unable to Send Transaction to Sim: {0:#?}")]
-    SendToSimError(SendError<BundleSimRequest>),
     #[error("Unable to Create Runtime For ThreadPool")]
     RuntimeCreationError(std::io::Error),
     #[error("Unable to Start libmdbx transaction")]
@@ -65,13 +66,9 @@ pub enum SimError {
     #[error("hook failed")]
     HookFailed,
     #[error("V4 reverted")]
-    V4Failed
-}
-
-impl From<SendError<BundleSimRequest>> for SimError {
-    fn from(value: SendError<BundleSimRequest>) -> Self {
-        SimError::SendToSimError(value)
-    }
+    V4Failed,
+    #[error("sending to validation failed")]
+    SendToValidationError(#[from] SendError<ValidationRequest>)
 }
 
 impl From<std::io::Error> for SimError {

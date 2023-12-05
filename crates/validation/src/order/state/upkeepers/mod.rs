@@ -16,7 +16,7 @@ use self::{
     angstrom_pools::AngstromPools, angstrom_tokens::AngstromTokens, approvals::Approvals,
     balances::Balances, nonces::Nonces
 };
-use crate::{common::lru_db::RevmLRU, order::state::RevmLRU};
+use crate::common::lru_db::RevmLRU;
 
 pub struct UserAccountDetails {
     pub token_bals:      (Address, U256),
@@ -77,6 +77,11 @@ impl Upkeepers {
             },
             order
         )
+    }
+
+    // update
+    pub fn on_new_block(&mut self) {
+        todo!()
     }
 }
 

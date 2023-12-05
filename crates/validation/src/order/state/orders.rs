@@ -75,9 +75,9 @@ impl UserOrders {
             )
         }
 
-        let user = id.address;
+        let user = order.from();
         let (pending_state, ids) = self.0.entry(user).or_default();
-        ids.push(id);
+        ids.push(order.nonce());
 
         // insert approvals if empty
         pending_state

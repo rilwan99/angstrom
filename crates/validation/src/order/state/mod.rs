@@ -7,7 +7,10 @@ use guard_types::orders::{OrderValidationOutcome, PoolOrder};
 use parking_lot::RwLock;
 use reth_provider::StateProviderFactory;
 use revm::db::BundleState;
-use tokio::{sync::oneshot::Sender, task::JoinHandle};
+use tokio::{
+    sync::oneshot::Sender,
+    task::{yield_now, JoinHandle}
+};
 
 use self::{
     orders::UserOrders,
@@ -24,6 +27,7 @@ mod upkeepers;
 /// 1) validating order nonce,
 /// 2) checking token balances
 /// 3) checking token approvals
+/// 4) deals with possible pending state
 #[allow(dead_code)]
 pub struct StateValidation<DB> {
     db:          Arc<RevmLRU<DB>>,
@@ -34,6 +38,7 @@ pub struct StateValidation<DB> {
     /// upkeeps all state specific checks.
     upkeepers: Arc<RwLock<Upkeepers>>,
 
+    // TODO: this should be a non-async runtime or add yield now points into the calculations
     thread_pool: ThreadPool,
     tasks:       FuturesUnordered<JoinHandle<(OrderValidationRequest, UserAccountDetails)>>
 }

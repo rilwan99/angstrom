@@ -8,7 +8,7 @@ use guard_types::{
 };
 use tokio::sync::oneshot::{channel, Sender};
 
-use crate::validator::ValidationClient;
+use crate::validator::{ValidationClient, ValidationRequest};
 
 pub mod bundle_validator;
 pub mod errors;
@@ -86,8 +86,8 @@ impl BundleValidator for ValidationClient {
     // full transaction and should not be validated as such
     async fn validate_v4_tx(&self, tx: TypedTransaction) -> Result<SimResult, SimError> {
         let (sender, rx) = channel();
-        self.transaction_tx
-            .send(BundleSimRequest::UniswapV4(tx, sender))?;
+        self.0
+            .send(ValidationRequest::Bundle(BundleSimRequest::UniswapV4(tx, sender)))?;
 
         Ok(rx.await.unwrap())
     }
@@ -104,8 +104,8 @@ impl BundleValidator for ValidationClient {
     {
         let (tx, rx) = channel();
         let hook = hook_data.try_into().unwrap();
-        self.transaction_tx
-            .send(BundleSimRequest::Hook(hook, caller_info, tx))?;
+        self.0
+            .send(ValidationRequest::Bundle(BundleSimRequest::Hook(hook, caller_info, tx)))?;
 
         Ok(rx.await.unwrap())
     }
@@ -117,8 +117,8 @@ impl BundleValidator for ValidationClient {
         bundle: Bundle
     ) -> Result<SimResult, SimError> {
         let (tx, rx) = channel();
-        self.transaction_tx
-            .send(BundleSimRequest::Bundle(bundle, caller_info, tx))?;
+        self.0
+            .send(ValidationRequest::Bundle(BundleSimRequest::Bundle(bundle, caller_info, tx)))?;
 
         Ok(rx.await.unwrap())
     }
@@ -130,8 +130,12 @@ impl BundleValidator for ValidationClient {
         bundle: Bundle
     ) -> Result<SimResult, SimError> {
         let (tx, rx) = channel();
-        self.transaction_tx
-            .send(BundleSimRequest::MevBundle(bundle, caller_info, tx))?;
+        self.0
+            .send(ValidationRequest::Bundle(BundleSimRequest::MevBundle(
+                bundle,
+                caller_info,
+                tx
+            )))?;
 
         Ok(rx.await.unwrap())
     }

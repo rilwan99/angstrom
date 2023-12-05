@@ -5,6 +5,8 @@ use alloy_sol_macro::sol;
 use parking_lot::RwLock;
 use reth_provider::StateProvider;
 
+use crate::order::state::RevmLRU;
+
 sol! (
     function allowance( address owner, address spender ) public view returns (uint _allowance);
 );

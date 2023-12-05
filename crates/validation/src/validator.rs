@@ -33,8 +33,8 @@ pub struct Validator<DB> {
 }
 
 impl<DB> Validator<DB> {
-    fn block_state_changes(&mut self, state: BundleState) {
-        // TODO: update the db
+    fn new_block(&mut self, state: BundleState) {
+        // TODO: update the db + deal with reseting the validation;
     }
 
     fn on_new_validation_request(&mut self, req: ValidationRequest) {

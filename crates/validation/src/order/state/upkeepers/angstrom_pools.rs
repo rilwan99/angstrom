@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use alloy_primitives::Address;
+use alloy_primitives::{Address, FixedBytes};
 
 #[allow(dead_code)]
 pub struct AngstromPools(HashMap<[u8; 40], (bool, usize)>);

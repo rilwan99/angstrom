@@ -26,8 +26,12 @@ where
             res @ OrderValidationRequest::ValidateSearcher(..) => {
                 self.state.validate_non_composable_order(res);
             }
-            res @ OrderValidationRequest::ValidateComposableLimit(..) => {}
-            res @ OrderValidationRequest::ValidateComposableSearcher(..) => {}
+            res @ OrderValidationRequest::ValidateComposableLimit(..) => {
+                todo!()
+            }
+            res @ OrderValidationRequest::ValidateComposableSearcher(..) => {
+                todo!()
+            }
         }
     }
 }
