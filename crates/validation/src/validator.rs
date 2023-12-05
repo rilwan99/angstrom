@@ -3,6 +3,7 @@ use std::{pin::Pin, sync::Arc, task::Poll};
 use futures::{Stream, StreamExt};
 use futures_util::Future;
 use guard_eth::manager::EthEvent;
+use reth_provider::StateProviderFactory;
 use reth_revm::db::BundleState;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
@@ -32,7 +33,10 @@ pub struct Validator<DB> {
     bundle_validator: BundleValidator
 }
 
-impl<DB> Validator<DB> {
+impl<DB> Validator<DB>
+where
+    DB: StateProviderFactory + Send
+{
     fn new_block(&mut self, state: BundleState) {
         // TODO: update the db + deal with reseting the validation;
     }

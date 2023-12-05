@@ -15,7 +15,7 @@ impl Balances {
         Self(slots)
     }
 
-    pub fn fetch_balance_for_token<DB: StateProvider>(
+    pub fn fetch_balance_for_token<DB: StateProvider + Send>(
         &self,
         user: Address,
         token: Address,

@@ -202,7 +202,9 @@ impl OrderValidator for ValidationClient {
     ) -> ValidationFuture<Self::ComposableSearcherOrder> {
         Box::pin(async {
             let (tx, rx) = channel();
-            let _ = self.0.send(OrderValidationRequest(tx, origin, transaction));
+            let _ = self
+                .0
+                .send(OrderValidationRequest::ValidateComposableSearcher(tx, origin, transaction));
 
             rx.await.unwrap()
         })

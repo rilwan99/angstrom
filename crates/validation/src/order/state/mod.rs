@@ -45,7 +45,7 @@ pub struct StateValidation<DB> {
 
 impl<DB> StateValidation<DB>
 where
-    DB: StateProviderFactory
+    DB: StateProviderFactory + Send
 {
     pub fn new(_db: Arc<RevmLRU<DB>>) -> Self {
         todo!()
@@ -98,16 +98,19 @@ where
     }
 }
 
-impl<DB> Stream for StateValidation<DB> {
+impl<DB> Stream for StateValidation<DB>
+where
+    DB: StateProviderFactory + Send
+{
     // if the task is a composable order, we stream it up
     type Item = ();
 
     fn poll_next(
-        self: std::pin::Pin<&mut Self>,
+        mut self: std::pin::Pin<&mut Self>,
         cx: &mut std::task::Context<'_>
     ) -> std::task::Poll<Option<Self::Item>> {
-        while let Poll::Ready(Some(Ok((tx, order, details)))) = self.tasks.poll_next_unpin(cx) {
-            self.on_task_resolve(tx, order, details);
+        while let Poll::Ready(Some(Ok((tx, details)))) = self.tasks.poll_next_unpin(cx) {
+            self.on_task_resolve(tx, details);
         }
 
         Poll::Pending

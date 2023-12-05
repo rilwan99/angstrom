@@ -19,13 +19,13 @@ impl AngstromPools {
         pool_id: usize,
         is_bid: bool
     ) {
-        self.map
+        self.0
             .insert(self.get_key(currency_in, currency_out), (pool_id, is_bid));
     }
 
     #[allow(dead_code)]
     pub fn order_info(&self, currency_in: Address, currency_out: Address) -> Option<(usize, bool)> {
-        self.map
+        self.0
             .get(&self.get_key(currency_in, currency_out))
             .copied()
     }

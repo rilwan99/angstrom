@@ -40,7 +40,7 @@ impl Upkeepers {
         todo!()
     }
 
-    pub fn verify_order<O: PoolOrder, DB>(
+    pub fn verify_order<O: PoolOrder, DB: Send + StateProviderFactory>(
         &self,
         order: O,
         db: Arc<RevmLRU<DB>>
@@ -51,7 +51,7 @@ impl Upkeepers {
             .nonces
             .is_valid_nonce(order.from(), order.nonce(), db.clone());
 
-        let (is_bid, pool_id) = self
+        let (pool_id, is_bid) = self
             .pools
             .order_info(order.token_in(), order.token_out())
             .unwrap();
