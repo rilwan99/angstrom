@@ -45,26 +45,25 @@ impl Upkeepers {
         order: O,
         db: Arc<RevmLRU<DB>>
     ) -> (UserAccountDetails, O) {
-        todo!("add early returns here");
-
         let is_valid_nonce = self
             .nonces
             .is_valid_nonce(order.from(), order.nonce(), db.clone());
 
-        let (is_bid, pool_id) = self
+        let (is_valid_pool, is_bid, pool_id) = self
             .pools
             .order_info(order.token_in(), order.token_out())
-            .unwrap();
+            .map(|(bid, pool_id)| (true, bid, pool_id))
+            .unwrap_or_default();
 
         let approvals = self
             .approvals
             .fetch_approval_balance_for_token(order.from(), order.token_in(), db.clone())
-            .unwrap();
+            .unwrap_or_default();
 
         let balances = self
             .balances
             .fetch_balance_for_token(order.from(), order.token_in(), db.clone())
-            .unwrap();
+            .unwrap_or_default();
 
         (
             UserAccountDetails {
@@ -72,7 +71,7 @@ impl Upkeepers {
                 is_bid,
                 is_valid_nonce,
                 token_bals: (order.token_in(), balances),
-                is_valid_pool: true,
+                is_valid_pool,
                 token_approvals: (order.token_in(), approvals)
             },
             order
