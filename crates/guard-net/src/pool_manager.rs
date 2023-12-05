@@ -53,7 +53,7 @@ pub struct PoolManager<Pool> {
     /// Send half for the command channel.
     command_tx:           UnboundedSender<OrderCommand>,
     /// receiver half of the commands to the pool manager
-    _command_rx:          UnboundedReceiverStream<OrderCommand>,
+    command_rx:           UnboundedReceiverStream<OrderCommand>,
     /// Order fetcher to handle inflight and missing order requests.
     _order_fetcher:       OrderFetcher,
     /// Incoming pending transactions from the pool that should be propagated to
@@ -62,7 +62,7 @@ pub struct PoolManager<Pool> {
     /// All currently pending orders grouped by peers.
     _orders_by_peers:     HashMap<TxHash, Vec<PeerId>>,
     /// Incoming events from the ProtocolManager.
-    _order_events:        UnboundedReceiverStream<NetworkOrderEvent>,
+    order_events:         UnboundedReceiverStream<NetworkOrderEvent>,
     /// All the connected peers.
     peers:                HashMap<PeerId, StromPeer>
 }
@@ -84,6 +84,21 @@ where
     /// Returns a new handle that can send commands to this type.
     pub fn handle(&self) -> PoolHandle {
         PoolHandle { manager_tx: self.command_tx.clone() }
+    }
+
+    //TODO
+    fn on_command(&mut self, cmd: OrderCommand) {
+        match cmd {
+            OrderCommand::PropagateOrders(orders) => {}
+            OrderCommand::PropagateOrdersTo(orders, peer_id) => {}
+        }
+    }
+
+    //TODO
+    fn on_network_order_event(&mut self, event: NetworkOrderEvent) {
+        match event {
+            NetworkOrderEvent::IncomingOrders { peer_id, orders } => {}
+        }
     }
 
     fn on_network_event(&mut self, event: StromNetworkEvent) {
@@ -133,6 +148,16 @@ where
         // drain network/peer related events
         while let Poll::Ready(Some(event)) = this.strom_network_events.poll_next_unpin(cx) {
             this.on_network_event(event);
+        }
+
+        // drain commands
+        while let Poll::Ready(Some(cmd)) = this.command_rx.poll_next_unpin(cx) {
+            this.on_command(cmd);
+        }
+
+        // drain incoming transaction events
+        while let Poll::Ready(Some(event)) = this.order_events.poll_next_unpin(cx) {
+            this.on_network_order_event(event);
         }
 
         Poll::Pending
