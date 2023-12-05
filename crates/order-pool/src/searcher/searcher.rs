@@ -1,10 +1,8 @@
-use std::{
-    collections::{BTreeMap, HashMap}
-};
+use std::collections::{BTreeMap, HashMap};
 
 use alloy_primitives::B256;
-use guard_types::{
-    orders::{OrderId, OrderLocation, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder}
+use guard_types::orders::{
+    OrderId, OrderLocation, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
 };
 
 use super::{SearcherPoolError, V1_LP_POOlS, SEARCHER_POOL_MAX_SIZE};

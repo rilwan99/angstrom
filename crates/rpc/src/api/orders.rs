@@ -1,5 +1,4 @@
 use alloy_primitives::Bytes;
-
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 use crate::types::subscriptions::OrderSubscriptionKind;

@@ -319,8 +319,7 @@ impl Decodable for Angstrom::CurrencySettlement {
 
 // The `eip712_domain` macro lets you easily define an EIP-712 domain
 // object :)
-pub const ANGSTROM_DOMAIN: Eip712Domain =
-    eip712_domain!(
-       name: "Angstrom",
-       version: "1",
-    );
+pub const ANGSTROM_DOMAIN: Eip712Domain = eip712_domain!(
+   name: "Angstrom",
+   version: "1",
+);

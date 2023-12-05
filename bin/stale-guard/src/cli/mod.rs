@@ -1,8 +1,6 @@
 //! CLI definition and entrypoint to executable
 
 use clap::Parser;
-#[allow(unused_imports)]
-use guard_network::StromProtocolHandler;
 use guard_rpc::{
     api::{ConsensusApiServer, OrderApiServer, QuotingApiServer},
     ConsensusApi, OrderApi, QuotesApi

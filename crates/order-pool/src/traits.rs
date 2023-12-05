@@ -1,11 +1,6 @@
-
-
-use alloy_primitives::{TxHash};
-use guard_types::{
-    orders::{
-        PooledComposableOrder, PooledLimitOrder,
-        PooledOrder, PooledSearcherOrder
-    }
+use alloy_primitives::TxHash;
+use guard_types::orders::{
+    PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder
 };
 
 //TODO: Impl order pool api

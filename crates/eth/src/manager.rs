@@ -1,14 +1,10 @@
 use std::task::{Context, Poll};
 
 use alloy_primitives::{Address, B256};
-
-
 use futures::Future;
 use guard_types::submission::SubmissionBundle;
 use reth_provider::{CanonStateNotification, CanonStateNotifications, StateProviderFactory};
-use tokio::sync::{
-    mpsc::{channel, Sender}
-};
+use tokio::sync::mpsc::{channel, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::handle::{EthCommand, EthHandle};

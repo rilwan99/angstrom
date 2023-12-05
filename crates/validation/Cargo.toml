@@ -12,6 +12,8 @@ exclude.workspace = true
 
 [dependencies]
 guard-utils.workspace = true
+guard-eth.workspace = true
+rayon.workspace = true
 
 # ethers
 ethers = "2.0.10"
@@ -43,7 +45,7 @@ reth-interfaces.workspace = true
 tokio.workspace = true
 futures = "0.3.26"
 pin-project = "1.0.12"
-futures-util.workspace= true
+futures-util.workspace = true
 async-trait = "0.1.68"
 parking_lot = "0.12.1"
 
@@ -71,3 +73,4 @@ serde_json = { workspace = true, features = ["arbitrary_precision"] }
 # alloy
 alloy-primitives.workspace = true
 alloy-sol-types.workspace = true
+alloy-sol-macro.workspace = true

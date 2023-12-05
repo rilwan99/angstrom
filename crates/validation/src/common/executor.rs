@@ -21,7 +21,7 @@ impl ThreadPool {
     pub fn spawn_return_task_as<F, T>(&self, fut: F) -> JoinHandle<F::Output>
     where
         F: Future<Output = T> + Send + Sync + 'static,
-        T: IntoIterator + Send + Sync + 'static
+        T: Send + Sync + 'static
     {
         let task = async move {
             pin_mut!(fut);

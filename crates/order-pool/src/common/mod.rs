@@ -1,6 +1,4 @@
-use guard_types::orders::{
-    PoolOrder
-};
+use guard_types::orders::PoolOrder;
 mod size;
 
 pub use size::*;
