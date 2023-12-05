@@ -38,6 +38,14 @@ pub struct PoolHandle {
     manager_tx: UnboundedSender<OrderCommand>
 }
 
+#[derive(Debug)]
+pub enum OrderCommand {
+    NewLimitOrder(OrderOrigin, EcRecoveredLimitOrder),
+    NewSearcherOrder(OrderOrigin, EcRecoveredSearcherOrder),
+    NewComposableLimitOrder(OrderOrigin, EcRecoveredComposableLimitOrder),
+    NewComposableSearcherOrder(OrderOrigin, EcRecoveredSearcherOrder)
+}
+
 impl PoolHandle {
     #[allow(dead_code)]
     fn send(&self, cmd: OrderCommand) {
@@ -55,11 +63,77 @@ impl OrderPool for PoolHandle {
     /// The transaction type of the searcher order pool
     type SearcherOrder = EcRecoveredSearcherOrder;
 
-    fn get_pooled_orders_by_hashes(
+    fn new_limit_order(&self, origin: OrderOrigin, order: Self::LimitOrder) {}
+
+    fn new_searcher_order(&self, origin: OrderOrigin, order: Self::SearcherOrder) {}
+
+    fn new_composable_limit_order(&self, origin: OrderOrigin, order: Self::ComposableLimitOrder) {}
+
+    fn new_composable_searcher_order(
+        &self,
+        origin: OrderOrigin,
+        order: Self::ComposableSearcherOrder
+    ) {
+    }
+
+    async fn get_pooled_orders_by_hashes(
         &self,
         tx_hashes: Vec<TxHash>,
         limit: Option<usize>
     ) -> Vec<PooledOrder> {
+        todo!()
+    }
+
+    // Queries for fetching all orders. Will be used for quoting
+    // and consensus.
+
+    // fetches all vanilla orders
+    async fn get_all_vanilla_orders(&self) -> OrderSet<Self::LimitOrder, Self::SearcherOrder> {
+        todo!()
+    }
+
+    // fetches all vanilla orders where for each pool the bids and asks overlap plus
+    // a buffer on each side
+    async fn get_all_vanilla_orders_intersection(
+        &self,
+        buffer: usize
+    ) -> OrderSet<Self::LimitOrder, Self::SearcherOrder> {
+        todo!()
+    }
+
+    async fn get_all_composable_orders(
+        &self
+    ) -> OrderSet<Self::ComposableLimitOrder, Self::ComposableSearcherOrder> {
+        todo!()
+    }
+
+    async fn get_all_composable_orders_intersection(
+        &self,
+        buffer: usize
+    ) -> OrderSet<Self::ComposableLimitOrder, Self::ComposableSearcherOrder> {
+        todo!()
+    }
+
+    async fn get_all_orders(
+        &self
+    ) -> AllOrders<
+        Self::LimitOrder,
+        Self::SearcherOrder,
+        Self::ComposableLimitOrder,
+        Self::ComposableSearcherOrder
+    > {
+        todo!()
+    }
+
+    async fn get_all_orders_intersection(
+        &self,
+        buffer: usize
+    ) -> AllOrders<
+        Self::LimitOrder,
+        Self::SearcherOrder,
+        Self::ComposableLimitOrder,
+        Self::ComposableSearcherOrder
+    > {
         todo!()
     }
 }
@@ -74,7 +148,7 @@ where
     CS: PooledComposableOrder + PooledSearcherOrder,
     V: OrderValidator
 {
-    /// The order pool
+    /// The order pool. Streams up new transactions to be broadcasted
     pool:                 OrderPoolInner<L, CL, S, CS, V>,
     /// Network access.
     _network:             StromNetworkHandle,
@@ -85,7 +159,7 @@ where
     /// Ethereum updates stream that tells the pool manager about orders that
     /// have been filled  
     _eth_network_events:  UnboundedReceiverStream<EthEvent>,
-    /// Send half for the command channel.
+    /// Send half for the command channel. Used to generate new handles
     command_tx:           UnboundedSender<OrderCommand>,
     /// receiver half of the commands to the pool manager
     command_rx:           UnboundedReceiverStream<OrderCommand>,
@@ -204,12 +278,6 @@ where
 
         Poll::Pending
     }
-}
-
-#[derive(Debug)]
-pub enum OrderCommand {
-    PropagateOrders(Vec<TxHash>),
-    PropagateOrdersTo(Vec<TxHash>, PeerId)
 }
 
 /// All events related to orders emitted by the network.

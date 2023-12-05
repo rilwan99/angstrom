@@ -6,7 +6,7 @@ use std::{
 };
 
 use alloy_primitives::B256;
-use futures_util::{Future, StreamExt};
+use futures_util::{Future, Stream, StreamExt};
 use guard_types::{
     orders::{
         OrderId, OrderLocation, OrderOrigin, OrderPriorityData, PooledComposableOrder,
@@ -194,8 +194,7 @@ where
     fn handle_validated_order(&mut self, _res: ValidationResults<L, CL, S, CS>) {}
 }
 
-// impl Future for OrderPoolInner<>
-impl<L, CL, S, CS, V> Future for OrderPoolInner<L, CL, S, CS, V>
+impl<L, CL, S, CS, V> Stream for OrderPoolInner<L, CL, S, CS, V>
 where
     L: PooledLimitOrder,
     CL: PooledComposableOrder + PooledLimitOrder,
@@ -203,7 +202,7 @@ where
     CS: PooledComposableOrder + PooledSearcherOrder,
     V: OrderValidator + Unpin
 {
-    type Output = ();
+    type Item = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         while let Poll::Ready(Some(next)) = self.validator.poll_next_unpin(cx) {
