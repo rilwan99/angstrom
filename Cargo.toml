@@ -90,6 +90,7 @@ reth-network-api = { git = "https://github.com/paradigmxyz/reth", rev = "f15e878
 reth-rpc-types-compat = { git = "https://github.com/paradigmxyz/reth", rev = "f15e878" }
 reth-libmdbx = { git = "https://github.com/paradigmxyz/reth", rev = "f15e878" }
 reth-eth-wire = { git = "https://github.com/paradigmxyz/reth", rev = "f15e878" }
+reth-tokio-util = {git =  "https://github.com/paradigmxyz/reth", rev = "f15e878" }
 
 # alloy
 alloy-sol-types = { version = "0.5.0", features = ["json"] }

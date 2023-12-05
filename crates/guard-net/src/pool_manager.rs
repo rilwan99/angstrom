@@ -1,19 +1,25 @@
 use std::{
     collections::HashMap,
+    num::NonZeroUsize,
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll}
 };
 
-use futures::{stream::FuturesUnordered, Future};
+use futures::{stream::FuturesUnordered, Future, StreamExt};
 use guard_eth::manager::EthEvent;
-use guard_types::orders::GetPooledOrders;
+use guard_types::orders::{GetPooledOrders, Orders};
 use order_pool::traits::OrderPool;
-use reth_network::peers::Peer;
-use reth_primitives::{PeerId, TxHash};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use reth_primitives::{PeerId, TxHash, B256};
+use tokio::sync::{
+    mpsc::{UnboundedReceiver, UnboundedSender},
+    oneshot
+};
 use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
 
-use crate::{types::events::StromNetworkEvent, NetworkOrderEvent, StromNetworkHandle};
+use crate::{LruCache, NetworkOrderEvent, RequestResult, StromNetworkEvent, StromNetworkHandle};
+/// Cache limit of transactions to keep track of for a single peer.
+const PEER_ORDER_CACHE_LIMIT: usize = 1024 * 10;
 
 /// Api to interact with [`PoolManager`] task.
 #[derive(Debug, Clone)]
@@ -34,31 +40,31 @@ impl PoolHandle {
 //TODO: Add metrics + events
 pub struct PoolManager<Pool> {
     /// Access to the order pool
-    _pool:                 Pool,
+    _pool:                Pool,
     /// Network access.
-    _network:              StromNetworkHandle,
+    _network:             StromNetworkHandle,
     /// Subscriptions to all the strom-network related events.
     ///
     /// From which we get all new incoming order related messages.
-    _strom_network_events: UnboundedReceiverStream<StromNetworkEvent>,
+    strom_network_events: UnboundedReceiverStream<StromNetworkEvent>,
     /// Ethereum updates stream that tells the pool manager about orders that
     /// have been filled  
-    _eth_network_events:   UnboundedReceiverStream<EthEvent>,
+    _eth_network_events:  UnboundedReceiverStream<EthEvent>,
     /// Send half for the command channel.
-    command_tx:            UnboundedSender<OrderCommand>,
+    command_tx:           UnboundedSender<OrderCommand>,
     /// receiver half of the commands to the pool manager
-    _command_rx:           UnboundedReceiverStream<OrderCommand>,
+    _command_rx:          UnboundedReceiverStream<OrderCommand>,
     /// Order fetcher to handle inflight and missing order requests.
-    _order_fetcher:        OrderFetcher,
+    _order_fetcher:       OrderFetcher,
     /// Incoming pending transactions from the pool that should be propagated to
     /// the network
-    _pending_orders:       ReceiverStream<TxHash>,
+    _pending_orders:      ReceiverStream<TxHash>,
     /// All currently pending orders grouped by peers.
-    _orders_by_peers:      HashMap<TxHash, Vec<PeerId>>,
+    _orders_by_peers:     HashMap<TxHash, Vec<PeerId>>,
     /// Incoming events from the ProtocolManager.
-    _order_events:         UnboundedReceiverStream<NetworkOrderEvent>,
+    _order_events:        UnboundedReceiverStream<NetworkOrderEvent>,
     /// All the connected peers.
-    _peers:                HashMap<PeerId, Peer>
+    peers:                HashMap<PeerId, StromPeer>
 }
 
 impl<Pool: OrderPool> PoolManager<Pool> {
@@ -78,6 +84,28 @@ where
     /// Returns a new handle that can send commands to this type.
     pub fn handle(&self) -> PoolHandle {
         PoolHandle { manager_tx: self.command_tx.clone() }
+    }
+
+    fn on_network_event(&mut self, event: StromNetworkEvent) {
+        match event {
+            StromNetworkEvent::SessionEstablished { peer_id, client_version } => {
+                // insert a new peer into the peerset
+                self.peers.insert(
+                    peer_id,
+                    StromPeer {
+                        orders: LruCache::new(NonZeroUsize::new(PEER_ORDER_CACHE_LIMIT).unwrap()),
+                        //request_tx: messages,
+                        client_version
+                    }
+                );
+            }
+            StromNetworkEvent::SessionClosed { peer_id, .. } => {
+                // remove the peer
+                self.peers.remove(&peer_id);
+            }
+
+            _ => {}
+        }
     }
 }
 
@@ -99,8 +127,13 @@ where
 {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let _this = self.get_mut();
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
+        // drain network/peer related events
+        while let Poll::Ready(Some(event)) = this.strom_network_events.poll_next_unpin(cx) {
+            this.on_network_event(event);
+        }
 
         Poll::Pending
     }
@@ -108,10 +141,36 @@ where
 
 #[derive(Debug)]
 pub enum OrderCommand {
-    PropagateOrder(TxHash),
-    PropagateComposableOrder(TxHash),
-    PropagateSearcherOrder(TxHash),
-    PropagateOrdersTo(Vec<TxHash>, PeerId),
-    PropagateComposableOrdersTo(Vec<TxHash>, PeerId),
-    PropagateSearcherOrdersTo(Vec<TxHash>, PeerId)
+    PropagateOrders(Vec<TxHash>),
+    PropagateOrdersTo(Vec<TxHash>, PeerId)
+}
+
+/// All events related to orders emitted by the network.
+#[derive(Debug)]
+#[allow(missing_docs)]
+pub enum NetworkTransactionEvent {
+    /// Received list of transactions from the given peer.
+    ///
+    /// This represents transactions that were broadcasted to use from the peer.
+    IncomingOrders { peer_id: PeerId, msg: Orders },
+    /// Incoming `GetPooledOrders` request from a peer.
+    GetPooledOrders {
+        peer_id:  PeerId,
+        request:  GetPooledOrders,
+        response: oneshot::Sender<RequestResult<Orders>>
+    }
+}
+
+/// Tracks a single peer
+#[derive(Debug)]
+struct StromPeer {
+    /// Keeps track of transactions that we know the peer has seen.
+    #[allow(dead_code)]
+    orders:         LruCache<B256>,
+    /// A communication channel directly to the peer's session task.
+    //request_tx:     PeerRequestSender,
+    /// negotiated version of the session.
+    /// The peer's client version.
+    #[allow(unused)]
+    client_version: Arc<str>
 }

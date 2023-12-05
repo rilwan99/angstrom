@@ -43,6 +43,6 @@ impl<T> PollExt<T> for Poll<T> {
         let Poll::Ready(value) = self else { return false };
         predicate(value);
 
-        return true
+        true
     }
 }

@@ -1,8 +1,10 @@
-use reth_metrics::common::mpsc::MeteredPollSender;
 use tokio::sync::mpsc;
 
 pub mod handle;
 pub use handle::*;
+
+pub mod protocol_handler;
+pub use protocol_handler::*;
 
 pub mod session;
 use futures::Stream;
@@ -20,24 +22,49 @@ use std::{
 };
 
 pub use connection_handler::*;
-use futures::{io, task::Poll};
-use reth_network::{protocol::ProtocolHandler, Direction};
+use futures::task::Poll;
+use reth_eth_wire::DisconnectReason;
+use reth_network::Direction;
 use reth_primitives::PeerId;
-use reth_provider::StateProvider;
-use tokio::time::Duration;
+#[allow(unused_imports)]
+use tokio_util::sync::PollSender;
 
-use crate::{errors::StromStreamError, StromNetworkHandle, StromProtocolMessage};
+use crate::{errors::StromStreamError, StromMessage, StromProtocolMessage};
 
-#[allow(dead_code)]
 pub struct StromSessionManager {
-    next_id:     usize,
-    // All pending session that are currently handshaking, exchanging `Hello`s.
-    //pending_sessions: FnvHashMap<SessionId, PendingSessionHandle>,
+    counter:         SessionCounter,
     // All active sessions that are ready to exchange messages.
-    //active_sessions:  HashMap<PeerId, ActiveProtocolSessionHandle>
-    to_sessions: HashMap<PeerId, StromSessionHandle>,
+    active_sessions: HashMap<PeerId, StromSessionHandle>,
 
+    /// Channel to receive the session handle upon initialization from the
+    /// connection handler This channel is also used to receive messages
+    /// from the session
     from_sessions: mpsc::Receiver<StromSessionMessage>
+}
+
+impl StromSessionManager {
+    /// Sends a message to the peer's session
+    pub fn send_message(&mut self, peer_id: &PeerId, msg: StromMessage) {
+        if let Some(session) = self.active_sessions.get_mut(peer_id) {
+            let _ = session
+                .commands_to_session
+                .try_send(SessionCommand::Message(msg));
+        }
+    }
+
+    // Removes the Session handle if it exists.
+    fn remove_session(&mut self, id: &PeerId) -> Option<StromSessionHandle> {
+        let session = self.active_sessions.remove(id)?;
+        self.counter.dec_active(&session.direction);
+        Some(session)
+    }
+
+    /// Initiates a shutdown of the channel.
+    pub fn disconnect(&self, node: PeerId, reason: Option<DisconnectReason>) {
+        if let Some(session) = self.active_sessions.get(&node) {
+            session.disconnect(reason);
+        }
+    }
 }
 
 impl Stream for StromSessionManager {
@@ -46,28 +73,47 @@ impl Stream for StromSessionManager {
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<SessionEvent>> {
         let this = self.get_mut();
 
-        loop {
-            match this.from_sessions.poll_recv(cx) {
-                Poll::Ready(Some(StromSessionMessage::Established { handle })) => {
-                    let event = SessionEvent::SessionEstablished {
-                        peer_id:   handle.remote_id,
-                        direction: handle.direction,
-                        timeout:   Arc::new(AtomicU64::new(40))
-                    };
-                    this.to_sessions.insert(handle.remote_id, handle);
-                    return Poll::Ready(Some(event))
-                }
+        match this.from_sessions.poll_recv(cx) {
+            Poll::Ready(None) => {
+                // channel closed
+                return Poll::Ready(None)
+            }
+            Poll::Pending => {}
+            Poll::Ready(Some(message)) => {
+                return match message {
+                    StromSessionMessage::Disconnected { peer_id } => {
+                        this.remove_session(&peer_id);
+                        Poll::Ready(Some(SessionEvent::Disconnected { peer_id }))
+                    }
+                    StromSessionMessage::Established { handle } => {
+                        this.counter.inc_active(&handle.direction);
 
-                Poll::Pending => {
-                    return Poll::Pending;
-                }
+                        let event = SessionEvent::SessionEstablished {
+                            peer_id:   handle.remote_id,
+                            direction: handle.direction,
+                            timeout:   Arc::new(AtomicU64::new(40))
+                        };
+                        this.active_sessions.insert(handle.remote_id, handle);
 
-                Poll::Ready(None) => {
-                    unreachable!("Manager holds both channel halves.")
+                        Poll::Ready(Some(event))
+                    }
+                    StromSessionMessage::ClosedOnConnectionError { peer_id, error } => {
+                        Poll::Ready(Some(SessionEvent::OutgoingConnectionError { peer_id, error }))
+                    }
+                    StromSessionMessage::ValidMessage { peer_id, message } => {
+                        Poll::Ready(Some(SessionEvent::ValidMessage { peer_id, message }))
+                    }
+                    StromSessionMessage::BadMessage { peer_id } => {
+                        Poll::Ready(Some(SessionEvent::BadMessage { peer_id }))
+                    }
+                    StromSessionMessage::ProtocolBreach { peer_id } => {
+                        Poll::Ready(Some(SessionEvent::ProtocolBreach { peer_id }))
+                    }
                 }
-                _ => {}
             }
         }
+
+        Poll::Pending
     }
 }
 
@@ -115,12 +161,10 @@ pub enum SessionEvent {
 
     /// Failed to establish a tcp stream
     OutgoingConnectionError {
-        /// The remote node's socket address
-        remote_addr: SocketAddr,
         /// The remote node's public key
-        peer_id:     PeerId,
+        peer_id: PeerId,
         /// The error that caused the outgoing connection to fail
-        error:       io::Error
+        error:   StromStreamError
     },
     /// Session was closed due to an error
     SessionClosedOnConnectionError {
@@ -134,58 +178,6 @@ pub enum SessionEvent {
     /// Active session was gracefully disconnected.
     Disconnected {
         /// The remote node's public key
-        peer_id:     PeerId,
-        /// The remote node's socket address that we were connected to
-        remote_addr: SocketAddr
-    }
-}
-
-/// The protocol handler that is used to announce the strom capability upon
-/// successfully establishing a hello handshake on an incoming tcp connection.
-#[derive(Debug)]
-pub struct StromProtocolHandler<DB>
-where
-    DB: StateProvider + Debug + 'static
-{
-    /// When a new connection is created, the conection handler will use
-    /// this channel to send the sender half of the sessions command channel to
-    /// the manager via the `Established` event.
-    pub to_session_manager: MeteredPollSender<StromSessionMessage>,
-    /// State provider to determine if the pub key is an staked validator with
-    /// sufficient balance
-    pub state:              DB,
-    /// Protocol Sessions Config
-    pub config:             SessionsConfig,
-    /// Network Handle
-    pub network:            StromNetworkHandle
-}
-
-impl<DB> ProtocolHandler for StromProtocolHandler<DB>
-where
-    DB: StateProvider + Debug + 'static
-{
-    type ConnectionHandler = StromConnectionHandler;
-
-    fn on_incoming(&self, _socket_addr: SocketAddr) -> Option<Self::ConnectionHandler> {
-        Some(StromConnectionHandler {
-            to_session_manager: self.to_session_manager.clone(),
-            status: None,
-            protocol_breach_request_timeout: Duration::from_secs(10),
-            session_command_buffer: 100
-        })
-    }
-
-    /// Invoked when a new outgoing connection to the remote is requested.
-    fn on_outgoing(
-        &self,
-        _socket_addr: SocketAddr,
-        _peer_id: PeerId
-    ) -> Option<Self::ConnectionHandler> {
-        Some(StromConnectionHandler {
-            to_session_manager: self.to_session_manager.clone(),
-            status: None,
-            protocol_breach_request_timeout: Duration::from_secs(10),
-            session_command_buffer: self.config.session_command_buffer
-        })
+        peer_id: PeerId
     }
 }
