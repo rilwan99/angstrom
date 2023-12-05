@@ -11,6 +11,7 @@ use reth::cli::{
     ext::{RethCliExt, RethNodeCommandConfig},
     Cli
 };
+
 /// Convenience function for parsing CLI options, set up logging and run the
 /// chosen command.
 #[inline]
@@ -43,7 +44,7 @@ impl RethNodeCommandConfig for StaleGuardConfig {
         Reth: RethNodeComponents
     {
         //config.add_rlpx_sub_protocol();
-        todo!()
+        Ok(())
     }
 
     #[allow(dead_code)]
@@ -52,7 +53,8 @@ impl RethNodeCommandConfig for StaleGuardConfig {
         _components: &Reth
     ) -> eyre::Result<()> {
         // Initialize the eth interacting modules, aka pool upkeep + consensus
-        todo!()
+
+        Ok(())
     }
 
     fn extend_rpc_modules<Conf, Reth>(

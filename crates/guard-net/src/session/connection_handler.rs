@@ -20,7 +20,7 @@ use crate::{
     types::message::{StromMessage, StromProtocolMessage},
     StromSession
 };
-
+//TODO: Add bandwith meter to be
 pub struct StromConnectionHandler {
     pub to_session_manager: MeteredPollSender<StromSessionMessage>,
     pub status: Option<Status>,
@@ -97,7 +97,7 @@ pub enum StromSessionMessage {
         /// Identifier of the remote peer.
         peer_id: PeerId,
         /// Message received from the peer.
-        message: StromMessage
+        message: StromProtocolMessage
     },
     /// Received a bad message from the peer.
     BadMessage {

@@ -1,4 +1,4 @@
-use std::pin::Pin;
+use std::{ops::Deref, pin::Pin};
 
 use alloy_rlp::Encodable;
 use futures::{
@@ -13,7 +13,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::PollSender;
 
 use super::handle::SessionCommand;
-use crate::StromSessionMessage;
+use crate::{types::message::StromProtocolMessage, StromSessionMessage};
 #[allow(dead_code)]
 pub struct StromSession {
     /// Keeps track of request ids.
@@ -27,13 +27,12 @@ pub struct StromSession {
     /// Sink to send messages to the [`SessionManager`](super::SessionManager).
     pub(crate) to_session_manager: MeteredPollSender<StromSessionMessage>,
     /// A message that needs to be delivered to the session manager
-    pub(crate) pending_message_to_session: Option<StromSessionMessage>,
 
     /// All requests sent to the remote peer we're waiting on a response
     //pub(crate) inflight_requests: FnvHashMap<u64, InflightRequest>,
     /// All requests that were sent by the remote peer and we're waiting on an
     /// internal response
-    //pub(crate) received_requests_from_remote: Vec<ReceivedRequest>,
+    //lub(crate) received_requests_from_remote: Vec<ReceivedRequest>,
     /// Buffered messages that should be handled and sent to the peer.
     //pub(crate) queued_outgoing: VecDeque<OutgoingMessage>,
     /// The maximum time we wait for a response from a peer.
@@ -61,7 +60,6 @@ impl StromSession {
             remote_peer_id: peer_id,
             commands_rx,
             to_session_manager,
-            pending_message_to_session: None,
             protocol_breach_request_timeout,
             terminate_message: None
         }
@@ -111,8 +109,8 @@ impl Stream for StromSession {
             return terminate
         }
 
-        loop {
-            let mut _progress = false;
+        'main: loop {
+            let mut progress = false;
 
             // we prioritize incoming commands sent from the session manager
             loop {
@@ -124,21 +122,62 @@ impl Stream for StromSession {
                         return Poll::Ready(None)
                     }
                     Poll::Ready(Some(command)) => {
-                        _progress = true;
-                        match command {
-                            SessionCommand::Disconnect { direction: _ } => {
-                                return this.emit_disconnect(cx)
+                        return match command {
+                            //TODO: maybe we could find a way to disconnect by sending the
+                            // underlying disconnect reason to the wire
+                            // so the peer receives it
+                            SessionCommand::Disconnect { reason: _reason } => {
+                                this.emit_disconnect(cx)
                             }
                             SessionCommand::Message(msg) => {
-                                let mut bytes = BytesMut::new();
+                                let msg = StromProtocolMessage {
+                                    message_type: msg.message_id(),
+                                    message:      msg
+                                };
+                                let mut bytes = BytesMut::with_capacity(msg.length());
                                 msg.encode(&mut bytes);
-
-                                return Poll::Ready(Some(bytes))
+                                Poll::Ready(Some(bytes))
                             }
                         }
                     }
                 }
             }
+
+            loop {
+                match this.conn.poll_next_unpin(cx) {
+                    Poll::Pending => break,
+                    Poll::Ready(None) => {
+                        // the connection was closed, we have to terminate the session
+                        return this.emit_disconnect(cx)
+                    }
+                    Poll::Ready(Some(bytes)) => {
+                        let msg = StromProtocolMessage::decode_message(&mut bytes.deref());
+                        match msg {
+                            Ok(msg) => {
+                                let _ = this.to_session_manager.send_item(
+                                    StromSessionMessage::ValidMessage {
+                                        peer_id: this.remote_peer_id,
+                                        message: msg
+                                    }
+                                );
+                                progress = true;
+                            }
+                            Err(_e) => {
+                                let _ = this.to_session_manager.send_item(
+                                    StromSessionMessage::BadMessage {
+                                        peer_id: this.remote_peer_id
+                                    }
+                                );
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+            if !progress {
+                break 'main
+            }
         }
+        Poll::Pending
     }
 }

@@ -15,7 +15,6 @@ use serde::{Deserialize, Serialize};
 use crate::errors::StromStreamError;
 /// Result alias for result of a request.
 pub type RequestResult<T> = Result<T, RequestError>;
-use super::version::StromVersion;
 use crate::Status;
 
 /// [`MAX_MESSAGE_SIZE`] is the maximum cap on the size of a protocol message.
@@ -32,10 +31,7 @@ pub struct StromProtocolMessage {
 
 impl StromProtocolMessage {
     /// Create a new ProtocolMessage from a message type and message rlp bytes.
-    pub fn decode_message(
-        _version: StromVersion,
-        buf: &mut &[u8]
-    ) -> Result<Self, StromStreamError> {
+    pub fn decode_message(buf: &mut &[u8]) -> Result<Self, StromStreamError> {
         let message_type = StromMessageID::decode(buf)?;
 
         let message = match message_type {
