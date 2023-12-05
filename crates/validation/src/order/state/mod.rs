@@ -85,13 +85,13 @@ where
 
     fn on_task_resolve(&mut self, request: OrderValidationRequest, details: UserAccountDetails) {
         match request {
-            OrderValidationRequest::ValidateLimit(tx, orign, order) => {
+            OrderValidationRequest::ValidateLimit(tx, origin, order) => {
                 let result = self.user_orders.new_limit_order(order, details);
-                tx.send(result);
+                let _ = tx.send(result);
             }
             OrderValidationRequest::ValidateSearcher(tx, origin, order) => {
                 let result = self.user_orders.new_searcher_order(order, details);
-                tx.send(result);
+                let _ = tx.send(result);
             }
             _ => unreachable!()
         }
