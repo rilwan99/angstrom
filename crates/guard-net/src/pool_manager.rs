@@ -20,7 +20,7 @@ use guard_types::{
 use order_pool::{
     AllOrders, OrderPoolHandle, OrderPoolInner, OrderSet, OrdersToPropagate, PoolConfig
 };
-use reth_primitives::{revm_primitives::HashMap, PeerId, TxHash, B256};
+use reth_primitives::{PeerId, TxHash, B256};
 use tokio::sync::{
     mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
     oneshot
@@ -232,6 +232,11 @@ where
             config: Default::default(),
             fetcher: Default::default()
         }
+    }
+
+    pub fn with_config(mut self, config: PoolConfig) -> Self {
+        self.config = config;
+        self
     }
 
     pub fn build(self) -> PoolManager<L, CL, S, CS, V> {
