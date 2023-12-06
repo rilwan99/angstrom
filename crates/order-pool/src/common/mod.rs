@@ -1,3 +1,4 @@
+use alloy_primitives::B256;
 use guard_types::orders::PoolOrder;
 mod size;
 
@@ -42,5 +43,14 @@ where
 
     pub fn add_composable_searcher(order: CS) -> Self {
         Self::ComposableSearcher(order)
+    }
+
+    pub fn hash(&self) -> B256 {
+        match self {
+            FilledOrder::Limit(l) => l.hash(),
+            FilledOrder::Searcher(l) => l.hash(),
+            FilledOrder::ComposableLimit(l) => l.hash(),
+            FilledOrder::ComposableSearcher(l) => l.hash()
+        }
     }
 }

@@ -28,7 +28,7 @@ use tokio::sync::{
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use validation::order::OrderValidator;
 
-use crate::{LruCache, NetworkOrderEvent, StromNetworkEvent, StromNetworkHandle};
+use crate::{LruCache, NetworkOrderEvent, StromMessage, StromNetworkEvent, StromNetworkHandle};
 /// Cache limit of transactions to keep track of for a single peer.
 const PEER_ORDER_CACHE_LIMIT: usize = 1024 * 10;
 
@@ -256,7 +256,7 @@ where
                 order_events:         self.order_events,
                 peers:                HashMap::default(),
                 pool:                 inner,
-                _network:             self.network_handle,
+                network:              self.network_handle,
                 _command_tx:          tx,
                 command_rx:           rx
             })
@@ -279,7 +279,7 @@ where
     /// The order pool. Streams up new transactions to be broadcasted
     pool:                 OrderPoolInner<L, CL, S, CS, V>,
     /// Network access.
-    _network:             StromNetworkHandle,
+    network:              StromNetworkHandle,
     /// Subscriptions to all the strom-network related events.
     ///
     /// From which we get all new incoming order related messages.
@@ -362,17 +362,14 @@ where
     fn on_eth_event(&mut self, eth: EthEvent) {
         match eth {
             EthEvent::FilledOrders(orders, block) => {
-                let _orders = self.pool.filled_orders(&orders);
-                todo!()
+                self.pool.filled_orders(block, &orders);
             }
-            EthEvent::ReorgedOrders(orders) => {
-                todo!("add pending validation pool");
-            }
+            EthEvent::ReorgedOrders(orders) => self.pool.reorg(orders),
             EthEvent::EOAStateChanges(state_changes) => {
                 self.pool.eoa_state_change(state_changes);
             }
             EthEvent::FinalizedBlock(block) => {
-                todo!()
+                let finalized_orders = self.pool.finalized_block(block);
             }
         }
     }
@@ -446,10 +443,8 @@ where
                 PooledOrder::ComposableSearcher(searcher.to_signed())
             }
         };
-
-        self.peers
-            .values_mut()
-            .for_each(|peer| peer.propagate_order(vec![order.clone()]))
+        self.network
+            .broadcast_tx(StromMessage::PropagatePooledOrders(vec![order]))
     }
 }
 
@@ -527,10 +522,4 @@ struct StromPeer {
     /// The peer's client version.
     #[allow(unused)]
     client_version: Arc<str>
-}
-
-impl StromPeer {
-    pub fn propagate_order(&mut self, orders: Vec<PooledOrder>) {
-        todo!()
-    }
 }

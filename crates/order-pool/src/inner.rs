@@ -19,8 +19,8 @@ use reth_primitives::Address;
 use validation::order::OrderValidator;
 
 use crate::{
-    common::FilledOrder, config::PoolConfig, limit::LimitOrderPool, searcher::SearcherPool,
-    validator::Validator, BidsAndAsks, OrderSet
+    common::FilledOrder, config::PoolConfig, finalization_pool::FinalizationPool,
+    limit::LimitOrderPool, searcher::SearcherPool, validator::Validator, BidsAndAsks, OrderSet
 };
 
 pub struct OrderPoolInner<L, CL, S, CS, V>
@@ -33,6 +33,7 @@ where
 {
     limit_pool:        LimitOrderPool<L, CL>,
     searcher_pool:     SearcherPool<S, CS>,
+    finalization_pool: FinalizationPool<L, CL, S, CS>,
     _config:           PoolConfig,
     /// Address to order id, used for nonce lookups
     address_to_orders: HashMap<Address, Vec<OrderId>>,
@@ -60,6 +61,7 @@ where
         Self {
             limit_pool:        LimitOrderPool::new(None),
             searcher_pool:     SearcherPool::new(None),
+            finalization_pool: FinalizationPool::new(),
             _config:           config,
             address_to_orders: HashMap::new(),
             hash_to_order_id:  HashMap::new(),
@@ -135,12 +137,33 @@ where
             });
     }
 
+    pub fn finalized_block(&mut self, block: u64) -> Vec<FilledOrder<L, CL, S, CS>> {
+        self.finalization_pool.finalized(block)
+    }
+
+    pub fn reorg(&mut self, orders: Vec<B256>) {
+        self.finalization_pool
+            .reorg(orders)
+            .for_each(|order| match order {
+                FilledOrder::ComposableSearcher(cs) => self
+                    .validator
+                    .validate_composable_searcher_order(OrderOrigin::Local, cs),
+                FilledOrder::ComposableLimit(cl) => self
+                    .validator
+                    .validate_composable_order(OrderOrigin::Local, cl),
+                FilledOrder::Limit(l) => self.validator.validate_order(OrderOrigin::Local, l),
+                FilledOrder::Searcher(s) => self
+                    .validator
+                    .validate_searcher_order(OrderOrigin::Local, s)
+            });
+    }
+
     /// Removes all filled orders from the pools
-    pub fn filled_orders(&mut self, orders: &Vec<B256>) -> Vec<FilledOrder<L, CL, S, CS>> {
+    pub fn filled_orders(&mut self, block: u64, orders: &Vec<B256>) {
         // remove from lower level + hash locations;
-        orders
-            .iter()
-            .filter_map(|order_hash| {
+        self.finalization_pool.new_orders(
+            block,
+            orders.iter().filter_map(|order_hash| {
                 let order_id = self.hash_to_order_id.remove(order_hash)?;
                 let loc = order_id.location;
                 match loc {
@@ -170,7 +193,7 @@ where
                         .map(FilledOrder::add_composable_searcher)
                 }
             })
-            .collect()
+        )
     }
 }
 

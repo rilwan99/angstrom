@@ -1,5 +1,6 @@
 mod common;
 mod config;
+mod finalization_pool;
 mod inner;
 mod limit;
 mod searcher;
