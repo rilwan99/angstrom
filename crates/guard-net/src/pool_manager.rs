@@ -258,8 +258,7 @@ where
                 pool:                 inner,
                 _network:             self.network_handle,
                 _command_tx:          tx,
-                command_rx:           rx,
-                _orders_by_peers:     HashMap::default()
+                command_rx:           rx
             })
         );
 
@@ -292,8 +291,6 @@ where
     _command_tx:          UnboundedSender<OrderCommand<L, CL, S, CS>>,
     /// receiver half of the commands to the pool manager
     command_rx:           UnboundedReceiverStream<OrderCommand<L, CL, S, CS>>,
-    /// All currently pending orders grouped by peers.
-    _orders_by_peers:     HashMap<TxHash, Vec<PeerId>>,
     /// Incoming events from the ProtocolManager.
     order_events:         UnboundedReceiverStream<NetworkOrderEvent>,
     /// All the connected peers.
