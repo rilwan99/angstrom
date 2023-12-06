@@ -41,11 +41,11 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn get_winning_orders(&self) -> Vec<CS> {
+    pub fn get_winning_orders(&self) -> Vec<ValidOrder<CS>> {
         self.sub_pools
             .iter()
             .filter_map(|pool| pool.winning_order())
-            .map(|validated_order| validated_order.order.clone())
+            .map(|validated_order| validated_order.clone())
             .collect()
     }
 }

@@ -6,7 +6,10 @@ use guard_types::{
 };
 
 use super::{pending::PendingPool, LimitPoolError};
-use crate::common::{BidAndAsks, ValidOrder};
+use crate::{
+    common::{BidAndAsks, ValidOrder},
+    BidsAndAsks
+};
 
 pub struct ComposableLimitPool<C: PooledComposableOrder + PooledLimitOrder>(
     HashMap<PoolId, PendingPool<C>>
@@ -65,6 +68,13 @@ where
     /// Fetches supply and demand intersection with a tick price buffer
     pub fn fetch_pool_intersection_with_buffer(&self, _buffer: u8) -> BidAndAsks<ValidOrder<O>> {
         todo!("Blocked until added tick impl")
+    }
+
+    pub fn fetch_bids_asks_per_pool(&self) -> Vec<BidsAndAsks<O>> {
+        self.0
+            .values()
+            .map(|pool| BidsAndAsks { bids: pool.fetch_all_bids(), asks: pool.fetch_all_asks() })
+            .collect()
     }
 
     #[allow(dead_code)]

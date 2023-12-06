@@ -350,13 +350,21 @@ where
                 }
             }
             // fetch requests
-            OrderCommand::FetchAllOrders(sender, is_intersection) => {
-                if let Some(intersection) = is_intersection {
+            OrderCommand::FetchAllOrders(sender, is_intersection) => {}
+            OrderCommand::FetchAllComposableOrders(sender, is_intersection) => {
+                if let Some(_buffer) = is_intersection {
+                    todo!()
                 } else {
+                    let _ = sender.send(self.pool.fetch_composable_orders());
                 }
             }
-            OrderCommand::FetchAllComposableOrders(sender, is_intersection) => {}
-            OrderCommand::FetchAllVanillaOrders(sender, is_intersection) => {}
+            OrderCommand::FetchAllVanillaOrders(sender, is_intersection) => {
+                if let Some(_buffer) = is_intersection {
+                    todo!()
+                } else {
+                    let _ = sender.send(self.pool.fetch_vanilla_orders());
+                }
+            }
         }
     }
 

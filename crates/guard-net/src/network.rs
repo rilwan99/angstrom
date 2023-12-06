@@ -5,7 +5,7 @@ use order_pool::OrderPoolHandle;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
 use reth_rpc_types::PeerId;
 
-use crate::{pool_manager::PoolHandle, StromNetworkEvent};
+use crate::StromNetworkEvent;
 
 //TODO:
 // 1) Implement the order pool manager
@@ -24,6 +24,7 @@ struct StromNetworkInner {
 
     to_manager_tx: UnboundedMeteredSender<StromNetworkEvent>
 }
+
 /// All events related to orders emitted by the network.
 #[derive(Debug)]
 pub enum NetworkOrderEvent {

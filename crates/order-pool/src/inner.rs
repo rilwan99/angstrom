@@ -88,7 +88,14 @@ where
         let limit = self.limit_pool.fetch_all_vanilla_orders();
         let searcher = self.searcher_pool.get_winning_orders_vanilla();
 
-        OrderSet { limit_vanilla: limit, searcher_vanilla: searcher }
+        OrderSet { limit, searcher }
+    }
+
+    pub fn fetch_composable_orders(&self) -> OrderSet<CL, CS> {
+        let limit = self.limit_pool.fetch_all_composable_orders();
+        let searcher = self.searcher_pool.get_winning_orders_composable();
+
+        OrderSet { limit, searcher }
     }
 
     pub fn eoa_state_change(&mut self, eoas: Vec<Address>) {

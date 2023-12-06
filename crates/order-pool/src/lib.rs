@@ -22,8 +22,8 @@ pub use inner::*;
 
 #[derive(Debug)]
 pub struct OrderSet<Limit: PoolOrder, Searcher: PoolOrder> {
-    pub limit_vanilla:    Vec<BidsAndAsks<Limit>>,
-    pub searcher_vanilla: Vec<ValidOrder<Searcher>>
+    pub limit:    Vec<BidsAndAsks<Limit>>,
+    pub searcher: Vec<ValidOrder<Searcher>>
 }
 
 #[derive(Debug)]
