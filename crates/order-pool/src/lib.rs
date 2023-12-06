@@ -88,52 +88,40 @@ pub trait OrderPoolHandle: Send + Sync + Clone + Unpin + 'static {
     fn get_all_vanilla_orders(&self) -> BoxFuture<OrderSet<Self::LimitOrder, Self::SearcherOrder>>;
     // fetches all vanilla orders where for each pool the bids and asks overlap plus
     // a buffer on each side
-    // fn get_all_vanilla_orders_intersection(
-    //     &self,
-    //     buffer: usize
-    // ) -> BoxFuture<
-    //     OrderSet<<Self::LimitOrder as ToOrder>::Order, <Self::SearcherOrder as
-    // ToOrder>::Order> >;
+    fn get_all_vanilla_orders_intersection(
+        &self,
+        buffer: usize
+    ) -> BoxFuture<OrderSet<Self::LimitOrder, Self::SearcherOrder>>;
 
-    // fn get_all_composable_orders(
-    //     &self
-    // ) -> BoxFuture<
-    //     OrderSet<
-    //         <Self::ComposableLimitOrder as OrderConversion>::Order,
-    //         <Self::ComposableSearcherOrder as OrderConversion>::Order
-    //     >
-    // >;
-    //
-    // fn get_all_composable_orders_intersection(
-    //     &self,
-    //     buffer: usize
-    // ) -> BoxFuture<
-    //     OrderSet<
-    //         <Self::ComposableLimitOrder as OrderConversion>::Order,
-    //         <Self::ComposableSearcherOrder as OrderConversion>::Order
-    //     >
-    // >;
-    //
-    // fn get_all_orders(
-    //     &self
-    // ) -> BoxFuture<
-    //     AllOrders<
-    //         <Self::LimitOrder as OrderConversion>::Order,
-    //         <Self::SearcherOrder as OrderConversion>::Order,
-    //         <Self::ComposableLimitOrder as OrderConversion>::Order,
-    //         <Self::ComposableSearcherOrder as OrderConversion>::Order
-    //     >
-    // >;
-    //
-    // fn get_all_orders_intersection(
-    //     &self,
-    //     buffer: usize
-    // ) -> BoxFuture<
-    //     AllOrders<
-    //         <Self::LimitOrder as OrderConversion>::Order,
-    //         <Self::SearcherOrder as OrderConversion>::Order,
-    //         <Self::ComposableLimitOrder as OrderConversion>::Order,
-    //         <Self::ComposableSearcherOrder as OrderConversion>::Order
-    //     >
-    // >;
+    fn get_all_composable_orders(
+        &self
+    ) -> BoxFuture<OrderSet<Self::ComposableLimitOrder, Self::ComposableSearcherOrder>>;
+
+    fn get_all_composable_orders_intersection(
+        &self,
+        buffer: usize
+    ) -> BoxFuture<OrderSet<Self::ComposableLimitOrder, Self::ComposableSearcherOrder>>;
+
+    fn get_all_orders(
+        &self
+    ) -> BoxFuture<
+        AllOrders<
+            Self::LimitOrder,
+            Self::SearcherOrder,
+            Self::ComposableLimitOrder,
+            Self::ComposableSearcherOrder
+        >
+    >;
+
+    fn get_all_orders_intersection(
+        &self,
+        buffer: usize
+    ) -> BoxFuture<
+        AllOrders<
+            Self::LimitOrder,
+            Self::SearcherOrder,
+            Self::ComposableLimitOrder,
+            Self::ComposableSearcherOrder
+        >
+    >;
 }

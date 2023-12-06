@@ -10,9 +10,9 @@ use futures::{future::BoxFuture, stream::FuturesUnordered, Future, StreamExt};
 use guard_eth::manager::EthEvent;
 use guard_types::{
     orders::{
-        GetPooledOrders, OrderConversion, OrderId, OrderLocation, OrderOrigin, OrderPriorityData,
-        Orders, PoolOrder, PooledComposableOrder, PooledLimitOrder, PooledOrder,
-        PooledSearcherOrder, SearcherPriorityData, ValidatedOrder, ValidationResults
+        GetPooledOrders, OrderConversion, OrderOrigin, OrderPriorityData, Orders, PoolOrder,
+        PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder,
+        SearcherPriorityData, ValidatedOrder, ValidationResults
     },
     primitive::PoolId,
     rpc::*
@@ -46,27 +46,9 @@ pub enum OrderCommand<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> 
     NewComposableLimitOrder(OrderOrigin, <CL as OrderConversion>::Order),
     NewComposableSearcherOrder(OrderOrigin, <CS as OrderConversion>::Order),
     // fetch orders
-    FetchAllVanillaOrders(
-        oneshot::Sender<OrderSet<EcRecoveredLimitOrder, EcRecoveredSearcherOrder>>,
-        Option<usize>
-    ),
-    FetchAllComposableOrders(
-        oneshot::Sender<
-            OrderSet<EcRecoveredComposableLimitOrder, EcRecoveredComposableSearcherOrder>
-        >,
-        Option<usize>
-    ),
-    FetchAllOrders(
-        oneshot::Sender<
-            AllOrders<
-                EcRecoveredLimitOrder,
-                EcRecoveredSearcherOrder,
-                EcRecoveredComposableLimitOrder,
-                EcRecoveredComposableSearcherOrder
-            >
-        >,
-        Option<usize>
-    )
+    FetchAllVanillaOrders(oneshot::Sender<OrderSet<L, S>>, Option<usize>),
+    FetchAllComposableOrders(oneshot::Sender<OrderSet<CL, CS>>, Option<usize>),
+    FetchAllOrders(oneshot::Sender<AllOrders<L, S, CL, CS>>, Option<usize>)
 }
 
 impl<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> PoolHandle<L, CL, S, CS> {
@@ -125,74 +107,79 @@ impl<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> OrderPoolHandle
     }
 
     fn get_all_vanilla_orders(&self) -> BoxFuture<OrderSet<Self::LimitOrder, Self::SearcherOrder>> {
-        todo!()
+        Box::pin(async move {
+            let (tx, rx) = oneshot::channel();
+            self.send_request(rx, OrderCommand::FetchAllVanillaOrders(tx, None))
+                .await
+        })
     }
 
-    // fn get_all_vanilla_orders_intersection(
-    //     &self,
-    //     buffer: usize
-    // ) -> BoxFuture<
-    //     OrderSet<
-    //         <Self::LimitOrder as OrderConversion>::Order,
-    //         <Self::SearcherOrder as OrderConversion>::Order
-    //     >
-    // > { Box::pin(async move { let (tx, rx) = oneshot::channel();
-    // > self.send_request(rx, OrderCommand::FetchAllVanillaOrders(tx,
-    // > Some(buffer))) .await })
-    // }
-    //
-    // fn get_all_composable_orders(
-    //     &self
-    // ) -> BoxFuture<
-    //     OrderSet<
-    //         <Self::ComposableLimitOrder as OrderConversion>::Order,
-    //         <Self::ComposableSearcherOrder as OrderConversion>::Order
-    //     >
-    // > { Box::pin(async move { let (tx, rx) = oneshot::channel();
-    // > self.send_request(rx, OrderCommand::FetchAllComposableOrders(tx, None))
-    // > .await })
-    // }
-    //
-    // fn get_all_composable_orders_intersection(
-    //     &self,
-    //     buffer: usize
-    // ) -> BoxFuture<
-    //     OrderSet<
-    //         <Self::ComposableLimitOrder as OrderConversion>::Order,
-    //         <Self::ComposableSearcherOrder as OrderConversion>::Order
-    //     >
-    // > { Box::pin(async move { let (tx, rx) = oneshot::channel();
-    // > self.send_request(rx, OrderCommand::FetchAllComposableOrders(tx,
-    // > Some(buffer))) .await })
-    // }
-    //
-    // fn get_all_orders(
-    //     &self
-    // ) -> BoxFuture<
-    //     AllOrders<
-    //         <Self::LimitOrder as OrderConversion>::Order,
-    //         <Self::SearcherOrder as OrderConversion>::Order,
-    //         <Self::ComposableLimitOrder as OrderConversion>::Order,
-    //         <Self::ComposableSearcherOrder as OrderConversion>::Order
-    //     >
-    // > { Box::pin(async move { let (tx, rx) = oneshot::channel();
-    // > self.send_request(rx, OrderCommand::FetchAllOrders(tx, None)) .await })
-    // }
-    //
-    // fn get_all_orders_intersection(
-    //     &self,
-    //     buffer: usize
-    // ) -> BoxFuture<
-    //     AllOrders<
-    //         <Self::LimitOrder as OrderConversion>::Order,
-    //         <Self::SearcherOrder as OrderConversion>::Order,
-    //         <Self::ComposableLimitOrder as OrderConversion>::Order,
-    //         <Self::ComposableSearcherOrder as OrderConversion>::Order
-    //     >
-    // > { Box::pin(async move { let (tx, rx) = oneshot::channel();
-    // > self.send_request(rx, OrderCommand::FetchAllOrders(tx, Some(buffer)))
-    // > .await })
-    // }
+    fn get_all_vanilla_orders_intersection(
+        &self,
+        buffer: usize
+    ) -> BoxFuture<OrderSet<Self::LimitOrder, Self::SearcherOrder>> {
+        Box::pin(async move {
+            let (tx, rx) = oneshot::channel();
+            self.send_request(rx, OrderCommand::FetchAllVanillaOrders(tx, Some(buffer)))
+                .await
+        })
+    }
+
+    fn get_all_composable_orders(
+        &self
+    ) -> BoxFuture<OrderSet<Self::ComposableLimitOrder, Self::ComposableSearcherOrder>> {
+        Box::pin(async move {
+            let (tx, rx) = oneshot::channel();
+            self.send_request(rx, OrderCommand::FetchAllComposableOrders(tx, None))
+                .await
+        })
+    }
+
+    fn get_all_composable_orders_intersection(
+        &self,
+        buffer: usize
+    ) -> BoxFuture<OrderSet<Self::ComposableLimitOrder, Self::ComposableSearcherOrder>> {
+        Box::pin(async move {
+            let (tx, rx) = oneshot::channel();
+            self.send_request(rx, OrderCommand::FetchAllComposableOrders(tx, Some(buffer)))
+                .await
+        })
+    }
+
+    fn get_all_orders(
+        &self
+    ) -> BoxFuture<
+        AllOrders<
+            Self::LimitOrder,
+            Self::SearcherOrder,
+            Self::ComposableLimitOrder,
+            Self::ComposableSearcherOrder
+        >
+    > {
+        Box::pin(async move {
+            let (tx, rx) = oneshot::channel();
+            self.send_request(rx, OrderCommand::FetchAllOrders(tx, None))
+                .await
+        })
+    }
+
+    fn get_all_orders_intersection(
+        &self,
+        buffer: usize
+    ) -> BoxFuture<
+        AllOrders<
+            Self::LimitOrder,
+            Self::SearcherOrder,
+            Self::ComposableLimitOrder,
+            Self::ComposableSearcherOrder
+        >
+    > {
+        Box::pin(async move {
+            let (tx, rx) = oneshot::channel();
+            self.send_request(rx, OrderCommand::FetchAllOrders(tx, Some(buffer)))
+                .await
+        })
+    }
 }
 
 //TODO: Tmrw clean up + finish pool manager + pool inner
@@ -278,11 +265,27 @@ where
                     self.pool.new_limit_order(origin, order);
                 }
             }
-            OrderCommand::NewSearcherOrder(origin, order) => {}
-            OrderCommand::NewComposableLimitOrder(origin, order) => {}
-            OrderCommand::NewComposableSearcherOrder(origin, order) => {}
+            OrderCommand::NewSearcherOrder(origin, order) => {
+                if let Ok(order) = <S as OrderConversion>::try_from_order(order) {
+                    self.pool.new_searcher_order(origin, order);
+                }
+            }
+            OrderCommand::NewComposableLimitOrder(origin, order) => {
+                if let Ok(order) = <CL as OrderConversion>::try_from_order(order) {
+                    self.pool.new_composable_limit(origin, order);
+                }
+            }
+            OrderCommand::NewComposableSearcherOrder(origin, order) => {
+                if let Ok(order) = <CS as OrderConversion>::try_from_order(order) {
+                    self.pool.new_composable_searcher_order(origin, order);
+                }
+            }
             // fetch requests
-            OrderCommand::FetchAllOrders(sender, is_intersection) => {}
+            OrderCommand::FetchAllOrders(sender, is_intersection) => {
+                if let Some(intersection) = is_intersection {
+                } else {
+                }
+            }
             OrderCommand::FetchAllComposableOrders(sender, is_intersection) => {}
             OrderCommand::FetchAllVanillaOrders(sender, is_intersection) => {}
         }
@@ -303,10 +306,17 @@ where
         }
     }
 
-    //TODO
     fn on_network_order_event(&mut self, event: NetworkOrderEvent) {
         match event {
-            NetworkOrderEvent::IncomingOrders { peer_id, orders } => {}
+            NetworkOrderEvent::IncomingOrders { peer_id, orders } => {
+                orders.into_iter().for_each(|order| {
+                    order.0.into_iter().for_each(|inner| {
+                        self.peers
+                            .get_mut(&peer_id)
+                            .and_then(|peer| Some(peer.orders.insert(inner.hash())));
+                    });
+                });
+            }
         }
     }
 

@@ -75,11 +75,11 @@ where
         self.validator.validate_composable_order(origin, order);
     }
 
-    pub async fn new_searcher_order(&mut self, origin: OrderOrigin, order: S) {
+    pub fn new_searcher_order(&mut self, origin: OrderOrigin, order: S) {
         self.validator.validate_searcher_order(origin, order)
     }
 
-    pub async fn new_composable_searcher_order(&mut self, origin: OrderOrigin, order: CS) {
+    pub fn new_composable_searcher_order(&mut self, origin: OrderOrigin, order: CS) {
         self.validator
             .validate_composable_searcher_order(origin, order)
     }
