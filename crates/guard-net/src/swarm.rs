@@ -42,7 +42,7 @@ impl Swarm {
     pub(crate) fn remove_peer(&mut self, peer_id: PeerId, kind: PeerKind) {
         match kind {
             PeerKind::Basic => self.peers_manager.remove_peer(peer_id),
-            PeerKind::MevGuard => self.peers_manager.remove_peer_from_trusted_set(peer_id)
+            PeerKind::MevGuard => self.peers_manager.remove_peer_from_trusted_set(peer_id),
             _ => todo!()
         }
     }

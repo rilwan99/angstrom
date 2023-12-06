@@ -166,7 +166,9 @@ pub struct Peer {
     /// The kind of peer
     kind:       PeerKind,
     /// If the peer is trusted
-    trusted:    bool
+    trusted:    bool,
+    /// if peer is connected
+    connected:  bool
 }
 
 /// Outcomes when a reputation change is applied to a peer
@@ -184,8 +186,8 @@ enum ReputationChangeOutcome {
 // === impl Peer ===
 
 impl Peer {
-    fn new(kind: PeerKind, trusted: bool) -> Self {
-        Peer { reputation: DEFAULT_REPUTATION, kind, trusted }
+    fn new(kind: PeerKind, trusted: bool, connected: bool) -> Self {
+        Peer { reputation: DEFAULT_REPUTATION, kind, trusted, connected }
     }
 
     /// Resets the reputation of the peer to the default value. This always
@@ -205,8 +207,8 @@ impl Peer {
 
         trace!(target: "net::peers", reputation=%self.reputation, banned=%self.is_banned(), "applied reputation change");
 
-        if self.state.is_connected() && self.is_banned() {
-            self.state.disconnect();
+        if self.connected && self.is_banned() {
+            self.connected = false;
             return ReputationChangeOutcome::DisconnectAndBan
         }
 

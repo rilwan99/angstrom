@@ -47,8 +47,8 @@ impl StromNetworkManager {
 
                 let _ = tx.send(());
             }
-            StromNetworkHandleMsg::RemovePeer(peer_id, kind) => {
-                self.swarm.state_mut().remove_peer(peer_id, kind);
+            StromNetworkHandleMsg::RemovePeer(peer_id) => {
+                self.swarm.state_mut().remove_peer(peer_id);
             }
 
             _ => todo!()

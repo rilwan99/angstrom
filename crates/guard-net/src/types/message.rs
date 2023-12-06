@@ -1,7 +1,12 @@
 #![allow(missing_docs)]
-use std::{fmt::Debug, sync::Arc};
+use std::{
+    fmt::Debug,
+    sync::Arc,
+    task::{ready, Context, Poll}
+};
 
 use alloy_rlp::{length_of_length, Decodable, Encodable, Header};
+use futures::FutureExt;
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
     orders::{GetPooledOrders, Orders, PooledOrder}
@@ -11,6 +16,7 @@ use reth_interfaces::p2p::error::RequestError;
 use reth_primitives::bytes::{Buf, BufMut};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use tokio::sync::oneshot;
 
 use crate::errors::StromStreamError;
 /// Result alias for result of a request.
@@ -320,12 +326,11 @@ where
     }
 }
 
-/*
 /// Protocol related request messages that expect a response
 #[derive(Debug)]
 #[allow(clippy::enum_variant_names, missing_docs)]
 pub enum PeerRequest {
-    GetAllOrders { request: GetOrders, response: oneshot::Sender<RequestResult<Orders>> }
+    GetAllOrders { request: GetPooledOrders, response: oneshot::Sender<RequestResult<Orders>> }
 }
 
 // === impl PeerRequest ===
@@ -347,17 +352,8 @@ impl PeerRequest {
     pub fn create_request_message(&self, request_id: u64) -> StromMessage {
         match self {
             PeerRequest::GetAllOrders { request, .. } => {
-                StromMessage::GetOrders(RequestPair { request_id, message: request.clone() })
+                StromMessage::GetPooledOrders(RequestPair { request_id, message: request.clone() })
             }
-        }
-    }
-
-    /// Consumes the type and returns the inner [`GetPooledTransactions`]
-    /// variant.
-    pub fn into_get_all_orders(self) -> Option<GetOrders> {
-        match self {
-            PeerRequest::GetPooledTransactions { request, .. } => Some(request),
-            _ => None
         }
     }
 }
@@ -365,38 +361,14 @@ impl PeerRequest {
 /// Corresponding variant for [`PeerRequest`].
 #[derive(Debug)]
 pub enum PeerResponse {
-    BlockHeaders { response: oneshot::Receiver<RequestResult<Orders>> }
+    Orders { response: oneshot::Receiver<RequestResult<Orders>> }
 }
 
 impl PeerResponse {
     /// Polls the type to completion.
-    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<PeerResponseResult> {
-        macro_rules! poll_request {
-            ($response:ident, $item:ident, $cx:ident) => {
-                match ready!($response.poll_unpin($cx)) {
-                    Ok(res) => PeerResponseResult::$item(res.map(|item| item.0)),
-                    Err(err) => PeerResponseResult::$item(Err(err.into()))
-                }
-            };
+    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<RequestResult<Orders>> {
+        match self {
+            PeerResponse::Orders { response } => response.poll_unpin(cx).map(|inner| inner.unwrap())
         }
-
-        let res = match self {
-            PeerResponse::BlockHeaders { response } => {
-                poll_request!(response, BlockHeaders, cx)
-            }
-            PeerResponse::BlockBodies { response } => {
-                poll_request!(response, BlockBodies, cx)
-            }
-            PeerResponse::PooledTransactions { response } => {
-                poll_request!(response, PooledTransactions, cx)
-            }
-            PeerResponse::NodeData { response } => {
-                poll_request!(response, NodeData, cx)
-            }
-            PeerResponse::Receipts { response } => {
-                poll_request!(response, Receipts, cx)
-            }
-        };
-        Poll::Ready(res)
     }
-} */
+}

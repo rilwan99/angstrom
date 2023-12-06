@@ -2,8 +2,8 @@
 
 pub mod manager;
 mod reputation;
-
 pub use manager::*;
+pub use reputation::ReputationChangeKind;
 
 /// Maximum number of available slots for outbound sessions.
 pub(crate) const DEFAULT_MAX_PEERS_OUTBOUND: usize = 100;

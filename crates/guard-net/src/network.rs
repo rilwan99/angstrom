@@ -1,12 +1,13 @@
 use std::sync::{atomic::AtomicUsize, Arc};
 
-use guard_types::orders::Orders;
+use guard_types::orders::{GetPooledOrders, Orders};
 use reth_eth_wire::DisconnectReason;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
+use reth_network::PeerRequest;
 use reth_rpc_types::PeerId;
 use tokio::sync::{mpsc::UnboundedSender, oneshot};
 
-use crate::{StromMessage, StromNetworkEvent};
+use crate::{PeerKind, ReputationChangeKind, RequestPair, StromMessage, StromNetworkEvent};
 
 //TODO:
 // 1) Implement the order pool manager
@@ -29,6 +30,10 @@ impl StromNetworkHandle {
         self.send_message(StromNetworkHandleMsg::SendOrders { peer_id, msg })
     }
 
+    pub fn broadcast_tx(&self, msg: StromMessage) {
+        self.send_message(StromNetworkHandleMsg::BroadcastOrder { msg });
+    }
+
     /// Send message to gracefully shutdown node.
     ///
     /// This will disconnect all active and pending sessions and prevent
@@ -41,8 +46,8 @@ impl StromNetworkHandle {
 
     /// Sends a message to the [`NetworkManager`](crate::NetworkManager) to
     /// remove a peer from the set corresponding to given kind.
-    fn remove_peer(&self, peer: PeerId, kind: PeerKind) {
-        self.send_message(StromNetworkHandleMsg::RemovePeer(peer, kind))
+    fn remove_peer(&self, peer: PeerId) {
+        self.send_message(StromNetworkHandleMsg::RemovePeer(peer))
     }
 }
 
@@ -62,14 +67,32 @@ pub enum NetworkOrderEvent {
 #[derive(Debug)]
 pub(crate) enum StromNetworkHandleMsg {
     /// Removes a peer from the peer set corresponding to the given kind.
-    RemovePeer(PeerId, PeerKind),
+    RemovePeer(PeerId),
     /// Disconnect a connection to a peer if it exists.
     DisconnectPeer(PeerId, Option<DisconnectReason>),
     /// Add a new listener for [`NetworkEvent`].
     EventListener(UnboundedSender<StromNetworkEvent>),
 
     /// Sends the list of transactions to the given peer.
-    SendOrders { peer_id: PeerId, msg: StromMessage },
+    SendOrders {
+        peer_id: PeerId,
+        msg:     StromMessage
+    },
+
+    Request {
+        peer_id: PeerId,
+        msg:     PeerRequest
+    },
+    /// Get Order Request
+    GetOrders {
+        peer_id: PeerId,
+        msg:     RequestPair<GetPooledOrders>
+    },
+
+    /// broadcasts the order
+    BroadcastOrder {
+        msg: StromMessage
+    },
 
     /// Apply a reputation change to the given peer.
     ReputationChange(PeerId, ReputationChangeKind),
