@@ -9,8 +9,8 @@ pub use manager::{StromNetworkEvent, StromNetworkManager};
 pub mod pool_manager;
 pub use pool_manager::*;
 
-pub mod reputation;
-pub use reputation::*;
+pub mod peers;
+pub use peers::*;
 
 pub mod session;
 pub use session::*;
@@ -26,3 +26,6 @@ pub use config::*;
 
 pub mod cache;
 pub use cache::*;
+
+pub mod swarm;
+pub use swarm::*;

@@ -170,22 +170,6 @@ pub enum OrderCommand {
     PropagateOrdersTo(Vec<TxHash>, PeerId)
 }
 
-/// All events related to orders emitted by the network.
-#[derive(Debug)]
-#[allow(missing_docs)]
-pub enum NetworkTransactionEvent {
-    /// Received list of transactions from the given peer.
-    ///
-    /// This represents transactions that were broadcasted to use from the peer.
-    IncomingOrders { peer_id: PeerId, msg: Orders },
-    /// Incoming `GetPooledOrders` request from a peer.
-    GetPooledOrders {
-        peer_id:  PeerId,
-        request:  GetPooledOrders,
-        response: oneshot::Sender<RequestResult<Orders>>
-    }
-}
-
 /// Tracks a single peer
 #[derive(Debug)]
 struct StromPeer {

@@ -29,8 +29,9 @@ use reth_primitives::PeerId;
 #[allow(unused_imports)]
 use tokio_util::sync::PollSender;
 
-use crate::{errors::StromStreamError, StromMessage, StromProtocolMessage};
+use crate::{errors::StromStreamError, PeerKind, StromMessage, StromProtocolMessage};
 
+#[derive(Debug)]
 pub struct StromSessionManager {
     counter:         SessionCounter,
     // All active sessions that are ready to exchange messages.
@@ -59,9 +60,9 @@ impl StromSessionManager {
         Some(session)
     }
 
-    /// Initiates a shutdown of the channel.
-    pub fn disconnect(&self, node: PeerId, reason: Option<DisconnectReason>) {
-        if let Some(session) = self.active_sessions.get(&node) {
+    /// Shutdown all active sessions.
+    pub fn disconnect_all(&self, reason: Option<DisconnectReason>) {
+        for (_, session) in self.active_sessions.iter() {
             session.disconnect(reason);
         }
     }
