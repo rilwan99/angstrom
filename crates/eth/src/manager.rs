@@ -69,7 +69,8 @@ where
     }
 }
 pub enum EthEvent {
-    FilledOrders(Vec<B256>),
+    FilledOrders(Vec<B256>, u64),
     EOAStateChanges(Vec<Address>),
-    ReorgedOrders(Vec<B256>)
+    ReorgedOrders(Vec<B256>),
+    FinalizedBlock(u64)
 }

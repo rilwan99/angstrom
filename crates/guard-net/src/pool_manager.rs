@@ -370,15 +370,18 @@ where
 
     fn on_eth_event(&mut self, eth: EthEvent) {
         match eth {
-            EthEvent::FilledOrders(orders) => {
+            EthEvent::FilledOrders(orders, block) => {
                 let _orders = self.pool.filled_orders(&orders);
                 todo!()
             }
-            EthEvent::ReorgedOrders(_) => {
+            EthEvent::ReorgedOrders(orders) => {
                 todo!("add pending validation pool");
             }
             EthEvent::EOAStateChanges(state_changes) => {
                 self.pool.eoa_state_change(state_changes);
+            }
+            EthEvent::FinalizedBlock(block) => {
+                todo!()
             }
         }
     }
