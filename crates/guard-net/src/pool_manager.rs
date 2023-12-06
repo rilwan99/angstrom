@@ -383,6 +383,32 @@ where
                         self.peers
                             .get_mut(&peer_id)
                             .and_then(|peer| Some(peer.orders.insert(inner.hash())));
+
+                        match inner {
+                            PooledOrder::Limit(order) => {
+                                if let Ok(order) = <L as OrderConversion>::try_from_order(order) {
+                                    self.pool.new_limit_order(OrderOrigin::External, order);
+                                }
+                            }
+                            PooledOrder::Searcher(order) => {
+                                if let Ok(order) = <S as OrderConversion>::try_from_order(order) {
+                                    self.pool.new_searcher_order(OrderOrigin::External, order);
+                                }
+                            }
+                            PooledOrder::ComposableLimit(order) => {
+                                if let Ok(order) = <CL as OrderConversion>::try_from_order(order) {
+                                    self.pool.new_composable_limit(OrderOrigin::External, order);
+                                }
+                            }
+                            PooledOrder::ComposableSearcher(order) => {
+                                if let Ok(order) = <CS as OrderConversion>::try_from_order(order) {
+                                    self.pool.new_composable_searcher_order(
+                                        OrderOrigin::External,
+                                        order
+                                    );
+                                }
+                            }
+                        }
                     });
                 });
             }
