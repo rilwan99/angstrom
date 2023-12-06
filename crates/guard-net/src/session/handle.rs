@@ -1,4 +1,4 @@
-use reth_network::{Direction, PeerRequest};
+use reth_network::Direction;
 use reth_primitives::PeerId;
 use tokio::{sync::mpsc, time::Instant};
 
@@ -14,8 +14,7 @@ pub enum SessionCommand {
         reason: Option<DisconnectReason>
     },
     /// Sends a message to the peer
-    Message(StromMessage),
-    Request(PeerRequest)
+    Message(StromMessage)
 }
 
 /// An established session with a remote peer.

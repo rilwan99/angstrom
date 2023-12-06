@@ -1,13 +1,12 @@
 use std::sync::{atomic::AtomicUsize, Arc};
 
-use guard_types::orders::{GetPooledOrders, Orders};
+use guard_types::orders::PooledOrder;
 use reth_eth_wire::DisconnectReason;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
-use reth_network::PeerRequest;
 use reth_rpc_types::PeerId;
 use tokio::sync::{mpsc::UnboundedSender, oneshot};
 
-use crate::{PeerKind, ReputationChangeKind, RequestPair, StromMessage, StromNetworkEvent};
+use crate::{ReputationChangeKind, StromMessage, StromNetworkEvent};
 
 //TODO:
 // 1) Implement the order pool manager
@@ -61,7 +60,7 @@ struct StromNetworkInner {
 /// All events related to orders emitted by the network.
 #[derive(Debug)]
 pub enum NetworkOrderEvent {
-    IncomingOrders { peer_id: PeerId, orders: Vec<Orders> }
+    IncomingOrders { peer_id: PeerId, orders: Vec<PooledOrder> }
 }
 
 #[derive(Debug)]
@@ -74,25 +73,10 @@ pub(crate) enum StromNetworkHandleMsg {
     EventListener(UnboundedSender<StromNetworkEvent>),
 
     /// Sends the list of transactions to the given peer.
-    SendOrders {
-        peer_id: PeerId,
-        msg:     StromMessage
-    },
-
-    Request {
-        peer_id: PeerId,
-        msg:     PeerRequest
-    },
-    /// Get Order Request
-    GetOrders {
-        peer_id: PeerId,
-        msg:     RequestPair<GetPooledOrders>
-    },
+    SendOrders { peer_id: PeerId, msg: StromMessage },
 
     /// broadcasts the order
-    BroadcastOrder {
-        msg: StromMessage
-    },
+    BroadcastOrder { msg: StromMessage },
 
     /// Apply a reputation change to the given peer.
     ReputationChange(PeerId, ReputationChangeKind),

@@ -1,22 +1,16 @@
 #![allow(missing_docs)]
-use std::{
-    fmt::Debug,
-    sync::Arc,
-    task::{ready, Context, Poll}
-};
+use std::{fmt::Debug, sync::Arc};
 
-use alloy_rlp::{length_of_length, Decodable, Encodable, Header};
-use futures::FutureExt;
+use alloy_rlp::{Decodable, Encodable};
 use guard_types::{
     consensus::{Commit, PreProposal, Proposal},
-    orders::{GetPooledOrders, Orders, PooledOrder}
+    orders::PooledOrder
 };
 use reth_eth_wire::{capability::Capability, protocol::Protocol};
 use reth_interfaces::p2p::error::RequestError;
 use reth_primitives::bytes::{Buf, BufMut};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use tokio::sync::oneshot;
 
 use crate::errors::StromStreamError;
 /// Result alias for result of a request.
@@ -46,12 +40,8 @@ impl StromProtocolMessage {
             StromMessageID::Propose => StromMessage::Propose(Proposal::decode(buf)?),
             StromMessageID::Commit => StromMessage::Commit(Commit::decode(buf)?),
             StromMessageID::PropagatePooledOrders => {
-                StromMessage::PropagatePooledOrders(Orders::decode(buf)?)
+                StromMessage::PropagatePooledOrders(Vec::<PooledOrder>::decode(buf)?)
             }
-            StromMessageID::GetPooledOrders => {
-                StromMessage::GetPooledOrders(RequestPair::decode(buf)?)
-            }
-            StromMessageID::PooledOrders => StromMessage::PooledOrders(RequestPair::decode(buf)?)
         };
         Ok(StromProtocolMessage { message_type, message })
     }
@@ -118,11 +108,7 @@ pub enum StromMessage {
     Commit(Commit),
 
     /// Propagation messages that broadcast new orders to all peers
-    PropagatePooledOrders(Orders),
-
-    // Order Request / Response pairs
-    GetPooledOrders(RequestPair<GetPooledOrders>),
-    PooledOrders(RequestPair<Orders>)
+    PropagatePooledOrders(Vec<PooledOrder>)
 }
 
 macro_rules! encodable_enum {
@@ -143,16 +129,7 @@ macro_rules! encodable_enum {
     };
 }
 
-encodable_enum!(
-    StromMessage,
-    Status,
-    PrePropose,
-    Propose,
-    Commit,
-    PropagatePooledOrders,
-    GetPooledOrders,
-    PooledOrders
-);
+encodable_enum!(StromMessage, Status, PrePropose, Propose, Commit, PropagatePooledOrders);
 
 impl StromMessage {
     /// Returns the message's ID.
@@ -163,9 +140,7 @@ impl StromMessage {
             StromMessage::Propose(_) => StromMessageID::Propose,
             StromMessage::Commit(_) => StromMessageID::Commit,
 
-            StromMessage::PropagatePooledOrders(_) => StromMessageID::PropagatePooledOrders,
-            StromMessage::GetPooledOrders(_) => StromMessageID::GetPooledOrders,
-            StromMessage::PooledOrders(_) => StromMessageID::PooledOrders
+            StromMessage::PropagatePooledOrders(_) => StromMessageID::PropagatePooledOrders
         }
     }
 }
@@ -185,8 +160,7 @@ pub enum StromBroadcastMessage {
     Propose(Arc<Proposal>),
     Commit(Arc<Commit>),
     // Order Broadcast
-    PropagatePooledOrders(Arc<Vec<PooledOrder>>),
-    GetPooledOrders(Arc<RequestPair<Orders>>)
+    PropagatePooledOrders(Arc<Vec<PooledOrder>>)
 }
 
 // === impl StromBroadcastMessage ===
@@ -197,39 +171,25 @@ impl StromBroadcastMessage {
             StromBroadcastMessage::PrePropose(_) => StromMessageID::PrePropose,
             StromBroadcastMessage::Propose(_) => StromMessageID::Propose,
             StromBroadcastMessage::Commit(_) => StromMessageID::Commit,
-            StromBroadcastMessage::PropagatePooledOrders(_) => {
-                StromMessageID::PropagatePooledOrders
-            }
-            StromBroadcastMessage::GetPooledOrders(_) => StromMessageID::GetPooledOrders
+            StromBroadcastMessage::PropagatePooledOrders(_) => StromMessageID::PropagatePooledOrders
         }
     }
 }
 
-encodable_enum!(
-    StromBroadcastMessage,
-    PrePropose,
-    Propose,
-    Commit,
-    PropagatePooledOrders,
-    GetPooledOrders
-);
+encodable_enum!(StromBroadcastMessage, PrePropose, Propose, Commit, PropagatePooledOrders);
 
 /// Represents message IDs for eth protocol messages.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum StromMessageID {
-    Status          = 0,
+    Status     = 0,
     /// Consensus
-    PrePropose      = 1,
-    Propose         = 2,
-    Commit          = 3,
+    PrePropose = 1,
+    Propose    = 2,
+    Commit     = 3,
     /// Propagation messages that broadcast new orders to all peers
-    PropagatePooledOrders = 4,
-
-    /// Order Request / Response pairs
-    GetPooledOrders = 5,
-    PooledOrders    = 6
+    PropagatePooledOrders = 4
 }
 
 impl Encodable for StromMessageID {
@@ -251,8 +211,6 @@ impl Decodable for StromMessageID {
             2 => StromMessageID::Propose,
             3 => StromMessageID::Commit,
             4 => StromMessageID::PropagatePooledOrders,
-            5 => StromMessageID::GetPooledOrders,
-            6 => StromMessageID::PooledOrders,
             _ => return Err(alloy_rlp::Error::Custom("Invalid message ID"))
         };
         buf.advance(1);
@@ -270,105 +228,7 @@ impl TryFrom<usize> for StromMessageID {
             2 => Ok(StromMessageID::Propose),
             3 => Ok(StromMessageID::Commit),
             4 => Ok(StromMessageID::PropagatePooledOrders),
-            5 => Ok(StromMessageID::GetPooledOrders),
-            6 => Ok(StromMessageID::PooledOrders),
             _ => Err("Invalid message ID")
-        }
-    }
-}
-
-/// This is used for all request-response style `eth` protocol messages.
-/// This can represent either a request or a response, since both include a
-/// message payload and request id.
-#[derive(Clone, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct RequestPair<O> {
-    /// id for the contained request or response message
-    pub request_id: u64,
-
-    /// the request or response message payload
-    pub message: O
-}
-
-/// Allows messages with request ids to be serialized into RLP bytes.
-impl<O> Encodable for RequestPair<O>
-where
-    O: Encodable
-{
-    fn encode(&self, out: &mut dyn alloy_rlp::BufMut) {
-        let header = Header {
-            list:           true,
-            payload_length: self.request_id.length() + self.message.length()
-        };
-
-        header.encode(out);
-        self.request_id.encode(out);
-        self.message.encode(out);
-    }
-
-    fn length(&self) -> usize {
-        let mut length = 0;
-        length += self.request_id.length();
-        length += self.message.length();
-        length += length_of_length(length);
-        length
-    }
-}
-
-/// Allows messages with request ids to be deserialized into RLP bytes.
-impl<O> Decodable for RequestPair<O>
-where
-    O: Decodable
-{
-    fn decode(buf: &mut &[u8]) -> Result<Self, alloy_rlp::Error> {
-        let _header = Header::decode(buf)?;
-        Ok(Self { request_id: u64::decode(buf)?, message: O::decode(buf)? })
-    }
-}
-
-/// Protocol related request messages that expect a response
-#[derive(Debug)]
-#[allow(clippy::enum_variant_names, missing_docs)]
-pub enum PeerRequest {
-    GetAllOrders { request: GetPooledOrders, response: oneshot::Sender<RequestResult<Orders>> }
-}
-
-// === impl PeerRequest ===
-
-impl PeerRequest {
-    /// Invoked if we received a response which does not match the request
-    pub(crate) fn send_bad_response(self) {
-        self.send_err_response(RequestError::BadResponse)
-    }
-
-    /// Send an error back to the receiver.
-    pub(crate) fn send_err_response(self, err: RequestError) {
-        let _ = match self {
-            Self::GetAllOrders { response, .. } => response.send(Err(err)).ok()
-        };
-    }
-
-    /// Returns the [`EthMessage`] for this type
-    pub fn create_request_message(&self, request_id: u64) -> StromMessage {
-        match self {
-            PeerRequest::GetAllOrders { request, .. } => {
-                StromMessage::GetPooledOrders(RequestPair { request_id, message: request.clone() })
-            }
-        }
-    }
-}
-
-/// Corresponding variant for [`PeerRequest`].
-#[derive(Debug)]
-pub enum PeerResponse {
-    Orders { response: oneshot::Receiver<RequestResult<Orders>> }
-}
-
-impl PeerResponse {
-    /// Polls the type to completion.
-    pub(crate) fn poll(&mut self, cx: &mut Context<'_>) -> Poll<RequestResult<Orders>> {
-        match self {
-            PeerResponse::Orders { response } => response.poll_unpin(cx).map(|inner| inner.unwrap())
         }
     }
 }
