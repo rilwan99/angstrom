@@ -1,3 +1,5 @@
+use std::net::SocketAddr;
+
 use reth_eth_wire::{
     capability::SharedCapabilities, multiplex::ProtocolConnection, protocol::Protocol,
     DisconnectReason, Status
@@ -25,7 +27,8 @@ pub struct StromConnectionHandler {
     pub to_session_manager: MeteredPollSender<StromSessionMessage>,
     pub status: Option<Status>,
     pub protocol_breach_request_timeout: Duration,
-    pub session_command_buffer: usize
+    pub session_command_buffer: usize,
+    pub socket_addr: SocketAddr
 }
 
 impl ConnectionHandler for StromConnectionHandler {

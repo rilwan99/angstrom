@@ -11,9 +11,8 @@ use futures::{future::BoxFuture, stream::FuturesUnordered, Future, StreamExt};
 use guard_eth::manager::EthEvent;
 use guard_types::{
     orders::{
-        GetPooledOrders, OrderConversion, OrderOrigin, OrderPriorityData, Orders, PoolOrder,
-        PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder,
-        SearcherPriorityData
+        OrderConversion, OrderOrigin, OrderPriorityData, PoolOrder, PooledComposableOrder,
+        PooledLimitOrder, PooledOrder, PooledSearcherOrder, SearcherPriorityData
     },
     rpc::*
 };
@@ -29,7 +28,7 @@ use tokio::sync::{
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use validation::order::OrderValidator;
 
-use crate::{LruCache, NetworkOrderEvent, RequestResult, StromNetworkEvent, StromNetworkHandle};
+use crate::{LruCache, NetworkOrderEvent, StromNetworkEvent, StromNetworkHandle};
 /// Cache limit of transactions to keep track of for a single peer.
 const PEER_ORDER_CACHE_LIMIT: usize = 1024 * 10;
 
@@ -199,8 +198,7 @@ where
     eth_network_events:   UnboundedReceiverStream<EthEvent>,
     order_events:         UnboundedReceiverStream<NetworkOrderEvent>,
     _phatom:              PhantomData<(L, CL, S, CS)>,
-    config:               PoolConfig,
-    fetcher:              OrderFetcher
+    config:               PoolConfig
 }
 
 impl<L, CL, S, CS, V> PoolManagerBuilder<L, CL, S, CS, V>
@@ -235,8 +233,7 @@ where
             network_handle,
             validator,
             _phatom: Default::default(),
-            config: Default::default(),
-            fetcher: Default::default()
+            config: Default::default()
         }
     }
 
@@ -262,7 +259,6 @@ where
                 _network:             self.network_handle,
                 _command_tx:          tx,
                 command_rx:           rx,
-                _order_fetcher:       self.fetcher,
                 _orders_by_peers:     HashMap::default()
             })
         );
@@ -296,8 +292,6 @@ where
     _command_tx:          UnboundedSender<OrderCommand<L, CL, S, CS>>,
     /// receiver half of the commands to the pool manager
     command_rx:           UnboundedReceiverStream<OrderCommand<L, CL, S, CS>>,
-    /// Order fetcher to handle inflight and missing order requests.
-    _order_fetcher:       OrderFetcher,
     /// All currently pending orders grouped by peers.
     _orders_by_peers:     HashMap<TxHash, Vec<PeerId>>,
     /// Incoming events from the ProtocolManager.
@@ -390,37 +384,33 @@ where
         match event {
             NetworkOrderEvent::IncomingOrders { peer_id, orders } => {
                 orders.into_iter().for_each(|order| {
-                    order.0.into_iter().for_each(|inner| {
-                        self.peers
-                            .get_mut(&peer_id)
-                            .and_then(|peer| Some(peer.orders.insert(inner.hash())));
+                    self.peers
+                        .get_mut(&peer_id)
+                        .and_then(|peer| Some(peer.orders.insert(order.hash())));
 
-                        match inner {
-                            PooledOrder::Limit(order) => {
-                                if let Ok(order) = <L as OrderConversion>::try_from_order(order) {
-                                    self.pool.new_limit_order(OrderOrigin::External, order);
-                                }
-                            }
-                            PooledOrder::Searcher(order) => {
-                                if let Ok(order) = <S as OrderConversion>::try_from_order(order) {
-                                    self.pool.new_searcher_order(OrderOrigin::External, order);
-                                }
-                            }
-                            PooledOrder::ComposableLimit(order) => {
-                                if let Ok(order) = <CL as OrderConversion>::try_from_order(order) {
-                                    self.pool.new_composable_limit(OrderOrigin::External, order);
-                                }
-                            }
-                            PooledOrder::ComposableSearcher(order) => {
-                                if let Ok(order) = <CS as OrderConversion>::try_from_order(order) {
-                                    self.pool.new_composable_searcher_order(
-                                        OrderOrigin::External,
-                                        order
-                                    );
-                                }
+                    match order {
+                        PooledOrder::Limit(order) => {
+                            if let Ok(order) = <L as OrderConversion>::try_from_order(order) {
+                                self.pool.new_limit_order(OrderOrigin::External, order);
                             }
                         }
-                    });
+                        PooledOrder::Searcher(order) => {
+                            if let Ok(order) = <S as OrderConversion>::try_from_order(order) {
+                                self.pool.new_searcher_order(OrderOrigin::External, order);
+                            }
+                        }
+                        PooledOrder::ComposableLimit(order) => {
+                            if let Ok(order) = <CL as OrderConversion>::try_from_order(order) {
+                                self.pool.new_composable_limit(OrderOrigin::External, order);
+                            }
+                        }
+                        PooledOrder::ComposableSearcher(order) => {
+                            if let Ok(order) = <CS as OrderConversion>::try_from_order(order) {
+                                self.pool
+                                    .new_composable_searcher_order(OrderOrigin::External, order);
+                            }
+                        }
+                    }
                 });
             }
         }
@@ -525,13 +515,7 @@ pub enum NetworkTransactionEvent {
     /// Received list of transactions from the given peer.
     ///
     /// This represents transactions that were broadcasted to use from the peer.
-    IncomingOrders { peer_id: PeerId, msg: Orders },
-    /// Incoming `GetPooledOrders` request from a peer.
-    GetPooledOrders {
-        peer_id:  PeerId,
-        request:  GetPooledOrders,
-        response: oneshot::Sender<RequestResult<Orders>>
-    }
+    IncomingOrders { peer_id: PeerId, msg: Vec<PooledOrder> }
 }
 
 /// Tracks a single peer
@@ -552,16 +536,4 @@ impl StromPeer {
     pub fn propagate_order(&mut self, orders: Vec<PooledOrder>) {
         todo!()
     }
-}
-
-/// The type responsible for fetching missing orders from peers.
-///
-/// This will keep track of unique transaction hashes that are currently being
-/// fetched and submits new requests on announced hashes.
-#[derive(Debug, Default)]
-struct OrderFetcher {
-    /// All currently active requests for pooled transactions.
-    _inflight_requests:               FuturesUnordered<GetPooledOrders>,
-    /// Set that tracks all hashes that are currently being fetched.
-    _inflight_hash_to_fallback_peers: HashMap<TxHash, Vec<PeerId>>
 }

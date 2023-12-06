@@ -1,7 +1,4 @@
-use alloy_rlp::{
-    Buf, BufMut, Decodable, Encodable, Error, RlpDecodableWrapper, RlpEncodableWrapper
-};
-use reth_codecs::derive_arbitrary;
+use alloy_rlp::{Buf, BufMut, Decodable, Encodable, Error};
 use reth_primitives::B256;
 use serde::{Deserialize, Serialize};
 
@@ -9,18 +6,6 @@ use crate::rpc::{
     SignedComposableLimitOrder, SignedComposableSearcherOrder, SignedLimitOrder,
     SignedSearcherOrder
 };
-
-#[derive_arbitrary(rlp)]
-#[derive(
-    Clone, Debug, PartialEq, Eq, RlpEncodableWrapper, RlpDecodableWrapper, Serialize, Deserialize,
-)]
-pub struct Orders(pub Vec<PooledOrder>);
-
-#[derive_arbitrary(rlp)]
-#[derive(
-    Clone, Debug, PartialEq, Eq, RlpEncodableWrapper, RlpDecodableWrapper, Serialize, Deserialize,
-)]
-pub struct GetPooledOrders(pub Vec<B256>);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum PooledOrder {
