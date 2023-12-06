@@ -6,18 +6,14 @@ use std::{
     task::{Context, Poll}
 };
 
-use futures::{stream::FuturesUnordered, Future, StreamExt};
+use futures::{Future, StreamExt};
 use guard_eth::manager::EthEvent;
-use guard_types::orders::{GetPooledOrders, Orders};
 use order_pool::traits::OrderPool;
 use reth_primitives::{PeerId, TxHash, B256};
-use tokio::sync::{
-    mpsc::{UnboundedReceiver, UnboundedSender},
-    oneshot
-};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
 
-use crate::{LruCache, NetworkOrderEvent, RequestResult, StromNetworkEvent, StromNetworkHandle};
+use crate::{LruCache, NetworkOrderEvent, StromNetworkEvent, StromNetworkHandle};
 /// Cache limit of transactions to keep track of for a single peer.
 const PEER_ORDER_CACHE_LIMIT: usize = 1024 * 10;
 
@@ -54,8 +50,6 @@ pub struct PoolManager<Pool> {
     command_tx:           UnboundedSender<OrderCommand>,
     /// receiver half of the commands to the pool manager
     command_rx:           UnboundedReceiverStream<OrderCommand>,
-    /// Order fetcher to handle inflight and missing order requests.
-    _order_fetcher:       OrderFetcher,
     /// Incoming pending transactions from the pool that should be propagated to
     /// the network
     _pending_orders:      ReceiverStream<TxHash>,
@@ -124,18 +118,6 @@ where
     }
 }
 
-/// The type responsible for fetching missing orders from peers.
-///
-/// This will keep track of unique transaction hashes that are currently being
-/// fetched and submits new requests on announced hashes.
-#[derive(Debug, Default)]
-struct OrderFetcher {
-    /// All currently active requests for pooled transactions.
-    _inflight_requests:               FuturesUnordered<GetPooledOrders>,
-    /// Set that tracks all hashes that are currently being fetched.
-    _inflight_hash_to_fallback_peers: HashMap<TxHash, Vec<PeerId>>
-}
-
 impl<Pool> Future for PoolManager<Pool>
 where
     Pool: OrderPool + Unpin + 'static
@@ -168,22 +150,6 @@ where
 pub enum OrderCommand {
     PropagateOrders(Vec<TxHash>),
     PropagateOrdersTo(Vec<TxHash>, PeerId)
-}
-
-/// All events related to orders emitted by the network.
-#[derive(Debug)]
-#[allow(missing_docs)]
-pub enum NetworkTransactionEvent {
-    /// Received list of transactions from the given peer.
-    ///
-    /// This represents transactions that were broadcasted to use from the peer.
-    IncomingOrders { peer_id: PeerId, msg: Orders },
-    /// Incoming `GetPooledOrders` request from a peer.
-    GetPooledOrders {
-        peer_id:  PeerId,
-        request:  GetPooledOrders,
-        response: oneshot::Sender<RequestResult<Orders>>
-    }
 }
 
 /// Tracks a single peer

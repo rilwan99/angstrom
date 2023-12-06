@@ -129,6 +129,7 @@ impl Stream for StromSession {
                             SessionCommand::Disconnect { reason: _reason } => {
                                 this.emit_disconnect(cx)
                             }
+
                             SessionCommand::Message(msg) => {
                                 let msg = StromProtocolMessage {
                                     message_type: msg.message_id(),

@@ -1,19 +1,27 @@
-use std::sync::{atomic::AtomicUsize, Arc};
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::{atomic::AtomicUsize, Arc},
+    task::Context
+};
 
+use futures::{task::Poll, StreamExt};
 use reth_eth_wire::DisconnectReason;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
 use reth_primitives::PeerId;
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use tracing::error;
 
+use crate::{NetworkOrderEvent, StromNetworkHandleMsg, Swarm};
 #[allow(unused_imports)]
 use crate::{StromNetworkConfig, StromNetworkHandle, StromSessionManager};
 
 #[allow(dead_code)]
 pub struct StromNetworkManager {
     handle:               StromNetworkHandle,
-    from_handle:          UnboundedReceiverStream<StromNetworkEvent>,
-    session_manager:      StromSessionManager,
-    to_pool_manager:      Option<UnboundedMeteredSender<StromNetworkEvent>>,
+    from_handle_rx:       UnboundedReceiverStream<StromNetworkHandleMsg>,
+    swarm:                Swarm,
+    to_pool_manager:      Option<UnboundedMeteredSender<NetworkOrderEvent>>,
     to_consensus_manager: Option<UnboundedMeteredSender<StromNetworkEvent>>,
 
     /// This is updated via internal events and shared via `Arc` with the
@@ -23,31 +31,60 @@ pub struct StromNetworkManager {
 }
 
 impl StromNetworkManager {
-    /*pub async fn new(network: StromNetworkConfig) {
-        let (from_handle, to_handle) = mpsc::unbounded_channel();
-        let (to_session_manager, from_session_manager) = mpsc::unbounded_channel();
-        let (to_pool_manager, from_pool_manager) = mpsc::unbounded_channel();
-        let (to_consensus_manager, from_consensus_manager) = mpsc::unbounded_channel();
+    // Handler for received messages from a handle
+    fn on_handle_message(&mut self, msg: StromNetworkHandleMsg) {
+        match msg {
+            StromNetworkHandleMsg::SendOrders { peer_id, msg } => {
+                self.swarm.sessions_mut().send_message(&peer_id, msg)
+            }
+            StromNetworkHandleMsg::Shutdown(tx) => {
+                // Disconnect all active connections
+                self.swarm
+                    .sessions_mut()
+                    .disconnect_all(Some(DisconnectReason::ClientQuitting));
 
-        let session_manager = StromSessionManager::new(from_session_manager);
+                // drop pending connections
 
-        let num_active_peers = Arc::new(AtomicUsize::new(0));
-        let handle = StromNetworkHandle::new(to_handle);
+                let _ = tx.send(());
+            }
+            StromNetworkHandleMsg::RemovePeer(peer_id) => {
+                self.swarm.state_mut().remove_peer(peer_id);
+            }
 
-        let num_active_peers = Arc::new(AtomicUsize::new(0));
-
-        let manager = Self {
-            handle,
-            from_handle: UnboundedReceiverStream::new(from_handle),
-            session_manager,
-            to_pool_manager: Some(to_pool_manager),
-            to_consensus_manager: Some(to_consensus_manager),
-            num_active_peers
-        };
-
-        manager.start().await;
+            _ => todo!()
+        }
     }
-    */
+
+    /// Sends an event to the pool manager.
+    fn notify_pool_manager(&self, event: NetworkOrderEvent) {
+        if let Some(ref tx) = self.to_pool_manager {
+            let _ = tx.send(event);
+        }
+    }
+}
+
+impl Future for StromNetworkManager {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
+
+        // process incoming messages from a handle
+        loop {
+            match this.from_handle_rx.poll_next_unpin(cx) {
+                Poll::Pending => break,
+                Poll::Ready(None) => {
+                    // This is only possible if the channel was deliberately closed since we always
+                    // have an instance of `NetworkHandle`
+                    error!("Strom network message channel closed.");
+                    return Poll::Ready(())
+                }
+                Poll::Ready(Some(msg)) => this.on_handle_message(msg)
+            };
+        }
+
+        Poll::Pending
+    }
 }
 
 /// (Non-exhaustive) Events emitted by the network that are of interest for

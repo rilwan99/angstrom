@@ -42,12 +42,13 @@ where
 {
     type ConnectionHandler = StromConnectionHandler;
 
-    fn on_incoming(&self, _socket_addr: SocketAddr) -> Option<Self::ConnectionHandler> {
+    fn on_incoming(&self, socket_addr: SocketAddr) -> Option<Self::ConnectionHandler> {
         Some(StromConnectionHandler {
             to_session_manager: self.to_session_manager.clone(),
             status: None,
             protocol_breach_request_timeout: Duration::from_secs(10),
-            session_command_buffer: 100
+            session_command_buffer: 100,
+            socket_addr
         })
     }
 
@@ -55,14 +56,15 @@ where
     /// here we have to add the outgoing connect message and send it to the peer
     fn on_outgoing(
         &self,
-        _socket_addr: SocketAddr,
+        socket_addr: SocketAddr,
         _peer_id: PeerId
     ) -> Option<Self::ConnectionHandler> {
         Some(StromConnectionHandler {
             to_session_manager: self.to_session_manager.clone(),
             status: None,
             protocol_breach_request_timeout: Duration::from_secs(10),
-            session_command_buffer: self.config.session_command_buffer
+            session_command_buffer: self.config.session_command_buffer,
+            socket_addr
         })
     }
 }
