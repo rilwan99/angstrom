@@ -5,7 +5,7 @@ use super::{
     ValidatedOrder
 };
 use crate::{
-    orders::{OrderConversion, ToOrder},
+    orders::OrderConversion,
     rpc::{
         EcRecoveredComposableSearcherOrder, EcRecoveredSearcherOrder,
         SignedComposableSearcherOrder, SignedSearcherOrder
@@ -15,38 +15,23 @@ use crate::{
 impl OrderConversion for EcRecoveredSearcherOrder {
     type Order = SignedSearcherOrder;
 
-    fn from_order(order: Self::Order) -> Self {
-        order.try_into().unwrap()
+    fn try_from_order(order: Self::Order) -> Result<Self, secp256k1::Error> {
+        order.try_into()
     }
 
     fn to_signed(self) -> Self::Order {
         self.signed_order
-    }
-}
-impl ToOrder for SignedSearcherOrder {
-    type Order = EcRecoveredSearcherOrder;
-
-    fn to(self) -> Self::Order {
-        self.try_into().unwrap()
     }
 }
 impl OrderConversion for EcRecoveredComposableSearcherOrder {
     type Order = SignedComposableSearcherOrder;
 
-    fn from_order(order: Self::Order) -> Self {
-        order.try_into().unwrap()
+    fn try_from_order(order: Self::Order) -> Result<Self, secp256k1::Error> {
+        order.try_into()
     }
 
     fn to_signed(self) -> Self::Order {
         self.signed_order
-    }
-}
-
-impl ToOrder for SignedComposableSearcherOrder {
-    type Order = EcRecoveredComposableSearcherOrder;
-
-    fn to(self) -> Self::Order {
-        self.try_into().unwrap()
     }
 }
 

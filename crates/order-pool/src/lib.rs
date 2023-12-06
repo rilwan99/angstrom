@@ -12,8 +12,7 @@ use futures_util::future::BoxFuture;
 use guard_types::{
     orders::{
         OrderConversion, OrderOrigin, OrderPriorityData, PoolOrder, PooledComposableOrder,
-        PooledLimitOrder, PooledOrder, PooledSearcherOrder, SearcherPriorityData, ToOrder,
-        ValidatedOrder
+        PooledLimitOrder, PooledOrder, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
     },
     primitive::PoolId
 };
@@ -47,37 +46,46 @@ pub struct AllOrders<
 /// asyncly. This allows for requesting data and providing data from different
 /// threads efficiently.
 // #[auto_impl::auto_impl(Arc)]
-pub trait OrderPool: Send + Sync + Clone + Unpin + 'static {
+pub trait OrderPoolHandle: Send + Sync + Clone + Unpin + 'static {
     /// The transaction type of the limit order pool
-    type LimitOrder: ToOrder;
+    type LimitOrder: PoolOrder;
 
     /// The transaction type of the searcher order pool
-    type SearcherOrder: ToOrder;
+    type SearcherOrder: PoolOrder;
 
     /// The transaction type of the composable limit order pool
-    type ComposableLimitOrder: ToOrder;
+    type ComposableLimitOrder: PoolOrder;
 
     /// The transaction type of the composable searcher order pool
-    type ComposableSearcherOrder: ToOrder;
+    type ComposableSearcherOrder: PoolOrder;
+
     // New order functionality.
-    fn new_limit_order(&self, origin: OrderOrigin, order: Self::LimitOrder);
-    fn new_searcher_order(&self, origin: OrderOrigin, order: Self::SearcherOrder);
-    fn new_composable_limit_order(&self, origin: OrderOrigin, order: Self::ComposableLimitOrder);
+    fn new_limit_order(
+        &self,
+        origin: OrderOrigin,
+        order: <Self::LimitOrder as OrderConversion>::Order
+    );
+    fn new_searcher_order(
+        &self,
+        origin: OrderOrigin,
+        order: <Self::SearcherOrder as OrderConversion>::Order
+    );
+    fn new_composable_limit_order(
+        &self,
+        origin: OrderOrigin,
+        order: <Self::ComposableLimitOrder as OrderConversion>::Order
+    );
     fn new_composable_searcher_order(
         &self,
         origin: OrderOrigin,
-        order: Self::ComposableSearcherOrder
+        order: <Self::ComposableSearcherOrder as OrderConversion>::Order
     );
 
     // Queries for fetching all orders. Will be used for quoting
     // and consensus.
 
     // fetches all vanilla orders
-    fn get_all_vanilla_orders(
-        &self
-    ) -> BoxFuture<
-        OrderSet<<Self::LimitOrder as ToOrder>::Order, <Self::SearcherOrder as ToOrder>::Order>
-    >;
+    fn get_all_vanilla_orders(&self) -> BoxFuture<OrderSet<Self::LimitOrder, Self::SearcherOrder>>;
     // fetches all vanilla orders where for each pool the bids and asks overlap plus
     // a buffer on each side
     // fn get_all_vanilla_orders_intersection(

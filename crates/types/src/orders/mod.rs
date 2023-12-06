@@ -64,14 +64,12 @@ pub trait PooledComposableOrder: PoolOrder {
     fn post_hook(&self) -> Option<Bytes>;
 }
 
-pub trait ToOrder {
-    type Order: PoolOrder;
-    fn to(self) -> Self::Order;
-}
-
 pub trait OrderConversion {
-    type Order;
+    type Order: Send + Sync + Clone + Debug;
 
-    fn from_order(order: Self::Order) -> Self;
+    fn try_from_order(order: Self::Order) -> Result<Self, secp256k1::Error>
+    where
+        Self: Sized;
+
     fn to_signed(self) -> Self::Order;
 }

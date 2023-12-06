@@ -11,13 +11,13 @@ use guard_eth::manager::EthEvent;
 use guard_types::{
     orders::{
         GetPooledOrders, OrderConversion, OrderId, OrderLocation, OrderOrigin, OrderPriorityData,
-        Orders, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder,
-        SearcherPriorityData, ToOrder, ValidatedOrder, ValidationResults
+        Orders, PoolOrder, PooledComposableOrder, PooledLimitOrder, PooledOrder,
+        PooledSearcherOrder, SearcherPriorityData, ValidatedOrder, ValidationResults
     },
     primitive::PoolId,
     rpc::*
 };
-use order_pool::{AllOrders, OrderPool, OrderPoolInner, OrderSet, OrdersToPropagate};
+use order_pool::{AllOrders, OrderPoolHandle, OrderPoolInner, OrderSet, OrdersToPropagate};
 use reth_primitives::{PeerId, TxHash, B256};
 use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
@@ -32,19 +32,19 @@ const PEER_ORDER_CACHE_LIMIT: usize = 1024 * 10;
 
 /// Api to interact with [`PoolManager`] task.
 #[derive(Debug, Clone)]
-pub struct PoolHandle {
+pub struct PoolHandle<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> {
     #[allow(dead_code)]
     /// Command channel to the [`TransactionsManager`]
-    manager_tx: UnboundedSender<OrderCommand>
+    manager_tx: UnboundedSender<OrderCommand<L, CL, S, CS>>
 }
 
 #[derive(Debug)]
-pub enum OrderCommand {
+pub enum OrderCommand<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> {
     // new orders
-    NewLimitOrder(OrderOrigin, SignedLimitOrder),
-    NewSearcherOrder(OrderOrigin, SignedSearcherOrder),
-    NewComposableLimitOrder(OrderOrigin, SignedComposableLimitOrder),
-    NewComposableSearcherOrder(OrderOrigin, SignedComposableSearcherOrder),
+    NewLimitOrder(OrderOrigin, <L as OrderConversion>::Order),
+    NewSearcherOrder(OrderOrigin, <S as OrderConversion>::Order),
+    NewComposableLimitOrder(OrderOrigin, <CL as OrderConversion>::Order),
+    NewComposableSearcherOrder(OrderOrigin, <CS as OrderConversion>::Order),
     // fetch orders
     FetchAllVanillaOrders(
         oneshot::Sender<OrderSet<EcRecoveredLimitOrder, EcRecoveredSearcherOrder>>,
@@ -69,57 +69,63 @@ pub enum OrderCommand {
     )
 }
 
-impl PoolHandle {
-    fn send(&self, cmd: OrderCommand) {
+impl<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> PoolHandle<L, CL, S, CS> {
+    fn send(&self, cmd: OrderCommand<L, CL, S, CS>) {
         let _ = self.manager_tx.send(cmd);
     }
 
-    async fn send_request<T>(&self, rx: oneshot::Receiver<T>, cmd: OrderCommand) -> T {
+    async fn send_request<T>(
+        &self,
+        rx: oneshot::Receiver<T>,
+        cmd: OrderCommand<L, CL, S, CS>
+    ) -> T {
         self.send(cmd);
         rx.await.unwrap()
     }
 }
 
-impl OrderPool for PoolHandle {
-    /// The transaction type of the composable limit order pool
-    type ComposableLimitOrder = SignedComposableLimitOrder;
-    /// The transaction type of the composable searcher order pool
-    type ComposableSearcherOrder = SignedComposableSearcherOrder;
-    /// The transaction type of the limit order pool
-    type LimitOrder = SignedLimitOrder;
-    /// The transaction type of the searcher order pool
-    type SearcherOrder = SignedSearcherOrder;
+impl<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> OrderPoolHandle
+    for PoolHandle<L, CL, S, CS>
+{
+    type ComposableLimitOrder = CL;
+    type ComposableSearcherOrder = CS;
+    type LimitOrder = L;
+    type SearcherOrder = S;
 
-    fn new_limit_order(&self, origin: OrderOrigin, order: Self::LimitOrder) {
+    fn new_limit_order(
+        &self,
+        origin: OrderOrigin,
+        order: <Self::LimitOrder as OrderConversion>::Order
+    ) {
         self.send(OrderCommand::NewLimitOrder(origin, order));
     }
 
-    fn new_searcher_order(&self, origin: OrderOrigin, order: Self::SearcherOrder) {
+    fn new_searcher_order(
+        &self,
+        origin: OrderOrigin,
+        order: <Self::SearcherOrder as OrderConversion>::Order
+    ) {
         self.send(OrderCommand::NewSearcherOrder(origin, order))
     }
 
-    fn new_composable_limit_order(&self, origin: OrderOrigin, order: Self::ComposableLimitOrder) {
+    fn new_composable_limit_order(
+        &self,
+        origin: OrderOrigin,
+        order: <Self::ComposableLimitOrder as OrderConversion>::Order
+    ) {
         self.send(OrderCommand::NewComposableLimitOrder(origin, order))
     }
 
     fn new_composable_searcher_order(
         &self,
         origin: OrderOrigin,
-        order: Self::ComposableSearcherOrder
+        order: <Self::ComposableSearcherOrder as OrderConversion>::Order
     ) {
         self.send(OrderCommand::NewComposableSearcherOrder(origin, order))
     }
 
-    fn get_all_vanilla_orders(
-        &self
-    ) -> BoxFuture<
-        OrderSet<<Self::LimitOrder as ToOrder>::Order, <Self::SearcherOrder as ToOrder>::Order>
-    > {
-        Box::pin(async move {
-            let (tx, rx) = oneshot::channel();
-            self.send_request(rx, OrderCommand::FetchAllVanillaOrders(tx, None))
-                .await
-        })
+    fn get_all_vanilla_orders(&self) -> BoxFuture<OrderSet<Self::LimitOrder, Self::SearcherOrder>> {
+        todo!()
     }
 
     // fn get_all_vanilla_orders_intersection(
@@ -211,9 +217,9 @@ where
     /// have been filled  
     eth_network_events:   UnboundedReceiverStream<EthEvent>,
     /// Send half for the command channel. Used to generate new handles
-    command_tx:           UnboundedSender<OrderCommand>,
+    command_tx:           UnboundedSender<OrderCommand<L, CL, S, CS>>,
     /// receiver half of the commands to the pool manager
-    command_rx:           UnboundedReceiverStream<OrderCommand>,
+    command_rx:           UnboundedReceiverStream<OrderCommand<L, CL, S, CS>>,
     /// Order fetcher to handle inflight and missing order requests.
     _order_fetcher:       OrderFetcher,
     /// All currently pending orders grouped by peers.
@@ -260,15 +266,17 @@ where
     >
 {
     /// Returns a new handle that can send commands to this type.
-    pub fn handle(&self) -> PoolHandle {
+    pub fn handle(&self) -> PoolHandle<L, CL, S, CS> {
         PoolHandle { manager_tx: self.command_tx.clone() }
     }
 
-    fn on_command(&mut self, cmd: OrderCommand) {
+    fn on_command(&mut self, cmd: OrderCommand<L, CL, S, CS>) {
         match cmd {
             // new orders
             OrderCommand::NewLimitOrder(origin, order) => {
-                self.pool.new_limit_order(origin, order.to());
+                if let Ok(order) = <L as OrderConversion>::try_from_order(order) {
+                    self.pool.new_limit_order(origin, order);
+                }
             }
             OrderCommand::NewSearcherOrder(origin, order) => {}
             OrderCommand::NewComposableLimitOrder(origin, order) => {}

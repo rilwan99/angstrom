@@ -1,6 +1,7 @@
 use std::sync::{atomic::AtomicUsize, Arc};
 
 use guard_types::orders::Orders;
+use order_pool::OrderPoolHandle;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
 use reth_rpc_types::PeerId;
 
@@ -29,7 +30,7 @@ pub enum NetworkOrderEvent {
     IncomingOrders { peer_id: PeerId, orders: Vec<Orders> }
 }
 #[allow(dead_code)]
-pub struct StromNetworkManager {
+pub struct StromNetworkManager<O: OrderPoolHandle> {
     inner:  Arc<StromNetworkInner>,
-    handle: PoolHandle
+    handle: O
 }

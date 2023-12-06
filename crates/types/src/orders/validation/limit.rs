@@ -7,7 +7,7 @@ use super::{
     ValidatedOrder
 };
 use crate::{
-    orders::{OrderConversion, ToOrder},
+    orders::OrderConversion,
     primitive::PoolId,
     rpc::{
         EcRecoveredComposableLimitOrder, EcRecoveredLimitOrder, SignedComposableLimitOrder,
@@ -18,40 +18,24 @@ use crate::{
 impl OrderConversion for EcRecoveredLimitOrder {
     type Order = SignedLimitOrder;
 
-    fn from_order(order: Self::Order) -> Self {
-        order.try_into().unwrap()
+    fn try_from_order(order: Self::Order) -> Result<Self, secp256k1::Error> {
+        order.try_into()
     }
 
     fn to_signed(self) -> Self::Order {
         self.signed_order
-    }
-}
-
-impl ToOrder for SignedLimitOrder {
-    type Order = EcRecoveredLimitOrder;
-
-    fn to(self) -> Self::Order {
-        self.try_into().unwrap()
     }
 }
 
 impl OrderConversion for EcRecoveredComposableLimitOrder {
     type Order = SignedComposableLimitOrder;
 
-    fn from_order(order: Self::Order) -> Self {
-        order.try_into().unwrap()
+    fn try_from_order(order: Self::Order) -> Result<Self, secp256k1::Error> {
+        order.try_into()
     }
 
     fn to_signed(self) -> Self::Order {
         self.signed_order
-    }
-}
-
-impl ToOrder for SignedComposableLimitOrder {
-    type Order = EcRecoveredComposableLimitOrder;
-
-    fn to(self) -> Self::Order {
-        self.try_into().unwrap()
     }
 }
 
