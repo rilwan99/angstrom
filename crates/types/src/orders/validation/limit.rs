@@ -7,6 +7,7 @@ use super::{
     ValidatedOrder
 };
 use crate::{
+    orders::{OrderConversion, ToOrder},
     primitive::PoolId,
     rpc::{
         EcRecoveredComposableLimitOrder, EcRecoveredLimitOrder, SignedComposableLimitOrder,
@@ -14,43 +15,43 @@ use crate::{
     }
 };
 
-pub trait FromSignedLimitOrder {
-    fn from_signed_limit_order(tx: SignedLimitOrder) -> Self;
-}
+impl OrderConversion for EcRecoveredLimitOrder {
+    type Order = SignedLimitOrder;
 
-impl FromSignedLimitOrder for EcRecoveredLimitOrder {
-    fn from_signed_limit_order(tx: SignedLimitOrder) -> Self {
-        tx.try_into().unwrap()
+    fn from_order(order: Self::Order) -> Self {
+        order.try_into().unwrap()
+    }
+
+    fn to_signed(self) -> Self::Order {
+        self.signed_order
     }
 }
 
-pub trait FromLimitOrder {
-    fn from_limit(&self) -> SignedLimitOrder;
-}
+impl ToOrder for SignedLimitOrder {
+    type Order = EcRecoveredLimitOrder;
 
-impl FromLimitOrder for EcRecoveredLimitOrder {
-    fn from_limit(&self) -> SignedLimitOrder {
-        self.signed_order.clone()
+    fn to(self) -> Self::Order {
+        self.try_into().unwrap()
     }
 }
 
-pub trait FromComposableLimitOrder {
-    fn from_composable_limit(&self) -> SignedComposableLimitOrder;
-}
+impl OrderConversion for EcRecoveredComposableLimitOrder {
+    type Order = SignedComposableLimitOrder;
 
-impl FromComposableLimitOrder for EcRecoveredComposableLimitOrder {
-    fn from_composable_limit(&self) -> SignedComposableLimitOrder {
-        self.signed_order.clone()
+    fn from_order(order: Self::Order) -> Self {
+        order.try_into().unwrap()
+    }
+
+    fn to_signed(self) -> Self::Order {
+        self.signed_order
     }
 }
 
-pub trait FromSignedComposableLimitOrder {
-    fn from_signed_composable_limit_order(tx: SignedComposableLimitOrder) -> Self;
-}
+impl ToOrder for SignedComposableLimitOrder {
+    type Order = EcRecoveredComposableLimitOrder;
 
-impl FromSignedComposableLimitOrder for EcRecoveredComposableLimitOrder {
-    fn from_signed_composable_limit_order(tx: SignedComposableLimitOrder) -> Self {
-        tx.try_into().unwrap()
+    fn to(self) -> Self::Order {
+        self.try_into().unwrap()
     }
 }
 

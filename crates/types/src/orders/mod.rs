@@ -11,7 +11,7 @@ pub use validation::*;
 mod orders;
 pub use orders::*;
 
-pub trait PoolOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
+pub trait PoolOrder: OrderConversion + fmt::Debug + Send + Sync + Clone + Unpin + 'static {
     type ValidationData: Send + Debug + Sync + Clone + Unpin + 'static;
 
     /// Hash of the order
@@ -62,4 +62,16 @@ pub trait PooledComposableOrder: PoolOrder {
     fn pre_hook(&self) -> Option<Bytes>;
 
     fn post_hook(&self) -> Option<Bytes>;
+}
+
+pub trait ToOrder {
+    type Order: PoolOrder;
+    fn to(self) -> Self::Order;
+}
+
+pub trait OrderConversion {
+    type Order;
+
+    fn from_order(order: Self::Order) -> Self;
+    fn to_signed(self) -> Self::Order;
 }

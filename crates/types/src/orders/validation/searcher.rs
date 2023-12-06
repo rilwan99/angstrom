@@ -4,48 +4,49 @@ use super::{
     super::{PoolOrder, PooledComposableOrder},
     ValidatedOrder
 };
-use crate::rpc::{
-    EcRecoveredComposableSearcherOrder, EcRecoveredSearcherOrder, SignedComposableSearcherOrder,
-    SignedSearcherOrder
+use crate::{
+    orders::{OrderConversion, ToOrder},
+    rpc::{
+        EcRecoveredComposableSearcherOrder, EcRecoveredSearcherOrder,
+        SignedComposableSearcherOrder, SignedSearcherOrder
+    }
 };
 
-pub trait FromSignedSearcherOrder {
-    fn from_signed_searcher_order(tx: SignedSearcherOrder) -> Self;
-}
+impl OrderConversion for EcRecoveredSearcherOrder {
+    type Order = SignedSearcherOrder;
 
-impl FromSignedSearcherOrder for EcRecoveredSearcherOrder {
-    fn from_signed_searcher_order(tx: SignedSearcherOrder) -> Self {
-        tx.try_into().unwrap()
+    fn from_order(order: Self::Order) -> Self {
+        order.try_into().unwrap()
+    }
+
+    fn to_signed(self) -> Self::Order {
+        self.signed_order
+    }
+}
+impl ToOrder for SignedSearcherOrder {
+    type Order = EcRecoveredSearcherOrder;
+
+    fn to(self) -> Self::Order {
+        self.try_into().unwrap()
+    }
+}
+impl OrderConversion for EcRecoveredComposableSearcherOrder {
+    type Order = SignedComposableSearcherOrder;
+
+    fn from_order(order: Self::Order) -> Self {
+        order.try_into().unwrap()
+    }
+
+    fn to_signed(self) -> Self::Order {
+        self.signed_order
     }
 }
 
-pub trait FromSignedComposableSearcherOrder {
-    fn from_signed_composable_searcher_order(tx: SignedComposableSearcherOrder) -> Self;
-}
+impl ToOrder for SignedComposableSearcherOrder {
+    type Order = EcRecoveredComposableSearcherOrder;
 
-impl FromSignedComposableSearcherOrder for EcRecoveredComposableSearcherOrder {
-    fn from_signed_composable_searcher_order(tx: SignedComposableSearcherOrder) -> Self {
-        tx.try_into().unwrap()
-    }
-}
-
-pub trait FromSearcherOrder {
-    fn from_searcher(&self) -> SignedSearcherOrder;
-}
-
-impl FromSearcherOrder for EcRecoveredSearcherOrder {
-    fn from_searcher(&self) -> SignedSearcherOrder {
-        self.signed_order.clone()
-    }
-}
-
-pub trait FromComposableSearcherOrder {
-    fn from_composable_searcher(&self) -> SignedComposableSearcherOrder;
-}
-
-impl FromComposableSearcherOrder for EcRecoveredComposableSearcherOrder {
-    fn from_composable_searcher(&self) -> SignedComposableSearcherOrder {
-        self.signed_order.clone()
+    fn to(self) -> Self::Order {
+        self.try_into().unwrap()
     }
 }
 

@@ -9,11 +9,9 @@ use alloy_primitives::B256;
 use futures_util::{Stream, StreamExt};
 use guard_types::{
     orders::{
-        FromComposableLimitOrder, FromComposableSearcherOrder, FromLimitOrder, FromSearcherOrder,
-        FromSignedComposableLimitOrder, FromSignedComposableSearcherOrder, FromSignedLimitOrder,
-        FromSignedSearcherOrder, GetPooledOrders, OrderId, OrderLocation, OrderOrigin,
-        OrderPriorityData, Orders, PooledComposableOrder, PooledLimitOrder, PooledOrder,
-        PooledSearcherOrder, SearcherPriorityData, ValidatedOrder, ValidationResults
+        GetPooledOrders, OrderId, OrderLocation, OrderOrigin, OrderPriorityData, Orders,
+        PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder,
+        SearcherPriorityData, ValidatedOrder, ValidationResults
     },
     primitive::PoolId
 };

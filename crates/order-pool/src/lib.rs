@@ -8,34 +8,36 @@ use std::{collections::HashMap, sync::Arc};
 
 use alloy_primitives::TxHash;
 use config::PoolConfig;
+use futures_util::future::BoxFuture;
 use guard_types::{
     orders::{
-        FromComposableLimitOrder, FromComposableSearcherOrder, FromLimitOrder, FromSearcherOrder,
-        FromSignedComposableLimitOrder, FromSignedComposableSearcherOrder, FromSignedLimitOrder,
-        FromSignedSearcherOrder, OrderOrigin, OrderPriorityData, PoolOrder, PooledComposableOrder,
-        PooledLimitOrder, PooledOrder, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
+        OrderConversion, OrderOrigin, OrderPriorityData, PoolOrder, PooledComposableOrder,
+        PooledLimitOrder, PooledOrder, PooledSearcherOrder, SearcherPriorityData, ToOrder,
+        ValidatedOrder
     },
     primitive::PoolId
 };
 pub use guard_utils::*;
 pub use inner::*;
-use validation::order::OrderValidator;
 
-pub struct OrderSet<Limit: PooledLimitOrder, Searcher: PooledSearcherOrder> {
+#[derive(Debug)]
+pub struct OrderSet<Limit: PoolOrder, Searcher: PoolOrder> {
     pub limit_vanilla:    HashMap<PoolId, BidsAndAsks<Limit>>,
     pub searcher_vanilla: HashMap<PoolId, ValidatedOrder<Searcher, Searcher::ValidationData>>
 }
 
+#[derive(Debug)]
 pub struct BidsAndAsks<O: PoolOrder> {
     pub bids: Vec<ValidatedOrder<O, O::ValidationData>>,
     pub asks: Vec<ValidatedOrder<O, O::ValidationData>>
 }
 
+#[derive(Debug)]
 pub struct AllOrders<
-    Limit: PooledLimitOrder,
-    Searcher: PooledSearcherOrder,
-    LimitCompose: PooledLimitOrder,
-    SearcherCompose: PooledSearcherOrder
+    Limit: PoolOrder,
+    Searcher: PoolOrder,
+    LimitCompose: PoolOrder,
+    SearcherCompose: PoolOrder
 > {
     pub vanilla:    OrderSet<Limit, Searcher>,
     pub composable: OrderSet<LimitCompose, SearcherCompose>
@@ -47,23 +49,16 @@ pub struct AllOrders<
 // #[auto_impl::auto_impl(Arc)]
 pub trait OrderPool: Send + Sync + Clone + Unpin + 'static {
     /// The transaction type of the limit order pool
-    type LimitOrder: PooledLimitOrder + FromSignedLimitOrder + FromLimitOrder;
+    type LimitOrder: ToOrder;
 
     /// The transaction type of the searcher order pool
-    type SearcherOrder: PooledSearcherOrder + FromSignedSearcherOrder + FromSearcherOrder;
+    type SearcherOrder: ToOrder;
 
     /// The transaction type of the composable limit order pool
-    type ComposableLimitOrder: PooledComposableOrder
-        + PooledLimitOrder
-        + FromComposableLimitOrder
-        + FromSignedComposableLimitOrder;
+    type ComposableLimitOrder: ToOrder;
 
     /// The transaction type of the composable searcher order pool
-    type ComposableSearcherOrder: PooledComposableOrder
-        + PooledSearcherOrder
-        + FromSignedComposableSearcherOrder
-        + FromComposableSearcherOrder;
-
+    type ComposableSearcherOrder: ToOrder;
     // New order functionality.
     fn new_limit_order(&self, origin: OrderOrigin, order: Self::LimitOrder);
     fn new_searcher_order(&self, origin: OrderOrigin, order: Self::SearcherOrder);
@@ -74,49 +69,63 @@ pub trait OrderPool: Send + Sync + Clone + Unpin + 'static {
         order: Self::ComposableSearcherOrder
     );
 
-    async fn get_pooled_orders_by_hashes(
-        &self,
-        tx_hashes: Vec<TxHash>,
-        limit: Option<usize>
-    ) -> Vec<PooledOrder>;
-
     // Queries for fetching all orders. Will be used for quoting
     // and consensus.
 
     // fetches all vanilla orders
-    async fn get_all_vanilla_orders(&self) -> OrderSet<Self::LimitOrder, Self::SearcherOrder>;
+    fn get_all_vanilla_orders(
+        &self
+    ) -> BoxFuture<
+        OrderSet<<Self::LimitOrder as ToOrder>::Order, <Self::SearcherOrder as ToOrder>::Order>
+    >;
     // fetches all vanilla orders where for each pool the bids and asks overlap plus
     // a buffer on each side
-    async fn get_all_vanilla_orders_intersection(
-        &self,
-        buffer: usize
-    ) -> OrderSet<Self::LimitOrder, Self::SearcherOrder>;
+    // fn get_all_vanilla_orders_intersection(
+    //     &self,
+    //     buffer: usize
+    // ) -> BoxFuture<
+    //     OrderSet<<Self::LimitOrder as ToOrder>::Order, <Self::SearcherOrder as
+    // ToOrder>::Order> >;
 
-    async fn get_all_composable_orders(
-        &self
-    ) -> OrderSet<Self::ComposableLimitOrder, Self::ComposableSearcherOrder>;
-
-    async fn get_all_composable_orders_intersection(
-        &self,
-        buffer: usize
-    ) -> OrderSet<Self::ComposableLimitOrder, Self::ComposableSearcherOrder>;
-
-    async fn get_all_orders(
-        &self
-    ) -> AllOrders<
-        Self::LimitOrder,
-        Self::SearcherOrder,
-        Self::ComposableLimitOrder,
-        Self::ComposableSearcherOrder
-    >;
-
-    async fn get_all_orders_intersection(
-        &self,
-        buffer: usize
-    ) -> AllOrders<
-        Self::LimitOrder,
-        Self::SearcherOrder,
-        Self::ComposableLimitOrder,
-        Self::ComposableSearcherOrder
-    >;
+    // fn get_all_composable_orders(
+    //     &self
+    // ) -> BoxFuture<
+    //     OrderSet<
+    //         <Self::ComposableLimitOrder as OrderConversion>::Order,
+    //         <Self::ComposableSearcherOrder as OrderConversion>::Order
+    //     >
+    // >;
+    //
+    // fn get_all_composable_orders_intersection(
+    //     &self,
+    //     buffer: usize
+    // ) -> BoxFuture<
+    //     OrderSet<
+    //         <Self::ComposableLimitOrder as OrderConversion>::Order,
+    //         <Self::ComposableSearcherOrder as OrderConversion>::Order
+    //     >
+    // >;
+    //
+    // fn get_all_orders(
+    //     &self
+    // ) -> BoxFuture<
+    //     AllOrders<
+    //         <Self::LimitOrder as OrderConversion>::Order,
+    //         <Self::SearcherOrder as OrderConversion>::Order,
+    //         <Self::ComposableLimitOrder as OrderConversion>::Order,
+    //         <Self::ComposableSearcherOrder as OrderConversion>::Order
+    //     >
+    // >;
+    //
+    // fn get_all_orders_intersection(
+    //     &self,
+    //     buffer: usize
+    // ) -> BoxFuture<
+    //     AllOrders<
+    //         <Self::LimitOrder as OrderConversion>::Order,
+    //         <Self::SearcherOrder as OrderConversion>::Order,
+    //         <Self::ComposableLimitOrder as OrderConversion>::Order,
+    //         <Self::ComposableSearcherOrder as OrderConversion>::Order
+    //     >
+    // >;
 }

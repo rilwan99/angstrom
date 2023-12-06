@@ -6,15 +6,13 @@ use std::{
     task::{Context, Poll}
 };
 
-use futures::{stream::FuturesUnordered, Future, FutureExt, StreamExt};
+use futures::{future::BoxFuture, stream::FuturesUnordered, Future, StreamExt};
 use guard_eth::manager::EthEvent;
 use guard_types::{
     orders::{
-        FromComposableLimitOrder, FromComposableSearcherOrder, FromLimitOrder, FromSearcherOrder,
-        FromSignedComposableLimitOrder, FromSignedComposableSearcherOrder, FromSignedLimitOrder,
-        FromSignedSearcherOrder, GetPooledOrders, OrderId, OrderLocation, OrderOrigin,
-        OrderPriorityData, Orders, PooledComposableOrder, PooledLimitOrder, PooledOrder,
-        PooledSearcherOrder, SearcherPriorityData, ValidatedOrder, ValidationResults
+        GetPooledOrders, OrderConversion, OrderId, OrderLocation, OrderOrigin, OrderPriorityData,
+        Orders, PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder,
+        SearcherPriorityData, ToOrder, ValidatedOrder, ValidationResults
     },
     primitive::PoolId,
     rpc::*
@@ -42,102 +40,153 @@ pub struct PoolHandle {
 
 #[derive(Debug)]
 pub enum OrderCommand {
-    NewLimitOrder(OrderOrigin, EcRecoveredLimitOrder),
-    NewSearcherOrder(OrderOrigin, EcRecoveredSearcherOrder),
-    NewComposableLimitOrder(OrderOrigin, EcRecoveredComposableLimitOrder),
-    NewComposableSearcherOrder(OrderOrigin, EcRecoveredSearcherOrder)
+    // new orders
+    NewLimitOrder(OrderOrigin, SignedLimitOrder),
+    NewSearcherOrder(OrderOrigin, SignedSearcherOrder),
+    NewComposableLimitOrder(OrderOrigin, SignedComposableLimitOrder),
+    NewComposableSearcherOrder(OrderOrigin, SignedComposableSearcherOrder),
+    // fetch orders
+    FetchAllVanillaOrders(
+        oneshot::Sender<OrderSet<EcRecoveredLimitOrder, EcRecoveredSearcherOrder>>,
+        Option<usize>
+    ),
+    FetchAllComposableOrders(
+        oneshot::Sender<
+            OrderSet<EcRecoveredComposableLimitOrder, EcRecoveredComposableSearcherOrder>
+        >,
+        Option<usize>
+    ),
+    FetchAllOrders(
+        oneshot::Sender<
+            AllOrders<
+                EcRecoveredLimitOrder,
+                EcRecoveredSearcherOrder,
+                EcRecoveredComposableLimitOrder,
+                EcRecoveredComposableSearcherOrder
+            >
+        >,
+        Option<usize>
+    )
 }
 
 impl PoolHandle {
-    #[allow(dead_code)]
     fn send(&self, cmd: OrderCommand) {
         let _ = self.manager_tx.send(cmd);
+    }
+
+    async fn send_request<T>(&self, rx: oneshot::Receiver<T>, cmd: OrderCommand) -> T {
+        self.send(cmd);
+        rx.await.unwrap()
     }
 }
 
 impl OrderPool for PoolHandle {
     /// The transaction type of the composable limit order pool
-    type ComposableLimitOrder = EcRecoveredComposableLimitOrder;
+    type ComposableLimitOrder = SignedComposableLimitOrder;
     /// The transaction type of the composable searcher order pool
-    type ComposableSearcherOrder = EcRecoveredComposableSearcherOrder;
+    type ComposableSearcherOrder = SignedComposableSearcherOrder;
     /// The transaction type of the limit order pool
-    type LimitOrder = EcRecoveredLimitOrder;
+    type LimitOrder = SignedLimitOrder;
     /// The transaction type of the searcher order pool
-    type SearcherOrder = EcRecoveredSearcherOrder;
+    type SearcherOrder = SignedSearcherOrder;
 
-    fn new_limit_order(&self, origin: OrderOrigin, order: Self::LimitOrder) {}
+    fn new_limit_order(&self, origin: OrderOrigin, order: Self::LimitOrder) {
+        self.send(OrderCommand::NewLimitOrder(origin, order));
+    }
 
-    fn new_searcher_order(&self, origin: OrderOrigin, order: Self::SearcherOrder) {}
+    fn new_searcher_order(&self, origin: OrderOrigin, order: Self::SearcherOrder) {
+        self.send(OrderCommand::NewSearcherOrder(origin, order))
+    }
 
-    fn new_composable_limit_order(&self, origin: OrderOrigin, order: Self::ComposableLimitOrder) {}
+    fn new_composable_limit_order(&self, origin: OrderOrigin, order: Self::ComposableLimitOrder) {
+        self.send(OrderCommand::NewComposableLimitOrder(origin, order))
+    }
 
     fn new_composable_searcher_order(
         &self,
         origin: OrderOrigin,
         order: Self::ComposableSearcherOrder
     ) {
+        self.send(OrderCommand::NewComposableSearcherOrder(origin, order))
     }
 
-    async fn get_pooled_orders_by_hashes(
-        &self,
-        tx_hashes: Vec<TxHash>,
-        limit: Option<usize>
-    ) -> Vec<PooledOrder> {
-        todo!()
-    }
-
-    // Queries for fetching all orders. Will be used for quoting
-    // and consensus.
-
-    // fetches all vanilla orders
-    async fn get_all_vanilla_orders(&self) -> OrderSet<Self::LimitOrder, Self::SearcherOrder> {
-        todo!()
-    }
-
-    // fetches all vanilla orders where for each pool the bids and asks overlap plus
-    // a buffer on each side
-    async fn get_all_vanilla_orders_intersection(
-        &self,
-        buffer: usize
-    ) -> OrderSet<Self::LimitOrder, Self::SearcherOrder> {
-        todo!()
-    }
-
-    async fn get_all_composable_orders(
+    fn get_all_vanilla_orders(
         &self
-    ) -> OrderSet<Self::ComposableLimitOrder, Self::ComposableSearcherOrder> {
-        todo!()
-    }
-
-    async fn get_all_composable_orders_intersection(
-        &self,
-        buffer: usize
-    ) -> OrderSet<Self::ComposableLimitOrder, Self::ComposableSearcherOrder> {
-        todo!()
-    }
-
-    async fn get_all_orders(
-        &self
-    ) -> AllOrders<
-        Self::LimitOrder,
-        Self::SearcherOrder,
-        Self::ComposableLimitOrder,
-        Self::ComposableSearcherOrder
+    ) -> BoxFuture<
+        OrderSet<<Self::LimitOrder as ToOrder>::Order, <Self::SearcherOrder as ToOrder>::Order>
     > {
-        todo!()
+        Box::pin(async move {
+            let (tx, rx) = oneshot::channel();
+            self.send_request(rx, OrderCommand::FetchAllVanillaOrders(tx, None))
+                .await
+        })
     }
 
-    async fn get_all_orders_intersection(
-        &self,
-        buffer: usize
-    ) -> AllOrders<
-        Self::LimitOrder,
-        Self::SearcherOrder,
-        Self::ComposableLimitOrder,
-        Self::ComposableSearcherOrder
-    > {
-        todo!()
-    }
+    // fn get_all_vanilla_orders_intersection(
+    //     &self,
+    //     buffer: usize
+    // ) -> BoxFuture<
+    //     OrderSet<
+    //         <Self::LimitOrder as OrderConversion>::Order,
+    //         <Self::SearcherOrder as OrderConversion>::Order
+    //     >
+    // > { Box::pin(async move { let (tx, rx) = oneshot::channel();
+    // > self.send_request(rx, OrderCommand::FetchAllVanillaOrders(tx,
+    // > Some(buffer))) .await })
+    // }
+    //
+    // fn get_all_composable_orders(
+    //     &self
+    // ) -> BoxFuture<
+    //     OrderSet<
+    //         <Self::ComposableLimitOrder as OrderConversion>::Order,
+    //         <Self::ComposableSearcherOrder as OrderConversion>::Order
+    //     >
+    // > { Box::pin(async move { let (tx, rx) = oneshot::channel();
+    // > self.send_request(rx, OrderCommand::FetchAllComposableOrders(tx, None))
+    // > .await })
+    // }
+    //
+    // fn get_all_composable_orders_intersection(
+    //     &self,
+    //     buffer: usize
+    // ) -> BoxFuture<
+    //     OrderSet<
+    //         <Self::ComposableLimitOrder as OrderConversion>::Order,
+    //         <Self::ComposableSearcherOrder as OrderConversion>::Order
+    //     >
+    // > { Box::pin(async move { let (tx, rx) = oneshot::channel();
+    // > self.send_request(rx, OrderCommand::FetchAllComposableOrders(tx,
+    // > Some(buffer))) .await })
+    // }
+    //
+    // fn get_all_orders(
+    //     &self
+    // ) -> BoxFuture<
+    //     AllOrders<
+    //         <Self::LimitOrder as OrderConversion>::Order,
+    //         <Self::SearcherOrder as OrderConversion>::Order,
+    //         <Self::ComposableLimitOrder as OrderConversion>::Order,
+    //         <Self::ComposableSearcherOrder as OrderConversion>::Order
+    //     >
+    // > { Box::pin(async move { let (tx, rx) = oneshot::channel();
+    // > self.send_request(rx, OrderCommand::FetchAllOrders(tx, None)) .await })
+    // }
+    //
+    // fn get_all_orders_intersection(
+    //     &self,
+    //     buffer: usize
+    // ) -> BoxFuture<
+    //     AllOrders<
+    //         <Self::LimitOrder as OrderConversion>::Order,
+    //         <Self::SearcherOrder as OrderConversion>::Order,
+    //         <Self::ComposableLimitOrder as OrderConversion>::Order,
+    //         <Self::ComposableSearcherOrder as OrderConversion>::Order
+    //     >
+    // > { Box::pin(async move { let (tx, rx) = oneshot::channel();
+    // > self.send_request(rx, OrderCommand::FetchAllOrders(tx, Some(buffer)))
+    // > .await })
+    // }
 }
 
 //TODO: Tmrw clean up + finish pool manager + pool inner
@@ -177,18 +226,10 @@ where
 
 impl<L, CL, S, CS, V> PoolManager<L, CL, S, CS, V>
 where
-    L: PooledLimitOrder<ValidationData = OrderPriorityData> + FromSignedLimitOrder + FromLimitOrder,
-    CL: PooledComposableOrder
-        + PooledLimitOrder<ValidationData = OrderPriorityData>
-        + FromComposableLimitOrder
-        + FromSignedComposableLimitOrder,
-    S: PooledSearcherOrder<ValidationData = SearcherPriorityData>
-        + FromSignedSearcherOrder
-        + FromSearcherOrder,
-    CS: PooledComposableOrder
-        + PooledSearcherOrder<ValidationData = SearcherPriorityData>
-        + FromSignedComposableSearcherOrder
-        + FromComposableSearcherOrder,
+    L: PooledLimitOrder<ValidationData = OrderPriorityData>,
+    CL: PooledComposableOrder + PooledLimitOrder<ValidationData = OrderPriorityData>,
+    S: PooledSearcherOrder<ValidationData = SearcherPriorityData>,
+    CS: PooledComposableOrder + PooledSearcherOrder<ValidationData = SearcherPriorityData>,
     V: OrderValidator
 {
     pub fn new(
@@ -202,18 +243,15 @@ where
 
 impl<L, CL, S, CS, V> PoolManager<L, CL, S, CS, V>
 where
-    L: PooledLimitOrder<ValidationData = OrderPriorityData> + FromSignedLimitOrder + FromLimitOrder,
+    L: PooledLimitOrder<ValidationData = OrderPriorityData, Order = SignedLimitOrder>,
     CL: PooledComposableOrder
-        + PooledLimitOrder<ValidationData = OrderPriorityData>
-        + FromComposableLimitOrder
-        + FromSignedComposableLimitOrder,
-    S: PooledSearcherOrder<ValidationData = SearcherPriorityData>
-        + FromSignedSearcherOrder
-        + FromSearcherOrder,
+        + PooledLimitOrder<ValidationData = OrderPriorityData, Order = SignedComposableLimitOrder>,
+    S: PooledSearcherOrder<ValidationData = SearcherPriorityData, Order = SignedSearcherOrder>,
     CS: PooledComposableOrder
-        + PooledSearcherOrder<ValidationData = SearcherPriorityData>
-        + FromSignedComposableSearcherOrder
-        + FromComposableSearcherOrder,
+        + PooledSearcherOrder<
+            ValidationData = SearcherPriorityData,
+            Order = SignedComposableSearcherOrder
+        >,
     V: OrderValidator<
         LimitOrder = L,
         SearcherOrder = S,
@@ -226,17 +264,34 @@ where
         PoolHandle { manager_tx: self.command_tx.clone() }
     }
 
-    //TODO
-    fn on_command(&mut self, cmd: OrderCommand) {}
+    fn on_command(&mut self, cmd: OrderCommand) {
+        match cmd {
+            // new orders
+            OrderCommand::NewLimitOrder(origin, order) => {
+                self.pool.new_limit_order(origin, order.to());
+            }
+            OrderCommand::NewSearcherOrder(origin, order) => {}
+            OrderCommand::NewComposableLimitOrder(origin, order) => {}
+            OrderCommand::NewComposableSearcherOrder(origin, order) => {}
+            // fetch requests
+            OrderCommand::FetchAllOrders(sender, is_intersection) => {}
+            OrderCommand::FetchAllComposableOrders(sender, is_intersection) => {}
+            OrderCommand::FetchAllVanillaOrders(sender, is_intersection) => {}
+        }
+    }
 
     fn on_eth_event(&mut self, eth: EthEvent) {
         match eth {
             EthEvent::FilledOrders(orders) => {
-                let orders = self.pool.filled_orders(&orders);
+                let _orders = self.pool.filled_orders(&orders);
                 todo!()
             }
-            EthEvent::ReorgedOrders(orders) => {}
-            EthEvent::EOAStateChanges(state_changes) => {}
+            EthEvent::ReorgedOrders(_) => {
+                todo!("add pending validation pool");
+            }
+            EthEvent::EOAStateChanges(state_changes) => {
+                self.pool.eoa_state_change(state_changes);
+            }
         }
     }
 
@@ -271,19 +326,16 @@ where
 
     fn on_propagate_orders(&mut self, orders: OrdersToPropagate<L, CL, S, CS>) {
         let order = match orders {
-            OrdersToPropagate::Limit(limit) => PooledOrder::Limit(limit.from_limit()),
-            OrdersToPropagate::Searcher(searcher) => {
-                PooledOrder::Searcher(searcher.from_searcher())
-            }
+            OrdersToPropagate::Limit(limit) => PooledOrder::Limit(limit.to_signed()),
+            OrdersToPropagate::Searcher(searcher) => PooledOrder::Searcher(searcher.to_signed()),
             OrdersToPropagate::LimitComposable(limit) => {
-                PooledOrder::ComposableLimit(limit.from_composable_limit())
+                PooledOrder::ComposableLimit(limit.to_signed())
             }
             OrdersToPropagate::SearcherCompsable(searcher) => {
-                PooledOrder::ComposableSearcher(searcher.from_composable_searcher())
+                PooledOrder::ComposableSearcher(searcher.to_signed())
             }
         };
 
-        // TODO: placeholder for now
         self.peers
             .values_mut()
             .for_each(|peer| peer.propagate_order(vec![order.clone()]))
@@ -292,18 +344,15 @@ where
 
 impl<L, CL, S, CS, V> Future for PoolManager<L, CL, S, CS, V>
 where
-    L: PooledLimitOrder<ValidationData = OrderPriorityData> + FromSignedLimitOrder + FromLimitOrder,
+    L: PooledLimitOrder<ValidationData = OrderPriorityData, Order = SignedLimitOrder>,
     CL: PooledComposableOrder
-        + PooledLimitOrder<ValidationData = OrderPriorityData>
-        + FromComposableLimitOrder
-        + FromSignedComposableLimitOrder,
-    S: PooledSearcherOrder<ValidationData = SearcherPriorityData>
-        + FromSignedSearcherOrder
-        + FromSearcherOrder,
+        + PooledLimitOrder<ValidationData = OrderPriorityData, Order = SignedComposableLimitOrder>,
+    S: PooledSearcherOrder<ValidationData = SearcherPriorityData, Order = SignedSearcherOrder>,
     CS: PooledComposableOrder
-        + PooledSearcherOrder<ValidationData = SearcherPriorityData>
-        + FromSignedComposableSearcherOrder
-        + FromComposableSearcherOrder,
+        + PooledSearcherOrder<
+            ValidationData = SearcherPriorityData,
+            Order = SignedComposableSearcherOrder
+        >,
     V: OrderValidator<
             LimitOrder = L,
             SearcherOrder = S,
