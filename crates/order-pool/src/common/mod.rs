@@ -1,9 +1,12 @@
 use guard_types::orders::PoolOrder;
 mod size;
 
+use guard_types::orders::ValidatedOrder;
 pub use size::*;
 
 pub type BidAndAsks<'a, T> = (Vec<&'a T>, Vec<&'a T>);
+
+pub type ValidOrder<O> = ValidatedOrder<O, <O as PoolOrder>::ValidationData>;
 
 pub enum FilledOrder<L, CL, S, CS>
 where

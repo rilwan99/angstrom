@@ -8,7 +8,7 @@ use guard_types::{
 };
 
 use self::searcher::VanillaSearcherPool;
-use crate::common::SizeTracker;
+use crate::common::{SizeTracker, ValidOrder};
 
 mod composable;
 mod searcher;
@@ -26,11 +26,12 @@ pub struct SearcherPool<S: PooledSearcherOrder, CS: PooledComposableOrder + Pool
     _size: SizeTracker
 }
 
-impl<S: PooledSearcherOrder, CS: PooledSearcherOrder + PooledComposableOrder> SearcherPool<S, CS>
+impl<S, CS> SearcherPool<S, CS>
 where
-    S: PooledSearcherOrder<ValidationData = ValidatedOrder<S, SearcherPriorityData>>,
+    S: PooledSearcherOrder<ValidationData = SearcherPriorityData>,
     CS: PooledComposableOrder
-        + PooledSearcherOrder<ValidationData = ValidatedOrder<CS, SearcherPriorityData>>
+        + PooledSearcherOrder<ValidationData = SearcherPriorityData>
+        + PooledComposableOrder
 {
     pub fn new(max_size: Option<usize>) -> Self {
         Self {
@@ -41,10 +42,7 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn add_searcher_order(
-        &mut self,
-        order: ValidatedOrder<S, SearcherPriorityData>
-    ) -> Result<(), SearcherPoolError> {
+    pub fn add_searcher_order(&mut self, order: ValidOrder<S>) -> Result<(), SearcherPoolError> {
         let size = order.size();
         if !self._size.has_space(size) {
             return Err(SearcherPoolError::MaxSize)
@@ -57,7 +55,7 @@ where
     #[allow(dead_code)]
     pub fn add_composable_searcher_order(
         &mut self,
-        order: ValidatedOrder<CS, SearcherPriorityData>
+        order: ValidOrder<CS>
     ) -> Result<(), SearcherPoolError> {
         let size = order.size();
         if !self._size.has_space(size) {
@@ -68,19 +66,22 @@ where
         Ok(())
     }
 
-    pub fn remove_searcher_order(&mut self, id: OrderId) -> Result<S, SearcherPoolError> {
+    pub fn remove_searcher_order(
+        &mut self,
+        id: OrderId
+    ) -> Result<ValidOrder<S>, SearcherPoolError> {
         self.searcher_orders.remove_order(id)
     }
 
     pub fn remove_composable_searcher_order(
         &mut self,
         id: OrderId
-    ) -> Result<CS, SearcherPoolError> {
+    ) -> Result<ValidOrder<CS>, SearcherPoolError> {
         self.composable_searcher_orders.remove_order(id)
     }
 
     #[allow(dead_code)]
-    pub fn get_winning_orders(&self) -> Vec<(Option<S>, Option<CS>)> {
+    pub fn get_winning_orders(&self) -> Vec<(Option<ValidOrder<S>>, Option<ValidOrder<CS>>)> {
         todo!()
     }
 }

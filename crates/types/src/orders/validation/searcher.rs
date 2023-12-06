@@ -4,7 +4,50 @@ use super::{
     super::{PoolOrder, PooledComposableOrder},
     ValidatedOrder
 };
-use crate::rpc::{EcRecoveredComposableSearcherOrder, EcRecoveredSearcherOrder};
+use crate::rpc::{
+    EcRecoveredComposableSearcherOrder, EcRecoveredSearcherOrder, SignedComposableSearcherOrder,
+    SignedSearcherOrder
+};
+
+pub trait FromSignedSearcherOrder {
+    fn from_signed_searcher_order(tx: SignedSearcherOrder) -> Self;
+}
+
+impl FromSignedSearcherOrder for EcRecoveredSearcherOrder {
+    fn from_signed_searcher_order(tx: SignedSearcherOrder) -> Self {
+        tx.try_into().unwrap()
+    }
+}
+
+pub trait FromSignedComposableSearcherOrder {
+    fn from_signed_composable_searcher_order(tx: SignedComposableSearcherOrder) -> Self;
+}
+
+impl FromSignedComposableSearcherOrder for EcRecoveredComposableSearcherOrder {
+    fn from_signed_composable_searcher_order(tx: SignedComposableSearcherOrder) -> Self {
+        tx.try_into().unwrap()
+    }
+}
+
+pub trait FromSearcherOrder {
+    fn from_searcher(&self) -> SignedSearcherOrder;
+}
+
+impl FromSearcherOrder for EcRecoveredSearcherOrder {
+    fn from_searcher(&self) -> SignedSearcherOrder {
+        self.signed_order.clone()
+    }
+}
+
+pub trait FromComposableSearcherOrder {
+    fn from_composable_searcher(&self) -> SignedComposableSearcherOrder;
+}
+
+impl FromComposableSearcherOrder for EcRecoveredComposableSearcherOrder {
+    fn from_composable_searcher(&self) -> SignedComposableSearcherOrder {
+        self.signed_order.clone()
+    }
+}
 
 pub trait PooledSearcherOrder: PoolOrder {
     /// The liquidity pool this order trades in

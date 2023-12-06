@@ -10,14 +10,16 @@ use futures::{stream::FuturesUnordered, Future, FutureExt, StreamExt};
 use guard_eth::manager::EthEvent;
 use guard_types::{
     orders::{
-        GetPooledOrders, OrderId, OrderLocation, OrderOrigin, OrderPriorityData, Orders,
-        PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder,
-        SearcherPriorityData, ValidatedOrder, ValidationResults
+        FromComposableLimitOrder, FromComposableSearcherOrder, FromLimitOrder, FromSearcherOrder,
+        FromSignedComposableLimitOrder, FromSignedComposableSearcherOrder, FromSignedLimitOrder,
+        FromSignedSearcherOrder, GetPooledOrders, OrderId, OrderLocation, OrderOrigin,
+        OrderPriorityData, Orders, PooledComposableOrder, PooledLimitOrder, PooledOrder,
+        PooledSearcherOrder, SearcherPriorityData, ValidatedOrder, ValidationResults
     },
     primitive::PoolId,
     rpc::*
 };
-use order_pool::{OrderPool, OrderPoolInner};
+use order_pool::{AllOrders, OrderPool, OrderPoolInner, OrderSet, OrdersToPropagate};
 use reth_primitives::{PeerId, TxHash, B256};
 use tokio::sync::{
     mpsc::{UnboundedReceiver, UnboundedSender},
@@ -158,16 +160,13 @@ where
     strom_network_events: UnboundedReceiverStream<StromNetworkEvent>,
     /// Ethereum updates stream that tells the pool manager about orders that
     /// have been filled  
-    _eth_network_events:  UnboundedReceiverStream<EthEvent>,
+    eth_network_events:   UnboundedReceiverStream<EthEvent>,
     /// Send half for the command channel. Used to generate new handles
     command_tx:           UnboundedSender<OrderCommand>,
     /// receiver half of the commands to the pool manager
     command_rx:           UnboundedReceiverStream<OrderCommand>,
     /// Order fetcher to handle inflight and missing order requests.
     _order_fetcher:       OrderFetcher,
-    /// Incoming pending transactions from the pool that should be propagated to
-    /// the network
-    _pending_orders:      ReceiverStream<TxHash>,
     /// All currently pending orders grouped by peers.
     _orders_by_peers:     HashMap<TxHash, Vec<PeerId>>,
     /// Incoming events from the ProtocolManager.
@@ -178,10 +177,18 @@ where
 
 impl<L, CL, S, CS, V> PoolManager<L, CL, S, CS, V>
 where
-    L: PooledLimitOrder,
-    CL: PooledComposableOrder + PooledLimitOrder,
-    S: PooledSearcherOrder,
-    CS: PooledComposableOrder + PooledSearcherOrder,
+    L: PooledLimitOrder<ValidationData = OrderPriorityData> + FromSignedLimitOrder + FromLimitOrder,
+    CL: PooledComposableOrder
+        + PooledLimitOrder<ValidationData = OrderPriorityData>
+        + FromComposableLimitOrder
+        + FromSignedComposableLimitOrder,
+    S: PooledSearcherOrder<ValidationData = SearcherPriorityData>
+        + FromSignedSearcherOrder
+        + FromSearcherOrder,
+    CS: PooledComposableOrder
+        + PooledSearcherOrder<ValidationData = SearcherPriorityData>
+        + FromSignedComposableSearcherOrder
+        + FromComposableSearcherOrder,
     V: OrderValidator
 {
     pub fn new(
@@ -195,11 +202,24 @@ where
 
 impl<L, CL, S, CS, V> PoolManager<L, CL, S, CS, V>
 where
-    L: PooledLimitOrder,
-    CL: PooledComposableOrder + PooledLimitOrder,
-    S: PooledSearcherOrder,
-    CS: PooledComposableOrder + PooledSearcherOrder,
-    V: OrderValidator
+    L: PooledLimitOrder<ValidationData = OrderPriorityData> + FromSignedLimitOrder + FromLimitOrder,
+    CL: PooledComposableOrder
+        + PooledLimitOrder<ValidationData = OrderPriorityData>
+        + FromComposableLimitOrder
+        + FromSignedComposableLimitOrder,
+    S: PooledSearcherOrder<ValidationData = SearcherPriorityData>
+        + FromSignedSearcherOrder
+        + FromSearcherOrder,
+    CS: PooledComposableOrder
+        + PooledSearcherOrder<ValidationData = SearcherPriorityData>
+        + FromSignedComposableSearcherOrder
+        + FromComposableSearcherOrder,
+    V: OrderValidator<
+        LimitOrder = L,
+        SearcherOrder = S,
+        ComposableLimitOrder = CL,
+        ComposableSearcherOrder = CS
+    >
 {
     /// Returns a new handle that can send commands to this type.
     pub fn handle(&self) -> PoolHandle {
@@ -207,10 +227,16 @@ where
     }
 
     //TODO
-    fn on_command(&mut self, cmd: OrderCommand) {
-        match cmd {
-            OrderCommand::PropagateOrders(orders) => {}
-            OrderCommand::PropagateOrdersTo(orders, peer_id) => {}
+    fn on_command(&mut self, cmd: OrderCommand) {}
+
+    fn on_eth_event(&mut self, eth: EthEvent) {
+        match eth {
+            EthEvent::FilledOrders(orders) => {
+                let orders = self.pool.filled_orders(&orders);
+                todo!()
+            }
+            EthEvent::ReorgedOrders(orders) => {}
+            EthEvent::EOAStateChanges(state_changes) => {}
         }
     }
 
@@ -242,20 +268,58 @@ where
             _ => {}
         }
     }
+
+    fn on_propagate_orders(&mut self, orders: OrdersToPropagate<L, CL, S, CS>) {
+        let order = match orders {
+            OrdersToPropagate::Limit(limit) => PooledOrder::Limit(limit.from_limit()),
+            OrdersToPropagate::Searcher(searcher) => {
+                PooledOrder::Searcher(searcher.from_searcher())
+            }
+            OrdersToPropagate::LimitComposable(limit) => {
+                PooledOrder::ComposableLimit(limit.from_composable_limit())
+            }
+            OrdersToPropagate::SearcherCompsable(searcher) => {
+                PooledOrder::ComposableSearcher(searcher.from_composable_searcher())
+            }
+        };
+
+        // TODO: placeholder for now
+        self.peers
+            .values_mut()
+            .for_each(|peer| peer.propagate_order(vec![order.clone()]))
+    }
 }
 
 impl<L, CL, S, CS, V> Future for PoolManager<L, CL, S, CS, V>
 where
-    L: PooledLimitOrder,
-    CL: PooledComposableOrder + PooledLimitOrder,
-    S: PooledSearcherOrder,
-    CS: PooledComposableOrder + PooledSearcherOrder,
-    V: OrderValidator + Unpin
+    L: PooledLimitOrder<ValidationData = OrderPriorityData> + FromSignedLimitOrder + FromLimitOrder,
+    CL: PooledComposableOrder
+        + PooledLimitOrder<ValidationData = OrderPriorityData>
+        + FromComposableLimitOrder
+        + FromSignedComposableLimitOrder,
+    S: PooledSearcherOrder<ValidationData = SearcherPriorityData>
+        + FromSignedSearcherOrder
+        + FromSearcherOrder,
+    CS: PooledComposableOrder
+        + PooledSearcherOrder<ValidationData = SearcherPriorityData>
+        + FromSignedComposableSearcherOrder
+        + FromComposableSearcherOrder,
+    V: OrderValidator<
+            LimitOrder = L,
+            SearcherOrder = S,
+            ComposableLimitOrder = CL,
+            ComposableSearcherOrder = CS
+        > + Unpin
 {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
+
+        // pull all eth events
+        while let Poll::Ready(Some(eth)) = this.eth_network_events.poll_next_unpin(cx) {
+            this.on_eth_event(eth);
+        }
 
         // drain network/peer related events
         while let Poll::Ready(Some(event)) = this.strom_network_events.poll_next_unpin(cx) {
@@ -272,8 +336,9 @@ where
             this.on_network_order_event(event);
         }
 
-        if let Poll::Ready(_) = this.pool.poll_unpin(cx) {
-            return Poll::Ready(())
+        //
+        while let Poll::Ready(Some(orders)) = this.pool.poll_next_unpin(cx) {
+            this.on_propagate_orders(orders);
         }
 
         Poll::Pending
@@ -308,6 +373,12 @@ struct StromPeer {
     /// The peer's client version.
     #[allow(unused)]
     client_version: Arc<str>
+}
+
+impl StromPeer {
+    pub fn propagate_order(&mut self, orders: Vec<PooledOrder>) {
+        todo!()
+    }
 }
 
 /// The type responsible for fetching missing orders from peers.

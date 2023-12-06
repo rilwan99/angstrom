@@ -8,8 +8,51 @@ use super::{
 };
 use crate::{
     primitive::PoolId,
-    rpc::{EcRecoveredComposableLimitOrder, EcRecoveredLimitOrder}
+    rpc::{
+        EcRecoveredComposableLimitOrder, EcRecoveredLimitOrder, SignedComposableLimitOrder,
+        SignedLimitOrder
+    }
 };
+
+pub trait FromSignedLimitOrder {
+    fn from_signed_limit_order(tx: SignedLimitOrder) -> Self;
+}
+
+impl FromSignedLimitOrder for EcRecoveredLimitOrder {
+    fn from_signed_limit_order(tx: SignedLimitOrder) -> Self {
+        tx.try_into().unwrap()
+    }
+}
+
+pub trait FromLimitOrder {
+    fn from_limit(&self) -> SignedLimitOrder;
+}
+
+impl FromLimitOrder for EcRecoveredLimitOrder {
+    fn from_limit(&self) -> SignedLimitOrder {
+        self.signed_order.clone()
+    }
+}
+
+pub trait FromComposableLimitOrder {
+    fn from_composable_limit(&self) -> SignedComposableLimitOrder;
+}
+
+impl FromComposableLimitOrder for EcRecoveredComposableLimitOrder {
+    fn from_composable_limit(&self) -> SignedComposableLimitOrder {
+        self.signed_order.clone()
+    }
+}
+
+pub trait FromSignedComposableLimitOrder {
+    fn from_signed_composable_limit_order(tx: SignedComposableLimitOrder) -> Self;
+}
+
+impl FromSignedComposableLimitOrder for EcRecoveredComposableLimitOrder {
+    fn from_signed_composable_limit_order(tx: SignedComposableLimitOrder) -> Self {
+        tx.try_into().unwrap()
+    }
+}
 
 pub trait PooledLimitOrder: PoolOrder {
     /// The liquidity pool this order trades in

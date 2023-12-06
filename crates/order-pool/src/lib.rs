@@ -10,13 +10,15 @@ use alloy_primitives::TxHash;
 use config::PoolConfig;
 use guard_types::{
     orders::{
-        OrderOrigin, OrderPriorityData, PoolOrder, PooledComposableOrder, PooledLimitOrder,
-        PooledOrder, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
+        FromComposableLimitOrder, FromComposableSearcherOrder, FromLimitOrder, FromSearcherOrder,
+        FromSignedComposableLimitOrder, FromSignedComposableSearcherOrder, FromSignedLimitOrder,
+        FromSignedSearcherOrder, OrderOrigin, OrderPriorityData, PoolOrder, PooledComposableOrder,
+        PooledLimitOrder, PooledOrder, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
     },
     primitive::PoolId
 };
 pub use guard_utils::*;
-pub use inner::OrderPoolInner;
+pub use inner::*;
 use validation::order::OrderValidator;
 
 pub struct OrderSet<Limit: PooledLimitOrder, Searcher: PooledSearcherOrder> {
@@ -39,20 +41,28 @@ pub struct AllOrders<
     pub composable: OrderSet<LimitCompose, SearcherCompose>
 }
 
-//TODO: Impl order pool api
-#[auto_impl::auto_impl(Arc)]
-pub trait OrderPool: Send + Sync + Clone {
+/// The OrderPool Trait is how other processes can interact with the orderpool
+/// asyncly. This allows for requesting data and providing data from different
+/// threads efficiently.
+// #[auto_impl::auto_impl(Arc)]
+pub trait OrderPool: Send + Sync + Clone + Unpin + 'static {
     /// The transaction type of the limit order pool
-    type LimitOrder: PooledLimitOrder;
+    type LimitOrder: PooledLimitOrder + FromSignedLimitOrder + FromLimitOrder;
 
     /// The transaction type of the searcher order pool
-    type SearcherOrder: PooledSearcherOrder;
+    type SearcherOrder: PooledSearcherOrder + FromSignedSearcherOrder + FromSearcherOrder;
 
     /// The transaction type of the composable limit order pool
-    type ComposableLimitOrder: PooledComposableOrder + PooledLimitOrder;
+    type ComposableLimitOrder: PooledComposableOrder
+        + PooledLimitOrder
+        + FromComposableLimitOrder
+        + FromSignedComposableLimitOrder;
 
     /// The transaction type of the composable searcher order pool
-    type ComposableSearcherOrder: PooledComposableOrder + PooledSearcherOrder;
+    type ComposableSearcherOrder: PooledComposableOrder
+        + PooledSearcherOrder
+        + FromSignedComposableSearcherOrder
+        + FromComposableSearcherOrder;
 
     // New order functionality.
     fn new_limit_order(&self, origin: OrderOrigin, order: Self::LimitOrder);
