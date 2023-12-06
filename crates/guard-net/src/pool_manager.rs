@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    marker::PhantomData,
     num::NonZeroUsize,
     pin::Pin,
     sync::Arc,
@@ -12,18 +13,19 @@ use guard_types::{
     orders::{
         GetPooledOrders, OrderConversion, OrderOrigin, OrderPriorityData, Orders, PoolOrder,
         PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder,
-        SearcherPriorityData, ValidatedOrder, ValidationResults
+        SearcherPriorityData
     },
-    primitive::PoolId,
     rpc::*
 };
-use order_pool::{AllOrders, OrderPoolHandle, OrderPoolInner, OrderSet, OrdersToPropagate};
-use reth_primitives::{PeerId, TxHash, B256};
+use order_pool::{
+    AllOrders, OrderPoolHandle, OrderPoolInner, OrderSet, OrdersToPropagate, PoolConfig
+};
+use reth_primitives::{revm_primitives::HashMap, PeerId, TxHash, B256};
 use tokio::sync::{
-    mpsc::{UnboundedReceiver, UnboundedSender},
+    mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
     oneshot
 };
-use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 use validation::order::OrderValidator;
 
 use crate::{LruCache, NetworkOrderEvent, RequestResult, StromNetworkEvent, StromNetworkHandle};
@@ -179,6 +181,77 @@ impl<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> OrderPoolHandle
             self.send_request(rx, OrderCommand::FetchAllOrders(tx, Some(buffer)))
                 .await
         })
+    }
+}
+
+pub struct PoolManagerBuilder<L, CL, S, CS, V>
+where
+    L: PooledLimitOrder,
+    CL: PooledComposableOrder + PooledLimitOrder,
+    S: PooledSearcherOrder,
+    CS: PooledComposableOrder + PooledSearcherOrder,
+    V: OrderValidator
+{
+    validator:            V,
+    network_handle:       StromNetworkHandle,
+    strom_network_events: UnboundedReceiverStream<StromNetworkEvent>,
+    eth_network_events:   UnboundedReceiverStream<EthEvent>,
+    order_events:         UnboundedReceiverStream<NetworkOrderEvent>,
+    _phatom:              PhantomData<(L, CL, S, CS)>,
+    config:               PoolConfig,
+    fetcher:              OrderFetcher
+}
+
+impl<L, CL, S, CS, V> PoolManagerBuilder<L, CL, S, CS, V>
+where
+    L: PooledLimitOrder<ValidationData = OrderPriorityData>,
+    CL: PooledComposableOrder + PooledLimitOrder<ValidationData = OrderPriorityData>,
+    S: PooledSearcherOrder<ValidationData = SearcherPriorityData>,
+    CS: PooledComposableOrder + PooledSearcherOrder<ValidationData = SearcherPriorityData>,
+    V: OrderValidator<
+        LimitOrder = L,
+        SearcherOrder = S,
+        ComposableLimitOrder = CL,
+        ComposableSearcherOrder = CS
+    >
+{
+    pub fn new(
+        validator: V,
+        network_handle: StromNetworkHandle,
+        strom_network_events: UnboundedReceiverStream<StromNetworkEvent>,
+        eth_network_events: UnboundedReceiverStream<EthEvent>,
+        order_events: UnboundedReceiverStream<NetworkOrderEvent>
+    ) -> Self {
+        Self {
+            order_events,
+            eth_network_events,
+            strom_network_events,
+            network_handle,
+            validator,
+            _phatom: Default::default(),
+            config: Default::default(),
+            fetcher: Default::default()
+        }
+    }
+
+    pub fn build(self) -> PoolManager<L, CL, S, CS, V> {
+        let (tx, rx) = unbounded_channel();
+        let rx = UnboundedReceiverStream::new(rx);
+        let handle = PoolHandle { manager_tx: tx.clone() };
+        let inner = OrderPoolInner::new(self.validator, self.config);
+
+        PoolManager {
+            eth_network_events:   self.eth_network_events,
+            strom_network_events: self.strom_network_events,
+            order_events:         self.order_events,
+            peers:                HashMap::default(),
+            pool:                 inner,
+            _network:             self.network_handle,
+            command_tx:           tx,
+            command_rx:           rx,
+            _order_fetcher:       self.fetcher,
+            _orders_by_peers:     HashMap::default()
+        }
     }
 }
 

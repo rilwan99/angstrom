@@ -56,7 +56,7 @@ where
         ComposableSearcherOrder = CS
     >
 {
-    pub(crate) fn new(validator: V, config: PoolConfig) -> Self {
+    pub fn new(validator: V, config: PoolConfig) -> Self {
         Self {
             limit_pool:        LimitOrderPool::new(None),
             searcher_pool:     SearcherPool::new(None),

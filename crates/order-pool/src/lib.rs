@@ -7,7 +7,7 @@ mod validator;
 use std::{collections::HashMap, sync::Arc};
 
 use alloy_primitives::TxHash;
-use config::PoolConfig;
+pub use config::PoolConfig;
 use futures_util::future::BoxFuture;
 use guard_types::{
     orders::{
