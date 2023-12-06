@@ -97,18 +97,6 @@ where
             .and_then(|(_, hash)| self.orders.get(hash))
     }
 
-    /*pub fn add_orders(
-        &mut self,
-        orders: Vec<ValidatedOrder<O, SearcherPriorityData>>
-    ) -> Result<Vec<OrderLocation>, SearcherPoolError> {
-        orders
-            .into_iter()
-            .try_fold(Vec::new(), |mut locations, order| {
-                locations.push(self.add_order(order)?);
-                Ok(locations)
-            })
-    }*/
-
     pub fn check_for_duplicates(
         &self,
         priority_data: &O::ValidationData

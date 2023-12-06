@@ -21,8 +21,9 @@ use order_pool::{
     AllOrders, OrderPoolHandle, OrderPoolInner, OrderSet, OrdersToPropagate, PoolConfig
 };
 use reth_primitives::{PeerId, TxHash, B256};
+use reth_tasks::TaskSpawner;
 use tokio::sync::{
-    mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
+    mpsc::{unbounded_channel, UnboundedSender},
     oneshot
 };
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -204,16 +205,21 @@ where
 
 impl<L, CL, S, CS, V> PoolManagerBuilder<L, CL, S, CS, V>
 where
-    L: PooledLimitOrder<ValidationData = OrderPriorityData>,
-    CL: PooledComposableOrder + PooledLimitOrder<ValidationData = OrderPriorityData>,
-    S: PooledSearcherOrder<ValidationData = SearcherPriorityData>,
-    CS: PooledComposableOrder + PooledSearcherOrder<ValidationData = SearcherPriorityData>,
+    L: PooledLimitOrder<ValidationData = OrderPriorityData, Order = SignedLimitOrder>,
+    CL: PooledComposableOrder
+        + PooledLimitOrder<ValidationData = OrderPriorityData, Order = SignedComposableLimitOrder>,
+    S: PooledSearcherOrder<ValidationData = SearcherPriorityData, Order = SignedSearcherOrder>,
+    CS: PooledComposableOrder
+        + PooledSearcherOrder<
+            ValidationData = SearcherPriorityData,
+            Order = SignedComposableSearcherOrder
+        >,
     V: OrderValidator<
-        LimitOrder = L,
-        SearcherOrder = S,
-        ComposableLimitOrder = CL,
-        ComposableSearcherOrder = CS
-    >
+            LimitOrder = L,
+            SearcherOrder = S,
+            ComposableLimitOrder = CL,
+            ComposableSearcherOrder = CS
+        > + Unpin
 {
     pub fn new(
         validator: V,
@@ -239,30 +245,35 @@ where
         self
     }
 
-    pub fn build(self) -> PoolManager<L, CL, S, CS, V> {
+    pub fn build<TP: TaskSpawner>(self, task_spawner: TP) -> PoolHandle<L, CL, S, CS> {
         let (tx, rx) = unbounded_channel();
         let rx = UnboundedReceiverStream::new(rx);
         let handle = PoolHandle { manager_tx: tx.clone() };
         let inner = OrderPoolInner::new(self.validator, self.config);
 
-        PoolManager {
-            eth_network_events:   self.eth_network_events,
-            strom_network_events: self.strom_network_events,
-            order_events:         self.order_events,
-            peers:                HashMap::default(),
-            pool:                 inner,
-            _network:             self.network_handle,
-            command_tx:           tx,
-            command_rx:           rx,
-            _order_fetcher:       self.fetcher,
-            _orders_by_peers:     HashMap::default()
-        }
+        task_spawner.spawn_critical(
+            "transaction manager",
+            Box::pin(PoolManager {
+                eth_network_events:   self.eth_network_events,
+                strom_network_events: self.strom_network_events,
+                order_events:         self.order_events,
+                peers:                HashMap::default(),
+                pool:                 inner,
+                _network:             self.network_handle,
+                _command_tx:          tx,
+                command_rx:           rx,
+                _order_fetcher:       self.fetcher,
+                _orders_by_peers:     HashMap::default()
+            })
+        );
+
+        handle
     }
 }
 
 //TODO: Tmrw clean up + finish pool manager + pool inner
 //TODO: Add metrics + events
-pub struct PoolManager<L, CL, S, CS, V>
+struct PoolManager<L, CL, S, CS, V>
 where
     L: PooledLimitOrder,
     CL: PooledComposableOrder + PooledLimitOrder,
@@ -282,7 +293,7 @@ where
     /// have been filled  
     eth_network_events:   UnboundedReceiverStream<EthEvent>,
     /// Send half for the command channel. Used to generate new handles
-    command_tx:           UnboundedSender<OrderCommand<L, CL, S, CS>>,
+    _command_tx:          UnboundedSender<OrderCommand<L, CL, S, CS>>,
     /// receiver half of the commands to the pool manager
     command_rx:           UnboundedReceiverStream<OrderCommand<L, CL, S, CS>>,
     /// Order fetcher to handle inflight and missing order requests.
@@ -293,23 +304,6 @@ where
     order_events:         UnboundedReceiverStream<NetworkOrderEvent>,
     /// All the connected peers.
     peers:                HashMap<PeerId, StromPeer>
-}
-
-impl<L, CL, S, CS, V> PoolManager<L, CL, S, CS, V>
-where
-    L: PooledLimitOrder<ValidationData = OrderPriorityData>,
-    CL: PooledComposableOrder + PooledLimitOrder<ValidationData = OrderPriorityData>,
-    S: PooledSearcherOrder<ValidationData = SearcherPriorityData>,
-    CS: PooledComposableOrder + PooledSearcherOrder<ValidationData = SearcherPriorityData>,
-    V: OrderValidator
-{
-    pub fn new(
-        _pool: OrderPoolInner<L, CL, S, CS, V>,
-        _network: StromNetworkHandle,
-        _from_network: UnboundedReceiver<NetworkOrderEvent>
-    ) {
-        todo!()
-    }
 }
 
 impl<L, CL, S, CS, V> PoolManager<L, CL, S, CS, V>
@@ -331,9 +325,6 @@ where
     >
 {
     /// Returns a new handle that can send commands to this type.
-    pub fn handle(&self) -> PoolHandle<L, CL, S, CS> {
-        PoolHandle { manager_tx: self.command_tx.clone() }
-    }
 
     fn on_command(&mut self, cmd: OrderCommand<L, CL, S, CS>) {
         match cmd {

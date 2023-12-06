@@ -20,7 +20,7 @@ use validation::order::OrderValidator;
 
 use crate::{
     common::FilledOrder, config::PoolConfig, limit::LimitOrderPool, searcher::SearcherPool,
-    validator::Validator
+    validator::Validator, BidsAndAsks, OrderSet
 };
 
 pub struct OrderPoolInner<L, CL, S, CS, V>
@@ -84,38 +84,12 @@ where
             .validate_composable_searcher_order(origin, order)
     }
 
-    /// Helper function to add new orders to tracking
-    // fn add_order_tracking(&mut self, id: OrderId, location: OrderLocation) {
-    //     let user = id.address;
-    //
-    //     // add to user tracking
-    //     self.address_to_orders
-    //         .entry(user)
-    //         .or_default()
-    //         .push(id.clone());
-    //     // add to hash tracking
-    //     self.hash_to_order_id.insert(id.hash, id);
-    // }
+    pub fn fetch_vanilla_orders(&self) -> OrderSet<L, S> {
+        let limit = self.limit_pool.fetch_all_vanilla_orders();
+        let searcher = self.searcher_pool.get_winning_orders_vanilla();
 
-    /// Helper function for checking for duplicates when adding orders
-    // fn check_for_duplicates(&self, id: &OrderId) -> Result<(), PoolError> {
-    //     // is new order
-    //     if self.hash_to_order_id.contains_key(&id.hash) {
-    //         return Err(PoolError::DuplicateOrder)
-    //     }
-    //
-    //     // check for duplicate nonce
-    //     if self
-    //         .address_to_orders
-    //         .get(&id.address)
-    //         .map(|inner| inner.iter().any(|other_id| other_id.nonce == id.nonce))
-    //         .unwrap_or(false)
-    //     {
-    //         return Err(PoolError::DuplicateNonce(id.clone()))
-    //     }
-    //
-    //     Ok(())
-    // }
+        OrderSet { limit_vanilla: limit, searcher_vanilla: searcher }
+    }
 
     pub fn eoa_state_change(&mut self, eoas: Vec<Address>) {
         eoas.into_iter()

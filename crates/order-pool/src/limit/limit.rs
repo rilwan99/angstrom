@@ -2,9 +2,13 @@ use guard_types::{
     orders::{OrderId, OrderPriorityData, PoolOrder, PooledLimitOrder, ValidatedOrder},
     primitive::PoolId
 };
+use revm::primitives::HashMap;
 
 use super::{parked::ParkedPool, pending::PendingPool, LimitPoolError, OrderLocation};
-use crate::common::{BidAndAsks, ValidOrder};
+use crate::{
+    common::{BidAndAsks, ValidOrder},
+    BidsAndAsks
+};
 
 #[allow(dead_code)]
 pub struct LimitPool<T: PooledLimitOrder> {
@@ -53,21 +57,21 @@ where
         }
     }
 
-    pub fn fetch_all_pool_orders(&self, id: &PoolId) -> Vec<&ValidOrder<O>> {
+    pub fn fetch_all_pool_orders(&self, id: &PoolId) -> Vec<ValidOrder<O>> {
         self.pending_orders
             .get(*id)
             .map(|inner: &_| inner.fetch_all_orders())
             .unwrap()
     }
 
-    pub fn fetch_all_pool_bids(&self, id: &PoolId) -> Vec<&ValidOrder<O>> {
+    pub fn fetch_all_pool_bids(&self, id: &PoolId) -> Vec<ValidOrder<O>> {
         self.pending_orders
             .get(*id)
             .map(|inner: &_| inner.fetch_all_bids())
             .unwrap()
     }
 
-    pub fn fetch_all_pool_asks(&self, id: &PoolId) -> Vec<&ValidOrder<O>> {
+    pub fn fetch_all_pool_asks(&self, id: &PoolId) -> Vec<ValidOrder<O>> {
         self.pending_orders
             .get(*id)
             .map(|inner: &_| inner.fetch_all_asks())
@@ -87,24 +91,31 @@ where
         todo!("Blocked until added tick impl")
     }
 
-    pub fn fetch_all_orders(&self) -> Vec<Vec<&ValidOrder<O>>> {
+    pub fn fetch_all_orders(&self) -> Vec<Vec<ValidOrder<O>>> {
         self.pending_orders
             .iter()
             .map(|inner| inner.fetch_all_orders())
             .collect()
     }
 
-    pub fn fetch_all_bids(&self) -> Vec<Vec<&ValidOrder<O>>> {
+    pub fn fetch_all_bids(&self) -> Vec<Vec<ValidOrder<O>>> {
         self.pending_orders
             .iter()
             .map(|inner| inner.fetch_all_bids())
             .collect()
     }
 
-    pub fn fetch_all_asks(&self) -> Vec<Vec<&ValidOrder<O>>> {
+    pub fn fetch_all_asks(&self) -> Vec<Vec<ValidOrder<O>>> {
         self.pending_orders
             .iter()
             .map(|inner| inner.fetch_all_asks())
+            .collect()
+    }
+
+    pub fn fetch_bids_asks_per_pool(&self) -> Vec<BidsAndAsks<O>> {
+        self.pending_orders
+            .iter()
+            .map(|pool| BidsAndAsks { bids: pool.fetch_all_bids(), asks: pool.fetch_all_asks() })
             .collect()
     }
 

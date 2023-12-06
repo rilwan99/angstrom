@@ -10,14 +10,17 @@ use guard_types::{
 use reth_primitives::B256;
 
 use self::{composable::ComposableLimitPool, limit::LimitPool};
-use crate::common::{SizeTracker, ValidOrder};
+use crate::{
+    common::{SizeTracker, ValidOrder},
+    BidsAndAsks
+};
 
 mod composable;
 mod limit;
 mod parked;
 mod pending;
-#[allow(dead_code)]
-pub type RegularAndLimitRef<'a, T, C> = (Vec<&'a T>, Vec<&'a C>);
+
+pub type RegularAndLimit<T, C> = (Vec<T>, Vec<C>);
 
 #[allow(dead_code)]
 pub struct LimitOrderPool<O, C>
@@ -78,11 +81,19 @@ where
     pub fn fetch_all_pool_orders(
         &mut self,
         id: &PoolId
-    ) -> RegularAndLimitRef<ValidOrder<O>, ValidOrder<C>> {
+    ) -> RegularAndLimit<ValidOrder<O>, ValidOrder<C>> {
         (
             self.limit_orders.fetch_all_pool_orders(id),
             self.composable_orders.fetch_all_pool_orders(id)
         )
+    }
+
+    pub fn fetch_all_vanilla_orders(&self) -> Vec<BidsAndAsks<O>> {
+        self.limit_orders.fetch_bids_asks_per_pool()
+    }
+
+    pub fn fetch_all_orders(&self) -> RegularAndLimit<Vec<ValidOrder<O>>, Vec<ValidOrder<C>>> {
+        (self.limit_orders.fetch_all_orders(), self.composable_orders.fetch_all_orders())
     }
 
     #[allow(dead_code)]

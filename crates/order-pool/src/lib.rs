@@ -7,6 +7,7 @@ mod validator;
 use std::{collections::HashMap, sync::Arc};
 
 use alloy_primitives::TxHash;
+use common::ValidOrder;
 pub use config::PoolConfig;
 use futures_util::future::BoxFuture;
 use guard_types::{
@@ -21,14 +22,14 @@ pub use inner::*;
 
 #[derive(Debug)]
 pub struct OrderSet<Limit: PoolOrder, Searcher: PoolOrder> {
-    pub limit_vanilla:    HashMap<PoolId, BidsAndAsks<Limit>>,
-    pub searcher_vanilla: HashMap<PoolId, ValidatedOrder<Searcher, Searcher::ValidationData>>
+    pub limit_vanilla:    Vec<BidsAndAsks<Limit>>,
+    pub searcher_vanilla: Vec<ValidOrder<Searcher>>
 }
 
 #[derive(Debug)]
 pub struct BidsAndAsks<O: PoolOrder> {
-    pub bids: Vec<ValidatedOrder<O, O::ValidationData>>,
-    pub asks: Vec<ValidatedOrder<O, O::ValidationData>>
+    pub bids: Vec<ValidOrder<O>>,
+    pub asks: Vec<ValidOrder<O>>
 }
 
 #[derive(Debug)]

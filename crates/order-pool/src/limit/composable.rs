@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use guard_types::{
-    orders::{OrderId, OrderPriorityData, PooledComposableOrder, PooledLimitOrder, ValidatedOrder},
+    orders::{OrderId, OrderPriorityData, PooledComposableOrder, PooledLimitOrder},
     primitive::PoolId
 };
 
@@ -35,7 +35,7 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn fetch_all_pool_orders(&self, id: &PoolId) -> Vec<&ValidOrder<O>> {
+    pub fn fetch_all_pool_orders(&self, id: &PoolId) -> Vec<ValidOrder<O>> {
         self.0
             .get(id)
             .map(|inner| inner.fetch_all_orders())
@@ -43,12 +43,12 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn fetch_all_pool_bids(&self, id: &PoolId) -> Vec<&ValidOrder<O>> {
+    pub fn fetch_all_pool_bids(&self, id: &PoolId) -> Vec<ValidOrder<O>> {
         self.0.get(id).map(|inner| inner.fetch_all_bids()).unwrap()
     }
 
     #[allow(dead_code)]
-    pub fn fetch_all_pool_asks(&self, id: &PoolId) -> Vec<&ValidOrder<O>> {
+    pub fn fetch_all_pool_asks(&self, id: &PoolId) -> Vec<ValidOrder<O>> {
         self.0.get(id).map(|inner| inner.fetch_all_asks()).unwrap()
     }
 
@@ -68,7 +68,7 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn fetch_all_orders(&self) -> Vec<Vec<&ValidOrder<O>>> {
+    pub fn fetch_all_orders(&self) -> Vec<Vec<ValidOrder<O>>> {
         self.0
             .values()
             .map(|inner| inner.fetch_all_orders())
@@ -76,7 +76,7 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn fetch_all_bids(&self) -> Vec<Vec<&ValidOrder<O>>> {
+    pub fn fetch_all_bids(&self) -> Vec<Vec<ValidOrder<O>>> {
         self.0
             .values()
             .map(|inner| inner.fetch_all_bids())
@@ -84,7 +84,7 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn fetch_all_asks(&self) -> Vec<Vec<&ValidOrder<O>>> {
+    pub fn fetch_all_asks(&self) -> Vec<Vec<ValidOrder<O>>> {
         self.0
             .values()
             .map(|inner| inner.fetch_all_asks())

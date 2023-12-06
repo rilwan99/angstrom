@@ -80,6 +80,10 @@ where
         self.composable_searcher_orders.remove_order(id)
     }
 
+    pub fn get_winning_orders_vanilla(&self) -> Vec<ValidOrder<S>> {
+        self.searcher_orders.get_winning_orders()
+    }
+
     #[allow(dead_code)]
     pub fn get_winning_orders(&self) -> Vec<(Option<ValidOrder<S>>, Option<ValidOrder<CS>>)> {
         todo!()

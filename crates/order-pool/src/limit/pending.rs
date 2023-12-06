@@ -70,28 +70,30 @@ where
         Some(order)
     }
 
-    pub fn fetch_all_orders(&self) -> Vec<&ValidOrder<O>> {
-        self.orders.values().collect()
+    pub fn fetch_all_orders(&self) -> Vec<ValidOrder<O>> {
+        self.orders.values().cloned().collect()
     }
 
-    pub fn fetch_all_bids(&self) -> Vec<&ValidOrder<O>> {
+    pub fn fetch_all_bids(&self) -> Vec<ValidOrder<O>> {
         self.bids
             .values()
             .map(|v| {
                 self.orders
                     .get(v)
                     .expect("Had key but no value, this is a error")
+                    .clone()
             })
             .collect()
     }
 
-    pub fn fetch_all_asks(&self) -> Vec<&ValidOrder<O>> {
+    pub fn fetch_all_asks(&self) -> Vec<ValidOrder<O>> {
         self.asks
             .values()
             .map(|v| {
                 self.orders
                     .get(v)
                     .expect("Had key but no value, this is a error")
+                    .clone()
             })
             .collect()
     }
