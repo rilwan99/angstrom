@@ -1,5 +1,3 @@
-use reth_network_api::Reputation;
-
 /// The type that tracks the reputation score.
 pub type Reputation = i32;
 

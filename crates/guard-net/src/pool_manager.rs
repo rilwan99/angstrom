@@ -56,7 +56,7 @@ pub enum OrderCommand<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> 
     // fetch orders
     FetchAllVanillaOrders(oneshot::Sender<OrderSet<L, S>>, Option<usize>),
     FetchAllComposableOrders(oneshot::Sender<OrderSet<CL, CS>>, Option<usize>),
-    FetchAllOrders(oneshot::Sender<AllOrders<L, CL, S, CS>>, Option<usize>),
+    FetchAllOrders(oneshot::Sender<AllOrders<L, S, CL, CS>>, Option<usize>),
     // subscriptions
     SubscribeNewOrders(mpsc::Sender<Order<L, CL, S, CS>>),
     SubscribeFinalizedOrders(mpsc::Sender<Vec<Order<L, CL, S, CS>>>),
@@ -164,8 +164,8 @@ impl<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> OrderPoolHandle
     ) -> BoxFuture<
         AllOrders<
             Self::LimitOrder,
-            Self::ComposableLimitOrder,
             Self::SearcherOrder,
+            Self::ComposableLimitOrder,
             Self::ComposableSearcherOrder
         >
     > {
@@ -182,8 +182,8 @@ impl<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> OrderPoolHandle
     ) -> BoxFuture<
         AllOrders<
             Self::LimitOrder,
-            Self::ComposableLimitOrder,
             Self::SearcherOrder,
+            Self::ComposableLimitOrder,
             Self::ComposableSearcherOrder
         >
     > {

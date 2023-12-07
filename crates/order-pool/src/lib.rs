@@ -103,8 +103,8 @@ pub trait OrderPoolHandle: Send + Sync + Clone + Unpin + 'static {
     ) -> BoxFuture<
         AllOrders<
             Self::LimitOrder,
-            Self::ComposableLimitOrder,
             Self::SearcherOrder,
+            Self::ComposableLimitOrder,
             Self::ComposableSearcherOrder
         >
     >;
@@ -115,8 +115,8 @@ pub trait OrderPoolHandle: Send + Sync + Clone + Unpin + 'static {
     ) -> BoxFuture<
         AllOrders<
             Self::LimitOrder,
-            Self::ComposableLimitOrder,
             Self::SearcherOrder,
+            Self::ComposableLimitOrder,
             Self::ComposableSearcherOrder
         >
     >;
