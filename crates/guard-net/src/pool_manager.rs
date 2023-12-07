@@ -17,7 +17,8 @@ use guard_types::{
     rpc::*
 };
 use order_pool::{
-    AllOrders, Order, OrderPoolHandle, OrderPoolInner, OrderSet, OrdersToPropagate, PoolConfig
+    AllOrders, Order, OrderPoolHandle, OrderPoolInner, OrderSet, OrdersToPropagate, PoolConfig,
+    PoolInnerEvent
 };
 use reth_primitives::{PeerId, TxHash, B256};
 use reth_tasks::TaskSpawner;
@@ -29,7 +30,10 @@ use tokio::sync::{
 use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
 use validation::order::OrderValidator;
 
-use crate::{LruCache, NetworkOrderEvent, StromMessage, StromNetworkEvent, StromNetworkHandle};
+use crate::{
+    LruCache, NetworkOrderEvent, ReputationChangeKind, StromMessage, StromNetworkEvent,
+    StromNetworkHandle
+};
 ///
 /// Cache limit of transactions to keep track of for a single peer.
 const PEER_ORDER_CACHE_LIMIT: usize = 1024 * 10;
@@ -347,8 +351,6 @@ where
     }
 }
 
-//TODO: Tmrw clean up + finish pool manager + pool inner
-//TODO: Add metrics + events
 struct PoolManager<L, CL, S, CS, V>
 where
     L: PooledLimitOrder,
@@ -402,26 +404,36 @@ where
             // new orders
             OrderCommand::NewLimitOrder(origin, order) => {
                 if let Ok(order) = <L as OrderConversion>::try_from_order(order) {
-                    self.pool.new_limit_order(origin, order);
+                    self.pool.new_limit_order(PeerId::ZERO, origin, order);
                 }
             }
             OrderCommand::NewSearcherOrder(origin, order) => {
                 if let Ok(order) = <S as OrderConversion>::try_from_order(order) {
-                    self.pool.new_searcher_order(origin, order);
+                    self.pool.new_searcher_order(PeerId::ZERO, origin, order);
                 }
             }
             OrderCommand::NewComposableLimitOrder(origin, order) => {
                 if let Ok(order) = <CL as OrderConversion>::try_from_order(order) {
-                    self.pool.new_composable_limit(origin, order);
+                    self.pool.new_composable_limit(PeerId::ZERO, origin, order);
                 }
             }
             OrderCommand::NewComposableSearcherOrder(origin, order) => {
                 if let Ok(order) = <CS as OrderConversion>::try_from_order(order) {
-                    self.pool.new_composable_searcher_order(origin, order);
+                    self.pool
+                        .new_composable_searcher_order(PeerId::ZERO, origin, order);
                 }
             }
             // fetch requests
-            OrderCommand::FetchAllOrders(sender, is_intersection) => {}
+            OrderCommand::FetchAllOrders(sender, is_intersection) => {
+                if let Some(_buffer) = is_intersection {
+                    todo!()
+                } else {
+                    let vanilla = self.pool.fetch_vanilla_orders();
+                    let composable = self.pool.fetch_composable_orders();
+
+                    let _ = sender.send(AllOrders { vanilla, composable });
+                }
+            }
             OrderCommand::FetchAllComposableOrders(sender, is_intersection) => {
                 if let Some(_buffer) = is_intersection {
                     todo!()
@@ -470,23 +482,52 @@ where
                     match order {
                         PooledOrder::Limit(order) => {
                             if let Ok(order) = <L as OrderConversion>::try_from_order(order) {
-                                self.pool.new_limit_order(OrderOrigin::External, order);
+                                self.pool
+                                    .new_limit_order(peer_id, OrderOrigin::External, order);
+                            } else {
+                                self.network.peer_reputation_change(
+                                    peer_id,
+                                    ReputationChangeKind::BadOrder
+                                );
                             }
                         }
                         PooledOrder::Searcher(order) => {
                             if let Ok(order) = <S as OrderConversion>::try_from_order(order) {
-                                self.pool.new_searcher_order(OrderOrigin::External, order);
+                                self.pool
+                                    .new_searcher_order(peer_id, OrderOrigin::External, order);
+                            } else {
+                                self.network.peer_reputation_change(
+                                    peer_id,
+                                    ReputationChangeKind::BadOrder
+                                );
                             }
                         }
                         PooledOrder::ComposableLimit(order) => {
                             if let Ok(order) = <CL as OrderConversion>::try_from_order(order) {
-                                self.pool.new_composable_limit(OrderOrigin::External, order);
+                                self.pool.new_composable_limit(
+                                    peer_id,
+                                    OrderOrigin::External,
+                                    order
+                                );
+                            } else {
+                                self.network.peer_reputation_change(
+                                    peer_id,
+                                    ReputationChangeKind::BadComposableOrder
+                                );
                             }
                         }
                         PooledOrder::ComposableSearcher(order) => {
                             if let Ok(order) = <CS as OrderConversion>::try_from_order(order) {
-                                self.pool
-                                    .new_composable_searcher_order(OrderOrigin::External, order);
+                                self.pool.new_composable_searcher_order(
+                                    peer_id,
+                                    OrderOrigin::External,
+                                    order
+                                );
+                            } else {
+                                self.network.peer_reputation_change(
+                                    peer_id,
+                                    ReputationChangeKind::BadComposableOrder
+                                );
                             }
                         }
                     }
@@ -517,10 +558,21 @@ where
         }
     }
 
-    fn on_propagate_orders(&mut self, orders: Vec<OrdersToPropagate<L, CL, S, CS>>) {
+    fn on_pool_events(&mut self, orders: Vec<PoolInnerEvent<L, CL, S, CS>>) {
         let orders = orders
             .into_iter()
-            .map(|order| order.into_pooled())
+            .filter_map(|order| match order {
+                PoolInnerEvent::Propagation(p) => Some(p.into_pooled()),
+                PoolInnerEvent::BadOrderMessages(o) => {
+                    o.into_iter().for_each(|peer| {
+                        self.network.peer_reputation_change(
+                            peer,
+                            crate::ReputationChangeKind::InvalidOrder
+                        );
+                    });
+                    None
+                }
+            })
             .collect::<Vec<_>>();
 
         self.network
@@ -573,7 +625,7 @@ where
 
         // poll underlying pool. This is the validation process that's being polled
         while let Poll::Ready(Some(orders)) = this.pool.poll_next_unpin(cx) {
-            this.on_propagate_orders(orders);
+            this.on_pool_events(orders);
         }
 
         Poll::Pending

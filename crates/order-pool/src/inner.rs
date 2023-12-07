@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     pin::Pin,
     task::{Context, Poll},
     time::{Duration, SystemTime, UNIX_EPOCH}
@@ -19,7 +19,7 @@ use guard_types::{
         SignedSearcherOrder
     }
 };
-use reth_primitives::{Address, U256};
+use reth_primitives::{Address, PeerId, U256};
 use tokio::sync::mpsc;
 use tracing::{error, trace, warn};
 use validation::order::OrderValidator;
@@ -56,7 +56,7 @@ where
     /// Order hash to order id, used for order inclusion lookups
     hash_to_order_id:  HashMap<B256, OrderId>,
     /// Orders that are being validated
-    pending_orders:    HashSet<B256>,
+    pending_orders:    HashMap<B256, Vec<PeerId>>,
     /// Order Validator
     validator:         Validator<L, CL, S, CS, V>,
     /// handles sending out subscriptions
@@ -85,44 +85,77 @@ where
             _config:           config,
             address_to_orders: HashMap::new(),
             hash_to_order_id:  HashMap::new(),
-            pending_orders:    HashSet::new(),
+            pending_orders:    HashMap::new(),
             validator:         Validator::new(validator),
             subscriptions:     OrderPoolSubscriptions::new()
         }
     }
 
-    pub fn new_limit_order(&mut self, origin: OrderOrigin, order: L) {
+    pub fn new_limit_order(&mut self, peer_id: PeerId, origin: OrderOrigin, order: L) {
         if !self.is_duplicate(&order) {
-            self.pending_orders.insert(order.hash());
+            self.pending_orders.insert(order.hash(), vec![peer_id]);
             self.validator.validate_order(origin, order);
+        } else {
+            // track other peers in-case of invalid messages. This allows us to slash all
+            // invalid messages sent
+            self.pending_orders
+                .get_mut(&order.hash())
+                .unwrap()
+                .push(peer_id);
         }
     }
 
-    pub fn new_composable_limit(&mut self, origin: OrderOrigin, order: CL) {
+    pub fn new_composable_limit(&mut self, peer_id: PeerId, origin: OrderOrigin, order: CL) {
         if !self.is_duplicate(&order) {
-            self.pending_orders.insert(order.hash());
+            self.pending_orders.insert(order.hash(), vec![peer_id]);
             self.validator.validate_composable_order(origin, order);
+        } else {
+            // track other peers in-case of invalid messages. This allows us to slash all
+            // invalid messages sent
+            self.pending_orders
+                .get_mut(&order.hash())
+                .unwrap()
+                .push(peer_id);
         }
     }
 
-    pub fn new_searcher_order(&mut self, origin: OrderOrigin, order: S) {
+    pub fn new_searcher_order(&mut self, peer_id: PeerId, origin: OrderOrigin, order: S) {
         if !self.is_duplicate(&order) {
-            self.pending_orders.insert(order.hash());
+            self.pending_orders.insert(order.hash(), vec![peer_id]);
             self.validator.validate_searcher_order(origin, order)
+        } else {
+            // track other peers in-case of invalid messages. This allows us to slash all
+            // invalid messages sent
+            self.pending_orders
+                .get_mut(&order.hash())
+                .unwrap()
+                .push(peer_id);
         }
     }
 
-    pub fn new_composable_searcher_order(&mut self, origin: OrderOrigin, order: CS) {
+    pub fn new_composable_searcher_order(
+        &mut self,
+        peer_id: PeerId,
+        origin: OrderOrigin,
+        order: CS
+    ) {
         if !self.is_duplicate(&order) {
-            self.pending_orders.insert(order.hash());
+            self.pending_orders.insert(order.hash(), vec![peer_id]);
             self.validator
                 .validate_composable_searcher_order(origin, order)
+        } else {
+            // track other peers in-case of invalid messages. This allows us to slash all
+            // invalid messages sent
+            self.pending_orders
+                .get_mut(&order.hash())
+                .unwrap()
+                .push(peer_id);
         }
     }
 
     fn is_duplicate<O: PoolOrder>(&self, order: &O) -> bool {
         let hash = order.hash();
-        if self.hash_to_order_id.contains_key(&hash) || self.pending_orders.contains(&hash) {
+        if self.hash_to_order_id.contains_key(&hash) || self.pending_orders.contains_key(&hash) {
             trace!(?hash, "got duplicate order");
             return true
         }
@@ -310,20 +343,21 @@ where
     fn handle_validated_order(
         &mut self,
         res: ValidationResults<L, CL, S, CS>
-    ) -> Option<OrdersToPropagate<L, CL, S, CS>> {
+    ) -> Option<PoolInnerEvent<L, CL, S, CS>> {
         match res {
-            ValidationResults::Limit(order) => self
-                .handle_validation_results(order, |this, order| {
+            ValidationResults::Limit(order) => {
+                PoolInnerEvent::from_limit(self.handle_validation_results(order, |this, order| {
                     this.subscriptions
                         .new_order(Order::Limit(order.order.clone()));
 
                     if let Err(e) = this.limit_pool.add_limit_order(order) {
                         error!(error=%e, "failed to add order to limit pool");
                     }
-                })
-                .map(OrdersToPropagate::Limit),
-            ValidationResults::Searcher(order) => self
-                .handle_validation_results(order, |this, order| {
+                }))
+            }
+
+            ValidationResults::Searcher(order) => PoolInnerEvent::from_searcher(
+                self.handle_validation_results(order, |this, order| {
                     this.subscriptions
                         .new_order(Order::Searcher(order.order.clone()));
 
@@ -331,9 +365,9 @@ where
                         error!(error=%e, "failed to add order to searcher pool");
                     }
                 })
-                .map(OrdersToPropagate::Searcher),
-            ValidationResults::ComposableLimit(order) => self
-                .handle_validation_results(order, |this, order| {
+            ),
+            ValidationResults::ComposableLimit(order) => PoolInnerEvent::from_composable_limit(
+                self.handle_validation_results(order, |this, order| {
                     this.subscriptions
                         .new_order(Order::ComposableLimit(order.order.clone()));
 
@@ -341,17 +375,20 @@ where
                         error!(error=%e, "failed to add order to limit pool");
                     }
                 })
-                .map(OrdersToPropagate::ComposableLimit),
-            ValidationResults::ComposableSearcher(order) => self
-                .handle_validation_results(order, |this, order| {
-                    this.subscriptions
-                        .new_order(Order::ComposableSearcher(order.order.clone()));
+            ),
+            ValidationResults::ComposableSearcher(order) => {
+                PoolInnerEvent::from_composable_searcher(self.handle_validation_results(
+                    order,
+                    |this, order| {
+                        this.subscriptions
+                            .new_order(Order::ComposableSearcher(order.order.clone()));
 
-                    if let Err(e) = this.searcher_pool.add_composable_searcher_order(order) {
-                        error!(error=%e,"failed to add order to searcher pool");
+                        if let Err(e) = this.searcher_pool.add_composable_searcher_order(order) {
+                            error!(error=%e,"failed to add order to searcher pool");
+                        }
                     }
-                })
-                .map(OrdersToPropagate::ComposableSearcher)
+                ))
+            }
         }
     }
 
@@ -359,26 +396,25 @@ where
         &mut self,
         order: OrderValidationOutcome<O>,
         insert: impl FnOnce(&mut Self, ValidOrder<O>)
-    ) -> Option<O> {
+    ) -> OrderOrPeers<O> {
         match order {
             OrderValidationOutcome::Valid { order, propagate } => {
                 let res = propagate.then_some(order.order.clone());
                 self.update_order_tracking(order.clone());
                 insert(self, order);
 
-                res
+                OrderOrPeers::Order(res)
             }
             OrderValidationOutcome::Invalid(order, e) => {
                 warn!(?order, %e, "invalid order");
-                self.pending_orders.remove(&order.hash());
+                let peers = self.pending_orders.remove(&order.hash()).unwrap_or(vec![]);
 
-                None
+                OrderOrPeers::Peers(peers)
             }
             OrderValidationOutcome::Error(hash, e) => {
                 error!(?hash, %e, "error validating order");
-                self.pending_orders.remove(&hash);
 
-                None
+                OrderOrPeers::None
             }
         }
     }
@@ -410,7 +446,7 @@ where
         ComposableSearcherOrder = CS
     >
 {
-    type Item = Vec<OrdersToPropagate<L, CL, S, CS>>;
+    type Item = Vec<PoolInnerEvent<L, CL, S, CS>>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let mut validated = Vec::new();
@@ -428,11 +464,64 @@ where
     }
 }
 
+pub enum PoolInnerEvent<L, CL, S, CS> {
+    Propagation(OrdersToPropagate<L, CL, S, CS>),
+    BadOrderMessages(Vec<PeerId>)
+}
+
+impl<L, CL, S, CS> PoolInnerEvent<L, CL, S, CS> {
+    fn from_limit(order: OrderOrPeers<L>) -> Option<Self> {
+        match order {
+            OrderOrPeers::None => None,
+            OrderOrPeers::Order(o) => {
+                Some(PoolInnerEvent::Propagation(OrdersToPropagate::Limit(o?)))
+            }
+            OrderOrPeers::Peers(p) => Some(PoolInnerEvent::BadOrderMessages(p))
+        }
+    }
+
+    fn from_searcher(order: OrderOrPeers<S>) -> Option<Self> {
+        match order {
+            OrderOrPeers::None => None,
+            OrderOrPeers::Order(o) => {
+                Some(PoolInnerEvent::Propagation(OrdersToPropagate::Searcher(o?)))
+            }
+            OrderOrPeers::Peers(p) => Some(PoolInnerEvent::BadOrderMessages(p))
+        }
+    }
+
+    fn from_composable_limit(order: OrderOrPeers<CL>) -> Option<Self> {
+        match order {
+            OrderOrPeers::None => None,
+            OrderOrPeers::Order(o) => {
+                Some(PoolInnerEvent::Propagation(OrdersToPropagate::ComposableLimit(o?)))
+            }
+            OrderOrPeers::Peers(p) => Some(PoolInnerEvent::BadOrderMessages(p))
+        }
+    }
+
+    fn from_composable_searcher(order: OrderOrPeers<CS>) -> Option<Self> {
+        match order {
+            OrderOrPeers::None => None,
+            OrderOrPeers::Order(o) => {
+                Some(PoolInnerEvent::Propagation(OrdersToPropagate::ComposableSearcher(o?)))
+            }
+            OrderOrPeers::Peers(p) => Some(PoolInnerEvent::BadOrderMessages(p))
+        }
+    }
+}
+
 pub enum OrdersToPropagate<L, CL, S, CS> {
     Limit(L),
     ComposableLimit(CL),
     Searcher(S),
     ComposableSearcher(CS)
+}
+
+enum OrderOrPeers<O> {
+    Order(Option<O>),
+    Peers(Vec<PeerId>),
+    None
 }
 
 impl<L, CL, S, CS> OrdersToPropagate<L, CL, S, CS>

@@ -34,6 +34,10 @@ impl StromNetworkHandle {
         self.send_message(StromNetworkHandleMsg::BroadcastOrder { msg });
     }
 
+    pub fn peer_reputation_change(&self, peer: PeerId, change: ReputationChangeKind) {
+        self.send_message(StromNetworkHandleMsg::ReputationChange(peer, change));
+    }
+
     /// Send message to gracefully shutdown node.
     ///
     /// This will disconnect all active and pending sessions and prevent
