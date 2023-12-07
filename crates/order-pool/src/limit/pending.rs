@@ -1,37 +1,29 @@
 use std::{cmp::Reverse, collections::BTreeMap};
 
-use guard_types::orders::{OrderPriorityData, PoolOrder, ValidatedOrder};
+use guard_types::orders::{OrderPriorityData, PoolOrder};
 use reth_primitives::B256;
 use revm::primitives::HashMap;
-use tokio::sync::broadcast;
 
-use crate::common::{BidAndAsks, ValidOrder};
+use crate::common::ValidOrder;
 
 pub struct PendingPool<O: PoolOrder> {
     /// all order hashes
-    orders:                   HashMap<B256, ValidOrder<O>>,
+    orders: HashMap<B256, ValidOrder<O>>,
     /// bids are sorted descending by price, TODO: This should be binned into
     /// ticks based off of the underlying pools params
-    bids:                     BTreeMap<Reverse<OrderPriorityData>, B256>,
+    bids:   BTreeMap<Reverse<OrderPriorityData>, B256>,
     /// asks are sorted ascending by price,  TODO: This should be binned into
     /// ticks based off of the underlying pools params
-    asks:                     BTreeMap<OrderPriorityData, B256>,
-    /// Notifier for new transactions
-    new_transaction_notifier: broadcast::Sender<ValidOrder<O>>
+    asks:   BTreeMap<OrderPriorityData, B256>
 }
 
 impl<O: PoolOrder> PendingPool<O>
 where
     O: PoolOrder<ValidationData = OrderPriorityData>
 {
-    #[allow(dead_code)]
-    pub fn new(notifier: broadcast::Sender<ValidOrder<O>>) -> Self {
-        Self {
-            orders:                   HashMap::new(),
-            bids:                     BTreeMap::new(),
-            asks:                     BTreeMap::new(),
-            new_transaction_notifier: notifier
-        }
+    #[allow(unused)]
+    pub fn new() -> Self {
+        Self { orders: HashMap::new(), bids: BTreeMap::new(), asks: BTreeMap::new() }
     }
 
     pub fn add_order(&mut self, order: ValidOrder<O>) {
@@ -39,22 +31,12 @@ where
         let priority = order.priority_data();
 
         if order.is_bid() {
-            if self.bids.contains_key(&Reverse(priority)) {
-                return //TODO: error this
-            }
-
             self.bids.insert(Reverse(priority), hash);
         } else {
-            if self.asks.contains_key(&priority) {
-                return //TODO: error this
-            }
-
             self.asks.insert(priority, hash);
         }
 
         self.orders.insert(hash, order.clone());
-        // notifiy new orders
-        let _ = self.new_transaction_notifier.send(order);
     }
 
     pub fn remove_order(&mut self, hash: B256) -> Option<ValidOrder<O>> {
@@ -68,10 +50,6 @@ where
         }
 
         Some(order)
-    }
-
-    pub fn fetch_all_orders(&self) -> Vec<ValidOrder<O>> {
-        self.orders.values().cloned().collect()
     }
 
     pub fn fetch_all_bids(&self) -> Vec<ValidOrder<O>> {
@@ -96,46 +74,6 @@ where
                     .clone()
             })
             .collect()
-    }
-
-    #[allow(dead_code)]
-    pub fn fetch_all_bids_meta(&self) -> Vec<(OrderPriorityData, B256)> {
-        self.bids.iter().map(|k| (k.0 .0, *k.1)).collect()
-    }
-
-    #[allow(dead_code)]
-    pub fn fetch_all_asks_meta(&self) -> Vec<(OrderPriorityData, B256)> {
-        self.asks.iter().map(|k| (*k.0, *k.1)).collect()
-    }
-
-    /// Fetches supply and demand intersection
-    pub fn fetch_intersection(&self) -> BidAndAsks<ValidOrder<O>> {
-        // TODO: this will change when we tick bin, waiting till then
-        // self.bids
-        //     .iter()
-        //     .map(|(price, addr)| (price, self.orders.get(addr).unwrap()))
-        //     .zip(
-        //         self.asks
-        //             .iter()
-        //             .map(|(price, addr)| (price,
-        // self.orders.get(addr).unwrap()))     )
-        //     .map_while(
-        //         |((bid_p, bid), (ask_p, ask))| {
-        //             if ask_p.price.le(&bid_p.0.price) {
-        //                 Some((bid, ask))
-        //             } else {
-        //                 None
-        //             }
-        //         }
-        //     )
-        //     .unzip()
-        todo!()
-    }
-
-    #[allow(dead_code)]
-    /// Fetches supply and demand intersection with a tick price buffer
-    pub fn fetch_intersection_with_buffer(&self, _buffer: u8) -> BidAndAsks<ValidOrder<O>> {
-        todo!("Blocked until added tick impl")
     }
 }
 

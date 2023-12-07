@@ -53,6 +53,7 @@ pub enum OrderCommand<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> 
     FetchAllVanillaOrders(oneshot::Sender<OrderSet<L, S>>, Option<usize>),
     FetchAllComposableOrders(oneshot::Sender<OrderSet<CL, CS>>, Option<usize>),
     FetchAllOrders(oneshot::Sender<AllOrders<L, CL, S, CS>>, Option<usize>),
+    // subscriptions
     SubscribeNewOrders(mpsc::Sender<Order<L, CL, S, CS>>),
     SubscribeFinalizedOrders(mpsc::Sender<Vec<Order<L, CL, S, CS>>>),
     SubscribeFilledOrders(mpsc::Sender<Vec<Order<L, CL, S, CS>>>),
@@ -396,7 +397,6 @@ where
     >
 {
     /// Returns a new handle that can send commands to this type.
-
     fn on_command(&mut self, cmd: OrderCommand<L, CL, S, CS>) {
         match cmd {
             // new orders
@@ -453,7 +453,7 @@ where
                 self.pool.eoa_state_change(state_changes);
             }
             EthEvent::FinalizedBlock(block) => {
-                let finalized_orders = self.pool.finalized_block(block);
+                self.pool.finalized_block(block);
             }
             EthEvent::NewBlock => self.pool.new_block()
         }

@@ -2,8 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use alloy_primitives::B256;
 use guard_types::orders::{
-    OrderId, OrderLocation, PooledComposableOrder, PooledSearcherOrder, SearcherPriorityData,
-    ValidatedOrder
+    OrderId, PooledComposableOrder, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
 };
 
 use super::{SearcherPoolError, V1_LP_POOlS, SEARCHER_POOL_MAX_SIZE};
@@ -26,7 +25,7 @@ where
     pub fn add_order(
         &mut self,
         order: ValidatedOrder<CS, SearcherPriorityData>
-    ) -> Result<OrderLocation, SearcherPoolError<CS>> {
+    ) -> Result<(), SearcherPoolError<CS>> {
         self.sub_pools
             .get_mut(order.pool_id())
             .ok_or(SearcherPoolError::NoPool(order.pool_id))?
@@ -71,18 +70,14 @@ where
         }
     }
 
-    #[allow(dead_code)]
-    pub fn add_order(
-        &mut self,
-        order: ValidOrder<O>
-    ) -> Result<OrderLocation, SearcherPoolError<O>> {
+    pub fn add_order(&mut self, order: ValidOrder<O>) -> Result<(), SearcherPoolError<O>> {
         let priority_data = order.priority_data();
         let hash = order.hash();
 
         self.orders.insert(order.hash(), order);
         self.ordered_arbs.insert(priority_data, hash);
 
-        Ok(OrderLocation::ComposableSearcher)
+        Ok(())
     }
 
     pub fn remove_order(&mut self, hash: B256) -> Result<ValidOrder<O>, SearcherPoolError<O>> {
@@ -101,22 +96,9 @@ where
         Ok(order)
     }
 
-    #[allow(dead_code)]
     pub fn winning_order(&self) -> Option<&ValidOrder<O>> {
         self.ordered_arbs
             .first_key_value()
             .and_then(|(_, hash)| self.orders.get(hash))
     }
-
-    /*pub fn add_orders(
-        &mut self,
-        orders: Vec<ValidOrder<O>>
-    ) -> Result<Vec<OrderLocation>, SearcherPoolError> {
-        orders
-            .into_iter()
-            .try_fold(Vec::new(), |mut locations, order| {
-                locations.push(self.add_order(order)?);
-                Ok(locations)
-            })
-    }*/
 }

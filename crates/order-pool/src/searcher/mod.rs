@@ -3,9 +3,7 @@ use std::fmt::Debug;
 use alloy_primitives::B256;
 use composable::ComposableSearcherPool;
 use guard_types::{
-    orders::{
-        OrderId, PooledComposableOrder, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
-    },
+    orders::{OrderId, PooledComposableOrder, PooledSearcherOrder, SearcherPriorityData},
     primitive::PoolId
 };
 
@@ -89,15 +87,9 @@ where
     pub fn get_winning_orders_composable(&self) -> Vec<ValidOrder<CS>> {
         self.composable_searcher_orders.get_winning_orders()
     }
-
-    #[allow(dead_code)]
-    pub fn get_winning_orders(&self) -> Vec<(Option<ValidOrder<S>>, Option<ValidOrder<CS>>)> {
-        todo!()
-    }
 }
 
 #[derive(Debug, thiserror::Error)]
-#[allow(dead_code)]
 pub enum SearcherPoolError<O: Debug> {
     #[error(
         "Pool has reached max size, and order doesn't satisify replacment requirements, Order: \
@@ -106,10 +98,6 @@ pub enum SearcherPoolError<O: Debug> {
     MaxSize(O),
     #[error("No pool was found for address: {0}")]
     NoPool(PoolId),
-    #[error("Already have a order with same nonce {0:?}")]
-    DuplicateNonce(OrderId),
-    #[error("Duplicate order: {0:#?}")]
-    DuplicateOrder(O),
     #[error("Order Not Found")]
     OrderNotFound(B256)
 }

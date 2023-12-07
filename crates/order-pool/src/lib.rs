@@ -6,20 +6,12 @@ mod limit;
 mod searcher;
 mod subscriptions;
 mod validator;
-use std::{collections::HashMap, sync::Arc};
 
-use alloy_primitives::TxHash;
 pub use common::Order;
 use common::ValidOrder;
 pub use config::PoolConfig;
 use futures_util::future::BoxFuture;
-use guard_types::{
-    orders::{
-        OrderConversion, OrderOrigin, OrderPriorityData, PoolOrder, PooledComposableOrder,
-        PooledLimitOrder, PooledOrder, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
-    },
-    primitive::PoolId
-};
+use guard_types::orders::{OrderConversion, OrderOrigin, PoolOrder};
 pub use guard_utils::*;
 pub use inner::*;
 use tokio_stream::wrappers::ReceiverStream;
@@ -50,7 +42,6 @@ pub struct AllOrders<
 /// The OrderPool Trait is how other processes can interact with the orderpool
 /// asyncly. This allows for requesting data and providing data from different
 /// threads efficiently.
-// #[auto_impl::auto_impl(Arc)]
 pub trait OrderPoolHandle: Send + Sync + Clone + Unpin + 'static {
     /// The transaction type of the limit order pool
     type LimitOrder: PoolOrder;
