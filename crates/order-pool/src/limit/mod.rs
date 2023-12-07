@@ -96,10 +96,6 @@ where
         self.composable_orders.fetch_bids_asks_per_pool()
     }
 
-    pub fn fetch_all_orders(&self) -> RegularAndLimit<Vec<ValidOrder<O>>, Vec<ValidOrder<C>>> {
-        (self.limit_orders.fetch_all_orders(), self.composable_orders.fetch_all_orders())
-    }
-
     #[allow(dead_code)]
     pub fn remove_limit_order(
         &mut self,

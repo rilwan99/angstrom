@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use alloy_primitives::B256;
 use composable::ComposableSearcherPool;
 use guard_types::{
@@ -42,10 +44,10 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn add_searcher_order(&mut self, order: ValidOrder<S>) -> Result<(), SearcherPoolError> {
+    pub fn add_searcher_order(&mut self, order: ValidOrder<S>) -> Result<(), SearcherPoolError<S>> {
         let size = order.size();
         if !self._size.has_space(size) {
-            return Err(SearcherPoolError::MaxSize)
+            return Err(SearcherPoolError::MaxSize(order.order))
         }
 
         self.searcher_orders.add_order(order)?;
@@ -56,10 +58,10 @@ where
     pub fn add_composable_searcher_order(
         &mut self,
         order: ValidOrder<CS>
-    ) -> Result<(), SearcherPoolError> {
+    ) -> Result<(), SearcherPoolError<CS>> {
         let size = order.size();
         if !self._size.has_space(size) {
-            return Err(SearcherPoolError::MaxSize)
+            return Err(SearcherPoolError::MaxSize(order.order))
         }
 
         self.composable_searcher_orders.add_order(order)?;
@@ -69,14 +71,14 @@ where
     pub fn remove_searcher_order(
         &mut self,
         id: OrderId
-    ) -> Result<ValidOrder<S>, SearcherPoolError> {
+    ) -> Result<ValidOrder<S>, SearcherPoolError<S>> {
         self.searcher_orders.remove_order(id)
     }
 
     pub fn remove_composable_searcher_order(
         &mut self,
         id: OrderId
-    ) -> Result<ValidOrder<CS>, SearcherPoolError> {
+    ) -> Result<ValidOrder<CS>, SearcherPoolError<CS>> {
         self.composable_searcher_orders.remove_order(id)
     }
 
@@ -96,15 +98,18 @@ where
 
 #[derive(Debug, thiserror::Error)]
 #[allow(dead_code)]
-pub enum SearcherPoolError {
-    #[error("Pool has reached max size, and order doesn't satisify replacment requirements")]
-    MaxSize,
+pub enum SearcherPoolError<O: Debug> {
+    #[error(
+        "Pool has reached max size, and order doesn't satisify replacment requirements, Order: \
+         {0:#?}"
+    )]
+    MaxSize(O),
     #[error("No pool was found for address: {0}")]
     NoPool(PoolId),
-    #[error("Already have a ordered with {0:?}")]
+    #[error("Already have a order with same nonce {0:?}")]
     DuplicateNonce(OrderId),
-    #[error("Duplicate order")]
-    DuplicateOrder,
+    #[error("Duplicate order: {0:#?}")]
+    DuplicateOrder(O),
     #[error("Order Not Found")]
     OrderNotFound(B256)
 }

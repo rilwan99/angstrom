@@ -24,14 +24,20 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn add_order(&mut self, order: ValidOrder<O>) -> Result<OrderLocation, SearcherPoolError> {
+    pub fn add_order(
+        &mut self,
+        order: ValidOrder<O>
+    ) -> Result<OrderLocation, SearcherPoolError<O>> {
         self.sub_pools
             .get_mut(order.pool_id())
             .ok_or(SearcherPoolError::NoPool(order.pool_id))
             .and_then(|pool| pool.add_order(order))
     }
 
-    pub fn remove_order(&mut self, order_id: OrderId) -> Result<ValidOrder<O>, SearcherPoolError> {
+    pub fn remove_order(
+        &mut self,
+        order_id: OrderId
+    ) -> Result<ValidOrder<O>, SearcherPoolError<O>> {
         let pool = self
             .sub_pools
             .get_mut(order_id.pool_id)
@@ -69,13 +75,13 @@ where
         }
     }
 
-    pub fn add_order(&mut self, order: ValidOrder<O>) -> Result<OrderLocation, SearcherPoolError> {
+    pub fn add_order(
+        &mut self,
+        order: ValidOrder<O>
+    ) -> Result<OrderLocation, SearcherPoolError<O>> {
         let priority_data = order.priority_data();
         let hash = order.hash();
-        self.check_for_duplicates(&priority_data)?;
-
         self.orders.insert(hash, order);
-
         self.ordered_arbs.insert(priority_data, hash);
 
         Ok(OrderLocation::VanillaSearcher)
@@ -95,15 +101,5 @@ where
         self.ordered_arbs
             .first_key_value()
             .and_then(|(_, hash)| self.orders.get(hash))
-    }
-
-    pub fn check_for_duplicates(
-        &self,
-        priority_data: &O::ValidationData
-    ) -> Result<(), SearcherPoolError> {
-        self.ordered_arbs
-            .contains_key(priority_data)
-            .then(|| ())
-            .ok_or(SearcherPoolError::DuplicateOrder)
     }
 }

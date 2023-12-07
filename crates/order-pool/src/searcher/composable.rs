@@ -26,14 +26,17 @@ where
     pub fn add_order(
         &mut self,
         order: ValidatedOrder<CS, SearcherPriorityData>
-    ) -> Result<OrderLocation, SearcherPoolError> {
+    ) -> Result<OrderLocation, SearcherPoolError<CS>> {
         self.sub_pools
             .get_mut(order.pool_id())
-            .ok_or(SearcherPoolError::NoPool(order.pool_id))
-            .and_then(|pool| pool.add_order(order))
+            .ok_or(SearcherPoolError::NoPool(order.pool_id))?
+            .add_order(order)
     }
 
-    pub fn remove_order(&mut self, order_id: OrderId) -> Result<ValidOrder<CS>, SearcherPoolError> {
+    pub fn remove_order(
+        &mut self,
+        order_id: OrderId
+    ) -> Result<ValidOrder<CS>, SearcherPoolError<CS>> {
         self.sub_pools
             .get_mut(order_id.pool_id)
             .ok_or(SearcherPoolError::NoPool(order_id.pool_id))?
@@ -69,10 +72,12 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn add_order(&mut self, order: ValidOrder<O>) -> Result<OrderLocation, SearcherPoolError> {
+    pub fn add_order(
+        &mut self,
+        order: ValidOrder<O>
+    ) -> Result<OrderLocation, SearcherPoolError<O>> {
         let priority_data = order.priority_data();
         let hash = order.hash();
-        self.check_for_duplicates(&priority_data)?;
 
         self.orders.insert(order.hash(), order);
         self.ordered_arbs.insert(priority_data, hash);
@@ -80,7 +85,7 @@ where
         Ok(OrderLocation::ComposableSearcher)
     }
 
-    pub fn remove_order(&mut self, hash: B256) -> Result<ValidOrder<O>, SearcherPoolError> {
+    pub fn remove_order(&mut self, hash: B256) -> Result<ValidOrder<O>, SearcherPoolError<O>> {
         let order = self
             .orders
             .remove(&hash)
@@ -114,14 +119,4 @@ where
                 Ok(locations)
             })
     }*/
-
-    pub fn check_for_duplicates(
-        &self,
-        priority_data: &O::ValidationData
-    ) -> Result<(), SearcherPoolError> {
-        self.ordered_arbs
-            .contains_key(priority_data)
-            .then(|| ())
-            .ok_or(SearcherPoolError::DuplicateOrder)
-    }
 }
