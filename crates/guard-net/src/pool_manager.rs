@@ -29,6 +29,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use validation::order::OrderValidator;
 
 use crate::{LruCache, NetworkOrderEvent, StromMessage, StromNetworkEvent, StromNetworkHandle};
+///
 /// Cache limit of transactions to keep track of for a single peer.
 const PEER_ORDER_CACHE_LIMIT: usize = 1024 * 10;
 
@@ -197,8 +198,8 @@ where
     strom_network_events: UnboundedReceiverStream<StromNetworkEvent>,
     eth_network_events:   UnboundedReceiverStream<EthEvent>,
     order_events:         UnboundedReceiverStream<NetworkOrderEvent>,
-    _phatom:              PhantomData<(L, CL, S, CS)>,
-    config:               PoolConfig
+    config:               PoolConfig,
+    _phantom:             PhantomData<(L, CL, S, CS)>
 }
 
 impl<L, CL, S, CS, V> PoolManagerBuilder<L, CL, S, CS, V>
@@ -232,8 +233,8 @@ where
             strom_network_events,
             network_handle,
             validator,
-            _phatom: Default::default(),
-            config: Default::default()
+            config: Default::default(),
+            _phantom: Default::default()
         }
     }
 
@@ -432,19 +433,14 @@ where
         }
     }
 
-    fn on_propagate_orders(&mut self, orders: OrdersToPropagate<L, CL, S, CS>) {
-        let order = match orders {
-            OrdersToPropagate::Limit(limit) => PooledOrder::Limit(limit.to_signed()),
-            OrdersToPropagate::Searcher(searcher) => PooledOrder::Searcher(searcher.to_signed()),
-            OrdersToPropagate::LimitComposable(limit) => {
-                PooledOrder::ComposableLimit(limit.to_signed())
-            }
-            OrdersToPropagate::SearcherCompsable(searcher) => {
-                PooledOrder::ComposableSearcher(searcher.to_signed())
-            }
-        };
+    fn on_propagate_orders(&mut self, orders: Vec<OrdersToPropagate<L, CL, S, CS>>) {
+        let orders = orders
+            .into_iter()
+            .map(|order| order.into_pooled())
+            .collect::<Vec<_>>();
+
         self.network
-            .broadcast_tx(StromMessage::PropagatePooledOrders(vec![order]))
+            .broadcast_tx(StromMessage::PropagatePooledOrders(orders))
     }
 }
 
@@ -491,7 +487,7 @@ where
             this.on_network_order_event(event);
         }
 
-        //
+        // poll underlying pool. This is the validation process that's being polled
         while let Poll::Ready(Some(orders)) = this.pool.poll_next_unpin(cx) {
             this.on_propagate_orders(orders);
         }

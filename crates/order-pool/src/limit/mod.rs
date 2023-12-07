@@ -50,10 +50,10 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn add_composable_order(&mut self, order: ValidOrder<C>) -> Result<(), LimitPoolError> {
+    pub fn add_composable_order(&mut self, order: ValidOrder<C>) -> Result<(), LimitPoolError<C>> {
         let size = order.size();
         if !self.size.has_space(size) {
-            return Err(LimitPoolError::MaxSize)
+            return Err(LimitPoolError::MaxSize(order.order))
         }
 
         self.composable_orders.add_order(order)?;
@@ -62,10 +62,10 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn add_limit_order(&mut self, order: ValidOrder<O>) -> Result<(), LimitPoolError> {
+    pub fn add_limit_order(&mut self, order: ValidOrder<O>) -> Result<(), LimitPoolError<O>> {
         let size = order.size();
         if !self.size.has_space(size) {
-            return Err(LimitPoolError::MaxSize)
+            return Err(LimitPoolError::MaxSize(order.order))
         }
 
         let _location = self.limit_orders.add_order(order)?;
@@ -116,13 +116,16 @@ where
 
 #[derive(Debug, thiserror::Error)]
 #[allow(dead_code)]
-pub enum LimitPoolError {
-    #[error("Pool has reached max size, and order doesn't satisify replacment requirements")]
-    MaxSize,
-    #[error("No pool was found for address: {0}")]
-    NoPool(PoolId),
-    #[error("Already have a ordered with {0:?}")]
-    DuplicateNonce(OrderId),
-    #[error("Duplicate order")]
-    DuplicateOrder
+pub enum LimitPoolError<O: Debug> {
+    #[error(
+        "Pool has reached max size, and order doesn't satisify replacment requirements, Order: \
+         {0:#?}"
+    )]
+    MaxSize(O),
+    #[error("No pool was found for address: {0} Order: {1:#?}")]
+    NoPool(PoolId, O),
+    #[error("Already have a ordered with nonce: {0:?}, Order: {1:#?}")]
+    DuplicateNonce(OrderId, O),
+    #[error("Duplicate order: {0:#?}")]
+    DuplicateOrder(O)
 }

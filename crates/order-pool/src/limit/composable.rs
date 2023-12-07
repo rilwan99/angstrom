@@ -24,12 +24,14 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn add_order(&mut self, order: ValidOrder<O>) -> Result<(), LimitPoolError> {
+    pub fn add_order(&mut self, order: ValidOrder<O>) -> Result<(), LimitPoolError<O>> {
         let id: OrderId = order.clone().into();
         self.0
             .get_mut(&id.pool_id)
-            .map(|pool| pool.add_order(order))
-            .ok_or_else(|| LimitPoolError::NoPool(id.pool_id))
+            .ok_or_else(|| LimitPoolError::NoPool(id.pool_id, order.order.clone()))?
+            .add_order(order);
+
+        Ok(())
     }
 
     #[allow(dead_code)]

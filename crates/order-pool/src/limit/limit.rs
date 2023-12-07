@@ -1,8 +1,7 @@
 use guard_types::{
-    orders::{OrderId, OrderPriorityData, PoolOrder, PooledLimitOrder, ValidatedOrder},
+    orders::{OrderId, OrderPriorityData, PoolOrder, PooledLimitOrder},
     primitive::PoolId
 };
-use revm::primitives::HashMap;
 
 use super::{parked::ParkedPool, pending::PendingPool, LimitPoolError, OrderLocation};
 use crate::{
@@ -24,23 +23,23 @@ where
         todo!()
     }
 
-    #[allow(dead_code)]
-    pub fn add_order(&mut self, order: ValidOrder<O>) -> Result<OrderLocation, LimitPoolError> {
+    pub fn add_order(&mut self, order: ValidOrder<O>) -> Result<(), LimitPoolError<O>> {
         let pool_id = order.pool_id();
+        let err = || LimitPoolError::NoPool(pool_id, order.order.clone());
 
-        if order.is_valid() {
+        if order.location.is_limit_pending() {
             self.pending_orders
                 .get_mut(pool_id)
-                .map(|pool| pool.add_order(order))
-                .ok_or_else(|| LimitPoolError::NoPool(pool_id))?;
-            Ok(OrderLocation::LimitPending)
+                .ok_or_else(err)?
+                .add_order(order)
         } else {
             self.parked_orders
                 .get_mut(pool_id)
-                .map(|pool| pool.new_order(order))
-                .ok_or_else(|| LimitPoolError::NoPool(pool_id))?;
-            Ok(OrderLocation::LimitParked)
+                .ok_or_else(err)?
+                .new_order(order)
         }
+
+        Ok(())
     }
 
     pub fn remove_order(&mut self, order_id: &OrderId) -> Option<ValidOrder<O>> {

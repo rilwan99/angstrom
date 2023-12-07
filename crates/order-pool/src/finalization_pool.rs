@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, VecDeque},
-    iter::Iterator
-};
+use std::{collections::HashMap, iter::Iterator};
 
 use guard_types::orders::PoolOrder;
 use reth_primitives::B256;

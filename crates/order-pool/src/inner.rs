@@ -9,18 +9,28 @@ use alloy_primitives::B256;
 use futures_util::{Stream, StreamExt};
 use guard_types::{
     orders::{
-        OrderId, OrderLocation, OrderOrigin, OrderPriorityData, OrderValidationOutcome, PoolOrder,
-        PooledComposableOrder, PooledLimitOrder, PooledOrder, PooledSearcherOrder,
-        SearcherPriorityData, ValidatedOrder, ValidationResults
+        OrderConversion, OrderId, OrderLocation, OrderOrigin, OrderPriorityData,
+        OrderValidationOutcome, PoolOrder, PooledComposableOrder, PooledLimitOrder, PooledOrder,
+        PooledSearcherOrder, SearcherPriorityData, ValidatedOrder, ValidationResults
     },
-    primitive::PoolId
+    primitive::PoolId,
+    rpc::{
+        SignedComposableLimitOrder, SignedComposableSearcherOrder, SignedLimitOrder,
+        SignedSearcherOrder
+    }
 };
 use reth_primitives::Address;
+use tracing::{error, trace, warn};
 use validation::order::OrderValidator;
 
 use crate::{
-    common::FilledOrder, config::PoolConfig, finalization_pool::FinalizationPool,
-    limit::LimitOrderPool, searcher::SearcherPool, validator::Validator, BidsAndAsks, OrderSet
+    common::{FilledOrder, ValidOrder},
+    config::PoolConfig,
+    finalization_pool::FinalizationPool,
+    limit::LimitOrderPool,
+    searcher::SearcherPool,
+    validator::Validator,
+    OrderSet
 };
 
 pub struct OrderPoolInner<L, CL, S, CS, V>
@@ -70,20 +80,38 @@ where
     }
 
     pub fn new_limit_order(&mut self, origin: OrderOrigin, order: L) {
-        self.validator.validate_order(origin, order);
+        if !self.is_duplicate(&order) {
+            self.validator.validate_order(origin, order);
+        }
     }
 
     pub fn new_composable_limit(&mut self, origin: OrderOrigin, order: CL) {
-        self.validator.validate_composable_order(origin, order);
+        if !self.is_duplicate(&order) {
+            self.validator.validate_composable_order(origin, order);
+        }
     }
 
     pub fn new_searcher_order(&mut self, origin: OrderOrigin, order: S) {
-        self.validator.validate_searcher_order(origin, order)
+        if !self.is_duplicate(&order) {
+            self.validator.validate_searcher_order(origin, order)
+        }
     }
 
     pub fn new_composable_searcher_order(&mut self, origin: OrderOrigin, order: CS) {
-        self.validator
-            .validate_composable_searcher_order(origin, order)
+        if !self.is_duplicate(&order) {
+            self.validator
+                .validate_composable_searcher_order(origin, order)
+        }
+    }
+
+    fn is_duplicate<O: PoolOrder>(&self, order: &O) -> bool {
+        let hash = order.hash();
+        if self.hash_to_order_id.contains_key(&hash) {
+            trace!(?hash, "got duplicate order");
+            return true
+        }
+
+        false
     }
 
     pub fn fetch_vanilla_orders(&self) -> OrderSet<L, S> {
@@ -180,14 +208,14 @@ where
                     OrderLocation::VanillaSearcher => self
                         .searcher_pool
                         .remove_searcher_order(order_id)
-                        .inspect_err(|e| eprint!("{e:?}"))
+                        .inspect_err(|e| error!("{e:?}"))
                         .ok()
                         .map(|o| o.order)
                         .map(FilledOrder::add_searcher),
                     OrderLocation::ComposableSearcher => self
                         .searcher_pool
                         .remove_composable_searcher_order(order_id)
-                        .inspect_err(|e| eprint!("{e:?}"))
+                        .inspect_err(|e| error!("{e:?}"))
                         .ok()
                         .map(|o| o.order)
                         .map(FilledOrder::add_composable_searcher)
@@ -195,50 +223,121 @@ where
             })
         )
     }
-}
 
-impl<L, CL, S, CS, V> OrderPoolInner<L, CL, S, CS, V>
-where
-    L: PooledLimitOrder,
-    CL: PooledComposableOrder + PooledLimitOrder,
-    S: PooledSearcherOrder,
-    CS: PooledComposableOrder + PooledSearcherOrder,
-    V: OrderValidator
-{
     fn handle_validated_order(
         &mut self,
-        _res: ValidationResults<L, CL, S, CS>
+        res: ValidationResults<L, CL, S, CS>
     ) -> Option<OrdersToPropagate<L, CL, S, CS>> {
-        todo!()
+        match res {
+            ValidationResults::Limit(order) => self
+                .handle_validation_results(order, |this, order| {
+                    if let Err(e) = this.limit_pool.add_limit_order(order) {
+                        error!(error=%e, "failed to add order to limit pool");
+                    }
+                })
+                .map(OrdersToPropagate::Limit),
+            ValidationResults::Searcher(order) => self
+                .handle_validation_results(order, |this, order| {
+                    if let Err(e) = this.searcher_pool.add_searcher_order(order) {
+                        error!(error=%e, "failed to add order to searcher pool");
+                    }
+                })
+                .map(OrdersToPropagate::Searcher),
+            ValidationResults::ComposableLimit(order) => self
+                .handle_validation_results(order, |this, order| {
+                    if let Err(e) = this.limit_pool.add_composable_order(order) {
+                        error!(error=%e, "failed to add order to limit pool");
+                    }
+                })
+                .map(OrdersToPropagate::ComposableLimit),
+            ValidationResults::ComposableSearcher(order) => self
+                .handle_validation_results(order, |this, order| {
+                    if let Err(e) = this.searcher_pool.add_composable_searcher_order(order) {
+                        error!(error=%e,"failed to add order to searcher pool");
+                    }
+                })
+                .map(OrdersToPropagate::ComposableSearcher)
+        }
+    }
+
+    fn handle_validation_results<O: PoolOrder>(
+        &mut self,
+        order: OrderValidationOutcome<O>,
+        insert: impl FnOnce(&mut Self, ValidOrder<O>)
+    ) -> Option<O> {
+        match order {
+            OrderValidationOutcome::Valid { order, propagate } => {
+                let res = propagate.then_some(order.order.clone());
+                insert(self, order);
+
+                res
+            }
+            OrderValidationOutcome::Invalid(order, e) => {
+                warn!(?order, %e, "invalid order");
+                None
+            }
+            OrderValidationOutcome::Error(hash, e) => {
+                error!(?hash, %e, "error validating order");
+                None
+            }
+        }
     }
 }
 
 impl<L, CL, S, CS, V> Stream for OrderPoolInner<L, CL, S, CS, V>
 where
-    L: PooledLimitOrder,
-    CL: PooledComposableOrder + PooledLimitOrder,
-    S: PooledSearcherOrder,
-    CS: PooledComposableOrder + PooledSearcherOrder,
-    V: OrderValidator + Unpin
+    L: PooledLimitOrder<ValidationData = OrderPriorityData>,
+    CL: PooledComposableOrder + PooledLimitOrder<ValidationData = OrderPriorityData>,
+
+    S: PooledSearcherOrder<ValidationData = SearcherPriorityData>,
+    CS: PooledComposableOrder + PooledSearcherOrder<ValidationData = SearcherPriorityData>,
+    V: OrderValidator<
+        LimitOrder = L,
+        SearcherOrder = S,
+        ComposableLimitOrder = CL,
+        ComposableSearcherOrder = CS
+    >
 {
-    type Item = OrdersToPropagate<L, CL, S, CS>;
+    type Item = Vec<OrdersToPropagate<L, CL, S, CS>>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let mut validated = Vec::new();
         while let Poll::Ready(Some(next)) = self.validator.poll_next_unpin(cx) {
             if let Some(prop) = self.handle_validated_order(next) {
-                return Poll::Ready(Some(prop))
+                validated.push(prop);
             }
         }
 
-        Poll::Pending
+        if validated.is_empty() {
+            Poll::Pending
+        } else {
+            Poll::Ready(Some(validated))
+        }
     }
 }
 
 pub enum OrdersToPropagate<L, CL, S, CS> {
     Limit(L),
-    LimitComposable(CL),
+    ComposableLimit(CL),
     Searcher(S),
-    SearcherCompsable(CS)
+    ComposableSearcher(CS)
+}
+
+impl<L, CL, S, CS> OrdersToPropagate<L, CL, S, CS>
+where
+    L: OrderConversion<Order = SignedLimitOrder>,
+    CL: OrderConversion<Order = SignedComposableLimitOrder>,
+    S: OrderConversion<Order = SignedSearcherOrder>,
+    CS: OrderConversion<Order = SignedComposableSearcherOrder>
+{
+    pub fn into_pooled(self) -> PooledOrder {
+        match self {
+            Self::Limit(l) => PooledOrder::Limit(l.to_signed()),
+            Self::Searcher(s) => PooledOrder::Searcher(s.to_signed()),
+            Self::ComposableLimit(cl) => PooledOrder::ComposableLimit(cl.to_signed()),
+            Self::ComposableSearcher(cs) => PooledOrder::ComposableSearcher(cs.to_signed())
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
