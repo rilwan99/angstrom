@@ -45,6 +45,7 @@ guard-eth.workspace = true
 guard-types.workspace = true
 guard-utils.workspace = true
 order-pool.workspace = true
+validation.workspace = true
 
 # async/futures
 futures.workspace = true

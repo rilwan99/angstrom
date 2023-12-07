@@ -1,25 +1,21 @@
 use std::fmt::Debug;
 
 use guard_types::{
-    orders::{
-        OrderId, OrderLocation, OrderPriorityData, PoolOrder, PooledComposableOrder,
-        PooledLimitOrder, ValidatedOrder
-    },
+    orders::{OrderId, OrderLocation, OrderPriorityData, PooledComposableOrder, PooledLimitOrder},
     primitive::PoolId
 };
-use reth_primitives::B256;
 
 use self::{composable::ComposableLimitPool, limit::LimitPool};
-use crate::common::SizeTracker;
+use crate::{
+    common::{SizeTracker, ValidOrder},
+    BidsAndAsks
+};
 
 mod composable;
 mod limit;
 mod parked;
 mod pending;
-#[allow(dead_code)]
-pub type RegularAndLimitRef<'a, T, C> = (Vec<&'a T>, Vec<&'a C>);
 
-#[allow(dead_code)]
 pub struct LimitOrderPool<O, C>
 where
     O: PooledLimitOrder,
@@ -35,9 +31,8 @@ where
 
 impl<O: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrderPool<O, C>
 where
-    O: PooledLimitOrder<ValidationData = ValidatedOrder<O, OrderPriorityData>>,
-    C: PooledComposableOrder
-        + PooledLimitOrder<ValidationData = ValidatedOrder<C, OrderPriorityData>>
+    O: PooledLimitOrder<ValidationData = OrderPriorityData>,
+    C: PooledComposableOrder + PooledLimitOrder<ValidationData = OrderPriorityData>
 {
     pub fn new(max_size: Option<usize>) -> Self {
         Self {
@@ -47,14 +42,10 @@ where
         }
     }
 
-    #[allow(dead_code)]
-    pub fn add_composable_order(
-        &mut self,
-        order: ValidatedOrder<C, OrderPriorityData>
-    ) -> Result<(), LimitPoolError> {
+    pub fn add_composable_order(&mut self, order: ValidOrder<C>) -> Result<(), LimitPoolError<C>> {
         let size = order.size();
         if !self.size.has_space(size) {
-            return Err(LimitPoolError::MaxSize)
+            return Err(LimitPoolError::MaxSize(order.order))
         }
 
         self.composable_orders.add_order(order)?;
@@ -62,85 +53,40 @@ where
         Ok(())
     }
 
-    #[allow(dead_code)]
-    pub fn add_limit_order(
-        &mut self,
-        order: ValidatedOrder<O, OrderPriorityData>
-    ) -> Result<(), LimitPoolError> {
+    pub fn add_limit_order(&mut self, order: ValidOrder<O>) -> Result<(), LimitPoolError<O>> {
         let size = order.size();
         if !self.size.has_space(size) {
-            return Err(LimitPoolError::MaxSize)
+            return Err(LimitPoolError::MaxSize(order.order))
         }
-
-        let _location = self.limit_orders.add_order(order)?;
+        self.limit_orders.add_order(order)?;
 
         Ok(())
-
-        // TODO: What do we want to return, how do we want to wire it up
-        // so it bubbles up to the highest level
     }
 
-    // individual fetches
-    #[allow(dead_code)]
-    pub fn fetch_all_pool_orders(
-        &mut self,
-        id: &PoolId
-    ) -> RegularAndLimitRef<
-        ValidatedOrder<O, OrderPriorityData>,
-        ValidatedOrder<C, OrderPriorityData>
-    > {
-        (
-            self.limit_orders.fetch_all_pool_orders(id),
-            self.composable_orders.fetch_all_pool_orders(id)
-        )
+    pub fn fetch_all_vanilla_orders(&self) -> Vec<BidsAndAsks<O>> {
+        self.limit_orders.fetch_bids_asks_per_pool()
     }
 
-    #[allow(dead_code)]
-    pub fn remove_limit_order(
-        &mut self,
-        _order_hash: &B256,
-        _location: OrderLocation
-    ) -> Option<O> {
-        todo!()
+    pub fn fetch_all_composable_orders(&self) -> Vec<BidsAndAsks<C>> {
+        self.composable_orders.fetch_bids_asks_per_pool()
     }
 
-    pub fn remove_composable_limit_order(&mut self, _order_hash: &B256) -> Option<C> {
-        todo!()
+    pub fn remove_limit_order(&mut self, order_id: &OrderId) -> Option<ValidOrder<O>> {
+        self.limit_orders.remove_order(order_id)
     }
-}
 
-// Helper functions
-impl<T, C> LimitOrderPool<T, C>
-where
-    T: PooledLimitOrder,
-    C: PooledComposableOrder + PooledLimitOrder
-{
-    /// Helper function for unzipping and size adjustment
-    #[allow(dead_code)]
-    fn filter_option_and_adjust_size<O: PoolOrder>(
-        &mut self,
-        order: Vec<Option<ValidatedOrder<O, OrderPriorityData>>>
-    ) -> Vec<ValidatedOrder<O, OrderPriorityData>> {
-        order
-            .into_iter()
-            .filter_map(|order| order)
-            .map(|order| {
-                self.size.remove_order(order.size());
-                order
-            })
-            .collect()
+    pub fn remove_composable_limit_order(&mut self, order_id: &OrderId) -> Option<ValidOrder<C>> {
+        self.composable_orders.remove_order(order_id)
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-#[allow(dead_code)]
-pub enum LimitPoolError {
-    #[error("Pool has reached max size, and order doesn't satisify replacment requirements")]
-    MaxSize,
-    #[error("No pool was found for address: {0}")]
-    NoPool(PoolId),
-    #[error("Already have a ordered with {0:?}")]
-    DuplicateNonce(OrderId),
-    #[error("Duplicate order")]
-    DuplicateOrder
+pub enum LimitPoolError<O: Debug> {
+    #[error(
+        "Pool has reached max size, and order doesn't satisify replacment requirements, Order: \
+         {0:#?}"
+    )]
+    MaxSize(O),
+    #[error("No pool was found for address: {0} Order: {1:#?}")]
+    NoPool(PoolId, O)
 }

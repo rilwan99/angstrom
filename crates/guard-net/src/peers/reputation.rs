@@ -22,6 +22,9 @@ pub(crate) const BAD_COMPOSABLE_ORDER_REPUTATION_CHANGE: Reputation = 15 * REPUT
 /// The reputation change when a peer sends a bad bundle.
 pub(crate) const BAD_BUNDLE_REPUTATION_CHANGE: Reputation = 20 * REPUTATION_UNIT;
 
+/// The reputation change when a peer sends a invalid order
+pub(crate) const INVALID_ORDER_REPUTATION_CHANGE: Reputation = 17 * REPUTATION_UNIT;
+
 /// Various kinds of stale guard specific reputation changes.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum ReputationChangeKind {
@@ -33,6 +36,8 @@ pub enum ReputationChangeKind {
     BadComposableOrder,
     /// Peer sent a bad bundle, i.e. a bundle that is invalid
     BadBundle,
+    /// a order that failed validation
+    InvalidOrder,
     /// Reset the reputation to the default value.
     Reset
 }
@@ -62,7 +67,9 @@ pub struct ReputationChangeWeights {
     /// Weight for [`ReputationChangeKind::BadComposableOrder`]
     pub bad_composable_order: Reputation,
     /// Weight for [`ReputationChangeKind::BadBundle`]
-    pub bad_bundle:           Reputation
+    pub bad_bundle:           Reputation,
+    /// Weight for [`ReputationChangeKind::InvalidOrder`]
+    pub invalid_order:        Reputation
 }
 
 impl Default for ReputationChangeWeights {
@@ -71,7 +78,8 @@ impl Default for ReputationChangeWeights {
             bad_message:          BAD_MESSAGE_REPUTATION_CHANGE,
             bad_order:            BAD_ORDER_REPUTATION_CHANGE,
             bad_composable_order: BAD_COMPOSABLE_ORDER_REPUTATION_CHANGE,
-            bad_bundle:           BAD_BUNDLE_REPUTATION_CHANGE
+            bad_bundle:           BAD_BUNDLE_REPUTATION_CHANGE,
+            invalid_order:        INVALID_ORDER_REPUTATION_CHANGE
         }
     }
 }
@@ -85,6 +93,7 @@ impl ReputationChangeWeights {
             ReputationChangeKind::BadOrder => self.bad_order.into(),
             ReputationChangeKind::BadComposableOrder => self.bad_composable_order.into(),
             ReputationChangeKind::BadBundle => self.bad_bundle.into(),
+            ReputationChangeKind::InvalidOrder => self.invalid_order.into(),
             ReputationChangeKind::Reset => DEFAULT_REPUTATION.into()
         }
     }

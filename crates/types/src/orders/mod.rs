@@ -1,7 +1,7 @@
 mod origin;
 use std::fmt;
 
-mod validation;
+pub mod validation;
 use std::fmt::Debug;
 
 use alloy_primitives::{Address, Bytes, TxHash, U256};
@@ -11,7 +11,7 @@ pub use validation::*;
 mod orders;
 pub use orders::*;
 
-pub trait PoolOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
+pub trait PoolOrder: OrderConversion + fmt::Debug + Send + Sync + Clone + Unpin + 'static {
     type ValidationData: Send + Debug + Sync + Clone + Unpin + 'static;
 
     /// Hash of the order
@@ -62,4 +62,14 @@ pub trait PooledComposableOrder: PoolOrder {
     fn pre_hook(&self) -> Option<Bytes>;
 
     fn post_hook(&self) -> Option<Bytes>;
+}
+
+pub trait OrderConversion {
+    type Order: Send + Sync + Clone + Debug;
+
+    fn try_from_order(order: Self::Order) -> Result<Self, secp256k1::Error>
+    where
+        Self: Sized;
+
+    fn to_signed(self) -> Self::Order;
 }

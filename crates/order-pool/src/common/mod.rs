@@ -1,11 +1,14 @@
+use alloy_primitives::B256;
 use guard_types::orders::PoolOrder;
 mod size;
 
+use guard_types::orders::ValidatedOrder;
 pub use size::*;
 
-pub type BidAndAsks<'a, T> = (Vec<&'a T>, Vec<&'a T>);
+pub type ValidOrder<O> = ValidatedOrder<O, <O as PoolOrder>::ValidationData>;
 
-pub enum FilledOrder<L, CL, S, CS>
+#[derive(Debug, Clone)]
+pub enum Order<L, CL, S, CS>
 where
     L: PoolOrder,
     CL: PoolOrder,
@@ -18,7 +21,7 @@ where
     ComposableSearcher(CS)
 }
 
-impl<L, CL, S, CS> FilledOrder<L, CL, S, CS>
+impl<L, CL, S, CS> Order<L, CL, S, CS>
 where
     L: PoolOrder,
     CL: PoolOrder,
@@ -39,5 +42,14 @@ where
 
     pub fn add_composable_searcher(order: CS) -> Self {
         Self::ComposableSearcher(order)
+    }
+
+    pub fn hash(&self) -> B256 {
+        match self {
+            Order::Limit(l) => l.hash(),
+            Order::Searcher(l) => l.hash(),
+            Order::ComposableLimit(l) => l.hash(),
+            Order::ComposableSearcher(l) => l.hash()
+        }
     }
 }

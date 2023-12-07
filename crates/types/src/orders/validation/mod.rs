@@ -59,6 +59,12 @@ pub enum OrderLocation {
     ComposableSearcher
 }
 
+impl OrderLocation {
+    pub fn is_limit_pending(&self) -> bool {
+        matches!(self, OrderLocation::LimitPending)
+    }
+}
+
 pub enum ValidationResults<L, CL, S, CS>
 where
     L: PoolOrder,

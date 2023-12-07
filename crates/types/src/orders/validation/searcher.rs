@@ -4,7 +4,36 @@ use super::{
     super::{PoolOrder, PooledComposableOrder},
     ValidatedOrder
 };
-use crate::rpc::{EcRecoveredComposableSearcherOrder, EcRecoveredSearcherOrder};
+use crate::{
+    orders::OrderConversion,
+    rpc::{
+        EcRecoveredComposableSearcherOrder, EcRecoveredSearcherOrder,
+        SignedComposableSearcherOrder, SignedSearcherOrder
+    }
+};
+
+impl OrderConversion for EcRecoveredSearcherOrder {
+    type Order = SignedSearcherOrder;
+
+    fn try_from_order(order: Self::Order) -> Result<Self, secp256k1::Error> {
+        order.try_into()
+    }
+
+    fn to_signed(self) -> Self::Order {
+        self.signed_order
+    }
+}
+impl OrderConversion for EcRecoveredComposableSearcherOrder {
+    type Order = SignedComposableSearcherOrder;
+
+    fn try_from_order(order: Self::Order) -> Result<Self, secp256k1::Error> {
+        order.try_into()
+    }
+
+    fn to_signed(self) -> Self::Order {
+        self.signed_order
+    }
+}
 
 pub trait PooledSearcherOrder: PoolOrder {
     /// The liquidity pool this order trades in

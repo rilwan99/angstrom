@@ -7,9 +7,37 @@ use super::{
     ValidatedOrder
 };
 use crate::{
+    orders::OrderConversion,
     primitive::PoolId,
-    rpc::{EcRecoveredComposableLimitOrder, EcRecoveredLimitOrder}
+    rpc::{
+        EcRecoveredComposableLimitOrder, EcRecoveredLimitOrder, SignedComposableLimitOrder,
+        SignedLimitOrder
+    }
 };
+
+impl OrderConversion for EcRecoveredLimitOrder {
+    type Order = SignedLimitOrder;
+
+    fn try_from_order(order: Self::Order) -> Result<Self, secp256k1::Error> {
+        order.try_into()
+    }
+
+    fn to_signed(self) -> Self::Order {
+        self.signed_order
+    }
+}
+
+impl OrderConversion for EcRecoveredComposableLimitOrder {
+    type Order = SignedComposableLimitOrder;
+
+    fn try_from_order(order: Self::Order) -> Result<Self, secp256k1::Error> {
+        order.try_into()
+    }
+
+    fn to_signed(self) -> Self::Order {
+        self.signed_order
+    }
+}
 
 pub trait PooledLimitOrder: PoolOrder {
     /// The liquidity pool this order trades in

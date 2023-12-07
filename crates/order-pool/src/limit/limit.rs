@@ -1,51 +1,41 @@
-use guard_types::{
-    orders::{OrderId, OrderPriorityData, PoolOrder, PooledLimitOrder, ValidatedOrder},
-    primitive::PoolId
-};
+use guard_types::orders::{OrderId, OrderPriorityData, PoolOrder, PooledLimitOrder};
 
 use super::{parked::ParkedPool, pending::PendingPool, LimitPoolError, OrderLocation};
-use crate::common::BidAndAsks;
+use crate::{common::ValidOrder, BidsAndAsks};
 
-#[allow(dead_code)]
 pub struct LimitPool<T: PooledLimitOrder> {
     pending_orders: Vec<PendingPool<T>>,
     parked_orders:  Vec<ParkedPool<T>>
 }
-#[allow(dead_code)]
+
 impl<O: PooledLimitOrder> LimitPool<O>
 where
-    O: PoolOrder<ValidationData = ValidatedOrder<O, OrderPriorityData>>
+    O: PoolOrder<ValidationData = OrderPriorityData>
 {
     pub fn new() -> Self {
         todo!()
     }
 
-    #[allow(dead_code)]
-    pub fn add_order(
-        &mut self,
-        order: ValidatedOrder<O, OrderPriorityData>
-    ) -> Result<OrderLocation, LimitPoolError> {
+    pub fn add_order(&mut self, order: ValidOrder<O>) -> Result<(), LimitPoolError<O>> {
         let pool_id = order.pool_id();
+        let err = || LimitPoolError::NoPool(pool_id, order.order.clone());
 
-        if order.is_valid() {
+        if order.location.is_limit_pending() {
             self.pending_orders
                 .get_mut(pool_id)
-                .map(|pool| pool.add_order(order))
-                .ok_or_else(|| LimitPoolError::NoPool(pool_id))?;
-            Ok(OrderLocation::LimitPending)
+                .ok_or_else(err)?
+                .add_order(order)
         } else {
             self.parked_orders
                 .get_mut(pool_id)
-                .map(|pool| pool.new_order(order))
-                .ok_or_else(|| LimitPoolError::NoPool(pool_id))?;
-            Ok(OrderLocation::LimitParked)
+                .ok_or_else(err)?
+                .new_order(order)
         }
+
+        Ok(())
     }
 
-    pub fn remove_order(
-        &mut self,
-        order_id: &OrderId
-    ) -> Option<ValidatedOrder<O, OrderPriorityData>> {
+    pub fn remove_order(&mut self, order_id: &OrderId) -> Option<ValidOrder<O>> {
         match order_id.location {
             OrderLocation::LimitPending => self
                 .pending_orders
@@ -59,80 +49,10 @@ where
         }
     }
 
-    pub fn fetch_all_pool_orders(&self, id: &PoolId) -> Vec<&ValidatedOrder<O, OrderPriorityData>> {
-        self.pending_orders
-            .get(*id)
-            .map(|inner: &_| inner.fetch_all_orders())
-            .unwrap()
-    }
-
-    pub fn fetch_all_pool_bids(&self, id: &PoolId) -> Vec<&ValidatedOrder<O, OrderPriorityData>> {
-        self.pending_orders
-            .get(*id)
-            .map(|inner: &_| inner.fetch_all_bids())
-            .unwrap()
-    }
-
-    pub fn fetch_all_pool_asks(&self, id: &PoolId) -> Vec<&ValidatedOrder<O, OrderPriorityData>> {
-        self.pending_orders
-            .get(*id)
-            .map(|inner: &_| inner.fetch_all_asks())
-            .unwrap()
-    }
-
-    /// Fetches supply and demand intersection
-    pub fn fetch_pool_intersection(
-        &self,
-        id: &PoolId
-    ) -> BidAndAsks<ValidatedOrder<O, OrderPriorityData>> {
-        self.pending_orders
-            .get(*id)
-            .map(|inner: &_| inner.fetch_intersection())
-            .unwrap()
-    }
-
-    /// Fetches supply and demand intersection with a tick price buffer
-    pub fn fetch_pool_intersection_with_buffer(
-        &self,
-        _buffer: u8
-    ) -> BidAndAsks<ValidatedOrder<O, OrderPriorityData>> {
-        todo!("Blocked until added tick impl")
-    }
-
-    pub fn fetch_all_orders(&self) -> Vec<Vec<&ValidatedOrder<O, OrderPriorityData>>> {
+    pub fn fetch_bids_asks_per_pool(&self) -> Vec<BidsAndAsks<O>> {
         self.pending_orders
             .iter()
-            .map(|inner| inner.fetch_all_orders())
+            .map(|pool| BidsAndAsks { bids: pool.fetch_all_bids(), asks: pool.fetch_all_asks() })
             .collect()
-    }
-
-    pub fn fetch_all_bids(&self) -> Vec<Vec<&ValidatedOrder<O, OrderPriorityData>>> {
-        self.pending_orders
-            .iter()
-            .map(|inner| inner.fetch_all_bids())
-            .collect()
-    }
-
-    pub fn fetch_all_asks(&self) -> Vec<Vec<&ValidatedOrder<O, OrderPriorityData>>> {
-        self.pending_orders
-            .iter()
-            .map(|inner| inner.fetch_all_asks())
-            .collect()
-    }
-
-    /// Fetches supply and demand intersection
-    pub fn fetch_intersection(&self) -> Vec<BidAndAsks<ValidatedOrder<O, OrderPriorityData>>> {
-        self.pending_orders
-            .iter()
-            .map(|inner| inner.fetch_intersection())
-            .collect()
-    }
-
-    /// Fetches supply and demand intersection with a tick price buffer
-    pub fn fetch_intersection_with_buffer(
-        &self,
-        _buffer: u8
-    ) -> Vec<BidAndAsks<ValidatedOrder<O, OrderPriorityData>>> {
-        todo!("Blocked until added tick impl")
     }
 }

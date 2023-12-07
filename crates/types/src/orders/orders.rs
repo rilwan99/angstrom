@@ -1,4 +1,5 @@
 use alloy_rlp::{Buf, BufMut, Decodable, Encodable, Error};
+use reth_primitives::B256;
 use serde::{Deserialize, Serialize};
 
 use crate::rpc::{
@@ -21,6 +22,15 @@ impl PooledOrder {
             PooledOrder::ComposableLimit(_) => OrderType::Composable,
             PooledOrder::Searcher(_) => OrderType::Searcher,
             PooledOrder::ComposableSearcher(_) => OrderType::ComposableSearcher
+        }
+    }
+
+    pub fn hash(&self) -> B256 {
+        match self {
+            PooledOrder::Limit(order) => order.hash,
+            PooledOrder::ComposableLimit(order) => order.hash,
+            PooledOrder::Searcher(order) => order.hash,
+            PooledOrder::ComposableSearcher(order) => order.hash
         }
     }
 }

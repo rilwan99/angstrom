@@ -1,8 +1,9 @@
 use std::sync::{atomic::AtomicUsize, Arc};
 
 use guard_types::orders::PooledOrder;
-use reth_eth_wire::DisconnectReason;
+use order_pool::OrderPoolHandle;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
+use reth_network::DisconnectReason;
 use reth_rpc_types::PeerId;
 use tokio::sync::{mpsc::UnboundedSender, oneshot};
 
@@ -33,6 +34,10 @@ impl StromNetworkHandle {
         self.send_message(StromNetworkHandleMsg::BroadcastOrder { msg });
     }
 
+    pub fn peer_reputation_change(&self, peer: PeerId, change: ReputationChangeKind) {
+        self.send_message(StromNetworkHandleMsg::ReputationChange(peer, change));
+    }
+
     /// Send message to gracefully shutdown node.
     ///
     /// This will disconnect all active and pending sessions and prevent
@@ -57,6 +62,7 @@ struct StromNetworkInner {
 
     to_manager_tx: UnboundedMeteredSender<StromNetworkHandleMsg>
 }
+
 /// All events related to orders emitted by the network.
 #[derive(Debug)]
 pub enum NetworkOrderEvent {
