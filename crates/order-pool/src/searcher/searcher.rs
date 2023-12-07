@@ -36,7 +36,7 @@ where
 
     pub fn remove_order(
         &mut self,
-        order_id: OrderId
+        order_id: &OrderId
     ) -> Result<ValidOrder<O>, SearcherPoolError<O>> {
         let pool = self
             .sub_pools

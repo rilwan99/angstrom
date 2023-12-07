@@ -70,14 +70,14 @@ where
 
     pub fn remove_searcher_order(
         &mut self,
-        id: OrderId
+        id: &OrderId
     ) -> Result<ValidOrder<S>, SearcherPoolError<S>> {
         self.searcher_orders.remove_order(id)
     }
 
     pub fn remove_composable_searcher_order(
         &mut self,
-        id: OrderId
+        id: &OrderId
     ) -> Result<ValidOrder<CS>, SearcherPoolError<CS>> {
         self.composable_searcher_orders.remove_order(id)
     }

@@ -97,15 +97,11 @@ where
     }
 
     #[allow(dead_code)]
-    pub fn remove_limit_order(
-        &mut self,
-        _order_hash: &B256,
-        _location: OrderLocation
-    ) -> Option<ValidOrder<O>> {
+    pub fn remove_limit_order(&mut self, order_id: &OrderId) -> Option<ValidOrder<O>> {
         todo!()
     }
 
-    pub fn remove_composable_limit_order(&mut self, _order_hash: &B256) -> Option<ValidOrder<C>> {
+    pub fn remove_composable_limit_order(&mut self, order_id: &OrderId) -> Option<ValidOrder<C>> {
         todo!()
     }
 }

@@ -17,15 +17,16 @@ use guard_types::{
     rpc::*
 };
 use order_pool::{
-    AllOrders, OrderPoolHandle, OrderPoolInner, OrderSet, OrdersToPropagate, PoolConfig
+    AllOrders, Order, OrderPoolHandle, OrderPoolInner, OrderSet, OrdersToPropagate, PoolConfig
 };
 use reth_primitives::{PeerId, TxHash, B256};
 use reth_tasks::TaskSpawner;
 use tokio::sync::{
+    mpsc,
     mpsc::{unbounded_channel, UnboundedSender},
     oneshot
 };
-use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
 use validation::order::OrderValidator;
 
 use crate::{LruCache, NetworkOrderEvent, StromMessage, StromNetworkEvent, StromNetworkHandle};
@@ -51,7 +52,11 @@ pub enum OrderCommand<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> 
     // fetch orders
     FetchAllVanillaOrders(oneshot::Sender<OrderSet<L, S>>, Option<usize>),
     FetchAllComposableOrders(oneshot::Sender<OrderSet<CL, CS>>, Option<usize>),
-    FetchAllOrders(oneshot::Sender<AllOrders<L, S, CL, CS>>, Option<usize>)
+    FetchAllOrders(oneshot::Sender<AllOrders<L, CL, S, CS>>, Option<usize>),
+    SubscribeNewOrders(mpsc::Sender<Order<L, CL, S, CS>>),
+    SubscribeFinalizedOrders(mpsc::Sender<Vec<Order<L, CL, S, CS>>>),
+    SubscribeFilledOrders(mpsc::Sender<Vec<Order<L, CL, S, CS>>>),
+    SubscribeExpiredOrders(mpsc::Sender<Vec<Order<L, CL, S, CS>>>)
 }
 
 impl<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> PoolHandle<L, CL, S, CS> {
@@ -154,8 +159,8 @@ impl<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> OrderPoolHandle
     ) -> BoxFuture<
         AllOrders<
             Self::LimitOrder,
-            Self::SearcherOrder,
             Self::ComposableLimitOrder,
+            Self::SearcherOrder,
             Self::ComposableSearcherOrder
         >
     > {
@@ -172,8 +177,8 @@ impl<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> OrderPoolHandle
     ) -> BoxFuture<
         AllOrders<
             Self::LimitOrder,
-            Self::SearcherOrder,
             Self::ComposableLimitOrder,
+            Self::SearcherOrder,
             Self::ComposableSearcherOrder
         >
     > {
@@ -182,6 +187,80 @@ impl<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> OrderPoolHandle
             self.send_request(rx, OrderCommand::FetchAllOrders(tx, Some(buffer)))
                 .await
         })
+    }
+
+    fn subscribe_new_orders(
+        &self
+    ) -> ReceiverStream<
+        Order<
+            Self::LimitOrder,
+            Self::ComposableLimitOrder,
+            Self::SearcherOrder,
+            Self::ComposableSearcherOrder
+        >
+    > {
+        let (tx, rx) = mpsc::channel(10);
+        let rx = ReceiverStream::new(rx);
+        self.send(OrderCommand::SubscribeNewOrders(tx));
+
+        rx
+    }
+
+    fn subscribe_finalized_orders(
+        &self
+    ) -> ReceiverStream<
+        Vec<
+            Order<
+                Self::LimitOrder,
+                Self::ComposableLimitOrder,
+                Self::SearcherOrder,
+                Self::ComposableSearcherOrder
+            >
+        >
+    > {
+        let (tx, rx) = mpsc::channel(10);
+        let rx = ReceiverStream::new(rx);
+        self.send(OrderCommand::SubscribeFinalizedOrders(tx));
+
+        rx
+    }
+
+    fn subscribe_filled_orders(
+        &self
+    ) -> ReceiverStream<
+        Vec<
+            Order<
+                Self::LimitOrder,
+                Self::ComposableLimitOrder,
+                Self::SearcherOrder,
+                Self::ComposableSearcherOrder
+            >
+        >
+    > {
+        let (tx, rx) = mpsc::channel(10);
+        let rx = ReceiverStream::new(rx);
+        self.send(OrderCommand::SubscribeFilledOrders(tx));
+
+        rx
+    }
+
+    fn subscribe_expired_orders(
+        &self
+    ) -> ReceiverStream<
+        Vec<
+            Order<
+                Self::LimitOrder,
+                Self::ComposableLimitOrder,
+                Self::SearcherOrder,
+                Self::ComposableSearcherOrder
+            >
+        >
+    > {
+        let (tx, rx) = mpsc::channel(10);
+        let rx = ReceiverStream::new(rx);
+        self.send(OrderCommand::SubscribeExpiredOrders(tx));
+
+        rx
     }
 }
 
@@ -357,6 +436,10 @@ where
                     let _ = sender.send(self.pool.fetch_vanilla_orders());
                 }
             }
+            OrderCommand::SubscribeNewOrders(tx) => self.pool.subscribe_new_orders(tx),
+            OrderCommand::SubscribeFilledOrders(tx) => self.pool.subscribe_filled_orders(tx),
+            OrderCommand::SubscribeExpiredOrders(tx) => self.pool.subscribe_expired_orders(tx),
+            OrderCommand::SubscribeFinalizedOrders(tx) => self.pool.subscribe_finalized_orders(tx)
         }
     }
 
@@ -372,6 +455,7 @@ where
             EthEvent::FinalizedBlock(block) => {
                 let finalized_orders = self.pool.finalized_block(block);
             }
+            EthEvent::NewBlock => self.pool.new_block()
         }
     }
 

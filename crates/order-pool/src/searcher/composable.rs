@@ -35,7 +35,7 @@ where
 
     pub fn remove_order(
         &mut self,
-        order_id: OrderId
+        order_id: &OrderId
     ) -> Result<ValidOrder<CS>, SearcherPoolError<CS>> {
         self.sub_pools
             .get_mut(order_id.pool_id)

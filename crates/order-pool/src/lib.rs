@@ -4,10 +4,12 @@ mod finalization_pool;
 mod inner;
 mod limit;
 mod searcher;
+mod subscriptions;
 mod validator;
 use std::{collections::HashMap, sync::Arc};
 
 use alloy_primitives::TxHash;
+pub use common::Order;
 use common::ValidOrder;
 pub use config::PoolConfig;
 use futures_util::future::BoxFuture;
@@ -20,6 +22,7 @@ use guard_types::{
 };
 pub use guard_utils::*;
 pub use inner::*;
+use tokio_stream::wrappers::ReceiverStream;
 
 #[derive(Debug)]
 pub struct OrderSet<Limit: PoolOrder, Searcher: PoolOrder> {
@@ -109,8 +112,8 @@ pub trait OrderPoolHandle: Send + Sync + Clone + Unpin + 'static {
     ) -> BoxFuture<
         AllOrders<
             Self::LimitOrder,
-            Self::SearcherOrder,
             Self::ComposableLimitOrder,
+            Self::SearcherOrder,
             Self::ComposableSearcherOrder
         >
     >;
@@ -121,9 +124,59 @@ pub trait OrderPoolHandle: Send + Sync + Clone + Unpin + 'static {
     ) -> BoxFuture<
         AllOrders<
             Self::LimitOrder,
-            Self::SearcherOrder,
             Self::ComposableLimitOrder,
+            Self::SearcherOrder,
             Self::ComposableSearcherOrder
+        >
+    >;
+
+    // subscriptions
+    fn subscribe_new_orders(
+        &self
+    ) -> ReceiverStream<
+        Order<
+            Self::LimitOrder,
+            Self::ComposableLimitOrder,
+            Self::SearcherOrder,
+            Self::ComposableSearcherOrder
+        >
+    >;
+
+    fn subscribe_finalized_orders(
+        &self
+    ) -> ReceiverStream<
+        Vec<
+            Order<
+                Self::LimitOrder,
+                Self::ComposableLimitOrder,
+                Self::SearcherOrder,
+                Self::ComposableSearcherOrder
+            >
+        >
+    >;
+    fn subscribe_filled_orders(
+        &self
+    ) -> ReceiverStream<
+        Vec<
+            Order<
+                Self::LimitOrder,
+                Self::ComposableLimitOrder,
+                Self::SearcherOrder,
+                Self::ComposableSearcherOrder
+            >
+        >
+    >;
+
+    fn subscribe_expired_orders(
+        &self
+    ) -> ReceiverStream<
+        Vec<
+            Order<
+                Self::LimitOrder,
+                Self::ComposableLimitOrder,
+                Self::SearcherOrder,
+                Self::ComposableSearcherOrder
+            >
         >
     >;
 }

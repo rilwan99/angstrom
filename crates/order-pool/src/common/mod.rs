@@ -9,7 +9,8 @@ pub type BidAndAsks<'a, T> = (Vec<&'a T>, Vec<&'a T>);
 
 pub type ValidOrder<O> = ValidatedOrder<O, <O as PoolOrder>::ValidationData>;
 
-pub enum FilledOrder<L, CL, S, CS>
+#[derive(Debug, Clone)]
+pub enum Order<L, CL, S, CS>
 where
     L: PoolOrder,
     CL: PoolOrder,
@@ -22,7 +23,7 @@ where
     ComposableSearcher(CS)
 }
 
-impl<L, CL, S, CS> FilledOrder<L, CL, S, CS>
+impl<L, CL, S, CS> Order<L, CL, S, CS>
 where
     L: PoolOrder,
     CL: PoolOrder,
@@ -47,10 +48,10 @@ where
 
     pub fn hash(&self) -> B256 {
         match self {
-            FilledOrder::Limit(l) => l.hash(),
-            FilledOrder::Searcher(l) => l.hash(),
-            FilledOrder::ComposableLimit(l) => l.hash(),
-            FilledOrder::ComposableSearcher(l) => l.hash()
+            Order::Limit(l) => l.hash(),
+            Order::Searcher(l) => l.hash(),
+            Order::ComposableLimit(l) => l.hash(),
+            Order::ComposableSearcher(l) => l.hash()
         }
     }
 }
