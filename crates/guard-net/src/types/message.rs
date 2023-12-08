@@ -21,6 +21,8 @@ use crate::Status;
 // https://github.com/ethereum/go-ethereum/blob/30602163d5d8321fbc68afdcbbaf2362b2641bde/eth/protocols/eth/protocol.go#L50
 pub const MAX_MESSAGE_SIZE: usize = 10 * 1024 * 1024;
 
+pub const STROM_CAPABILITY: Capability = Capability::new_static("strom", 1);
+
 /// An `eth` protocol message, containing a message ID and payload.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -47,8 +49,9 @@ impl StromProtocolMessage {
     }
 
     /// Returns the capability for the `ping` protocol.
+    #[inline(always)]
     pub fn capability() -> Capability {
-        Capability::new_static("strom", 1)
+        STROM_CAPABILITY
     }
 
     /// Returns the protocol for the `test` protocol.

@@ -9,6 +9,7 @@ use validation::order::OrderValidator;
 
 type ValidationFuture<L, CL, S, CS> =
     Pin<Box<dyn Future<Output = ValidationResults<L, CL, S, CS>> + Send + Sync>>;
+
 pub struct Validator<L, CL, S, CS, V>
 where
     L: PoolOrder,

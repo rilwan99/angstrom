@@ -3,7 +3,6 @@ use reth_primitives::GotExpected;
 
 /// Errors when sending/receiving messages
 #[derive(thiserror::Error, Debug)]
-
 pub enum StromStreamError {
     #[error("Strom handshake failed")]
     /// Failed Ethereum handshake.
@@ -18,7 +17,6 @@ pub enum StromStreamError {
 
 /// Error  that can occur during the `eth` sub-protocol handshake.
 #[derive(thiserror::Error, Debug)]
-
 pub enum StromHandshakeError {
     /// Status message received or sent outside of the handshake process.
     #[error("status message can only be recv/sent in handshake")]
