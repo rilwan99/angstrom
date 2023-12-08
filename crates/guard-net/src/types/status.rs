@@ -13,7 +13,6 @@ use crate::{version::StromVersion, StatusBuilder};
 /// More crucially, it is used to verify that the connecting peer is a valid
 /// staker with sufficient balance to be a validator.
 
-#[derive_arbitrary(rlp)]
 #[derive(Copy, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Status {
@@ -22,7 +21,11 @@ pub struct Status {
 
     /// The chain id, as introduced in
     /// [EIP155](https://eips.ethereum.org/EIPS/eip-155#list-of-chain-ids).
-    pub chain: Chain
+    pub chain: Chain /* /// The timestamp the status message was sent at. This is used to avoid
+                      * /// people copying valid peers messages
+                      * pub timestamp: u128,
+                      * /// signature of payload
+                      * pub signature: Signature */
 }
 
 impl Status {

@@ -1,16 +1,17 @@
-use std::{fmt::Debug, net::SocketAddr};
+use std::{collections::HashSet, fmt::Debug, net::SocketAddr};
 
 use reth_metrics::common::mpsc::MeteredPollSender;
 use reth_network::protocol::ProtocolHandler;
 use reth_primitives::PeerId;
 use reth_provider::StateProvider;
 use secp256k1::SecretKey;
-use tokio::time::Duration;
+use tokio::{sync::mpsc::UnboundedReceiver, time::Duration};
 
 use crate::{
     SessionsConfig, Status, StromConnectionHandler, StromNetworkHandle, StromSessionMessage
 };
 
+const SESSION_COMMAND_BUFFER: usize = 100;
 /// The protocol handler that is used to announce the strom capability upon
 /// successfully establishing a hello handshake on an incoming tcp connection.
 #[derive(Debug)]
@@ -44,10 +45,11 @@ where
 
     fn on_incoming(&self, socket_addr: SocketAddr) -> Option<Self::ConnectionHandler> {
         Some(StromConnectionHandler {
+            signing_key: self.secret_key,
             to_session_manager: self.to_session_manager.clone(),
             status: None,
             protocol_breach_request_timeout: Duration::from_secs(10),
-            session_command_buffer: 100,
+            session_command_buffer: SESSION_COMMAND_BUFFER,
             socket_addr
         })
     }
@@ -63,8 +65,9 @@ where
             to_session_manager: self.to_session_manager.clone(),
             status: None,
             protocol_breach_request_timeout: Duration::from_secs(10),
-            session_command_buffer: self.config.session_command_buffer,
-            socket_addr
+            session_command_buffer: SESSION_COMMAND_BUFFER,
+            socket_addr,
+            signing_key: self.secret_key
         })
     }
 }

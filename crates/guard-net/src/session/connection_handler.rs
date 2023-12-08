@@ -10,6 +10,7 @@ use reth_network::{
     Direction
 };
 use reth_primitives::PeerId;
+use secp256k1::SecretKey;
 use tokio::{
     sync::mpsc,
     time::{Duration, Instant}
@@ -29,7 +30,8 @@ pub struct StromConnectionHandler {
     pub status: Option<Status>,
     pub protocol_breach_request_timeout: Duration,
     pub session_command_buffer: usize,
-    pub socket_addr: SocketAddr
+    pub socket_addr: SocketAddr,
+    pub signing_key: SecretKey
 }
 
 impl ConnectionHandler for StromConnectionHandler {
@@ -45,7 +47,7 @@ impl ConnectionHandler for StromConnectionHandler {
         _direction: Direction,
         _peer_id: PeerId
     ) -> OnNotSupported {
-        OnNotSupported::KeepAlive
+        OnNotSupported::Disconnect
     }
 
     fn into_connection(
@@ -62,16 +64,18 @@ impl ConnectionHandler for StromConnectionHandler {
             established: Instant::now(),
             commands_to_session: tx
         };
-        self.to_session_manager
-            .send_item(StromSessionMessage::Established { handle })
-            .ok();
+
+        let _ = self
+            .to_session_manager
+            .send_item(StromSessionMessage::Established { handle });
 
         StromSession::new(
             conn,
             peer_id,
             ReceiverStream::new(rx),
             self.to_session_manager,
-            self.protocol_breach_request_timeout
+            self.protocol_breach_request_timeout,
+            self.signing_key
         )
     }
 }
