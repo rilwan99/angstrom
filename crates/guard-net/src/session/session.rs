@@ -14,10 +14,9 @@ use tokio_util::sync::PollSender;
 
 use super::handle::SessionCommand;
 use crate::{types::message::StromProtocolMessage, StromSessionMessage};
+
 #[allow(dead_code)]
 pub struct StromSession {
-    /// Keeps track of request ids.
-    pub(crate) next_id:            u64,
     /// The underlying connection.
     pub(crate) conn:               ProtocolConnection,
     /// Identifier of the node we're connected to.
@@ -45,7 +44,6 @@ impl StromSession {
         protocol_breach_request_timeout: Duration
     ) -> Self {
         Self {
-            next_id: 0,
             conn,
             remote_peer_id: peer_id,
             commands_rx,
