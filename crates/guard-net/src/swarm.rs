@@ -9,22 +9,23 @@ use reth_primitives::PeerId;
 use crate::{
     peers::PeersManager,
     session::StromSessionManager,
+    state::StromState,
     types::message::{StromMessage, StromProtocolMessage},
     PeerAction, PeerKind, SessionEvent
 };
 
 #[derive(Debug)]
 #[must_use = "Swarm does nothing unless polled"]
-pub(crate) struct Swarm {
+pub(crate) struct Swarm<DB> {
     /// All sessions.
-    sessions:      StromSessionManager,
-    peers_manager: PeersManager
+    sessions: StromSessionManager,
+    state:    StromState<DB>
 }
 
-impl Swarm {
+impl<DB> Swarm<DB> {
     /// Creates a new `Swarm`.
-    pub fn new(sessions: StromSessionManager, peers_manager: PeersManager) -> Self {
-        Swarm { sessions, peers_manager }
+    pub fn new(sessions: StromSessionManager, state: StromState<DB>) -> Self {
+        Swarm { sessions, state }
     }
 
     /// Access to the [`SessionManager`].
@@ -73,7 +74,7 @@ impl Swarm {
     }
 }
 
-impl Stream for Swarm {
+impl<DB> Stream for Swarm<DB> {
     type Item = SwarmEvent;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -83,7 +84,7 @@ impl Stream for Swarm {
             }
         }
 
-        while let Some(action) = self.peers_manager.poll() {
+        while let Some(action) = self.state.poll() {
             if let Some(res) = self.on_peer_action(action) {
                 return Poll::Ready(Some(res))
             }

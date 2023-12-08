@@ -6,6 +6,7 @@ pub use handle::*;
 pub mod protocol_handler;
 pub use protocol_handler::*;
 
+mod challenge;
 pub mod session;
 use futures::Stream;
 pub use session::*;
@@ -40,7 +41,9 @@ pub struct StromSessionManager {
     /// Channel to receive the session handle upon initialization from the
     /// connection handler This channel is also used to receive messages
     /// from the session
-    from_sessions: mpsc::Receiver<StromSessionMessage>
+    from_sessions: mpsc::Receiver<StromSessionMessage>,
+    /// All challenges that are currently happening
+    challenges:    challenge::PeerChallenge
 }
 
 impl StromSessionManager {

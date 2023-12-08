@@ -50,6 +50,7 @@ impl ConnectionHandler for StromConnectionHandler {
         OnNotSupported::Disconnect
     }
 
+    // this occurs after the eth handshake occured
     fn into_connection(
         mut self,
         direction: Direction,

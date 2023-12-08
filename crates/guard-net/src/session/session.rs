@@ -137,12 +137,10 @@ impl StromSession {
                 return Some(e)
             }
         }
+
         None
     }
 }
-
-//TODO: Implement poll functionality with: on_command, on_timeout, on_message
-// from wire..
 
 impl Stream for StromSession {
     type Item = BytesMut;
