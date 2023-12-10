@@ -190,6 +190,7 @@ impl StromSession {
             let msg = StromProtocolMessage { message_type: msg.message_id(), message: msg };
             let mut bytes = BytesMut::with_capacity(msg.length());
             msg.encode(&mut bytes);
+
             return Poll::Ready(Some(bytes))
         }
 
