@@ -3,6 +3,7 @@ use std::fmt::{Debug, Display};
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 use reth_codecs::derive_arbitrary;
 use reth_primitives::{Chain, ChainSpec, Head, NamedChain};
+use reth_rpc_types::PeerId;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -13,7 +14,7 @@ use crate::{version::StromVersion, StatusBuilder};
 /// More crucially, it is used to verify that the connecting peer is a valid
 /// staker with sufficient balance to be a validator.
 
-#[derive(Copy, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+#[derive(Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Status {
     /// The current protocol version.
@@ -21,22 +22,21 @@ pub struct Status {
 
     /// The chain id, as introduced in
     /// [EIP155](https://eips.ethereum.org/EIPS/eip-155#list-of-chain-ids).
-    pub chain: Chain /* /// The timestamp the status message was sent at. This is used to avoid
-                      * /// people copying valid peers messages
-                      * pub timestamp: u128,
-                      * /// signature of payload
-                      * pub signature: Signature */
+    pub chain:     Chain,
+    /// The peer that a node is trying to establish a connection with
+    pub peer:      PeerId,
+    /// The current timestamp. Used to make sure that the status message will
+    /// expire
+    pub timestamp: u128,
+    /// the signature of this message, sign(keccack(version || chain || peer ||
+    /// timestamp)),
+    pub signature: guard_types::primitive::Signature
 }
 
 impl Status {
     /// Helper for returning a builder for the status message.
-    pub fn builder() -> StatusBuilder {
-        Default::default()
-    }
-
-    /// Create a [`StatusBuilder`] from the given [`ChainSpec`] and head block.
-    pub fn spec_builder(spec: &ChainSpec, _head: &Head) -> StatusBuilder {
-        Self::builder().chain(spec.chain)
+    pub fn builder(peer_id: PeerId) -> StatusBuilder {
+        StatusBuilder::new(peer_id)
     }
 }
 
@@ -53,12 +53,5 @@ impl Debug for Status {
         } else {
             write!(f, "Status {{ version: {:?}, chain: {:?}}}", self.version, self.chain,)
         }
-    }
-}
-
-// <https://etherscan.io/block/0>
-impl Default for Status {
-    fn default() -> Self {
-        Status { version: StromVersion::Strom0 as u8, chain: Chain::Named(NamedChain::Mainnet) }
     }
 }

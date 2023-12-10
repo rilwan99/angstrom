@@ -26,8 +26,7 @@ use futures::task::Poll;
 use reth_eth_wire::DisconnectReason;
 use reth_network::Direction;
 use reth_primitives::PeerId;
-#[allow(unused_imports)]
-use tokio_util::sync::PollSender;
+use tracing::warn;
 
 use crate::{errors::StromStreamError, PeerKind, StromMessage, StromProtocolMessage};
 
@@ -69,12 +68,16 @@ impl StromSessionManager {
 
     fn poll_session_msg(&mut self, cx: &mut Context<'_>) -> Poll<Option<SessionEvent>> {
         self.from_sessions.poll_recv(cx).map(|msg| {
-            msg.map(|msg_inner| match msg_inner {
+            msg.and_then(|msg_inner| match msg_inner {
                 StromSessionMessage::Disconnected { peer_id } => {
                     self.remove_session(&peer_id);
-                    SessionEvent::Disconnected { peer_id }
+                    Some(SessionEvent::Disconnected { peer_id })
                 }
                 StromSessionMessage::Established { handle } => {
+                    if self.active_sessions.contains_key(&handle.remote_id) {
+                        warn!(peer_id=?handle.remote_id, "got duplicate connection");
+                        return None
+                    }
                     self.counter.inc_active(&handle.direction);
 
                     let event = SessionEvent::SessionEstablished {
@@ -84,17 +87,19 @@ impl StromSessionManager {
                     };
                     self.active_sessions.insert(handle.remote_id, handle);
 
-                    event
+                    Some(event)
                 }
                 StromSessionMessage::ClosedOnConnectionError { peer_id, error } => {
-                    SessionEvent::OutgoingConnectionError { peer_id, error }
+                    Some(SessionEvent::OutgoingConnectionError { peer_id, error })
                 }
                 StromSessionMessage::ValidMessage { peer_id, message } => {
-                    SessionEvent::ValidMessage { peer_id, message }
+                    Some(SessionEvent::ValidMessage { peer_id, message })
                 }
-                StromSessionMessage::BadMessage { peer_id } => SessionEvent::BadMessage { peer_id },
+                StromSessionMessage::BadMessage { peer_id } => {
+                    Some(SessionEvent::BadMessage { peer_id })
+                }
                 StromSessionMessage::ProtocolBreach { peer_id } => {
-                    SessionEvent::ProtocolBreach { peer_id }
+                    Some(SessionEvent::ProtocolBreach { peer_id })
                 }
             })
         })

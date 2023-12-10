@@ -19,7 +19,7 @@ use crate::{NetworkOrderEvent, StromMessage, StromNetworkHandleMsg, Swarm, Swarm
 use crate::{StromNetworkConfig, StromNetworkHandle, StromSessionManager};
 
 #[allow(dead_code)]
-pub struct StromNetworkManager {
+pub struct StromNetworkManager<DB> {
     handle:               StromNetworkHandle,
     from_handle_rx:       UnboundedReceiverStream<StromNetworkHandleMsg>,
     to_pool_manager:      Option<UnboundedMeteredSender<NetworkOrderEvent>>,
@@ -27,14 +27,14 @@ pub struct StromNetworkManager {
 
     event_listeners: Vec<UnboundedSender<StromNetworkEvent>>,
 
-    swarm:            Swarm,
+    swarm:            Swarm<DB>,
     /// This is updated via internal events and shared via `Arc` with the
     /// [`NetworkHandle`] Updated by the `NetworkWorker` and loaded by the
     /// `NetworkService`.
     num_active_peers: Arc<AtomicUsize>
 }
 
-impl StromNetworkManager {
+impl<DB: Unpin> StromNetworkManager<DB> {
     // Handler for received messages from a handle
     fn on_handle_message(&mut self, msg: StromNetworkHandleMsg) {
         match msg {
@@ -52,11 +52,13 @@ impl StromNetworkManager {
                 let _ = tx.send(());
             }
             StromNetworkHandleMsg::RemovePeer(peer_id) => {
-                self.swarm.state_mut().remove_peer(peer_id);
+                self.swarm.state_mut().peers_mut().remove_peer(peer_id);
             }
-            StromNetworkHandleMsg::ReputationChange(peer_id, kind) => {
-                self.swarm.state_mut().change_weight(peer_id, kind)
-            }
+            StromNetworkHandleMsg::ReputationChange(peer_id, kind) => self
+                .swarm
+                .state_mut()
+                .peers_mut()
+                .change_weight(peer_id, kind),
             _ => {
                 todo!()
             }
@@ -69,7 +71,7 @@ impl StromNetworkManager {
     }
 }
 
-impl Future for StromNetworkManager {
+impl<DB: Unpin> Future for StromNetworkManager<DB> {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {

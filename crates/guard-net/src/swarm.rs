@@ -16,22 +16,30 @@ use crate::{
 
 #[derive(Debug)]
 #[must_use = "Swarm does nothing unless polled"]
-pub(crate) struct Swarm<DB> {
+pub struct Swarm<DB> {
     /// All sessions.
     sessions: StromSessionManager,
     state:    StromState<DB>
 }
 
-impl<DB> Swarm<DB> {
+impl<DB: Unpin> Swarm<DB> {
     /// Creates a new `Swarm`.
     pub fn new(sessions: StromSessionManager, state: StromState<DB>) -> Self {
         Swarm { sessions, state }
     }
 
+    pub fn state_mut(&mut self) -> &mut StromState<DB> {
+        &mut self.state
+    }
+
+    pub fn sessions_mut(&mut self) -> &mut StromSessionManager {
+        &mut self.sessions
+    }
+
     pub(crate) fn remove_peer(&mut self, peer_id: PeerId, kind: PeerKind) {
         match kind {
-            PeerKind::Basic => self.peers_manager.remove_peer(peer_id),
-            PeerKind::MevGuard => self.peers_manager.remove_peer_from_trusted_set(peer_id),
+            PeerKind::Basic => self.state.peers_mut().remove_peer(peer_id),
+            PeerKind::MevGuard => self.state.peers_mut().remove_peer_from_trusted_set(peer_id),
             _ => todo!()
         }
     }
@@ -39,7 +47,8 @@ impl<DB> Swarm<DB> {
     fn on_session_event(&mut self, event: SessionEvent) -> Option<SwarmEvent> {
         match event {
             SessionEvent::BadMessage { peer_id } => {
-                self.peers_manager
+                self.state
+                    .peers_mut()
                     .change_weight(peer_id, crate::ReputationChangeKind::BadMessage);
                 None
             }
@@ -56,7 +65,7 @@ impl<DB> Swarm<DB> {
     }
 }
 
-impl<DB> Stream for Swarm<DB> {
+impl<DB: Unpin> Stream for Swarm<DB> {
     type Item = SwarmEvent;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
