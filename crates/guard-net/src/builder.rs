@@ -2,8 +2,8 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use reth_primitives::{keccak256, BufMut, BytesMut, Chain, PeerId};
-use secp256k1::SecretKey;
+use reth_primitives::{alloy_primitives::FixedBytes, keccak256, BufMut, BytesMut, Chain, PeerId};
+use secp256k1::{Message, SecretKey};
 
 use crate::Status;
 
@@ -36,14 +36,25 @@ impl StatusBuilder {
         }
     }
 
-    /// Consumes the type and creates the actual [`Status`] message.
+    /// Consumes the type and creates the actual [`Status`] message, Signing the
+    /// payload
     pub fn build(self, key: SecretKey) -> Status {
-        let mut buf = BytesMut::with_capacity(81);
+        let mut buf = BytesMut::with_capacity(113);
         buf.put_u8(self.version);
         buf.put_u64(u64::from(self.chain));
+        buf.put(self.peer.0.as_ref());
+        buf.put_u128(self.timestamp);
 
         let payload = keccak256(buf);
-        todo!()
+        let sig = reth_primitives::sign_message(FixedBytes(key.secret_bytes()), payload).unwrap();
+
+        Status {
+            timestamp: self.timestamp,
+            peer:      self.peer,
+            chain:     self.chain,
+            version:   self.version,
+            signature: guard_types::primitive::Signature(sig)
+        }
     }
 
     /// Sets the protocol version.
