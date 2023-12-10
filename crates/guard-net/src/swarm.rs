@@ -28,24 +28,6 @@ impl<DB> Swarm<DB> {
         Swarm { sessions, state }
     }
 
-    /// Access to the [`SessionManager`].
-    pub(crate) fn sessions(&self) -> &StromSessionManager {
-        &self.sessions
-    }
-
-    /// Mutable access to the [`SessionManager`].
-    pub(crate) fn sessions_mut(&mut self) -> &mut StromSessionManager {
-        &mut self.sessions
-    }
-
-    pub(crate) fn state(&self) -> &PeersManager {
-        &self.peers_manager
-    }
-
-    pub(crate) fn state_mut(&mut self) -> &mut PeersManager {
-        &mut self.peers_manager
-    }
-
     pub(crate) fn remove_peer(&mut self, peer_id: PeerId, kind: PeerKind) {
         match kind {
             PeerKind::Basic => self.peers_manager.remove_peer(peer_id),
@@ -84,11 +66,11 @@ impl<DB> Stream for Swarm<DB> {
             }
         }
 
-        while let Some(action) = self.state.poll() {
-            if let Some(res) = self.on_peer_action(action) {
-                return Poll::Ready(Some(res))
-            }
-        }
+        // while let Some(action) = self.state.poll() {
+        //     if let Some(res) = self.on_peer_action(action) {
+        //         return Poll::Ready(Some(res))
+        //     }
+        // }
         // Poll the session manager
 
         Poll::Pending

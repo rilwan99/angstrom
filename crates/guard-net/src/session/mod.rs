@@ -6,7 +6,6 @@ pub use handle::*;
 pub mod protocol_handler;
 pub use protocol_handler::*;
 
-mod challenge;
 pub mod session;
 use futures::Stream;
 pub use session::*;
@@ -41,9 +40,7 @@ pub struct StromSessionManager {
     /// Channel to receive the session handle upon initialization from the
     /// connection handler This channel is also used to receive messages
     /// from the session
-    from_sessions: mpsc::Receiver<StromSessionMessage>,
-    /// All challenges that are currently happening
-    challenges:    challenge::PeerChallenge
+    from_sessions: mpsc::Receiver<StromSessionMessage>
 }
 
 impl StromSessionManager {
@@ -69,53 +66,46 @@ impl StromSessionManager {
             session.disconnect(reason);
         }
     }
+
+    fn poll_session_msg(&mut self, cx: &mut Context<'_>) -> Poll<Option<SessionEvent>> {
+        self.from_sessions.poll_recv(cx).map(|msg| {
+            msg.map(|msg_inner| match msg_inner {
+                StromSessionMessage::Disconnected { peer_id } => {
+                    self.remove_session(&peer_id);
+                    SessionEvent::Disconnected { peer_id }
+                }
+                StromSessionMessage::Established { handle } => {
+                    self.counter.inc_active(&handle.direction);
+
+                    let event = SessionEvent::SessionEstablished {
+                        peer_id:   handle.remote_id,
+                        direction: handle.direction,
+                        timeout:   Arc::new(AtomicU64::new(40))
+                    };
+                    self.active_sessions.insert(handle.remote_id, handle);
+
+                    event
+                }
+                StromSessionMessage::ClosedOnConnectionError { peer_id, error } => {
+                    SessionEvent::OutgoingConnectionError { peer_id, error }
+                }
+                StromSessionMessage::ValidMessage { peer_id, message } => {
+                    SessionEvent::ValidMessage { peer_id, message }
+                }
+                StromSessionMessage::BadMessage { peer_id } => SessionEvent::BadMessage { peer_id },
+                StromSessionMessage::ProtocolBreach { peer_id } => {
+                    SessionEvent::ProtocolBreach { peer_id }
+                }
+            })
+        })
+    }
 }
 
 impl Stream for StromSessionManager {
     type Item = SessionEvent;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<SessionEvent>> {
-        match self.from_sessions.poll_recv(cx) {
-            Poll::Ready(None) => {
-                // channel closed
-                return Poll::Ready(None)
-            }
-            Poll::Pending => {}
-            Poll::Ready(Some(message)) => {
-                return match message {
-                    StromSessionMessage::Disconnected { peer_id } => {
-                        self.remove_session(&peer_id);
-                        Poll::Ready(Some(SessionEvent::Disconnected { peer_id }))
-                    }
-                    StromSessionMessage::Established { handle } => {
-                        self.counter.inc_active(&handle.direction);
-
-                        let event = SessionEvent::SessionEstablished {
-                            peer_id:   handle.remote_id,
-                            direction: handle.direction,
-                            timeout:   Arc::new(AtomicU64::new(40))
-                        };
-                        self.active_sessions.insert(handle.remote_id, handle);
-
-                        Poll::Ready(Some(event))
-                    }
-                    StromSessionMessage::ClosedOnConnectionError { peer_id, error } => {
-                        Poll::Ready(Some(SessionEvent::OutgoingConnectionError { peer_id, error }))
-                    }
-                    StromSessionMessage::ValidMessage { peer_id, message } => {
-                        Poll::Ready(Some(SessionEvent::ValidMessage { peer_id, message }))
-                    }
-                    StromSessionMessage::BadMessage { peer_id } => {
-                        Poll::Ready(Some(SessionEvent::BadMessage { peer_id }))
-                    }
-                    StromSessionMessage::ProtocolBreach { peer_id } => {
-                        Poll::Ready(Some(SessionEvent::ProtocolBreach { peer_id }))
-                    }
-                }
-            }
-        }
-
-        Poll::Pending
+        self.poll_session_msg(cx)
     }
 }
 
