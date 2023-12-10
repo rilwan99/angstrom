@@ -70,7 +70,7 @@ impl Debug for Status {
     }
 }
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+#[derive(Default, Copy, Debug, Clone, PartialEq, Eq, RlpEncodable, RlpDecodable)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct StatusState {
     /// The current protocol version.
@@ -91,6 +91,11 @@ impl StatusState {
         Self { peer, ..Default::default() }
     }
 
+    pub fn with_peer(mut self, peer: PeerId) -> Self {
+        self.peer = peer;
+        self
+    }
+
     /// creates message for signing.
     /// keccak256(version || chain || peer || timestamp)
     pub fn to_message(&self) -> FixedBytes<32> {
@@ -107,6 +112,6 @@ impl StatusState {
         self.timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
-            .as_secs() as u128;
+            .as_millis();
     }
 }

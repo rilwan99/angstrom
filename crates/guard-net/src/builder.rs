@@ -42,3 +42,9 @@ impl StatusBuilder {
         self
     }
 }
+
+impl From<StatusState> for StatusBuilder {
+    fn from(value: StatusState) -> Self {
+        Self { state: value }
+    }
+}

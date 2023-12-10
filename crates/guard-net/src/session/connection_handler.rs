@@ -20,18 +20,20 @@ use tokio_stream::wrappers::ReceiverStream;
 use crate::{
     errors::StromStreamError,
     session::handle::StromSessionHandle,
-    types::message::{StromMessage, StromProtocolMessage},
-    StromSession
+    types::{
+        message::{StromMessage, StromProtocolMessage},
+        status::StatusState
+    },
+    StromSession, VerificationSidecar
 };
 
 //TODO: Add bandwith meter to be
 pub struct StromConnectionHandler {
     pub to_session_manager: MeteredPollSender<StromSessionMessage>,
-    pub status: Option<Status>,
     pub protocol_breach_request_timeout: Duration,
     pub session_command_buffer: usize,
     pub socket_addr: SocketAddr,
-    pub signing_key: SecretKey
+    pub side_car: VerificationSidecar
 }
 
 impl ConnectionHandler for StromConnectionHandler {
@@ -76,7 +78,7 @@ impl ConnectionHandler for StromConnectionHandler {
             ReceiverStream::new(rx),
             self.to_session_manager,
             self.protocol_breach_request_timeout,
-            self.signing_key
+            self.side_car
         )
     }
 }

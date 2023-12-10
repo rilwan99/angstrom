@@ -1,4 +1,9 @@
-use std::{ops::Deref, pin::Pin};
+use std::{
+    fmt::Debug,
+    ops::Deref,
+    pin::Pin,
+    time::{SystemTime, UNIX_EPOCH}
+};
 
 use alloy_rlp::Encodable;
 use futures::{
@@ -15,7 +20,44 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::PollSender;
 
 use super::handle::SessionCommand;
-use crate::{types::message::StromProtocolMessage, StromSessionMessage};
+use crate::{
+    types::{
+        message::StromProtocolMessage,
+        status::{Status, StatusState}
+    },
+    StatusBuilder, StromMessage, StromSessionMessage
+};
+
+const STATUS_TIMESTAMP_TIMEOUT_MS: u128 = 1500;
+
+/// holds the state we need to verify the new peer
+#[derive(Clone)]
+pub struct VerificationSidecar {
+    pub secret_key:   SecretKey,
+    pub status:       StatusState,
+    pub has_sent:     bool,
+    pub has_received: bool
+}
+
+impl VerificationSidecar {
+    pub fn make_status_message(&mut self, peer: PeerId) -> Status {
+        if self.has_sent {
+            panic!("can only send the status message once");
+        }
+
+        StatusBuilder::from(self.status.with_peer(peer)).build(self.secret_key)
+    }
+
+    pub fn is_verified(&self) -> bool {
+        self.has_sent && self.has_received
+    }
+}
+
+impl Debug for VerificationSidecar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("status: {:?}", self.status))
+    }
+}
 
 #[allow(dead_code)]
 pub struct StromSession {
@@ -35,8 +77,8 @@ pub struct StromSession {
     /// Used to reserve a slot to guarantee that the termination message is
     /// delivered
     pub(crate) terminate_message: Option<(PollSender<StromSessionMessage>, StromSessionMessage)>,
-    pub is_verified: bool,
-    pub signing_key: SecretKey
+    /// has a value until verification has been completed.
+    pub verification_sidecar:                   VerificationSidecar
 }
 
 impl StromSession {
@@ -46,11 +88,10 @@ impl StromSession {
         commands_rx: ReceiverStream<SessionCommand>,
         to_session_manager: MeteredPollSender<StromSessionMessage>,
         protocol_breach_request_timeout: Duration,
-        signing_key: SecretKey
+        verification_sidecar: VerificationSidecar
     ) -> Self {
         Self {
-            signing_key,
-            is_verified: false,
+            verification_sidecar,
             conn,
             remote_peer_id: peer_id,
             commands_rx,
@@ -86,10 +127,6 @@ impl StromSession {
         }
         // terminate the task
         Some(Poll::Ready(None))
-    }
-
-    fn poll_verification(&mut self, cx: &mut Context<'_>) {
-        todo!()
     }
 
     fn poll_commands(&mut self, cx: &mut Context<'_>) -> Option<Poll<Option<BytesMut>>> {
@@ -140,31 +177,82 @@ impl StromSession {
 
         None
     }
+
+    fn poll_verification(&mut self, cx: &mut Context<'_>) -> Poll<Option<BytesMut>> {
+        if !self.verification_sidecar.has_sent {
+            let msg = StromMessage::Status(
+                self.verification_sidecar
+                    .make_status_message(self.remote_peer_id)
+            );
+            // mark our status as sent.
+            self.verification_sidecar.has_sent = true;
+
+            let msg = StromProtocolMessage { message_type: msg.message_id(), message: msg };
+            let mut bytes = BytesMut::with_capacity(msg.length());
+            msg.encode(&mut bytes);
+            return Poll::Ready(Some(bytes))
+        }
+
+        if let Poll::Ready(verification) = self.conn.poll_next_unpin(cx).map(|msg| {
+            // mark status as received. we do this here as the first message should be
+            // status. if its not we want to disconnect which will be polled.
+            self.verification_sidecar.has_received = true;
+
+            msg.map(|bytes| {
+                let msg = StromProtocolMessage::decode_message(&mut bytes.deref());
+                msg.map_or(false, |msg| {
+                    // first message has to be status
+                    if let StromMessage::Status(status) = msg.message {
+                        self.verify_incoming_status(status)
+                    } else {
+                        false
+                    }
+                })
+            })
+            .filter(|f| *f)
+            .ok_or_else(|| self.emit_disconnect(cx))
+        }) {
+            if let Err(e) = verification {
+                return e
+            }
+        }
+
+        Poll::Pending
+    }
+
+    fn verify_incoming_status(&self, status: Status) -> bool {
+        let current_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+
+        let status_time = status.state.timestamp + STATUS_TIMESTAMP_TIMEOUT_MS;
+
+        current_time >= status_time
+    }
 }
 
 impl Stream for StromSession {
     type Item = BytesMut;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.get_mut();
-
-        if !this.is_verified {
-            this.poll_verification(cx);
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if !self.verification_sidecar.is_verified() {
+            return self.poll_verification(cx)
         }
 
         // if the session is terminate we have to send the termination message before we
         // can close
-        if let Some(terminate) = this.poll_terminate_message(cx) {
+        if let Some(terminate) = self.poll_terminate_message(cx) {
             return terminate
         }
 
         // progress manager commands
-        if let Some(msg) = this.poll_commands(cx) {
+        if let Some(msg) = self.poll_commands(cx) {
             return msg
         }
 
         // processes messages from the wire
-        if let Some(msg) = this.poll_incoming(cx) {
+        if let Some(msg) = self.poll_incoming(cx) {
             return msg
         }
 

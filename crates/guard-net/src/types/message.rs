@@ -99,6 +99,7 @@ impl From<StromBroadcastMessage> for ProtocolBroadcastMessage {
 pub enum StromMessage {
     /// init
     Status(Status),
+    /// TODO: do we need a status ack?
 
     /// Consensus
     PrePropose(PreProposal),

@@ -8,7 +8,8 @@ use secp256k1::SecretKey;
 use tokio::{sync::mpsc::UnboundedReceiver, time::Duration};
 
 use crate::{
-    SessionsConfig, Status, StromConnectionHandler, StromNetworkHandle, StromSessionMessage
+    SessionsConfig, Status, StatusState, StromConnectionHandler, StromNetworkHandle,
+    StromSessionMessage, VerificationSidecar
 };
 
 const SESSION_COMMAND_BUFFER: usize = 100;
@@ -30,11 +31,8 @@ where
     pub config:             SessionsConfig,
     /// Network Handle
     pub network:            StromNetworkHandle,
-    #[allow(dead_code)]
     //TODO: Use status / connect message to verify that the connection is a valid staker
-    status: Status,
-    #[allow(dead_code)]
-    secret_key:             SecretKey
+    pub sidecar:            VerificationSidecar
 }
 
 impl<DB> ProtocolHandler for StromProtocolHandler<DB>
@@ -45,9 +43,8 @@ where
 
     fn on_incoming(&self, socket_addr: SocketAddr) -> Option<Self::ConnectionHandler> {
         Some(StromConnectionHandler {
-            signing_key: self.secret_key,
             to_session_manager: self.to_session_manager.clone(),
-            status: None,
+            side_car: self.sidecar.clone(),
             protocol_breach_request_timeout: Duration::from_secs(10),
             session_command_buffer: SESSION_COMMAND_BUFFER,
             socket_addr
@@ -63,11 +60,10 @@ where
     ) -> Option<Self::ConnectionHandler> {
         Some(StromConnectionHandler {
             to_session_manager: self.to_session_manager.clone(),
-            status: None,
             protocol_breach_request_timeout: Duration::from_secs(10),
             session_command_buffer: SESSION_COMMAND_BUFFER,
             socket_addr,
-            signing_key: self.secret_key
+            side_car: self.sidecar.clone()
         })
     }
 }
