@@ -34,9 +34,9 @@ impl Signature {
         )?;
 
         let public = SECP256K1.recover_ecdsa(&Message::from_slice(&message[..32])?, &sig)?;
-        let bytes = unsafe { public.as_c_ptr().as_ref().unwrap().underlying_bytes() };
+        let public_bytes = unsafe { public.as_c_ptr().as_ref().unwrap().underlying_bytes() };
 
-        Ok(PeerId::from(bytes))
+        Ok(PeerId::from(public_bytes))
     }
 }
 
