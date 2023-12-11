@@ -19,7 +19,7 @@ pub enum ValidationRequest {
 }
 
 #[derive(Debug, Clone)]
-pub struct ValidationClient(pub(crate)UnboundedSender<ValidationRequest>);
+pub struct ValidationClient(pub(crate) UnboundedSender<ValidationRequest>);
 
 impl ValidationClient {
     pub fn new(tx: UnboundedSender<ValidationRequest>) -> Self {

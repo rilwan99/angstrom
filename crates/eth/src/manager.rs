@@ -1,8 +1,8 @@
 use std::task::{Context, Poll};
-use futures_util::FutureExt;
 
 use alloy_primitives::{Address, B256};
 use futures::Future;
+use futures_util::FutureExt;
 use guard_types::submission::SubmissionBundle;
 use reth_provider::{CanonStateNotification, CanonStateNotifications, StateProviderFactory};
 use reth_tasks::TaskSpawner;
@@ -39,7 +39,11 @@ impl<DB> OrderPoolMaintainer<DB>
 where
     DB: StateProviderFactory + Send + Sync + Unpin + 'static
 {
-    pub fn new<TP: TaskSpawner>(canonical_updates: CanonStateNotifications, db: DB, tp: TP) -> anyhow::Result<EthHandle> {
+    pub fn new<TP: TaskSpawner>(
+        canonical_updates: CanonStateNotifications,
+        db: DB,
+        tp: TP
+    ) -> anyhow::Result<EthHandle> {
         let (tx, rx) = channel(10);
         let stream = ReceiverStream::new(rx);
 

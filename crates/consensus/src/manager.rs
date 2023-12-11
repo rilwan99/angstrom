@@ -3,32 +3,64 @@ use std::{
     task::{Context, Poll}
 };
 
-use futures::{Future, Stream, StreamExt};
+use futures::{Future, FutureExt, Stream, StreamExt};
+use guard_network::StromNetworkHandle;
 use guard_utils::PollExt;
+use order_pool::OrderPoolHandle;
+use reth_provider::CanonStateNotifications;
+use reth_tasks::TaskSpawner;
 use tokio::sync::mpsc::{channel, Sender};
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::warn;
+use validation::bundle::BundleValidator;
 
 use crate::{
     core::{ConsensusCore, ConsensusMessage},
     ConsensusListener, ConsensusUpdater
 };
 
-pub struct ConsensusManager {
+#[allow(unused)]
+pub struct ConsensusManager<OrderPool, Validator> {
     core: ConsensusCore,
 
-    command:     ReceiverStream<ConsensusCommand>,
-    subscribers: Vec<Sender<ConsensusMessage>>
+    command:                ReceiverStream<ConsensusCommand>,
+    subscribers:            Vec<Sender<ConsensusMessage>>,
+    /// Used to trigger new consensus rounds
+    canonical_block_stream: CanonStateNotifications,
+
+    network: StromNetworkHandle,
+
+    orderpool: OrderPool,
+    validator: Validator
 }
 
-impl ConsensusManager {
-    pub async fn new() -> (ConsensusHandle, u64) {
+impl<OrderPool, Validator> ConsensusManager<OrderPool, Validator>
+where
+    OrderPool: OrderPoolHandle,
+    Validator: BundleValidator
+{
+    pub async fn new<TP: TaskSpawner>(
+        tp: TP,
+        network: StromNetworkHandle,
+        orderpool: OrderPool,
+        validator: Validator,
+        canonical_block_stream: CanonStateNotifications
+    ) -> (ConsensusHandle, u64) {
         let (tx, rx) = channel(100);
         let stream = ReceiverStream::new(rx);
         let (core, bn) = ConsensusCore::new().await;
 
-        let this = Self { core, subscribers: Vec::new(), command: stream };
-        tokio::spawn(this);
+        let this = Self {
+            validator,
+            core,
+            subscribers: Vec::new(),
+            command: stream,
+            network,
+            orderpool,
+            canonical_block_stream
+        };
+
+        tp.spawn_critical("consensus", this.boxed());
 
         (ConsensusHandle { sender: tx }, bn)
     }
@@ -40,7 +72,11 @@ impl ConsensusManager {
     }
 }
 
-impl Future for ConsensusManager {
+impl<OrderPool, Validator> Future for ConsensusManager<OrderPool, Validator>
+where
+    OrderPool: OrderPoolHandle,
+    Validator: BundleValidator
+{
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
