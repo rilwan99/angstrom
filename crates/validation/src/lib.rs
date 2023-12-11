@@ -7,3 +7,9 @@ pub mod bundle;
 pub mod common;
 pub mod order;
 pub mod validator;
+
+use crate::validator::ValidationClient;
+
+pub fn init_validation() -> ValidationClient {
+    todo!()
+}
