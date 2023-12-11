@@ -39,6 +39,9 @@ impl<DB> NetworkBuilder<DB> {
         }
     }
 
+    /// builds the network spawning it on its own thread, returning the
+    /// communication channel along with returning the protocol it
+    /// represents.
     pub fn build<TP: TaskSpawner>(self, tp: TP) -> (StromProtocolHandler, StromNetworkHandle) {
         todo!()
     }
