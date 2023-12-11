@@ -13,6 +13,7 @@ use reth_primitives::{alloy_primitives::FixedBytes, keccak256, BufMut, BytesMut,
 use reth_tasks::TaskSpawner;
 use secp256k1::{Message, SecretKey};
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio_util::sync::PollSender;
 
 use crate::{
     manager::StromConsensusEvent, state::StromState, types::status::StatusState, NetworkOrderEvent,
@@ -30,7 +31,7 @@ pub struct NetworkBuilder<DB> {
     verification:         VerificationSidecar
 }
 
-impl<DB: Send + Unpin> NetworkBuilder<DB> {
+impl<DB: Send + Unpin + 'static> NetworkBuilder<DB> {
     pub fn new(
         from_handle_rx: UnboundedReceiverStream<StromNetworkHandleMsg>,
         handle: StromNetworkHandle,
@@ -64,7 +65,7 @@ impl<DB: Send + Unpin> NetworkBuilder<DB> {
         tp.spawn_critical("strom network", network.boxed());
 
         let protocol = StromProtocolHandler::new(
-            MeteredPollSender::new(session_manager_tx, "session manager"),
+            MeteredPollSender::new(PollSender::new(session_manager_tx), "session manager"),
             self.verification,
             self.validator_set
         );
