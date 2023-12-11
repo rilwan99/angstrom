@@ -116,7 +116,12 @@ impl<DB: Unpin> Future for StromNetworkManager<DB> {
                     SwarmEvent::ValidMessage { peer_id, msg } => {
                         send_msgs!(msg, peer_id, Commit, Propose, PrePropose)
                     }
-                    SwarmEvent::Disconnected { peer_id } => {}
+                    SwarmEvent::Disconnected { peer_id } => {
+                        self.notify_listeners(StromNetworkEvent::SessionClosed {
+                            peer_id,
+                            reason: None
+                        })
+                    }
                 }
             }
         }

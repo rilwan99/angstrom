@@ -41,8 +41,6 @@ const PEER_ORDER_CACHE_LIMIT: usize = 1024 * 10;
 /// Api to interact with [`PoolManager`] task.
 #[derive(Debug, Clone)]
 pub struct PoolHandle<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> {
-    #[allow(dead_code)]
-    /// Command channel to the [`TransactionsManager`]
     manager_tx: UnboundedSender<OrderCommand<L, CL, S, CS>>
 }
 
