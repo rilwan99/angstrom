@@ -62,6 +62,11 @@ impl<DB: Send + Unpin + 'static> NetworkBuilder<DB> {
         self
     }
 
+    pub fn with_validator_set(mut self, validator_set: Arc<RwLock<HashSet<PeerId>>>) -> Self {
+        self.validator_set = validator_set;
+        self
+    }
+
     /// builds the network spawning it on its own thread, returning the
     /// communication channel along with returning the protocol it
     /// represents.
