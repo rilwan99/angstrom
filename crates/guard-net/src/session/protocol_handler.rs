@@ -1,5 +1,6 @@
-use std::{collections::HashSet, fmt::Debug, net::SocketAddr};
+use std::{collections::HashSet, fmt::Debug, net::SocketAddr, sync::Arc};
 
+use parking_lot::RwLock;
 use reth_metrics::common::mpsc::MeteredPollSender;
 use reth_network::protocol::ProtocolHandler;
 use reth_primitives::PeerId;
@@ -31,8 +32,10 @@ where
     pub config:             SessionsConfig,
     /// Network Handle
     pub network:            StromNetworkHandle,
-    //TODO: Use status / connect message to verify that the connection is a valid staker
-    pub sidecar:            VerificationSidecar
+    /// details for verifying status messages
+    pub sidecar:            VerificationSidecar,
+    // the set of current validators
+    pub validators:         Arc<RwLock<HashSet<PeerId>>>
 }
 
 impl<DB> ProtocolHandler for StromProtocolHandler<DB>
@@ -47,7 +50,8 @@ where
             side_car: self.sidecar.clone(),
             protocol_breach_request_timeout: Duration::from_secs(10),
             session_command_buffer: SESSION_COMMAND_BUFFER,
-            socket_addr
+            socket_addr,
+            validator_set: self.validators.read().clone()
         })
     }
 
@@ -63,7 +67,8 @@ where
             protocol_breach_request_timeout: Duration::from_secs(10),
             session_command_buffer: SESSION_COMMAND_BUFFER,
             socket_addr,
-            side_car: self.sidecar.clone()
+            side_car: self.sidecar.clone(),
+            validator_set: self.validators.read().clone()
         })
     }
 }

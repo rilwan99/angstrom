@@ -1,5 +1,7 @@
-use std::net::SocketAddr;
+use std::{collections::HashSet, net::SocketAddr, pin::Pin};
 
+use alloy_rlp::BytesMut;
+use futures::{stream::Empty, Stream, StreamExt};
 use reth_eth_wire::{
     capability::SharedCapabilities, multiplex::ProtocolConnection, protocol::Protocol,
     DisconnectReason, Status
@@ -27,17 +29,38 @@ use crate::{
     StromSession, VerificationSidecar
 };
 
+pub enum PossibleStromSession {
+    Session(StromSession),
+    /// this will instantly terminate when first polled
+    Invalid(Empty<BytesMut>)
+}
+
+impl Stream for PossibleStromSession {
+    type Item = BytesMut;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>
+    ) -> std::task::Poll<Option<Self::Item>> {
+        match *self {
+            PossibleStromSession::Session(ref mut s) => s.poll_next_unpin(cx),
+            PossibleStromSession::Invalid(ref mut i) => i.poll_next_unpin(cx)
+        }
+    }
+}
+
 //TODO: Add bandwith meter to be
 pub struct StromConnectionHandler {
     pub to_session_manager: MeteredPollSender<StromSessionMessage>,
     pub protocol_breach_request_timeout: Duration,
     pub session_command_buffer: usize,
     pub socket_addr: SocketAddr,
-    pub side_car: VerificationSidecar
+    pub side_car: VerificationSidecar,
+    pub validator_set: HashSet<PeerId>
 }
 
 impl ConnectionHandler for StromConnectionHandler {
-    type Connection = StromSession;
+    type Connection = PossibleStromSession;
 
     fn protocol(&self) -> Protocol {
         StromProtocolMessage::protocol()
@@ -59,6 +82,10 @@ impl ConnectionHandler for StromConnectionHandler {
         peer_id: PeerId,
         conn: ProtocolConnection
     ) -> Self::Connection {
+        if !self.validator_set.contains(&peer_id) {
+            return PossibleStromSession::Invalid(futures::stream::empty())
+        }
+
         let (tx, rx) = mpsc::channel(self.session_command_buffer);
 
         let handle = StromSessionHandle {
@@ -72,14 +99,14 @@ impl ConnectionHandler for StromConnectionHandler {
             .to_session_manager
             .send_item(StromSessionMessage::Established { handle });
 
-        StromSession::new(
+        PossibleStromSession::Session(StromSession::new(
             conn,
             peer_id,
             ReceiverStream::new(rx),
             self.to_session_manager,
             self.protocol_breach_request_timeout,
             self.side_car
-        )
+        ))
     }
 }
 

@@ -76,6 +76,9 @@ impl StromSessionManager {
                 StromSessionMessage::Established { handle } => {
                     if self.active_sessions.contains_key(&handle.remote_id) {
                         warn!(peer_id=?handle.remote_id, "got duplicate connection");
+                        // disconnect
+                        handle.disconnect(None);
+
                         return None
                     }
                     self.counter.inc_active(&handle.direction);
