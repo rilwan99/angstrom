@@ -42,6 +42,10 @@ pub struct StromSessionManager {
 }
 
 impl StromSessionManager {
+    pub fn new(from_sessions: mpsc::Receiver<StromSessionMessage>) -> Self {
+        Self { from_sessions, active_sessions: HashMap::default() }
+    }
+
     /// Sends a message to the peer's session
     pub fn send_message(&mut self, peer_id: &PeerId, msg: StromMessage) {
         if let Some(session) = self.active_sessions.get_mut(peer_id) {

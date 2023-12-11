@@ -21,15 +21,11 @@ pub struct StromProtocolHandler {
     /// When a new connection is created, the conection handler will use
     /// this channel to send the sender half of the sessions command channel to
     /// the manager via the `Established` event.
-    pub to_session_manager: MeteredPollSender<StromSessionMessage>,
-    /// Protocol Sessions Config
-    pub config:             SessionsConfig,
-    /// Network Handle
-    pub network:            StromNetworkHandle,
+    to_session_manager: MeteredPollSender<StromSessionMessage>,
     /// details for verifying status messages
-    pub sidecar:            VerificationSidecar,
+    sidecar:            VerificationSidecar,
     // the set of current validators
-    pub validators:         Arc<RwLock<HashSet<PeerId>>>
+    validators:         Arc<RwLock<HashSet<PeerId>>>
 }
 
 impl ProtocolHandler for StromProtocolHandler {
@@ -65,20 +61,11 @@ impl ProtocolHandler for StromProtocolHandler {
 }
 
 impl StromProtocolHandler {
-    /* TODO: Implement the builder pattern for the network + protocol components
-    pub fn new(network: StromNetworkHandle, state: DB) -> Self {
-        let (to_session_manager, from_session_manager) =
-            mpsc::channel(config.session_command_buffer);
-
-        let to_session_manager = PollSender::new(to_session_manager);
-        Self {
-            to_session_manager: MeteredPollSender::new(
-                to_session_manager,
-                "protocol_handler_to_session_manager"
-            ),
-            state,
-            config,
-            network
-        }
-    } */
+    pub fn new(
+        to_session_manager: MeteredPollSender<StromSessionMessage>,
+        sidecar: VerificationSidecar,
+        validators: Arc<RwLock<HashSet<PeerId>>>
+    ) -> Self {
+        Self { to_session_manager, validators, sidecar }
+    }
 }

@@ -1,16 +1,23 @@
 //! Builder structs for messages.
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    collections::HashSet,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH}
+};
 
-use reth_metrics::common::mpsc::UnboundedMeteredSender;
+use futures::FutureExt;
+use parking_lot::RwLock;
+use reth_metrics::common::mpsc::{MeteredPollSender, UnboundedMeteredSender};
 use reth_primitives::{alloy_primitives::FixedBytes, keccak256, BufMut, BytesMut, Chain, PeerId};
 use reth_tasks::TaskSpawner;
 use secp256k1::{Message, SecretKey};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::{
-    manager::StromConsensusEvent, types::status::StatusState, NetworkOrderEvent, Status,
-    StromNetworkHandle, StromNetworkHandleMsg, StromProtocolHandler, StromSessionMessage
+    manager::StromConsensusEvent, state::StromState, types::status::StatusState, NetworkOrderEvent,
+    Status, StromNetworkHandle, StromNetworkHandleMsg, StromNetworkManager, StromProtocolHandler,
+    StromSessionManager, StromSessionMessage, Swarm, VerificationSidecar
 };
 
 pub struct NetworkBuilder<DB> {
@@ -19,23 +26,25 @@ pub struct NetworkBuilder<DB> {
     from_handle_rx:       UnboundedReceiverStream<StromNetworkHandleMsg>,
     handle:               StromNetworkHandle,
     db:                   DB,
-    session_recv:         tokio::sync::mpsc::Receiver<StromSessionMessage>
+    validator_set:        Arc<RwLock<HashSet<PeerId>>>,
+    verification:         VerificationSidecar
 }
 
-impl<DB> NetworkBuilder<DB> {
+impl<DB: Send + Unpin> NetworkBuilder<DB> {
     pub fn new(
         from_handle_rx: UnboundedReceiverStream<StromNetworkHandleMsg>,
         handle: StromNetworkHandle,
         db: DB,
-        session_recv: tokio::sync::mpsc::Receiver<StromSessionMessage>
+        verification: VerificationSidecar
     ) -> Self {
         Self {
+            verification,
             to_pool_manager: None,
             to_consensus_manager: None,
             from_handle_rx,
             handle,
             db,
-            session_recv
+            validator_set: Default::default()
         }
     }
 
@@ -43,7 +52,24 @@ impl<DB> NetworkBuilder<DB> {
     /// communication channel along with returning the protocol it
     /// represents.
     pub fn build<TP: TaskSpawner>(self, tp: TP) -> (StromProtocolHandler, StromNetworkHandle) {
-        todo!()
+        let (session_manager_tx, session_manager_rx) = tokio::sync::mpsc::channel(100);
+        let state = StromState::new(self.db, self.validator_set.clone());
+        let sessions = StromSessionManager::new(session_manager_rx);
+        let swarm = Swarm::new(sessions, state);
+
+        let network =
+            StromNetworkManager::new(swarm, self.to_pool_manager, self.to_consensus_manager);
+
+        let handle = network.get_handle();
+        tp.spawn_critical("strom network", network.boxed());
+
+        let protocol = StromProtocolHandler::new(
+            MeteredPollSender::new(session_manager_tx, "session manager"),
+            self.verification,
+            self.validator_set
+        );
+
+        (protocol, handle)
     }
 }
 

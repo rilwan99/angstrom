@@ -13,13 +13,20 @@ use crate::{ReputationChangeKind, StromMessage, StromNetworkEvent};
 // 1) Implement the order pool manager
 // 2) Implement the consensus manager
 // 3)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct StromNetworkHandle {
     inner: Arc<StromNetworkInner>
 }
 
 impl StromNetworkHandle {
+    pub fn new(
+        num_active_peers: Arc<AtomicUsize>,
+        to_manager_tx: UnboundedMeteredSender<StromNetworkHandleMsg>
+    ) -> Self {
+        Self { inner: Arc::new(StromNetworkInner { num_active_peers, to_manager_tx }) }
+    }
+
     /// Sends a [`NetworkHandleMessage`] to the manager
     pub(crate) fn send_message(&self, msg: StromNetworkHandleMsg) {
         let _ = self.inner.to_manager_tx.send(msg);

@@ -20,7 +20,8 @@ use crate::{StromNetworkConfig, StromNetworkHandle, StromSessionManager};
 
 #[allow(dead_code)]
 pub struct StromNetworkManager<DB> {
-    handle:               StromNetworkHandle,
+    handle: StromNetworkHandle,
+
     from_handle_rx:       UnboundedReceiverStream<StromNetworkHandleMsg>,
     to_pool_manager:      Option<UnboundedMeteredSender<NetworkOrderEvent>>,
     to_consensus_manager: Option<UnboundedMeteredSender<StromConsensusEvent>>,
@@ -35,6 +36,31 @@ pub struct StromNetworkManager<DB> {
 }
 
 impl<DB: Unpin> StromNetworkManager<DB> {
+    pub fn new(
+        swarm: Swarm<DB>,
+        to_pool_manager: Option<UnboundedMeteredSender<NetworkOrderEvent>>,
+        to_consensus_manager: Option<UnboundedMeteredSender<StromConsensusEvent>>
+    ) -> Self {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let peers = Arc::new(AtomicUsize::default());
+        let handle = StromNetworkHandle::new(peers.clone(), UnboundedMeteredSender::new(tx, ""));
+
+        Self {
+            handle: handle.clone(),
+            num_active_peers: peers,
+            swarm,
+            from_handle_rx: rx.into(),
+            to_pool_manager,
+            to_consensus_manager,
+            event_listeners: Vec::new()
+        }
+    }
+
+    pub fn get_handle(&self) -> StromNetworkHandle {
+        self.handle.clone()
+    }
+
     // Handler for received messages from a handle
     fn on_handle_message(&mut self, msg: StromNetworkHandleMsg) {
         match msg {
