@@ -1,54 +1,44 @@
-use std::{fmt::Debug, net::SocketAddr};
+use std::{collections::HashSet, fmt::Debug, net::SocketAddr, sync::Arc};
 
+use parking_lot::RwLock;
 use reth_metrics::common::mpsc::MeteredPollSender;
 use reth_network::protocol::ProtocolHandler;
-use reth_primitives::PeerId;
+use reth_primitives::{Address, PeerId};
 use reth_provider::StateProvider;
 use secp256k1::SecretKey;
-use tokio::time::Duration;
+use tokio::{sync::mpsc::UnboundedReceiver, time::Duration};
 
 use crate::{
-    SessionsConfig, Status, StromConnectionHandler, StromNetworkHandle, StromSessionMessage
+    SessionsConfig, Status, StatusState, StromConnectionHandler, StromNetworkHandle,
+    StromSessionMessage, VerificationSidecar
 };
 
+const SESSION_COMMAND_BUFFER: usize = 100;
 /// The protocol handler that is used to announce the strom capability upon
 /// successfully establishing a hello handshake on an incoming tcp connection.
 #[derive(Debug)]
-pub struct StromProtocolHandler<DB>
-where
-    DB: StateProvider + Debug + 'static
-{
+pub struct StromProtocolHandler {
     /// When a new connection is created, the conection handler will use
     /// this channel to send the sender half of the sessions command channel to
     /// the manager via the `Established` event.
-    pub to_session_manager: MeteredPollSender<StromSessionMessage>,
-    /// State provider to determine if the pub key is an staked validator with
-    /// sufficient balance
-    pub state:              DB,
-    /// Protocol Sessions Config
-    pub config:             SessionsConfig,
-    /// Network Handle
-    pub network:            StromNetworkHandle,
-    #[allow(dead_code)]
-    //TODO: Use status / connect message to verify that the connection is a valid staker
-    status: Status,
-    #[allow(dead_code)]
-    secret_key:             SecretKey
+    to_session_manager: MeteredPollSender<StromSessionMessage>,
+    /// details for verifying status messages
+    sidecar:            VerificationSidecar,
+    // the set of current validators
+    validators:         Arc<RwLock<HashSet<Address>>>
 }
 
-impl<DB> ProtocolHandler for StromProtocolHandler<DB>
-where
-    DB: StateProvider + Debug + 'static
-{
+impl ProtocolHandler for StromProtocolHandler {
     type ConnectionHandler = StromConnectionHandler;
 
     fn on_incoming(&self, socket_addr: SocketAddr) -> Option<Self::ConnectionHandler> {
         Some(StromConnectionHandler {
             to_session_manager: self.to_session_manager.clone(),
-            status: None,
+            side_car: self.sidecar.clone(),
             protocol_breach_request_timeout: Duration::from_secs(10),
-            session_command_buffer: 100,
-            socket_addr
+            session_command_buffer: SESSION_COMMAND_BUFFER,
+            socket_addr,
+            validator_set: self.validators.read().clone()
         })
     }
 
@@ -61,32 +51,21 @@ where
     ) -> Option<Self::ConnectionHandler> {
         Some(StromConnectionHandler {
             to_session_manager: self.to_session_manager.clone(),
-            status: None,
             protocol_breach_request_timeout: Duration::from_secs(10),
-            session_command_buffer: self.config.session_command_buffer,
-            socket_addr
+            session_command_buffer: SESSION_COMMAND_BUFFER,
+            socket_addr,
+            side_car: self.sidecar.clone(),
+            validator_set: self.validators.read().clone()
         })
     }
 }
 
-impl<DB> StromProtocolHandler<DB>
-where
-    DB: StateProvider + Debug + 'static
-{
-    /* TODO: Implement the builder pattern for the network + protocol components
-    pub fn new(network: StromNetworkHandle, state: DB) -> Self {
-        let (to_session_manager, from_session_manager) =
-            mpsc::channel(config.session_command_buffer);
-
-        let to_session_manager = PollSender::new(to_session_manager);
-        Self {
-            to_session_manager: MeteredPollSender::new(
-                to_session_manager,
-                "protocol_handler_to_session_manager"
-            ),
-            state,
-            config,
-            network
-        }
-    } */
+impl StromProtocolHandler {
+    pub fn new(
+        to_session_manager: MeteredPollSender<StromSessionMessage>,
+        sidecar: VerificationSidecar,
+        validators: Arc<RwLock<HashSet<Address>>>
+    ) -> Self {
+        Self { to_session_manager, validators, sidecar }
+    }
 }

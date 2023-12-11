@@ -5,7 +5,11 @@ use order_pool::OrderPoolHandle;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
 use reth_network::DisconnectReason;
 use reth_rpc_types::PeerId;
-use tokio::sync::{mpsc::UnboundedSender, oneshot};
+use tokio::sync::{
+    mpsc::{unbounded_channel, UnboundedSender},
+    oneshot
+};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::{ReputationChangeKind, StromMessage, StromNetworkEvent};
 
@@ -13,13 +17,20 @@ use crate::{ReputationChangeKind, StromMessage, StromNetworkEvent};
 // 1) Implement the order pool manager
 // 2) Implement the consensus manager
 // 3)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct StromNetworkHandle {
     inner: Arc<StromNetworkInner>
 }
 
 impl StromNetworkHandle {
+    pub fn new(
+        num_active_peers: Arc<AtomicUsize>,
+        to_manager_tx: UnboundedMeteredSender<StromNetworkHandleMsg>
+    ) -> Self {
+        Self { inner: Arc::new(StromNetworkInner { num_active_peers, to_manager_tx }) }
+    }
+
     /// Sends a [`NetworkHandleMessage`] to the manager
     pub(crate) fn send_message(&self, msg: StromNetworkHandleMsg) {
         let _ = self.inner.to_manager_tx.send(msg);
@@ -36,6 +47,13 @@ impl StromNetworkHandle {
 
     pub fn peer_reputation_change(&self, peer: PeerId, change: ReputationChangeKind) {
         self.send_message(StromNetworkHandleMsg::ReputationChange(peer, change));
+    }
+
+    pub fn subscribe_network_events(&self) -> UnboundedReceiverStream<StromNetworkEvent> {
+        let (tx, rx) = unbounded_channel();
+        self.send_message(StromNetworkHandleMsg::SubscribeEvents(tx));
+
+        UnboundedReceiverStream::from(rx)
     }
 
     /// Send message to gracefully shutdown node.
@@ -70,19 +88,23 @@ pub enum NetworkOrderEvent {
 }
 
 #[derive(Debug)]
-pub(crate) enum StromNetworkHandleMsg {
+pub enum StromNetworkHandleMsg {
+    SubscribeEvents(UnboundedSender<StromNetworkEvent>),
     /// Removes a peer from the peer set corresponding to the given kind.
     RemovePeer(PeerId),
     /// Disconnect a connection to a peer if it exists.
     DisconnectPeer(PeerId, Option<DisconnectReason>),
-    /// Add a new listener for [`NetworkEvent`].
-    EventListener(UnboundedSender<StromNetworkEvent>),
 
     /// Sends the list of transactions to the given peer.
-    SendOrders { peer_id: PeerId, msg: StromMessage },
+    SendOrders {
+        peer_id: PeerId,
+        msg:     StromMessage
+    },
 
     /// broadcasts the order
-    BroadcastOrder { msg: StromMessage },
+    BroadcastOrder {
+        msg: StromMessage
+    },
 
     /// Apply a reputation change to the given peer.
     ReputationChange(PeerId, ReputationChangeKind),

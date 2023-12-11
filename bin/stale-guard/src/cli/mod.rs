@@ -1,16 +1,36 @@
 //! CLI definition and entrypoint to executable
+use std::path::Path;
 
 use clap::Parser;
+use consensus::{ConsensusHandle, ConsensusManager};
+use guard_eth::{
+    handle::{Eth, EthHandle},
+    manager::EthDataCleanser
+};
+use guard_network::{
+    pool_manager::PoolHandle, NetworkBuilder, PoolManagerBuilder, StatusState, StromNetworkHandle,
+    VerificationSidecar
+};
 use guard_rpc::{
     api::{ConsensusApiServer, OrderApiServer, QuotingApiServer},
     ConsensusApi, OrderApi, QuotesApi
 };
-use reth::cli::{
-    components::{RethNodeComponents, RethRpcComponents},
-    config::{RethNetworkConfig, RethRpcConfig},
-    ext::{RethCliExt, RethNodeCommandConfig},
-    Cli
+use guard_types::rpc::{
+    EcRecoveredComposableLimitOrder, EcRecoveredComposableSearcherOrder, EcRecoveredLimitOrder,
+    EcRecoveredSearcherOrder
 };
+use reth::{
+    args::get_secret_key,
+    cli::{
+        components::{RethNodeComponents, RethRpcComponents},
+        config::{RethNetworkConfig, RethRpcConfig},
+        ext::{RethCliExt, RethNodeCommandConfig},
+        Cli
+    },
+    primitives::{Chain, PeerId},
+    providers::CanonStateSubscriptions
+};
+use validation::{init_validation, validator::ValidationClient};
 
 /// Convenience function for parsing CLI options, set up logging and run the
 /// chosen command.
@@ -27,32 +47,106 @@ impl RethCliExt for StromRethExt {
     type Node = StaleGuardConfig;
 }
 
-#[derive(Debug, Clone, Copy, Default, clap::Args)]
+#[derive(Debug, Clone, Default, clap::Args)]
 struct StaleGuardConfig {
     #[clap(long)]
-    pub mev_guard: bool
+    pub mev_guard: bool,
+    #[clap(skip)]
+    /// init state. Set when network is started. We store the data here
+    /// so that we can give handles to rpc modules
+    state:         GuardInitState
+}
+
+type DefaultPoolHandle = PoolHandle<
+    EcRecoveredLimitOrder,
+    EcRecoveredComposableLimitOrder,
+    EcRecoveredSearcherOrder,
+    EcRecoveredComposableSearcherOrder
+>;
+
+/// This holds all the handles that are started with the network that our rpc
+/// modules will need.
+#[derive(Debug, Clone, Default)]
+#[allow(unused)]
+struct GuardInitState {
+    pub network_handle: Option<StromNetworkHandle>,
+    pub validation:     Option<ValidationClient>,
+    pub consensus:      Option<ConsensusHandle>,
+    pub eth_handle:     Option<EthHandle>,
+    pub pool_handle:    Option<DefaultPoolHandle>
 }
 
 impl RethNodeCommandConfig for StaleGuardConfig {
     fn configure_network<Conf, Reth>(
         &mut self,
-        _config: &mut Conf,
-        _components: &Reth
+        config: &mut Conf,
+        components: &Reth
     ) -> eyre::Result<()>
     where
         Conf: RethNetworkConfig,
         Reth: RethNodeComponents
     {
-        //config.add_rlpx_sub_protocol();
-        Ok(())
-    }
+        let path = Path::new("");
+        let secret_key = get_secret_key(&path).unwrap();
 
-    #[allow(dead_code)]
-    fn on_components_initialized<Reth: RethNodeComponents>(
-        &mut self,
-        _components: &Reth
-    ) -> eyre::Result<()> {
-        // Initialize the eth interacting modules, aka pool upkeep + consensus
+        let state = StatusState {
+            version:   0,
+            chain:     Chain::mainnet(),
+            peer:      PeerId::default(),
+            timestamp: 0
+        };
+
+        let eth_handle = EthDataCleanser::new(
+            components.events().subscribe_to_canonical_state(),
+            components.provider(),
+            components.task_executor()
+        )
+        .unwrap();
+
+        let validator =
+            init_validation(components.provider(), eth_handle.subscribe_network_stream());
+
+        let verification =
+            VerificationSidecar { status: state, has_sent: false, has_received: false, secret_key };
+
+        let (pool_tx, pool_rx) =
+            reth_metrics::common::mpsc::metered_unbounded_channel("order pool");
+
+        let (consensus_tx, consensus_rx) =
+            reth_metrics::common::mpsc::metered_unbounded_channel("consensus");
+
+        let (protocol, network_handle) = NetworkBuilder::new(components.provider(), verification)
+            .with_pool_manager(pool_tx)
+            .with_consensus_manager(consensus_tx)
+            .build(components.task_executor());
+
+        // init our custom sub-protocol
+        config.add_rlpx_sub_protocol(protocol);
+
+        let pool_handle = PoolManagerBuilder::new(
+            validator.clone(),
+            network_handle.clone(),
+            eth_handle.subscribe_network(),
+            pool_rx
+        )
+        .build(components.task_executor());
+
+        let consensus_handle = ConsensusManager::new(
+            components.task_executor(),
+            network_handle.clone(),
+            pool_handle.clone(),
+            validator.clone(),
+            components.events().subscribe_to_canonical_state(),
+            consensus_rx
+        );
+
+        self.state = GuardInitState {
+            pool_handle:    Some(pool_handle),
+            eth_handle:     Some(eth_handle),
+            network_handle: Some(network_handle),
+            validation:     Some(validator),
+            consensus:      Some(consensus_handle)
+        };
 
         Ok(())
     }

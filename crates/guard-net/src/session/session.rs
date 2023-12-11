@@ -1,4 +1,9 @@
-use std::{ops::Deref, pin::Pin};
+use std::{
+    fmt::Debug,
+    ops::Deref,
+    pin::Pin,
+    time::{SystemTime, UNIX_EPOCH}
+};
 
 use alloy_rlp::Encodable;
 use futures::{
@@ -7,17 +12,55 @@ use futures::{
 };
 use reth_eth_wire::multiplex::ProtocolConnection;
 use reth_metrics::common::mpsc::MeteredPollSender;
+use reth_network_api::Direction;
 use reth_primitives::{BytesMut, PeerId};
+use secp256k1::SecretKey;
 use tokio::time::Duration;
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::PollSender;
 
 use super::handle::SessionCommand;
-use crate::{types::message::StromProtocolMessage, StromSessionMessage};
+use crate::{
+    types::{
+        message::StromProtocolMessage,
+        status::{Status, StatusState}
+    },
+    StatusBuilder, StromMessage, StromSessionMessage
+};
+
+const STATUS_TIMESTAMP_TIMEOUT_MS: u128 = 1500;
+
+/// holds the state we need to verify the new peer
+#[derive(Clone)]
+pub struct VerificationSidecar {
+    pub secret_key:   SecretKey,
+    pub status:       StatusState,
+    pub has_sent:     bool,
+    pub has_received: bool
+}
+
+impl VerificationSidecar {
+    pub fn make_status_message(&mut self, peer: PeerId) -> Status {
+        if self.has_sent {
+            panic!("can only send the status message once");
+        }
+
+        StatusBuilder::from(self.status.with_peer(peer)).build(self.secret_key)
+    }
+
+    pub fn is_verified(&self) -> bool {
+        self.has_sent && self.has_received
+    }
+}
+
+impl Debug for VerificationSidecar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&format!("status: {:?}", self.status))
+    }
+}
+
 #[allow(dead_code)]
 pub struct StromSession {
-    /// Keeps track of request ids.
-    pub(crate) next_id:            u64,
     /// The underlying connection.
     pub(crate) conn:               ProtocolConnection,
     /// Identifier of the node we're connected to.
@@ -33,7 +76,9 @@ pub struct StromSession {
     pub(crate) protocol_breach_request_timeout: Duration,
     /// Used to reserve a slot to guarantee that the termination message is
     /// delivered
-    pub(crate) terminate_message: Option<(PollSender<StromSessionMessage>, StromSessionMessage)>
+    pub(crate) terminate_message: Option<(PollSender<StromSessionMessage>, StromSessionMessage)>,
+    /// has a value until verification has been completed.
+    pub verification_sidecar:                   VerificationSidecar
 }
 
 impl StromSession {
@@ -42,10 +87,11 @@ impl StromSession {
         peer_id: PeerId,
         commands_rx: ReceiverStream<SessionCommand>,
         to_session_manager: MeteredPollSender<StromSessionMessage>,
-        protocol_breach_request_timeout: Duration
+        protocol_breach_request_timeout: Duration,
+        verification_sidecar: VerificationSidecar
     ) -> Self {
         Self {
-            next_id: 0,
+            verification_sidecar,
             conn,
             remote_peer_id: peer_id,
             commands_rx,
@@ -82,93 +128,135 @@ impl StromSession {
         // terminate the task
         Some(Poll::Ready(None))
     }
-}
 
-//TODO: Implement poll functionality with: on_command, on_timeout, on_message
-// from wire..
+    fn poll_commands(&mut self, cx: &mut Context<'_>) -> Option<Poll<Option<BytesMut>>> {
+        if let Poll::Ready(inner) = self.commands_rx.poll_next_unpin(cx).map(|inner| {
+            inner.map_or_else(
+                || Poll::Ready(None),
+                |msg| match msg {
+                    SessionCommand::Disconnect { .. } => self.emit_disconnect(cx),
+                    SessionCommand::Message(msg) => {
+                        let msg = StromProtocolMessage {
+                            message_type: msg.message_id(),
+                            message:      msg
+                        };
+                        let mut bytes = BytesMut::with_capacity(msg.length());
+                        msg.encode(&mut bytes);
+                        Poll::Ready(Some(bytes))
+                    }
+                }
+            )
+        }) {
+            Some(inner)
+        } else {
+            None
+        }
+    }
+
+    fn poll_incoming(&mut self, cx: &mut Context<'_>) -> Option<Poll<Option<BytesMut>>> {
+        // processes incoming messages until there are none left or the stream closes
+        while let Poll::Ready(msg) = self.conn.poll_next_unpin(cx).map(|data| {
+            data.map(|bytes| {
+                let msg = StromProtocolMessage::decode_message(&mut bytes.deref());
+                let _ = self.to_session_manager.send_item(
+                    msg.map(|m| StromSessionMessage::ValidMessage {
+                        peer_id: self.remote_peer_id,
+                        message: m
+                    })
+                    .unwrap_or(StromSessionMessage::BadMessage { peer_id: self.remote_peer_id })
+                );
+
+                Poll::<()>::Pending
+            })
+            .ok_or_else(|| self.emit_disconnect(cx))
+        }) {
+            if let Err(e) = msg {
+                return Some(e)
+            }
+        }
+
+        None
+    }
+
+    fn poll_verification(&mut self, cx: &mut Context<'_>) -> Poll<Option<BytesMut>> {
+        if !self.verification_sidecar.has_sent {
+            let msg = StromMessage::Status(
+                self.verification_sidecar
+                    .make_status_message(self.remote_peer_id)
+            );
+            // mark our status as sent.
+            self.verification_sidecar.has_sent = true;
+
+            let msg = StromProtocolMessage { message_type: msg.message_id(), message: msg };
+            let mut bytes = BytesMut::with_capacity(msg.length());
+            msg.encode(&mut bytes);
+
+            return Poll::Ready(Some(bytes))
+        }
+
+        if let Poll::Ready(verification) = self.conn.poll_next_unpin(cx).map(|msg| {
+            // mark status as received. we do this here as the first message should be
+            // status. if its not we want to disconnect which will be polled.
+            self.verification_sidecar.has_received = true;
+
+            msg.map(|bytes| {
+                let msg = StromProtocolMessage::decode_message(&mut bytes.deref());
+                msg.map_or(false, |msg| {
+                    // first message has to be status
+                    if let StromMessage::Status(status) = msg.message {
+                        self.verify_incoming_status(status)
+                    } else {
+                        false
+                    }
+                })
+            })
+            .filter(|f| *f)
+            .ok_or_else(|| self.emit_disconnect(cx))
+        }) {
+            if let Err(e) = verification {
+                return e
+            }
+        }
+
+        Poll::Pending
+    }
+
+    fn verify_incoming_status(&self, status: Status) -> bool {
+        let current_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis();
+
+        let status_time = status.state.timestamp + STATUS_TIMESTAMP_TIMEOUT_MS;
+
+        current_time >= status_time && status.verify() == Ok(self.remote_peer_id)
+    }
+}
 
 impl Stream for StromSession {
     type Item = BytesMut;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let this = self.get_mut();
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        if !self.verification_sidecar.is_verified() {
+            return self.poll_verification(cx)
+        }
 
         // if the session is terminate we have to send the termination message before we
         // can close
-        if let Some(terminate) = this.poll_terminate_message(cx) {
+        if let Some(terminate) = self.poll_terminate_message(cx) {
             return terminate
         }
 
-        'main: loop {
-            let mut progress = false;
-
-            // we prioritize incoming commands sent from the session manager
-            loop {
-                match this.commands_rx.poll_next_unpin(cx) {
-                    Poll::Pending => break,
-                    Poll::Ready(None) => {
-                        // this is only possible when the manager was dropped, in which case we also
-                        // terminate this session
-                        return Poll::Ready(None)
-                    }
-                    Poll::Ready(Some(command)) => {
-                        return match command {
-                            //TODO: maybe we could find a way to disconnect by sending the
-                            // underlying disconnect reason to the wire
-                            // so the peer receives it
-                            SessionCommand::Disconnect { reason: _reason } => {
-                                this.emit_disconnect(cx)
-                            }
-
-                            SessionCommand::Message(msg) => {
-                                let msg = StromProtocolMessage {
-                                    message_type: msg.message_id(),
-                                    message:      msg
-                                };
-                                let mut bytes = BytesMut::with_capacity(msg.length());
-                                msg.encode(&mut bytes);
-                                Poll::Ready(Some(bytes))
-                            }
-                        }
-                    }
-                }
-            }
-
-            loop {
-                match this.conn.poll_next_unpin(cx) {
-                    Poll::Pending => break,
-                    Poll::Ready(None) => {
-                        // the connection was closed, we have to terminate the session
-                        return this.emit_disconnect(cx)
-                    }
-                    Poll::Ready(Some(bytes)) => {
-                        let msg = StromProtocolMessage::decode_message(&mut bytes.deref());
-                        match msg {
-                            Ok(msg) => {
-                                let _ = this.to_session_manager.send_item(
-                                    StromSessionMessage::ValidMessage {
-                                        peer_id: this.remote_peer_id,
-                                        message: msg
-                                    }
-                                );
-                                progress = true;
-                            }
-                            Err(_e) => {
-                                let _ = this.to_session_manager.send_item(
-                                    StromSessionMessage::BadMessage {
-                                        peer_id: this.remote_peer_id
-                                    }
-                                );
-                                break
-                            }
-                        }
-                    }
-                }
-            }
-            if !progress {
-                break 'main
-            }
+        // progress manager commands
+        if let Some(msg) = self.poll_commands(cx) {
+            return msg
         }
+
+        // processes messages from the wire
+        if let Some(msg) = self.poll_incoming(cx) {
+            return msg
+        }
+
         Poll::Pending
     }
 }

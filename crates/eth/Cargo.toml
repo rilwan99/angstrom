@@ -20,6 +20,7 @@ futures-util.workspace = true
 
 # reth
 reth-provider.workspace = true
+reth-tasks.workspace = true
 
 # alloy  
 alloy-primitives.workspace = true

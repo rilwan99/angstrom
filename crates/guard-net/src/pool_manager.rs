@@ -20,6 +20,7 @@ use order_pool::{
     AllOrders, Order, OrderPoolHandle, OrderPoolInner, OrderSet, OrdersToPropagate, PoolConfig,
     PoolInnerEvent
 };
+use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_primitives::{PeerId, TxHash, B256};
 use reth_tasks::TaskSpawner;
 use tokio::sync::{
@@ -41,8 +42,6 @@ const PEER_ORDER_CACHE_LIMIT: usize = 1024 * 10;
 /// Api to interact with [`PoolManager`] task.
 #[derive(Debug, Clone)]
 pub struct PoolHandle<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> {
-    #[allow(dead_code)]
-    /// Command channel to the [`TransactionsManager`]
     manager_tx: UnboundedSender<OrderCommand<L, CL, S, CS>>
 }
 
@@ -281,7 +280,7 @@ where
     network_handle:       StromNetworkHandle,
     strom_network_events: UnboundedReceiverStream<StromNetworkEvent>,
     eth_network_events:   UnboundedReceiverStream<EthEvent>,
-    order_events:         UnboundedReceiverStream<NetworkOrderEvent>,
+    order_events:         UnboundedMeteredReceiver<NetworkOrderEvent>,
     config:               PoolConfig,
     _phantom:             PhantomData<(L, CL, S, CS)>
 }
@@ -307,14 +306,13 @@ where
     pub fn new(
         validator: V,
         network_handle: StromNetworkHandle,
-        strom_network_events: UnboundedReceiverStream<StromNetworkEvent>,
         eth_network_events: UnboundedReceiverStream<EthEvent>,
-        order_events: UnboundedReceiverStream<NetworkOrderEvent>
+        order_events: UnboundedMeteredReceiver<NetworkOrderEvent>
     ) -> Self {
         Self {
             order_events,
             eth_network_events,
-            strom_network_events,
+            strom_network_events: network_handle.subscribe_network_events(),
             network_handle,
             validator,
             config: Default::default(),
@@ -375,7 +373,7 @@ where
     /// receiver half of the commands to the pool manager
     command_rx:           UnboundedReceiverStream<OrderCommand<L, CL, S, CS>>,
     /// Incoming events from the ProtocolManager.
-    order_events:         UnboundedReceiverStream<NetworkOrderEvent>,
+    order_events:         UnboundedMeteredReceiver<NetworkOrderEvent>,
     /// All the connected peers.
     peers:                HashMap<PeerId, StromPeer>
 }

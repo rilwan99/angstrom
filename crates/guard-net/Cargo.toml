@@ -34,11 +34,12 @@ reth-discv4 = { git = "https://github.com/paradigmxyz/reth", rev = "f15e878" }
 reth-dns-discovery = { git = "https://github.com/paradigmxyz/reth", rev = "f15e878" }
 reth-ecies = { git = "https://github.com/paradigmxyz/reth", rev = "f15e878" }
 
+alloy-sol-macro.workspace = true
+alloy-sol-types.workspace = true
 alloy-rlp.workspace = true
 alloy-rlp-derive.workspace = true
 
 anyhow.workspace = true
-
 
 
 guard-eth.workspace = true
@@ -107,6 +108,8 @@ reth-provider = { workspace = true, features = ["test-utils"] }
 reth-tracing = { git = "https://github.com/paradigmxyz/reth", rev = "f15e878" }
 reth-transaction-pool = { workspace = true, features = ["test-utils"] }
 enr = { workspace = true, features = ["serde", "rust-secp256k1"] }
+
+rand.workspace = true
 
 # misc
 hex = "0.4"

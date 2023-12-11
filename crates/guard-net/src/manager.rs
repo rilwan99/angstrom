@@ -19,25 +19,52 @@ use crate::{NetworkOrderEvent, StromMessage, StromNetworkHandleMsg, Swarm, Swarm
 use crate::{StromNetworkConfig, StromNetworkHandle, StromSessionManager};
 
 #[allow(dead_code)]
-pub struct StromNetworkManager {
-    handle:               StromNetworkHandle,
+pub struct StromNetworkManager<DB> {
+    handle: StromNetworkHandle,
+
     from_handle_rx:       UnboundedReceiverStream<StromNetworkHandleMsg>,
     to_pool_manager:      Option<UnboundedMeteredSender<NetworkOrderEvent>>,
     to_consensus_manager: Option<UnboundedMeteredSender<StromConsensusEvent>>,
 
     event_listeners: Vec<UnboundedSender<StromNetworkEvent>>,
 
-    swarm:            Swarm,
+    swarm:            Swarm<DB>,
     /// This is updated via internal events and shared via `Arc` with the
     /// [`NetworkHandle`] Updated by the `NetworkWorker` and loaded by the
     /// `NetworkService`.
     num_active_peers: Arc<AtomicUsize>
 }
 
-impl StromNetworkManager {
+impl<DB: Unpin> StromNetworkManager<DB> {
+    pub fn new(
+        swarm: Swarm<DB>,
+        to_pool_manager: Option<UnboundedMeteredSender<NetworkOrderEvent>>,
+        to_consensus_manager: Option<UnboundedMeteredSender<StromConsensusEvent>>
+    ) -> Self {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+        let peers = Arc::new(AtomicUsize::default());
+        let handle = StromNetworkHandle::new(peers.clone(), UnboundedMeteredSender::new(tx, ""));
+
+        Self {
+            handle: handle.clone(),
+            num_active_peers: peers,
+            swarm,
+            from_handle_rx: rx.into(),
+            to_pool_manager,
+            to_consensus_manager,
+            event_listeners: Vec::new()
+        }
+    }
+
+    pub fn get_handle(&self) -> StromNetworkHandle {
+        self.handle.clone()
+    }
+
     // Handler for received messages from a handle
     fn on_handle_message(&mut self, msg: StromNetworkHandleMsg) {
         match msg {
+            StromNetworkHandleMsg::SubscribeEvents(tx) => self.event_listeners.push(tx),
             StromNetworkHandleMsg::SendOrders { peer_id, msg } => {
                 self.swarm.sessions_mut().send_message(&peer_id, msg)
             }
@@ -52,11 +79,13 @@ impl StromNetworkManager {
                 let _ = tx.send(());
             }
             StromNetworkHandleMsg::RemovePeer(peer_id) => {
-                self.swarm.state_mut().remove_peer(peer_id);
+                self.swarm.state_mut().peers_mut().remove_peer(peer_id);
             }
-            StromNetworkHandleMsg::ReputationChange(peer_id, kind) => {
-                self.swarm.state_mut().change_weight(peer_id, kind)
-            }
+            StromNetworkHandleMsg::ReputationChange(peer_id, kind) => self
+                .swarm
+                .state_mut()
+                .peers_mut()
+                .change_weight(peer_id, kind),
             _ => {
                 todo!()
             }
@@ -69,7 +98,7 @@ impl StromNetworkManager {
     }
 }
 
-impl Future for StromNetworkManager {
+impl<DB: Unpin> Future for StromNetworkManager<DB> {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -114,7 +143,12 @@ impl Future for StromNetworkManager {
                     SwarmEvent::ValidMessage { peer_id, msg } => {
                         send_msgs!(msg, peer_id, Commit, Propose, PrePropose)
                     }
-                    SwarmEvent::Disconnected { peer_id } => {}
+                    SwarmEvent::Disconnected { peer_id } => {
+                        self.notify_listeners(StromNetworkEvent::SessionClosed {
+                            peer_id,
+                            reason: None
+                        })
+                    }
                 }
             }
         }

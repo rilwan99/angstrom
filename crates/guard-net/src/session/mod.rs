@@ -26,14 +26,12 @@ use futures::task::Poll;
 use reth_eth_wire::DisconnectReason;
 use reth_network::Direction;
 use reth_primitives::PeerId;
-#[allow(unused_imports)]
-use tokio_util::sync::PollSender;
+use tracing::warn;
 
 use crate::{errors::StromStreamError, PeerKind, StromMessage, StromProtocolMessage};
 
 #[derive(Debug)]
 pub struct StromSessionManager {
-    counter:         SessionCounter,
     // All active sessions that are ready to exchange messages.
     active_sessions: HashMap<PeerId, StromSessionHandle>,
 
@@ -44,6 +42,10 @@ pub struct StromSessionManager {
 }
 
 impl StromSessionManager {
+    pub fn new(from_sessions: mpsc::Receiver<StromSessionMessage>) -> Self {
+        Self { from_sessions, active_sessions: HashMap::default() }
+    }
+
     /// Sends a message to the peer's session
     pub fn send_message(&mut self, peer_id: &PeerId, msg: StromMessage) {
         if let Some(session) = self.active_sessions.get_mut(peer_id) {
@@ -56,7 +58,6 @@ impl StromSessionManager {
     // Removes the Session handle if it exists.
     fn remove_session(&mut self, id: &PeerId) -> Option<StromSessionHandle> {
         let session = self.active_sessions.remove(id)?;
-        self.counter.dec_active(&session.direction);
         Some(session)
     }
 
@@ -66,53 +67,54 @@ impl StromSessionManager {
             session.disconnect(reason);
         }
     }
+
+    fn poll_session_msg(&mut self, cx: &mut Context<'_>) -> Poll<Option<SessionEvent>> {
+        self.from_sessions.poll_recv(cx).map(|msg| {
+            msg.and_then(|msg_inner| match msg_inner {
+                StromSessionMessage::Disconnected { peer_id } => {
+                    self.remove_session(&peer_id);
+                    Some(SessionEvent::Disconnected { peer_id })
+                }
+                StromSessionMessage::Established { handle } => {
+                    if self.active_sessions.contains_key(&handle.remote_id) {
+                        warn!(peer_id=?handle.remote_id, "got duplicate connection");
+                        // disconnect
+                        handle.disconnect(None);
+
+                        return None
+                    }
+
+                    let event = SessionEvent::SessionEstablished {
+                        peer_id:   handle.remote_id,
+                        direction: handle.direction,
+                        timeout:   Arc::new(AtomicU64::new(40))
+                    };
+                    self.active_sessions.insert(handle.remote_id, handle);
+
+                    Some(event)
+                }
+                StromSessionMessage::ClosedOnConnectionError { peer_id, error } => {
+                    Some(SessionEvent::OutgoingConnectionError { peer_id, error })
+                }
+                StromSessionMessage::ValidMessage { peer_id, message } => {
+                    Some(SessionEvent::ValidMessage { peer_id, message })
+                }
+                StromSessionMessage::BadMessage { peer_id } => {
+                    Some(SessionEvent::BadMessage { peer_id })
+                }
+                StromSessionMessage::ProtocolBreach { peer_id } => {
+                    Some(SessionEvent::ProtocolBreach { peer_id })
+                }
+            })
+        })
+    }
 }
 
 impl Stream for StromSessionManager {
     type Item = SessionEvent;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<SessionEvent>> {
-        match self.from_sessions.poll_recv(cx) {
-            Poll::Ready(None) => {
-                // channel closed
-                return Poll::Ready(None)
-            }
-            Poll::Pending => {}
-            Poll::Ready(Some(message)) => {
-                return match message {
-                    StromSessionMessage::Disconnected { peer_id } => {
-                        self.remove_session(&peer_id);
-                        Poll::Ready(Some(SessionEvent::Disconnected { peer_id }))
-                    }
-                    StromSessionMessage::Established { handle } => {
-                        self.counter.inc_active(&handle.direction);
-
-                        let event = SessionEvent::SessionEstablished {
-                            peer_id:   handle.remote_id,
-                            direction: handle.direction,
-                            timeout:   Arc::new(AtomicU64::new(40))
-                        };
-                        self.active_sessions.insert(handle.remote_id, handle);
-
-                        Poll::Ready(Some(event))
-                    }
-                    StromSessionMessage::ClosedOnConnectionError { peer_id, error } => {
-                        Poll::Ready(Some(SessionEvent::OutgoingConnectionError { peer_id, error }))
-                    }
-                    StromSessionMessage::ValidMessage { peer_id, message } => {
-                        Poll::Ready(Some(SessionEvent::ValidMessage { peer_id, message }))
-                    }
-                    StromSessionMessage::BadMessage { peer_id } => {
-                        Poll::Ready(Some(SessionEvent::BadMessage { peer_id }))
-                    }
-                    StromSessionMessage::ProtocolBreach { peer_id } => {
-                        Poll::Ready(Some(SessionEvent::ProtocolBreach { peer_id }))
-                    }
-                }
-            }
-        }
-
-        Poll::Pending
+        self.poll_session_msg(cx)
     }
 }
 

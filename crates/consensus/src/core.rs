@@ -11,7 +11,6 @@ use guard_types::{
     consensus::{Commit, EvidenceError, PreProposal, Proposal},
     submission::BestBundles
 };
-use reth_provider::CanonStateNotifications;
 use thiserror::Error;
 use tracing::error;
 
@@ -55,23 +54,21 @@ pub enum ConsensusError {
 #[allow(dead_code)]
 pub struct ConsensusCore {
     /// keeps track of the current round state
-    round_state:            RoundState,
+    round_state:        RoundState,
     /// leader selection algo
-    leader_selection:       RoundRobinAlgo,
+    leader_selection:   RoundRobinAlgo,
     /// collects + formulates evidence of byzantine guards
-    evidence_collector:     EvidenceCollector,
+    evidence_collector: EvidenceCollector,
     /// deals with all signing and signature verification
-    signer:                 Signer,
+    signer:             Signer,
     /// messages to share with others
-    outbound:               VecDeque<ConsensusMessage>,
-    /// Used to trigger new consensus rounds
-    canonical_block_stream: CanonStateNotifications
+    outbound:           VecDeque<ConsensusMessage>
 }
 
 impl ConsensusCore {
     /// returns self but also returns the block that the round robin algo
     /// has historic state up until
-    pub async fn new() -> (Self, u64) {
+    pub fn new() -> (Self, u64) {
         todo!()
     }
 

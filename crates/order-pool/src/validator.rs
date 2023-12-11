@@ -9,6 +9,7 @@ use validation::order::OrderValidator;
 
 type ValidationFuture<L, CL, S, CS> =
     Pin<Box<dyn Future<Output = ValidationResults<L, CL, S, CS>> + Send + Sync>>;
+
 pub struct Validator<L, CL, S, CS, V>
 where
     L: PoolOrder,
@@ -38,7 +39,6 @@ where
         Self { validator, pending: FuturesUnordered::new() }
     }
 
-    #[allow(dead_code)]
     pub fn validate_order(&mut self, origin: OrderOrigin, order: L) {
         let val = self.validator.clone();
         self.pending.push(Box::pin(async move {
@@ -48,28 +48,13 @@ where
         }) as ValidationFuture<_, _, _, _>);
     }
 
-    #[allow(dead_code)]
-    pub fn validate_orders(&mut self, orders: Vec<(OrderOrigin, L)>) {
-        orders
-            .into_iter()
-            .for_each(|(origin, tx)| self.validate_order(origin, tx))
-    }
-
-    #[allow(dead_code)]
     pub fn validate_composable_order(&mut self, origin: OrderOrigin, order: CL) {
         let val = self.validator.clone();
         self.pending.push(Box::pin(async move {
             val.validate_composable_order(origin, order)
                 .map(|res| ValidationResults::ComposableLimit(res))
                 .await
-        }) as ValidationFuture<_, _, _, _>);
-    }
-
-    #[allow(dead_code)]
-    pub fn validate_composable_orders(&mut self, orders: Vec<(OrderOrigin, CL)>) {
-        orders
-            .into_iter()
-            .for_each(|(origin, tx)| self.validate_composable_order(origin, tx))
+        }));
     }
 
     pub fn validate_searcher_order(&mut self, origin: OrderOrigin, order: S) {
@@ -81,13 +66,6 @@ where
         }) as ValidationFuture<_, _, _, _>);
     }
 
-    #[allow(dead_code)]
-    pub fn validate_searcher_orders(&mut self, orders: Vec<(OrderOrigin, S)>) {
-        orders
-            .into_iter()
-            .for_each(|(origin, tx)| self.validate_searcher_order(origin, tx))
-    }
-
     pub fn validate_composable_searcher_order(&mut self, origin: OrderOrigin, order: CS) {
         let val = self.validator.clone();
         self.pending.push(Box::pin(async move {
@@ -95,13 +73,6 @@ where
                 .map(|res| ValidationResults::ComposableSearcher(res))
                 .await
         }) as ValidationFuture<_, _, _, _>);
-    }
-
-    #[allow(dead_code)]
-    pub fn validate_composable_searcher_orders(&mut self, orders: Vec<(OrderOrigin, CS)>) {
-        orders
-            .into_iter()
-            .for_each(|(origin, tx)| self.validate_composable_searcher_order(origin, tx))
     }
 }
 

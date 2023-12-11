@@ -174,7 +174,7 @@ impl PooledSearcherOrder for EcRecoveredSearcherOrder {
 }
 
 impl PoolOrder for EcRecoveredComposableSearcherOrder {
-    type ValidationData = ();
+    type ValidationData = SearcherPriorityData;
 
     fn token_out(&self) -> Address {
         todo!()
