@@ -4,9 +4,10 @@ use std::{
 };
 
 use futures::{Future, FutureExt, Stream, StreamExt};
-use guard_network::StromNetworkHandle;
+use guard_network::{manager::StromConsensusEvent, StromNetworkHandle};
 use guard_utils::PollExt;
 use order_pool::OrderPoolHandle;
+use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_provider::CanonStateNotifications;
 use reth_tasks::TaskSpawner;
 use tokio::sync::mpsc::{channel, Sender};
@@ -27,6 +28,8 @@ pub struct ConsensusManager<OrderPool, Validator> {
     subscribers:            Vec<Sender<ConsensusMessage>>,
     /// Used to trigger new consensus rounds
     canonical_block_stream: CanonStateNotifications,
+    /// events from the network,
+    strom_consensus_event:  UnboundedMeteredReceiver<StromConsensusEvent>,
 
     network: StromNetworkHandle,
 
@@ -39,18 +42,20 @@ where
     OrderPool: OrderPoolHandle,
     Validator: BundleValidator
 {
-    pub async fn new<TP: TaskSpawner>(
+    pub fn new<TP: TaskSpawner>(
         tp: TP,
         network: StromNetworkHandle,
         orderpool: OrderPool,
         validator: Validator,
-        canonical_block_stream: CanonStateNotifications
-    ) -> (ConsensusHandle, u64) {
+        canonical_block_stream: CanonStateNotifications,
+        strom_consensus_event: UnboundedMeteredReceiver<StromConsensusEvent>
+    ) -> ConsensusHandle {
         let (tx, rx) = channel(100);
         let stream = ReceiverStream::new(rx);
-        let (core, bn) = ConsensusCore::new().await;
+        let (core, _bn) = ConsensusCore::new();
 
         let this = Self {
+            strom_consensus_event,
             validator,
             core,
             subscribers: Vec::new(),
@@ -62,7 +67,7 @@ where
 
         tp.spawn_critical("consensus", this.boxed());
 
-        (ConsensusHandle { sender: tx }, bn)
+        ConsensusHandle { sender: tx }
     }
 
     fn on_command(&mut self, command: ConsensusCommand) {

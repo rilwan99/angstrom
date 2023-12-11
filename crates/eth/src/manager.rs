@@ -3,22 +3,21 @@ use std::task::{Context, Poll};
 use alloy_primitives::{Address, B256};
 use futures::Future;
 use futures_util::FutureExt;
-use guard_types::submission::SubmissionBundle;
 use reth_provider::{CanonStateNotification, CanonStateNotifications, StateProviderFactory};
 use reth_tasks::TaskSpawner;
-use tokio::sync::mpsc::{channel, Sender};
+use tokio::sync::mpsc::{channel, UnboundedSender};
 use tokio_stream::wrappers::ReceiverStream;
 
 use crate::handle::{EthCommand, EthHandle};
 
 /// Commands to send to the [`TransactionsManager`]
-#[derive(Debug)]
-#[allow(dead_code)]
-enum Command {
-    /// Submit a bundle to the [`TransactionsManager`]
-    RemoveFilledOrders(SubmissionBundle),
-    Subscribe(Sender<EthEvent>)
-}
+// #[derive(Debug)]
+// #[allow(dead_code)]
+// enum Command {
+//     /// Submit a bundle to the [`TransactionsManager`]
+//     RemoveFilledOrders(SubmissionBundle),
+//     Subscribe(Sender<EthEvent>)
+// }
 
 /// Listens for CanonStateNotifications and sends the appropriate updatdes to be
 /// executed by the order pool
@@ -27,7 +26,7 @@ pub struct EthDataCleanser<DB> {
     /// our command receiver
     commander:       ReceiverStream<EthCommand>,
     /// people listening to events
-    event_listeners: Vec<Sender<EthEvent>>,
+    event_listeners: Vec<UnboundedSender<EthEvent>>,
 
     /// Notifications for Canonical Block updates
     canonical_updates: CanonStateNotifications,

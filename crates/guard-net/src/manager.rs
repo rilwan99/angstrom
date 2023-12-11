@@ -64,6 +64,7 @@ impl<DB: Unpin> StromNetworkManager<DB> {
     // Handler for received messages from a handle
     fn on_handle_message(&mut self, msg: StromNetworkHandleMsg) {
         match msg {
+            StromNetworkHandleMsg::SubscribeEvents(tx) => self.event_listeners.push(tx),
             StromNetworkHandleMsg::SendOrders { peer_id, msg } => {
                 self.swarm.sessions_mut().send_message(&peer_id, msg)
             }

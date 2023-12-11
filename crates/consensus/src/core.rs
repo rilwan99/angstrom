@@ -11,7 +11,6 @@ use guard_types::{
     consensus::{Commit, EvidenceError, PreProposal, Proposal},
     submission::BestBundles
 };
-use reth_provider::CanonStateNotifications;
 use thiserror::Error;
 use tracing::error;
 
@@ -69,7 +68,7 @@ pub struct ConsensusCore {
 impl ConsensusCore {
     /// returns self but also returns the block that the round robin algo
     /// has historic state up until
-    pub async fn new() -> (Self, u64) {
+    pub fn new() -> (Self, u64) {
         todo!()
     }
 

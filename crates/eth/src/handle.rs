@@ -1,17 +1,21 @@
 use std::pin::Pin;
 
 use futures_util::Stream;
-use tokio::sync::mpsc::{channel, Sender};
-use tokio_stream::wrappers::ReceiverStream;
+use tokio::sync::mpsc::{unbounded_channel, Sender, UnboundedSender};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use crate::manager::EthEvent;
 
 pub trait Eth: Clone + Send + Sync {
-    fn subscribe_network(&self) -> Pin<Box<dyn Stream<Item = EthEvent>>>;
+    fn subscribe_network_stream(&self) -> Pin<Box<dyn Stream<Item = EthEvent> + Send>> {
+        Box::pin(self.subscribe_network())
+    }
+
+    fn subscribe_network(&self) -> UnboundedReceiverStream<EthEvent>;
 }
 
 pub enum EthCommand {
-    SubscribeEthNetworkEvents(Sender<EthEvent>)
+    SubscribeEthNetworkEvents(UnboundedSender<EthEvent>)
 }
 
 #[derive(Debug, Clone)]
@@ -26,12 +30,12 @@ impl EthHandle {
 }
 
 impl Eth for EthHandle {
-    fn subscribe_network(&self) -> Pin<Box<dyn Stream<Item = EthEvent>>> {
-        let (tx, rx) = channel(10);
+    fn subscribe_network(&self) -> UnboundedReceiverStream<EthEvent> {
+        let (tx, rx) = unbounded_channel();
         let _ = self
             .sender
             .try_send(EthCommand::SubscribeEthNetworkEvents(tx));
 
-        Box::pin(ReceiverStream::new(rx))
+        UnboundedReceiverStream::new(rx)
     }
 }
