@@ -70,7 +70,7 @@ pub enum NetworkOrderEvent {
 }
 
 #[derive(Debug)]
-pub(crate) enum StromNetworkHandleMsg {
+pub enum StromNetworkHandleMsg {
     /// Removes a peer from the peer set corresponding to the given kind.
     RemovePeer(PeerId),
     /// Disconnect a connection to a peer if it exists.

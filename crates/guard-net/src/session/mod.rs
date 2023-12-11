@@ -32,7 +32,6 @@ use crate::{errors::StromStreamError, PeerKind, StromMessage, StromProtocolMessa
 
 #[derive(Debug)]
 pub struct StromSessionManager {
-    counter:         SessionCounter,
     // All active sessions that are ready to exchange messages.
     active_sessions: HashMap<PeerId, StromSessionHandle>,
 
@@ -55,7 +54,6 @@ impl StromSessionManager {
     // Removes the Session handle if it exists.
     fn remove_session(&mut self, id: &PeerId) -> Option<StromSessionHandle> {
         let session = self.active_sessions.remove(id)?;
-        self.counter.dec_active(&session.direction);
         Some(session)
     }
 
@@ -81,7 +79,6 @@ impl StromSessionManager {
 
                         return None
                     }
-                    self.counter.inc_active(&handle.direction);
 
                     let event = SessionEvent::SessionEstablished {
                         peer_id:   handle.remote_id,

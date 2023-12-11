@@ -17,17 +17,11 @@ const SESSION_COMMAND_BUFFER: usize = 100;
 /// The protocol handler that is used to announce the strom capability upon
 /// successfully establishing a hello handshake on an incoming tcp connection.
 #[derive(Debug)]
-pub struct StromProtocolHandler<DB>
-where
-    DB: StateProvider + Debug + 'static
-{
+pub struct StromProtocolHandler {
     /// When a new connection is created, the conection handler will use
     /// this channel to send the sender half of the sessions command channel to
     /// the manager via the `Established` event.
     pub to_session_manager: MeteredPollSender<StromSessionMessage>,
-    /// State provider to determine if the pub key is an staked validator with
-    /// sufficient balance
-    pub state:              DB,
     /// Protocol Sessions Config
     pub config:             SessionsConfig,
     /// Network Handle
@@ -38,10 +32,7 @@ where
     pub validators:         Arc<RwLock<HashSet<PeerId>>>
 }
 
-impl<DB> ProtocolHandler for StromProtocolHandler<DB>
-where
-    DB: StateProvider + Debug + 'static
-{
+impl ProtocolHandler for StromProtocolHandler {
     type ConnectionHandler = StromConnectionHandler;
 
     fn on_incoming(&self, socket_addr: SocketAddr) -> Option<Self::ConnectionHandler> {
@@ -73,10 +64,7 @@ where
     }
 }
 
-impl<DB> StromProtocolHandler<DB>
-where
-    DB: StateProvider + Debug + 'static
-{
+impl StromProtocolHandler {
     /* TODO: Implement the builder pattern for the network + protocol components
     pub fn new(network: StromNetworkHandle, state: DB) -> Self {
         let (to_session_manager, from_session_manager) =

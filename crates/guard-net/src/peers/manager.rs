@@ -13,53 +13,53 @@ use tracing::trace;
 pub use super::reputation::ReputationChangeWeights;
 use super::reputation::{is_banned_reputation, ReputationChangeKind, DEFAULT_REPUTATION};
 
-/// A communication channel to the [`PeersManager`] to apply manual changes to
-/// the peer set.
-#[derive(Clone, Debug)]
-pub struct PeersHandle {
-    /// Sender half of command channel back to the [`PeersManager`]
-    manager_tx: mpsc::UnboundedSender<PeerCommand>
-}
-
-// === impl PeersHandle ===
-
-impl PeersHandle {
-    fn send(&self, cmd: PeerCommand) {
-        let _ = self.manager_tx.send(cmd);
-    }
-
-    /// Adds a peer to the set.
-    pub fn add_peer(&self, peer_id: PeerId) {
-        self.send(PeerCommand::Add(peer_id));
-    }
-
-    /// Removes a peer from the set.
-    pub fn remove_peer(&self, peer_id: PeerId) {
-        self.send(PeerCommand::Remove(peer_id));
-    }
-
-    /// Send a reputation change for the given peer.
-    pub fn reputation_change(&self, peer_id: PeerId, kind: ReputationChangeKind) {
-        self.send(PeerCommand::ReputationChange(peer_id, kind));
-    }
-
-    /// Returns a peer by its [`PeerId`], or `None` if the peer is not in the
-    /// peer set.
-    pub async fn peer_by_id(&self, peer_id: PeerId) -> Option<Peer> {
-        let (tx, rx) = oneshot::channel();
-        self.send(PeerCommand::GetPeer(peer_id, tx));
-
-        rx.await.unwrap_or(None)
-    }
-
-    /// Returns all peers in the peerset.
-    pub async fn all_peers(&self) -> Vec<NodeRecord> {
-        let (tx, rx) = oneshot::channel();
-        self.send(PeerCommand::GetPeers(tx));
-
-        rx.await.unwrap_or_default()
-    }
-}
+// /// A communication channel to the [`PeersManager`] to apply manual changes
+// to /// the peer set.
+// #[derive(Clone, Debug)]
+// pub struct PeersHandle {
+//     /// Sender half of command channel back to the [`PeersManager`]
+//     manager_tx: mpsc::UnboundedSender<PeerCommand>
+// }
+//
+// // === impl PeersHandle ===
+//
+// impl PeersHandle {
+//     fn send(&self, cmd: PeerCommand) {
+//         let _ = self.manager_tx.send(cmd);
+//     }
+//
+//     /// Adds a peer to the set.
+//     pub fn add_peer(&self, peer_id: PeerId) {
+//         self.send(PeerCommand::Add(peer_id));
+//     }
+//
+//     /// Removes a peer from the set.
+//     pub fn remove_peer(&self, peer_id: PeerId) {
+//         self.send(PeerCommand::Remove(peer_id));
+//     }
+//
+//     /// Send a reputation change for the given peer.
+//     pub fn reputation_change(&self, peer_id: PeerId, kind:
+// ReputationChangeKind) {         self.
+// send(PeerCommand::ReputationChange(peer_id, kind));     }
+//
+//     /// Returns a peer by its [`PeerId`], or `None` if the peer is not in the
+//     /// peer set.
+//     pub async fn peer_by_id(&self, peer_id: PeerId) -> Option<Peer> {
+//         let (tx, rx) = oneshot::channel();
+//         self.send(PeerCommand::GetPeer(peer_id, tx));
+//
+//         rx.await.unwrap_or(None)
+//     }
+//
+//     /// Returns all peers in the peerset.
+//     pub async fn all_peers(&self) -> Vec<NodeRecord> {
+//         let (tx, rx) = oneshot::channel();
+//         self.send(PeerCommand::GetPeers(tx));
+//
+//         rx.await.unwrap_or_default()
+//     }
+// }
 
 /// Maintains the state of _all_ the peers known to the network.
 ///
@@ -72,11 +72,6 @@ impl PeersHandle {
 pub struct PeersManager {
     /// All peers known to the network
     peers:              HashMap<PeerId, Peer>,
-    /// Copy of the sender half, so new [`PeersHandle`] can be created on
-    /// demand.
-    manager_tx:         mpsc::UnboundedSender<PeerCommand>,
-    /// Receiver half of the command channel.
-    handle_rx:          UnboundedReceiverStream<PeerCommand>,
     /// Buffered actions until the manager is polled.
     queued_actions:     VecDeque<PeerAction>,
     /// How to weigh reputation changes
@@ -84,15 +79,20 @@ pub struct PeersManager {
     /// Tracks unwanted ips/peer ids.
     ban_list:           BanList,
     /// How long to ban bad peers.
-    ban_duration:       Duration,
-    /// Timestamp of the last time [Self::tick] was called.
-    last_tick:          Instant,
-    /// Maximum number of backoff attempts before we give up on a peer and
-    /// dropping.
-    max_backoff_count:  u32
+    ban_duration:       Duration
 }
 
 impl PeersManager {
+    pub fn new() -> Self {
+        Self {
+            peers:              HashMap::new(),
+            queued_actions:     VecDeque::new(),
+            reputation_weights: ReputationChangeWeights::default(),
+            ban_list:           BanList::default(),
+            ban_duration:       Duration::from_secs(60 * 60 * 24 * 365)
+        }
+    }
+
     /// Removes the tracked node from the set.
     pub fn remove_peer(&mut self, peer_id: PeerId) {
         let Entry::Occupied(entry) = self.peers.entry(peer_id) else { return };

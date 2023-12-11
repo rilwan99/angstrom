@@ -2,10 +2,47 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use reth_metrics::common::mpsc::UnboundedMeteredSender;
 use reth_primitives::{alloy_primitives::FixedBytes, keccak256, BufMut, BytesMut, Chain, PeerId};
+use reth_tasks::TaskSpawner;
 use secp256k1::{Message, SecretKey};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
-use crate::{types::status::StatusState, Status};
+use crate::{
+    manager::StromConsensusEvent, types::status::StatusState, NetworkOrderEvent, Status,
+    StromNetworkHandle, StromNetworkHandleMsg, StromProtocolHandler, StromSessionMessage
+};
+
+pub struct NetworkBuilder<DB> {
+    to_pool_manager:      Option<UnboundedMeteredSender<NetworkOrderEvent>>,
+    to_consensus_manager: Option<UnboundedMeteredSender<StromConsensusEvent>>,
+    from_handle_rx:       UnboundedReceiverStream<StromNetworkHandleMsg>,
+    handle:               StromNetworkHandle,
+    db:                   DB,
+    session_recv:         tokio::sync::mpsc::Receiver<StromSessionMessage>
+}
+
+impl<DB> NetworkBuilder<DB> {
+    pub fn new(
+        from_handle_rx: UnboundedReceiverStream<StromNetworkHandleMsg>,
+        handle: StromNetworkHandle,
+        db: DB,
+        session_recv: tokio::sync::mpsc::Receiver<StromSessionMessage>
+    ) -> Self {
+        Self {
+            to_pool_manager: None,
+            to_consensus_manager: None,
+            from_handle_rx,
+            handle,
+            db,
+            session_recv
+        }
+    }
+
+    pub fn build<TP: TaskSpawner>(self, tp: TP) -> (StromProtocolHandler, StromNetworkHandle) {
+        todo!()
+    }
+}
 
 /// Builder for [`Status`] messages.
 #[derive(Debug)]
