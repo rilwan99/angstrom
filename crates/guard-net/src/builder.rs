@@ -49,6 +49,19 @@ impl<DB: Send + Unpin + 'static> NetworkBuilder<DB> {
         }
     }
 
+    pub fn with_consensus_manager(
+        mut self,
+        tx: UnboundedMeteredSender<StromConsensusEvent>
+    ) -> Self {
+        self.to_consensus_manager = Some(tx);
+        self
+    }
+
+    pub fn with_pool_manager(mut self, tx: UnboundedMeteredSender<NetworkOrderEvent>) -> Self {
+        self.to_pool_manager = Some(tx);
+        self
+    }
+
     /// builds the network spawning it on its own thread, returning the
     /// communication channel along with returning the protocol it
     /// represents.
