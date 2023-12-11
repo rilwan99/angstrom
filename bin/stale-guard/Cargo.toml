@@ -20,8 +20,13 @@ normal = [
 reth.workspace = true
 guard-rpc.workspace = true
 guard-types.workspace = true
+guard-eth.workspace = true
 order-pool.workspace = true
 guard-network.workspace = true
+tokio.workspace = true
+tokio-util.workspace = true
+reth-metrics.workspace = true
+secp256k1 = { workspace = true, features = ["serde"] }
 
 
 clap = "4.4.8"

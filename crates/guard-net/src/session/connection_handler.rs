@@ -11,8 +11,8 @@ use reth_network::{
     protocol::{ConnectionHandler, OnNotSupported},
     Direction
 };
-use reth_primitives::PeerId;
-use secp256k1::SecretKey;
+use reth_primitives::{Address, PeerId};
+use secp256k1::{PublicKey, SecretKey};
 use tokio::{
     sync::mpsc,
     time::{Duration, Instant}
@@ -56,7 +56,7 @@ pub struct StromConnectionHandler {
     pub session_command_buffer: usize,
     pub socket_addr: SocketAddr,
     pub side_car: VerificationSidecar,
-    pub validator_set: HashSet<PeerId>
+    pub validator_set: HashSet<Address>
 }
 
 impl ConnectionHandler for StromConnectionHandler {
@@ -82,7 +82,12 @@ impl ConnectionHandler for StromConnectionHandler {
         peer_id: PeerId,
         conn: ProtocolConnection
     ) -> Self::Connection {
-        if !self.validator_set.contains(&peer_id) {
+        if !self
+            .validator_set
+            .contains(&reth_primitives::public_key_to_address(
+                PublicKey::from_slice(&peer_id.0).unwrap()
+            ))
+        {
             return PossibleStromSession::Invalid(futures::stream::empty())
         }
 

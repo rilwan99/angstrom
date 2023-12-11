@@ -3,7 +3,7 @@ use std::{collections::HashSet, sync::Arc, task::Context};
 use alloy_sol_macro::sol;
 use parking_lot::RwLock;
 use reth_network::DisconnectReason;
-use reth_primitives::PeerId;
+use reth_primitives::{Address, PeerId};
 
 use crate::PeersManager;
 
@@ -17,11 +17,11 @@ pub struct StromState<DB> {
 
     db:           DB,
     active_peers: HashSet<PeerId>,
-    validators:   Arc<RwLock<HashSet<PeerId>>>
+    validators:   Arc<RwLock<HashSet<Address>>>
 }
 
 impl<DB> StromState<DB> {
-    pub fn new(db: DB, validators: Arc<RwLock<HashSet<PeerId>>>) -> Self {
+    pub fn new(db: DB, validators: Arc<RwLock<HashSet<Address>>>) -> Self {
         Self { peers_manager: PeersManager::new(), db, validators, active_peers: HashSet::new() }
     }
 

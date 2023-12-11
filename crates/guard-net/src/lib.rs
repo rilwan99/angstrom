@@ -4,7 +4,7 @@
 pub mod errors;
 
 pub mod types;
-use types::*;
+pub use types::*;
 
 pub mod state;
 

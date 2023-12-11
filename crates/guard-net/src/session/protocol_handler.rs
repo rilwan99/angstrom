@@ -3,7 +3,7 @@ use std::{collections::HashSet, fmt::Debug, net::SocketAddr, sync::Arc};
 use parking_lot::RwLock;
 use reth_metrics::common::mpsc::MeteredPollSender;
 use reth_network::protocol::ProtocolHandler;
-use reth_primitives::PeerId;
+use reth_primitives::{Address, PeerId};
 use reth_provider::StateProvider;
 use secp256k1::SecretKey;
 use tokio::{sync::mpsc::UnboundedReceiver, time::Duration};
@@ -25,7 +25,7 @@ pub struct StromProtocolHandler {
     /// details for verifying status messages
     sidecar:            VerificationSidecar,
     // the set of current validators
-    validators:         Arc<RwLock<HashSet<PeerId>>>
+    validators:         Arc<RwLock<HashSet<Address>>>
 }
 
 impl ProtocolHandler for StromProtocolHandler {
@@ -64,7 +64,7 @@ impl StromProtocolHandler {
     pub fn new(
         to_session_manager: MeteredPollSender<StromSessionMessage>,
         sidecar: VerificationSidecar,
-        validators: Arc<RwLock<HashSet<PeerId>>>
+        validators: Arc<RwLock<HashSet<Address>>>
     ) -> Self {
         Self { to_session_manager, validators, sidecar }
     }

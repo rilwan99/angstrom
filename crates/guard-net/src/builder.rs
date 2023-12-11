@@ -9,7 +9,9 @@ use std::{
 use futures::FutureExt;
 use parking_lot::RwLock;
 use reth_metrics::common::mpsc::{MeteredPollSender, UnboundedMeteredSender};
-use reth_primitives::{alloy_primitives::FixedBytes, keccak256, BufMut, BytesMut, Chain, PeerId};
+use reth_primitives::{
+    alloy_primitives::FixedBytes, keccak256, Address, BufMut, BytesMut, Chain, PeerId
+};
 use reth_tasks::TaskSpawner;
 use secp256k1::{Message, SecretKey};
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -24,26 +26,17 @@ use crate::{
 pub struct NetworkBuilder<DB> {
     to_pool_manager:      Option<UnboundedMeteredSender<NetworkOrderEvent>>,
     to_consensus_manager: Option<UnboundedMeteredSender<StromConsensusEvent>>,
-    from_handle_rx:       UnboundedReceiverStream<StromNetworkHandleMsg>,
-    handle:               StromNetworkHandle,
     db:                   DB,
-    validator_set:        Arc<RwLock<HashSet<PeerId>>>,
+    validator_set:        Arc<RwLock<HashSet<Address>>>,
     verification:         VerificationSidecar
 }
 
 impl<DB: Send + Unpin + 'static> NetworkBuilder<DB> {
-    pub fn new(
-        from_handle_rx: UnboundedReceiverStream<StromNetworkHandleMsg>,
-        handle: StromNetworkHandle,
-        db: DB,
-        verification: VerificationSidecar
-    ) -> Self {
+    pub fn new(db: DB, verification: VerificationSidecar) -> Self {
         Self {
             verification,
             to_pool_manager: None,
             to_consensus_manager: None,
-            from_handle_rx,
-            handle,
             db,
             validator_set: Default::default()
         }
@@ -62,7 +55,7 @@ impl<DB: Send + Unpin + 'static> NetworkBuilder<DB> {
         self
     }
 
-    pub fn with_validator_set(mut self, validator_set: Arc<RwLock<HashSet<PeerId>>>) -> Self {
+    pub fn with_validator_set(mut self, validator_set: Arc<RwLock<HashSet<Address>>>) -> Self {
         self.validator_set = validator_set;
         self
     }
