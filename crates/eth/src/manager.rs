@@ -23,7 +23,7 @@ enum Command {
 /// Listens for CanonStateNotifications and sends the appropriate updatdes to be
 /// executed by the order pool
 #[allow(dead_code)]
-pub struct OrderPoolMaintainer<DB> {
+pub struct EthDataCleanser<DB> {
     /// our command receiver
     commander:       ReceiverStream<EthCommand>,
     /// people listening to events
@@ -35,7 +35,7 @@ pub struct OrderPoolMaintainer<DB> {
     db:                DB
 }
 
-impl<DB> OrderPoolMaintainer<DB>
+impl<DB> EthDataCleanser<DB>
 where
     DB: StateProviderFactory + Send + Sync + Unpin + 'static
 {
@@ -64,7 +64,7 @@ where
     }
 }
 
-impl<DB> Future for OrderPoolMaintainer<DB>
+impl<DB> Future for EthDataCleanser<DB>
 where
     DB: StateProviderFactory + Send + Sync + Unpin + 'static
 {

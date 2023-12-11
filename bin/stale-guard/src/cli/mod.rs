@@ -2,6 +2,7 @@
 use std::path::Path;
 
 use clap::Parser;
+use guard_eth::manager::EthDataCleanser;
 use guard_network::{NetworkBuilder, StatusState, StromNetworkHandle, VerificationSidecar};
 use guard_rpc::{
     api::{ConsensusApiServer, OrderApiServer, QuotingApiServer},
@@ -15,7 +16,8 @@ use reth::{
         ext::{RethCliExt, RethNodeCommandConfig},
         Cli
     },
-    primitives::{Chain, PeerId}
+    primitives::{Chain, PeerId},
+    providers::CanonStateSubscriptions
 };
 
 /// Convenience function for parsing CLI options, set up logging and run the
@@ -68,6 +70,11 @@ impl RethNodeCommandConfig for StaleGuardConfig {
             peer:      PeerId::default(),
             timestamp: 0
         };
+        let eth_handle = EthDataCleanser::new(
+            components.events().subscribe_to_canonical_state(),
+            components.provider(),
+            components.task_executor()
+        );
 
         let verification =
             VerificationSidecar { status: state, has_sent: false, has_received: false, secret_key };
