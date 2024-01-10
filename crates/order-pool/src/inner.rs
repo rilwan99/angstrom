@@ -321,14 +321,20 @@ where
                     OrderLocation::VanillaSearcher => self
                         .searcher_pool
                         .remove_searcher_order(&order_id)
-                        .inspect_err(|e| error!("{e:?}"))
+                        .map_err(|e| {
+                            error!("{e:?}");
+                            e
+                        })
                         .ok()
                         .map(|o| o.order)
                         .map(Order::add_searcher),
                     OrderLocation::ComposableSearcher => self
                         .searcher_pool
                         .remove_composable_searcher_order(&order_id)
-                        .inspect_err(|e| error!("{e:?}"))
+                        .map_err(|e| {
+                            error!("{e:?}");
+                            e
+                        })
                         .ok()
                         .map(|o| o.order)
                         .map(Order::add_composable_searcher)
