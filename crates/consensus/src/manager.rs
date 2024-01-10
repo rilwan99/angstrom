@@ -94,7 +94,10 @@ where
 
             if let Poll::Ready(msg) = self.core.poll_next_unpin(cx).filter_map(|item| {
                 item.transpose()
-                    .inspect_err(|e| warn!(?e, "consensus error"))
+                    .map_err(|e| {
+                        warn!(?e, "consensus error");
+                        e
+                    })
                     .ok()
                     .flatten()
             }) {
