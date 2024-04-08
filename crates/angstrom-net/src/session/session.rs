@@ -6,11 +6,11 @@ use std::{
 };
 
 use alloy_rlp::Encodable;
+use angstrom_utils::{GenericExt, PollFlatten};
 use futures::{
     task::{Context, Poll},
     Stream, StreamExt
 };
-use guard_utils::{GenericExt, PollFlatten};
 use reth_eth_wire::multiplex::ProtocolConnection;
 use reth_metrics::common::mpsc::MeteredPollSender;
 use reth_network_api::Direction;
@@ -166,8 +166,6 @@ impl StromSession {
                     })
                     .unwrap_or(StromSessionMessage::BadMessage { peer_id: self.remote_peer_id })
                 );
-
-                ()
             })
             .ok_or_else(|| self.emit_disconnect(cx))
         }) {

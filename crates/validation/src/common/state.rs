@@ -9,7 +9,7 @@ use ethers_core::types::{transaction::eip2718::TypedTransaction, I256, U256 as E
 use eyre::Result;
 use reth_primitives::revm_primitives::{Bytecode, ExecutionResult, TransactTo, TxEnv};
 use reth_provider::StateProviderFactory;
-use reth_revm::{DatabaseRef, EVM};
+use reth_revm::{DatabaseRef, EvmBuilder};
 
 use crate::{
     bundle::{
@@ -53,7 +53,7 @@ where
         let mut prehook_env = TxEnv::default();
         let (prehook_addr, pre_hook_calldata) = txes.pre_hook();
         prehook_env.data = pre_hook_calldata;
-        prehook_env.transact_to = TransactTo::Call(prehook_addr.into());
+        prehook_env.transact_to = TransactTo::Call(prehook_addr);
 
         let (res, mut pre_slots) = self.simulate_single_tx(prehook_env, HashMap::default())?;
         let pre_hook_gas = match res {
@@ -64,7 +64,7 @@ where
         let mut post_env = TxEnv::default();
         let (posthook_addr, posthook_calldata) = txes.post_hook();
         post_env.data = posthook_calldata;
-        post_env.transact_to = TransactTo::Call(posthook_addr.into());
+        post_env.transact_to = TransactTo::Call(posthook_addr);
 
         let out_token_override = overrides.get(&txes.amount_out_token).unwrap();
 
@@ -75,7 +75,7 @@ where
 
         let mut slot_map = HashMap::default();
         slot_map.insert(*out_token_override, current_bal + U256::from(txes.amount_out_lim));
-        overrides.insert(posthook_addr.into(), slot_map);
+        overrides.insert(posthook_addr, slot_map);
 
         let (res, post_slots) = self.simulate_single_tx(post_env, overrides)?;
 
@@ -85,7 +85,7 @@ where
         };
         pre_slots.extend(post_slots);
 
-        return Ok((
+        Ok((
             SimResult::ExecutionResult(BundleOrTransactionResult::HookSimResult {
                 tx: txes.tx,
                 pre_hook_gas,
@@ -101,16 +101,19 @@ where
         contract_overrides: HashMap<Address, Bytecode>
     ) -> Result<SimResult, SimError> {
         let mut env = TxEnv::default();
-        env.data = Bytes::copy_from_slice(&*tx.data().cloned().unwrap());
+        env.data = Bytes::copy_from_slice(&tx.data().cloned().unwrap());
 
         env.transact_to = TransactTo::Call((tx.to_addr().unwrap().0).into());
         let mut db = self.db.clone();
         db.set_bytecode_overrides(contract_overrides);
-        let mut evm = EVM::default();
-        evm.database(db);
+
+        let mut evm = EvmBuilder::default()
+            .with_db(db)
+            .with_tx_env(env.clone())
+            .build();
 
         let res = evm
-            .transact_ref()
+            .transact()
             .map_err(|_| SimError::RevmEVMTransactionError(env.clone()))?;
 
         let (delta, gas) = match res.result {
@@ -136,17 +139,17 @@ where
         let mut evm_db = self.db.clone();
         evm_db.set_state_overrides(caller_info.overrides);
 
-        let mut evm = EVM::new();
-        evm.database(evm_db);
-
         let mut tx_env: TxEnv = bundle.clone().into();
         tx_env.caller = caller_info.address;
         tx_env.nonce = Some(caller_info.nonce);
 
-        evm.env.tx = tx_env.clone();
+        let mut evm = EvmBuilder::default()
+            .with_db(evm_db)
+            .with_tx_env(tx_env.clone())
+            .build();
 
         let _state_change = evm
-            .transact_ref()
+            .transact()
             .map_err(|_| SimError::RevmEVMTransactionError(tx_env.clone()))?;
 
         let result = SimResult::ExecutionResult(BundleOrTransactionResult::Bundle(bundle));
@@ -163,17 +166,17 @@ where
         let mut evm_db = self.db.clone();
         evm_db.set_state_overrides(caller_info.overrides);
 
-        let mut evm = EVM::new();
-        evm.database(evm_db);
-
         let mut tx_env: TxEnv = bundle.clone().into();
         tx_env.caller = caller_info.address;
         tx_env.nonce = Some(caller_info.nonce);
 
-        evm.env.tx = tx_env.clone();
+        let mut evm = EvmBuilder::default()
+            .with_db(evm_db)
+            .with_tx_env(tx_env.clone())
+            .build();
 
         let _state_change = evm
-            .transact_ref()
+            .transact()
             .map_err(|_| SimError::RevmEVMTransactionError(tx_env.clone()))?;
 
         let result = SimResult::ExecutionResult(BundleOrTransactionResult::MevBundle(bundle));
@@ -190,18 +193,19 @@ where
         let mut evm_db = self.db.clone();
         evm_db.set_state_overrides(overrides);
 
-        let mut evm = EVM::new();
-        evm.database(evm_db);
-        evm.env.tx = tx_env;
+        let mut evm = EvmBuilder::default()
+            .with_db(evm_db)
+            .with_tx_env(tx_env)
+            .build();
 
-        let tx = evm.env.tx.clone();
+        let tx = evm.tx().clone();
         let _ = match tx.transact_to {
             TransactTo::Call(a) => a,
-            TransactTo::Create(_) => return Err(SimError::CallInsteadOfCreateError(tx))
+            TransactTo::Create(_) => return Err(SimError::CallInsteadOfCreateError(tx.clone()))
         };
 
         let result = evm
-            .transact_ref()
+            .transact()
             .map_err(|_| SimError::RevmEVMTransactionError(tx.clone()))?;
 
         let slots = result.state;

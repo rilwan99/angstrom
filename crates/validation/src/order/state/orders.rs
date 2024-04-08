@@ -9,18 +9,32 @@ use angstrom_types::orders::{
 
 use super::upkeepers::UserAccountDetails;
 
+type Amount = U256;
+type OrderNonce = U256;
+type UserAddress = Address;
+
 /// the sum of all pending orders for a given user. This is done
 /// so that validation of specific orders is not dependant on all other orders.
 #[allow(dead_code)]
 #[derive(Debug, Default)]
 pub struct PendingState {
-    token_balances:  HashMap<Address, U256>,
-    token_approvals: HashMap<Address, U256>
+    token_balances:  HashMap<Address, Amount>,
+    token_approvals: HashMap<Address, Amount>
 }
 
-pub struct UserOrders(HashMap<Address, (PendingState, Vec<U256>)>);
+pub struct UserOrders(HashMap<UserAddress, (PendingState, Vec<OrderNonce>)>);
+
+impl Default for UserOrders {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl UserOrders {
+    pub fn new() -> Self {
+        Self(HashMap::new())
+    }
+
     pub fn new_searcher_order<O: PooledSearcherOrder<ValidationData = SearcherPriorityData>>(
         &mut self,
         order: O,
@@ -43,6 +57,24 @@ impl UserOrders {
             volume: order.limit_price() * order.amount_out_min(),
             gas:    order.gas()
         })
+    }
+
+    pub fn new_composable_limit_order<O: PooledLimitOrder<ValidationData = OrderPriorityData>>(
+        &mut self,
+        order: O,
+        deltas: UserAccountDetails
+    ) -> (OrderValidationOutcome<O>, HashMap<Address, HashMap<U256, U256>>) {
+        todo!()
+    }
+
+    pub fn new_composable_searcher_order<
+        O: PooledSearcherOrder<ValidationData = SearcherPriorityData>
+    >(
+        &mut self,
+        order: O,
+        deltas: UserAccountDetails
+    ) -> (OrderValidationOutcome<O>, HashMap<Address, HashMap<U256, U256>>) {
+        todo!()
     }
 
     /// called when a user has a state change on their address. When this
@@ -77,7 +109,7 @@ impl UserOrders {
                 ValidationError::StateValidationError(StateValidationError::InvalidNonce(
                     hash, nonce
                 ))
-            );
+            )
         }
 
         let user = order.from();
@@ -101,8 +133,7 @@ impl UserOrders {
 
         // subtract token in from approval
         if let Some(token) = pending_state.token_approvals.get_mut(&order.token_in()) {
-            if token
-                .clone()
+            if (*token)
                 .checked_sub(U256::from(order.amount_in()))
                 .is_none()
             {
@@ -117,8 +148,7 @@ impl UserOrders {
         // if approvals passed check balances
         if has_balances {
             if let Some(token) = pending_state.token_balances.get_mut(&order.token_in()) {
-                if token
-                    .clone()
+                if (*token)
                     .checked_sub(U256::from(order.amount_in()))
                     .is_none()
                 {

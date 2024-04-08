@@ -2,7 +2,7 @@ use std::{pin::Pin, sync::Arc, task::Poll};
 
 use angstrom_eth::manager::EthEvent;
 use futures::{Stream, StreamExt};
-use futures_util::Future;
+use futures_util::{Future, FutureExt};
 use reth_provider::StateProviderFactory;
 use reth_revm::db::BundleState;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
@@ -23,19 +23,19 @@ pub struct ValidationClient(pub(crate) UnboundedSender<ValidationRequest>);
 
 /// HeadModule that deals with all validation
 #[allow(dead_code)]
-pub struct Validator<DB> {
+pub struct Validator<'a, DB> {
     rx:               UnboundedReceiver<ValidationRequest>,
     /// used to update state
     new_block_stream: Pin<Box<dyn Stream<Item = EthEvent> + Send>>,
     db:               Arc<RevmLRU<DB>>,
 
-    order_validator:  OrderValidator<DB>,
+    order_validator:  OrderValidator<'a, DB>,
     bundle_validator: BundleValidator
 }
 
-impl<DB> Validator<DB>
+impl<DB> Validator<'_, DB>
 where
-    DB: StateProviderFactory + Unpin + 'static
+    DB: StateProviderFactory + Clone + Unpin + 'static
 {
     fn new_block(&mut self, state: BundleState) {
         // TODO: update the db + deal with reseting the validation;
@@ -51,9 +51,9 @@ where
     }
 }
 
-impl<DB> Future for Validator<DB>
+impl<DB> Future for Validator<'_, DB>
 where
-    DB: StateProviderFactory + Unpin + 'static
+    DB: StateProviderFactory + Clone + Unpin + 'static
 {
     type Output = ();
 
@@ -65,6 +65,6 @@ where
             self.on_new_validation_request(req);
         }
 
-        Poll::Pending
+        self.order_validator.poll_unpin(cx)
     }
 }
