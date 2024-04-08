@@ -6,7 +6,7 @@ use std::{
 };
 
 use futures::{Future, Stream};
-use guard_types::{
+use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
     submission::BestBundles
 };

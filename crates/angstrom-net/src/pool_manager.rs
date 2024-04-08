@@ -9,7 +9,7 @@ use std::{
 
 use futures::{future::BoxFuture, stream::FuturesUnordered, Future, StreamExt};
 use guard_eth::manager::EthEvent;
-use guard_types::{
+use angstrom_types::{
     orders::{
         OrderConversion, OrderOrigin, OrderPriorityData, PoolOrder, PooledComposableOrder,
         PooledLimitOrder, PooledOrder, PooledSearcherOrder, SearcherPriorityData

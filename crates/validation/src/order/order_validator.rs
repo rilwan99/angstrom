@@ -1,7 +1,9 @@
 use std::task::Poll;
 
+use angstrom_types::orders::{
+    OrderValidationOutcome, PoolOrder, ValidatedOrder, ValidationResults
+};
 use futures::{Future, StreamExt};
-use guard_types::orders::{OrderValidationOutcome, PoolOrder, ValidatedOrder, ValidationResults};
 use reth_provider::StateProviderFactory;
 
 use super::{sim::SimValidation, state::StateValidation, OrderValidationRequest};

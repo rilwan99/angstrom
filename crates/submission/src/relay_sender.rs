@@ -10,7 +10,7 @@ use ethers_middleware::SignerMiddleware;
 use ethers_providers::Middleware;
 use ethers_signers::{LocalWallet, Signer};
 use futures::{Future, FutureExt};
-use guard_types::submission::SubmissionBundle;
+use angstrom_types::submission::SubmissionBundle;
 use tokio::sync::{mpsc, mpsc::UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 type StakedWallet = LocalWallet;

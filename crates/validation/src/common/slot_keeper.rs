@@ -7,7 +7,7 @@ use std::{
 use alloy_sol_types::SolCall;
 use futures::Future;
 use futures_util::FutureExt;
-use guard_types::primitive::ERC20;
+use angstrom_types::primitive::ERC20;
 use reth_primitives::revm_primitives::{Address, ExecutionResult, TransactTo, TxEnv, U256};
 use reth_provider::StateProviderFactory;
 use reth_revm::{new, EVM};

@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use errors::{SimError, SimResult};
 use ethers_core::types::{transaction::eip2718::TypedTransaction, I256, U256};
-use guard_types::{
+use angstrom_types::{
     primitive::{Angstrom::Bundle, ExternalStateSim},
     rpc::{CallerInfo, SignedLimitOrder}
 };
