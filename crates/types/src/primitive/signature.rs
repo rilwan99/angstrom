@@ -5,10 +5,9 @@ use std::{
 
 use alloy_primitives::{Address, FixedBytes, U256};
 use alloy_rlp::{Decodable, Encodable, Error};
-use reth_primitives::{PeerId, Signature as ESignature};
+use reth_primitives::{pk2id, PeerId, Signature as ESignature};
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
-    ffi::CPtr,
     Message, SECP256K1
 };
 use serde::{Deserialize, Serialize};
@@ -35,9 +34,7 @@ impl Signature {
         )?;
 
         let public = SECP256K1.recover_ecdsa(&Message::from_slice(&message[..32])?, &sig)?;
-        let public_bytes = unsafe { public.as_c_ptr().as_ref().unwrap().underlying_bytes() };
-
-        Ok(PeerId::from(public_bytes))
+        Ok(pk2id(&public))
     }
 }
 
@@ -59,7 +56,7 @@ impl Encodable for Signature {
 }
 impl Decodable for Signature {
     fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
-        let sig = ESignature::decode(buf).unwrap();
+        let sig = ESignature::decode(buf)?;
         Ok(Signature(sig))
     }
 }
@@ -102,14 +99,7 @@ mod tests {
         let mut rng = thread_rng();
         let secp = secp256k1::Secp256k1::new();
         let secret_key = SecretKey::new(&mut rng);
-        let pub_key = unsafe {
-            secret_key
-                .public_key(&secp)
-                .as_c_ptr()
-                .as_ref()
-                .unwrap()
-                .underlying_bytes()
-        };
+        let pub_key = pk2id(&secret_key.public_key(&secp));
 
         let sig = Signature(
             reth_primitives::sign_message(FixedBytes(secret_key.secret_bytes()), message).unwrap()

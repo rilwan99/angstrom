@@ -195,61 +195,29 @@ sol! {
 
 impl Encodable for Angstrom::PoolKey {
     fn encode(&self, out: &mut dyn bytes::BufMut) {
-        Header { list: true, payload_length: 69 }.encode(out);
+        Header { list: false, payload_length: 68 }.encode(out);
 
         self.currency0.encode(out);
         self.currency1.encode(out);
         self.fee.encode(out);
 
-        if self.tickSpacing.is_negative() {
-            1_u8.encode(out);
-            let spacing = (!self.tickSpacing).overflowing_add(1).0 as u32;
-            spacing.encode(out);
-        } else {
-            0_u8.encode(out);
-            (self.tickSpacing as u32).encode(out);
-        }
-
+        let tick_spacing = self.tickSpacing.to_be_bytes();
+        tick_spacing.encode(out);
         self.hooks.encode(out);
-    }
-
-    fn length(&self) -> usize {
-        let payload_length = 69;
-        payload_length + length_of_length(payload_length)
     }
 }
 
 impl Decodable for Angstrom::PoolKey {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
-        let Header { list, payload_length } = Header::decode(buf)?;
-
-        if !list {
-            return Err(Error::UnexpectedString)
-        }
-
-        let started_len = buf.len();
-        if started_len < payload_length {
-            return Err(Error::InputTooShort)
-        }
+        let _ = Header::decode(buf)?;
 
         let cur_0 = Address::decode(buf)?;
         let cur_1 = Address::decode(buf)?;
         let fee = u32::decode(buf)?;
+        let spacing: [u8; 4] = Decodable::decode(buf)?;
+        let tick_spacing = i32::from_be_bytes(spacing);
 
-        let is_neg: bool = Decodable::decode(buf)?;
-
-        let tick_spacing = if is_neg {
-            let spacing = u32::decode(buf)?;
-            (!spacing).overflowing_add(1).0 as i32
-        } else {
-            u32::decode(buf)? as i32
-        };
         let hooks = Address::decode(buf)?;
-
-        let consumed = started_len - buf.len();
-        if consumed != payload_length {
-            return Err(Error::ListLengthMismatch { expected: payload_length, got: consumed })
-        }
 
         Ok(Self { hooks, fee, tickSpacing: tick_spacing, currency0: cur_0, currency1: cur_1 })
     }

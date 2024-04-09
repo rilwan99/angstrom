@@ -13,7 +13,7 @@ use reth_primitives::{
     alloy_primitives::FixedBytes, keccak256, Address, BufMut, BytesMut, Chain, PeerId
 };
 use reth_tasks::TaskSpawner;
-use secp256k1::{Message, SecretKey};
+use secp256k1::{Message, SecretKey, SECP256K1};
 use tokio::sync::mpsc::Receiver;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::PollSender;
@@ -78,7 +78,7 @@ impl NetworkBuilder {
     /// builds the network spawning it on its own thread, returning the
     /// communication channel along with returning the protocol it
     /// represents.
-    pub fn build<TP: TaskSpawner, DB: Send + Unpin + 'static>(
+    pub fn build_handle<TP: TaskSpawner, DB: Send + Unpin + 'static>(
         mut self,
         tp: TP,
         db: DB

@@ -55,6 +55,15 @@ impl StromSessionManager {
         }
     }
 
+    pub fn broadcast_message(&mut self, msg: StromMessage) {
+        tracing::debug!("sending message");
+        self.active_sessions.values_mut().for_each(|cmd| {
+            let _ = cmd
+                .commands_to_session
+                .try_send(SessionCommand::Message(msg.clone()));
+        })
+    }
+
     // Removes the Session handle if it exists.
     fn remove_session(&mut self, id: &PeerId) -> Option<StromSessionHandle> {
         let session = self.active_sessions.remove(id)?;
@@ -68,8 +77,15 @@ impl StromSessionManager {
         }
     }
 
+    pub fn disconnect(&mut self, id: PeerId, reason: Option<DisconnectReason>) {
+        if let Some(session) = self.active_sessions.remove(&id) {
+            session.disconnect(reason)
+        }
+    }
+
     fn poll_session_msg(&mut self, cx: &mut Context<'_>) -> Poll<Option<SessionEvent>> {
         self.from_sessions.poll_recv(cx).map(|msg| {
+            tracing::trace!(?msg, "got msg from session");
             msg.and_then(|msg_inner| match msg_inner {
                 StromSessionMessage::Disconnected { peer_id } => {
                     self.remove_session(&peer_id);

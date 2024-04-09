@@ -44,7 +44,8 @@ impl<DB: Unpin> StromNetworkManager<DB> {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
 
         let peers = Arc::new(AtomicUsize::default());
-        let handle = StromNetworkHandle::new(peers.clone(), UnboundedMeteredSender::new(tx, ""));
+        let handle =
+            StromNetworkHandle::new(peers.clone(), UnboundedMeteredSender::new(tx, "strom handle"));
 
         Self {
             handle: handle.clone(),
@@ -55,6 +56,30 @@ impl<DB: Unpin> StromNetworkManager<DB> {
             to_consensus_manager,
             event_listeners: Vec::new()
         }
+    }
+
+    pub fn install_pool_manager(&mut self, tx: UnboundedMeteredSender<NetworkOrderEvent>) {
+        self.to_pool_manager = Some(tx);
+    }
+
+    pub fn install_consensus_manager(&mut self, tx: UnboundedMeteredSender<StromConsensusEvent>) {
+        self.to_consensus_manager = Some(tx);
+    }
+
+    pub fn remove_consensus_manager(&mut self) {
+        self.to_consensus_manager.take();
+    }
+
+    pub fn remove_pool_manager(&mut self) {
+        self.to_pool_manager.take();
+    }
+
+    pub fn swarm_mut(&mut self) -> &mut Swarm<DB> {
+        &mut self.swarm
+    }
+
+    pub fn swarm(&self) -> &Swarm<DB> {
+        &self.swarm
     }
 
     pub fn get_handle(&self) -> StromNetworkHandle {
@@ -86,8 +111,11 @@ impl<DB: Unpin> StromNetworkManager<DB> {
                 .state_mut()
                 .peers_mut()
                 .change_weight(peer_id, kind),
-            _ => {
-                todo!()
+            StromNetworkHandleMsg::BroadcastOrder { msg } => {
+                self.swarm_mut().sessions_mut().broadcast_message(msg);
+            }
+            StromNetworkHandleMsg::DisconnectPeer(id, reason) => {
+                self.swarm_mut().sessions_mut().disconnect(id, reason);
             }
         }
     }
@@ -103,16 +131,23 @@ impl<DB: Unpin> Future for StromNetworkManager<DB> {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         // process incoming messages from a handle
+        let mut work = 30;
         loop {
+            work -= 1;
+            if work == 0 {
+                cx.waker().wake_by_ref();
+                return Poll::Pending
+            }
+
             match self.from_handle_rx.poll_next_unpin(cx) {
-                Poll::Pending => break,
+                Poll::Ready(Some(msg)) => self.on_handle_message(msg),
                 Poll::Ready(None) => {
                     // This is only possible if the channel was deliberately closed since we always
                     // have an instance of `NetworkHandle`
                     error!("Strom network message channel closed.");
                     return Poll::Ready(())
                 }
-                Poll::Ready(Some(msg)) => self.on_handle_message(msg)
+                _ => {}
             };
 
             macro_rules! send_msgs {
@@ -149,6 +184,11 @@ impl<DB: Unpin> Future for StromNetworkManager<DB> {
                             reason: None
                         })
                     }
+                    SwarmEvent::SessionEstablished { peer_id } => {
+                        self.num_active_peers
+                            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                        self.notify_listeners(StromNetworkEvent::SessionEstablished { peer_id })
+                    }
                 }
             }
         }
@@ -174,9 +214,7 @@ pub enum StromNetworkEvent {
     /// Established a new session with the given peer.
     SessionEstablished {
         /// The identifier of the peer to which a session was established.
-        peer_id:        PeerId,
-        /// The client version of the peer to which a session was established.
-        client_version: Arc<str>
+        peer_id: PeerId
     },
     /// Event emitted when a new peer is added
     PeerAdded(PeerId),

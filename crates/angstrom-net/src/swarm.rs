@@ -9,7 +9,7 @@ use reth_primitives::PeerId;
 use crate::{
     peers::PeersManager,
     session::StromSessionManager,
-    state::StromState,
+    state::{StateEvent, StromState},
     types::message::{StromMessage, StromProtocolMessage},
     PeerAction, PeerKind, SessionEvent
 };
@@ -26,6 +26,10 @@ impl<DB: Unpin> Swarm<DB> {
     /// Creates a new `Swarm`.
     pub fn new(sessions: StromSessionManager, state: StromState<DB>) -> Self {
         Swarm { sessions, state }
+    }
+
+    pub fn state(&self) -> &StromState<DB> {
+        &self.state
     }
 
     pub fn state_mut(&mut self) -> &mut StromState<DB> {
@@ -56,11 +60,15 @@ impl<DB: Unpin> Swarm<DB> {
                 Some(SwarmEvent::ValidMessage { peer_id, msg: message.message })
             }
             SessionEvent::Disconnected { peer_id } => Some(SwarmEvent::Disconnected { peer_id }),
+            SessionEvent::SessionEstablished { peer_id, direction, timeout } => {
+                Some(SwarmEvent::SessionEstablished { peer_id })
+            }
             _ => None
         }
     }
 
-    fn on_peer_action(&mut self, action: PeerAction) -> Option<SwarmEvent> {
+    fn on_state_event(&mut self, action: StateEvent) -> Option<SwarmEvent> {
+        tracing::warn!(?action, "no impl");
         None
     }
 }
@@ -75,18 +83,18 @@ impl<DB: Unpin> Stream for Swarm<DB> {
             }
         }
 
-        // while let Some(action) = self.state.poll() {
-        //     if let Some(res) = self.on_peer_action(action) {
-        //         return Poll::Ready(Some(res))
-        //     }
-        // }
-        // Poll the session manager
+        while let Some(action) = self.state.poll(cx) {
+            if let Some(res) = self.on_state_event(action) {
+                return Poll::Ready(Some(res))
+            }
+        }
 
         Poll::Pending
     }
 }
 
 pub enum SwarmEvent {
+    SessionEstablished { peer_id: PeerId },
     ValidMessage { peer_id: PeerId, msg: StromMessage },
     Disconnected { peer_id: PeerId }
 }
