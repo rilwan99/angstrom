@@ -15,10 +15,6 @@ tokio.workspace = true
 futures.workspace = true
 thiserror.workspace = true
 reth-primitives.workspace = true
-ethers-providers.workspace = true
-ethers-signers.workspace = true
-ethers-middleware.workspace = true
-ethers-core.workspace = true
 reth-metrics.workspace = true
 reth-provider.workspace = true
 tracing.workspace = true
@@ -40,3 +36,4 @@ validation.workspace = true
 tokio-stream.workspace = true
 
 alloy-primitives.workspace = true   
+eyre = "0.6.12"
