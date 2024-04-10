@@ -376,7 +376,7 @@ where
     }
 }
 
-struct PoolManager<L, CL, S, CS, V>
+pub struct PoolManager<L, CL, S, CS, V>
 where
     L: PooledLimitOrder,
     CL: PooledComposableOrder + PooledLimitOrder,
@@ -423,7 +423,27 @@ where
         ComposableSearcherOrder = CS
     >
 {
-    /// Returns a new handle that can send commands to this type.
+    pub fn new(
+        pool: OrderPoolInner<L, CL, S, CS, V>,
+        network: StromNetworkHandle,
+        strom_network_events: UnboundedReceiverStream<StromNetworkEvent>,
+        eth_network_events: UnboundedReceiverStream<EthEvent>,
+        _command_tx: UnboundedSender<OrderCommand<L, CL, S, CS>>,
+        command_rx: UnboundedReceiverStream<OrderCommand<L, CL, S, CS>>,
+        order_events: UnboundedMeteredReceiver<NetworkOrderEvent>
+    ) -> Self {
+        Self {
+            strom_network_events,
+            network,
+            pool,
+            peers: HashMap::new(),
+            order_events,
+            command_rx,
+            _command_tx,
+            eth_network_events
+        }
+    }
+
     fn on_command(&mut self, cmd: OrderCommand<L, CL, S, CS>) {
         match cmd {
             // new orders
@@ -576,8 +596,17 @@ where
                 // remove the peer
                 self.peers.remove(&peer_id);
             }
-
-            _ => {}
+            StromNetworkEvent::PeerRemoved(peer_id) => {
+                self.peers.remove(&peer_id);
+            }
+            StromNetworkEvent::PeerAdded(peer_id) => {
+                self.peers.insert(
+                    peer_id,
+                    StromPeer {
+                        orders: LruCache::new(NonZeroUsize::new(PEER_ORDER_CACHE_LIMIT).unwrap())
+                    }
+                );
+            }
         }
     }
 

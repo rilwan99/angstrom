@@ -79,8 +79,8 @@ where
 {
     pub fn new(validator: V, config: PoolConfig) -> Self {
         Self {
-            limit_pool:        LimitOrderPool::new(None),
-            searcher_pool:     SearcherPool::new(None),
+            limit_pool:        LimitOrderPool::new(&config.ids, None),
+            searcher_pool:     SearcherPool::new(&config.ids, None),
             finalization_pool: FinalizationPool::new(),
             _config:           config,
             address_to_orders: HashMap::new(),
@@ -172,6 +172,7 @@ where
     }
 
     pub fn subscribe_filled_orders(&mut self, tx: mpsc::Sender<Vec<Order<L, CL, S, CS>>>) {
+        tracing::debug!("new sub for filled orders");
         self.subscriptions.subscribe_filled_orders(tx);
     }
 
