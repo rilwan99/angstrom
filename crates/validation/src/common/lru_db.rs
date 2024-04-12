@@ -1,13 +1,16 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{atomic::AtomicU64, Arc}
+};
 
 use alloy_primitives::Address;
 use parking_lot::RwLock;
-use reth_interfaces::RethError;
+use reth_interfaces::{provider::ProviderError, RethError};
 use reth_primitives::{
     revm_primitives::{AccountInfo, Bytecode, B256, U256},
     KECCAK_EMPTY
 };
-use reth_provider::{AccountReader, StateProvider, StateProviderFactory};
+use reth_provider::{AccountReader, StateProvider, StateProviderBox, StateProviderFactory};
 use reth_revm::{Database, DatabaseRef};
 use revm::db::DbAccount;
 use schnellru::{ByMemoryUsage, LruMap};
@@ -18,21 +21,23 @@ use crate::{
 };
 
 pub struct RevmLRU<DB> {
-    state_overrides:    HashMap<Address, HashMap<U256, U256>>,
-    bytecode_overrides: HashMap<Address, Bytecode>,
+    state_overrides:    RwLock<HashMap<Address, HashMap<U256, U256>>>,
+    bytecode_overrides: RwLock<HashMap<Address, Bytecode>>,
     accounts:           Arc<RwLock<LruMap<Address, DbAccount, ByMemoryUsage>>>,
     contracts:          Arc<RwLock<LruMap<B256, Bytecode, ByMemoryUsage>>>,
-    db:                 Arc<DB>
+    db:                 Arc<DB>,
+    current_block:      Arc<AtomicU64>
 }
 
 impl<DB: Clone> Clone for RevmLRU<DB> {
     fn clone(&self) -> Self {
         Self {
-            state_overrides:    HashMap::default(),
-            bytecode_overrides: HashMap::default(),
+            state_overrides:    HashMap::default().into(),
+            bytecode_overrides: HashMap::default().into(),
             accounts:           self.accounts.clone(),
             contracts:          self.contracts.clone(),
-            db:                 self.db.clone()
+            db:                 self.db.clone(),
+            current_block:      self.current_block.clone()
         }
     }
 }
@@ -66,30 +71,35 @@ impl<DB> RevmLRU<DB>
 where
     DB: StateProviderFactory
 {
-    pub fn new(max_bytes: usize, db: Arc<DB>) -> Self {
+    pub fn new(max_bytes: usize, db: Arc<DB>, current_block: Arc<AtomicU64>) -> Self {
         let accounts = Arc::new(RwLock::new(LruMap::new(ByMemoryUsage::new(max_bytes))));
         let contracts = Arc::new(RwLock::new(LruMap::new(ByMemoryUsage::new(max_bytes))));
         Self {
+            current_block,
             accounts,
             contracts,
             db,
-            state_overrides: HashMap::default(),
-            bytecode_overrides: HashMap::default()
+            state_overrides: HashMap::default().into(),
+            bytecode_overrides: HashMap::default().into()
         }
     }
 
-    pub fn set_state_overrides(&mut self, overrides: HashMap<Address, HashMap<U256, U256>>) {
-        self.state_overrides = overrides
+    pub fn update_block_number(&self, block_number: u64) {
+        self.current_block
+            .store(block_number, std::sync::atomic::Ordering::SeqCst)
     }
 
-    pub fn set_bytecode_overrides(&mut self, overrides: HashMap<Address, Bytecode>) {
-        self.bytecode_overrides = overrides
+    pub fn set_state_overrides(&self, overrides: HashMap<Address, HashMap<U256, U256>>) {
+        *self.state_overrides.write() = overrides;
+    }
+
+    pub fn set_bytecode_overrides(&self, overrides: HashMap<Address, Bytecode>) {
+        *self.bytecode_overrides.write() = overrides;
     }
 
     fn basic_ref_no_cache(&self, address: &Address) -> Result<Option<AccountInfo>, RethError> {
         Ok(self
-            .db
-            .latest()?
+            .get_current_provider()?
             .basic_account(*address)?
             .map(|account| AccountInfo {
                 balance:   account.balance,
@@ -100,11 +110,18 @@ where
     }
 
     fn storage_ref_no_cache(&self, address: &Address, index: U256) -> Result<U256, RethError> {
-        self.db
-            .latest()?
+        self.get_current_provider()?
             .storage(*address, index.into())
             .map(|inner| inner.unwrap_or_default())
             .map_err(RethError::from)
+    }
+
+    fn get_current_provider(&self) -> Result<StateProviderBox, ProviderError> {
+        self.db.state_by_block_id(
+            self.current_block
+                .load(std::sync::atomic::Ordering::SeqCst)
+                .into()
+        )
     }
 }
 
@@ -153,7 +170,7 @@ where
 
     fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
         // check for overrides
-        if let Some(storage) = self.state_overrides.get(&address) {
+        if let Some(storage) = self.state_overrides.read().get(&address) {
             if let Some(value) = storage.get(&index) {
                 return Ok(*value)
             }
@@ -168,9 +185,9 @@ where
                     .storage
                     .get(&index)
                     .map(|e| Ok(Some(*e)))
-                    .unwrap_or_else(|| self.db.latest()?.storage(address, index.into()))
+                    .unwrap_or_else(|| self.get_current_provider()?.storage(address, index.into()))
             })
-            .unwrap_or_else(|| self.db.latest()?.storage(address, index.into()))?
+            .unwrap_or_else(|| self.get_current_provider()?.storage(address, index.into()))?
             .unwrap_or_default())
     }
 

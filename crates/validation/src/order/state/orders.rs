@@ -38,23 +38,27 @@ impl UserOrders {
     pub fn new_searcher_order<O: PooledSearcherOrder<ValidationData = SearcherPriorityData>>(
         &mut self,
         order: O,
-        deltas: UserAccountDetails
+        deltas: UserAccountDetails,
+        block_number: u64
     ) -> OrderValidationOutcome<O> {
-        self.basic_order_validation(order, deltas, false, |order| SearcherPriorityData {
-            donated: order.donated(),
-            volume:  order.volume(),
-            gas:     order.gas()
+        self.basic_order_validation(order, deltas, false, block_number, |order| {
+            SearcherPriorityData {
+                donated: order.donated(),
+                volume:  order.volume(),
+                gas:     order.gas()
+            }
         })
     }
 
     pub fn new_limit_order<O: PooledLimitOrder<ValidationData = OrderPriorityData>>(
         &mut self,
         order: O,
-        deltas: UserAccountDetails
+        deltas: UserAccountDetails,
+        block_number: u64
     ) -> OrderValidationOutcome<O> {
-        self.basic_order_validation(order, deltas, true, |order| OrderPriorityData {
+        self.basic_order_validation(order, deltas, true, block_number, |order| OrderPriorityData {
             price:  order.limit_price(),
-            volume: order.limit_price() * order.amount_out_min(),
+            volume: order.limit_price().saturating_mul(order.amount_out_min()),
             gas:    order.gas()
         })
     }
@@ -62,7 +66,8 @@ impl UserOrders {
     pub fn new_composable_limit_order<O: PooledLimitOrder<ValidationData = OrderPriorityData>>(
         &mut self,
         order: O,
-        deltas: UserAccountDetails
+        deltas: UserAccountDetails,
+        block_number: u64
     ) -> (OrderValidationOutcome<O>, HashMap<Address, HashMap<U256, U256>>) {
         todo!()
     }
@@ -72,7 +77,8 @@ impl UserOrders {
     >(
         &mut self,
         order: O,
-        deltas: UserAccountDetails
+        deltas: UserAccountDetails,
+        block_number: u64
     ) -> (OrderValidationOutcome<O>, HashMap<Address, HashMap<U256, U256>>) {
         todo!()
     }
@@ -80,7 +86,7 @@ impl UserOrders {
     /// called when a user has a state change on their address. When this
     /// happens we re-evaluate all of there pending orders so we do a
     /// hard-reset here.
-    pub fn fresh_state(&mut self, state: HashMap<Address, PendingState>) {
+    pub fn fkresh_state(&mut self, state: HashMap<Address, PendingState>) {
         state.into_iter().for_each(|(k, v)| {
             self.0.insert(k, (v, vec![]));
         });
@@ -95,8 +101,10 @@ impl UserOrders {
         order: O,
         deltas: UserAccountDetails,
         limit: bool,
+        block_number: u64,
         build_priority: F
     ) -> OrderValidationOutcome<O> {
+        tracing::debug!(?deltas);
         // always invalid
         if !deltas.is_valid_nonce
             || !deltas.is_valid_pool
@@ -196,7 +204,7 @@ impl UserOrders {
             }
         };
 
-        OrderValidationOutcome::Valid { order: res, propagate: true }
+        OrderValidationOutcome::Valid { order: res, propagate: true, block_number }
     }
 
     /// Helper function for checking for duplicates when adding orders

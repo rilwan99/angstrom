@@ -1,4 +1,8 @@
-use std::{pin::Pin, sync::Arc, task::Poll};
+use std::{
+    pin::Pin,
+    sync::{atomic::AtomicU64, Arc},
+    task::Poll
+};
 
 use angstrom_eth::manager::EthEvent;
 use futures::{Stream, StreamExt};
@@ -10,7 +14,9 @@ use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use crate::{
     bundle::{bundle_validator::BundleValidator, BundleSimRequest},
     common::lru_db::RevmLRU,
-    order::{order_validator::OrderValidator, OrderValidationRequest}
+    order::{
+        order_validator::OrderValidator, state::config::ValidationConfig, OrderValidationRequest
+    }
 };
 
 pub enum ValidationRequest {
@@ -19,39 +25,44 @@ pub enum ValidationRequest {
 }
 
 #[derive(Debug, Clone)]
-pub struct ValidationClient(pub(crate) UnboundedSender<ValidationRequest>);
+pub struct ValidationClient(pub UnboundedSender<ValidationRequest>);
 
-/// HeadModule that deals with all validation
-#[allow(dead_code)]
-pub struct Validator<'a, DB> {
+pub struct Validator<DB> {
     rx:               UnboundedReceiver<ValidationRequest>,
     /// used to update state
     new_block_stream: Pin<Box<dyn Stream<Item = EthEvent> + Send>>,
     db:               Arc<RevmLRU<DB>>,
 
-    order_validator:  OrderValidator<'a, DB>,
+    order_validator:  OrderValidator<DB>,
     bundle_validator: BundleValidator
 }
 
-impl<DB> Validator<'_, DB>
+impl<DB> Validator<DB>
 where
     DB: StateProviderFactory + Clone + Unpin + 'static
 {
-    fn new_block(&mut self, state: BundleState) {
-        // TODO: update the db + deal with reseting the validation;
+    pub fn new(
+        rx: UnboundedReceiver<ValidationRequest>,
+        new_block_stream: Pin<Box<dyn Stream<Item = EthEvent> + Send>>,
+        db: Arc<RevmLRU<DB>>,
+        config: ValidationConfig,
+        block_number: Arc<AtomicU64>
+    ) -> Self {
+        let order_validator = OrderValidator::new(db.clone(), config, block_number);
+        Self { new_block_stream, db, bundle_validator: BundleValidator {}, order_validator, rx }
     }
 
     fn on_new_validation_request(&mut self, req: ValidationRequest) {
         match req {
             ValidationRequest::Order(order) => self.order_validator.validate_order(order),
             ValidationRequest::Bundle(bundle) => {
-                todo!()
+                todo!("bundle validation is currently not complete")
             }
         }
     }
 }
 
-impl<DB> Future for Validator<'_, DB>
+impl<DB> Future for Validator<DB>
 where
     DB: StateProviderFactory + Clone + Unpin + 'static
 {

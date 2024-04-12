@@ -14,8 +14,6 @@ mod composable;
 mod searcher;
 
 pub const SEARCHER_POOL_MAX_SIZE: usize = 15;
-#[allow(non_upper_case_globals)]
-pub const V1_LP_POOlS: usize = 5;
 
 pub struct SearcherPool<S: PooledSearcherOrder, CS: PooledComposableOrder + PooledSearcherOrder> {
     /// Holds all non composable searcher order pools
@@ -41,7 +39,6 @@ where
         }
     }
 
-    #[allow(dead_code)]
     pub fn add_searcher_order(&mut self, order: ValidOrder<S>) -> Result<(), SearcherPoolError<S>> {
         let size = order.size();
         if !self._size.has_space(size) {
@@ -52,7 +49,6 @@ where
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub fn add_composable_searcher_order(
         &mut self,
         order: ValidOrder<CS>

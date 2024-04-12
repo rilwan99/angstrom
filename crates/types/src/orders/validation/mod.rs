@@ -78,6 +78,40 @@ where
     ComposableSearcher(OrderValidationOutcome<CS>)
 }
 
+impl<L, CL, S, CS> ValidationResults<L, CL, S, CS>
+where
+    L: PoolOrder,
+    CL: PoolOrder,
+    S: PoolOrder,
+    CS: PoolOrder
+{
+    pub fn get_block_number(&self) -> Option<u64> {
+        match self {
+            Self::Limit(l) => {
+                if let OrderValidationOutcome::Valid { block_number, .. } = l {
+                    return Some(*block_number)
+                }
+            }
+            Self::Searcher(l) => {
+                if let OrderValidationOutcome::Valid { block_number, .. } = l {
+                    return Some(*block_number)
+                }
+            }
+            Self::ComposableLimit(l) => {
+                if let OrderValidationOutcome::Valid { block_number, .. } = l {
+                    return Some(*block_number)
+                }
+            }
+            Self::ComposableSearcher(l) => {
+                if let OrderValidationOutcome::Valid { block_number, .. } = l {
+                    return Some(*block_number)
+                }
+            }
+        }
+        None
+    }
+}
+
 /// A valid order in the pool.
 #[derive(Debug)]
 pub enum OrderValidationOutcome<O: PoolOrder> {
@@ -85,9 +119,11 @@ pub enum OrderValidationOutcome<O: PoolOrder> {
     /// the pool.
     Valid {
         /// The validated order
-        order:     ValidatedOrder<O>,
+        order:        ValidatedOrder<O>,
         /// Whether to propagate the order to the network.
-        propagate: bool
+        propagate:    bool,
+        /// the block number this was validated on
+        block_number: u64
     },
     /// The transaction is considered invalid indefinitely: It violates
     /// constraints that prevent this transaction from ever becoming valid.

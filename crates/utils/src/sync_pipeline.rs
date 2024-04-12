@@ -2,7 +2,7 @@ use std::{
     collections::{HashMap, VecDeque},
     marker::PhantomData,
     pin::Pin,
-    task::{Context, Poll}
+    task::{Context, Poll, Waker}
 };
 
 use futures::{stream::FuturesUnordered, Future, FutureExt, StreamExt};
@@ -40,33 +40,12 @@ pub trait PipelineOperation: Unpin + Send + 'static {
 
 pub type PipelineFut<OP> = Pin<Box<dyn Future<Output = PipelineAction<OP>> + Send + Unpin>>;
 
-pub struct FnPtr<OP, CX> {
-    ptr: usize,
-    _p:  PhantomData<(OP, CX)>
-}
-
-impl<OP, CX> FnPtr<OP, CX>
-where
-    OP: PipelineOperation,
-    CX: Unpin
-{
-    pub fn new(f: fn(OP, &mut CX) -> PipelineFut<OP>) -> Self {
-        Self { ptr: f as usize, _p: PhantomData }
-    }
-
-    pub fn get_fn(&self) -> &fn(OP, &mut CX) -> PipelineFut<OP> {
-        let fnptr = self.ptr as *const ();
-        let ptr: fn(OP, &mut CX) -> PipelineFut<OP> = unsafe { std::mem::transmute(fnptr) };
-        unsafe { std::mem::transmute(&ptr) }
-    }
-}
-
 pub struct PipelineBuilder<OP, CX>
 where
     OP: PipelineOperation,
     CX: Unpin
 {
-    operations: HashMap<u8, FnPtr<OP, CX>>,
+    operations: HashMap<u8, fn(OP, &mut CX) -> PipelineFut<OP>>,
     _p:         PhantomData<CX>
 }
 
@@ -89,7 +68,7 @@ where
         Self { operations: HashMap::new(), _p: PhantomData }
     }
 
-    pub fn add_step(mut self, id: u8, item: FnPtr<OP, CX>) -> Self {
+    pub fn add_step(mut self, id: u8, item: fn(OP, &mut CX) -> PipelineFut<OP>) -> Self {
         self.operations.insert(id, item);
         self
     }
@@ -99,7 +78,8 @@ where
             threadpool,
             needing_queue: VecDeque::new(),
             operations: self.operations,
-            tasks: FuturesUnordered::new()
+            tasks: FuturesUnordered::new(),
+            waker: None
         }
     }
 }
@@ -110,7 +90,8 @@ where
     CX: Unpin
 {
     threadpool: T,
-    operations: HashMap<u8, FnPtr<OP, CX>>,
+    operations: HashMap<u8, fn(OP, &mut CX) -> PipelineFut<OP>>,
+    waker:      Option<Waker>,
 
     needing_queue: VecDeque<OP>,
     tasks:         FuturesUnordered<PipelineFut<OP>>
@@ -124,16 +105,25 @@ where
 {
     pub fn add(&mut self, item: OP) {
         self.needing_queue.push_back(item);
+
+        if let Some(waker) = self.waker.as_ref() {
+            waker.wake_by_ref();
+        }
     }
 
     fn spawn_task(&mut self, op: OP, pipeline_cx: &mut CX) {
         let id = op.get_next_operation();
-        let c_fn = self.operations.get(&id).unwrap().get_fn();
+        let c_fn = self.operations.get(&id).unwrap();
         self.tasks
             .push(self.threadpool.spawn(c_fn(op, pipeline_cx)))
     }
 
     pub fn poll(&mut self, cx: &mut Context<'_>, pipeline_cx: &mut CX) -> Poll<Option<OP::End>> {
+        // ensure we have a waker
+        if self.waker.is_none() {
+            self.waker = Some(cx.waker().clone());
+        }
+
         while let Some(item) = self.needing_queue.pop_front() {
             self.spawn_task(item, pipeline_cx)
         }
