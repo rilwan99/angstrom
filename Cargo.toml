@@ -10,7 +10,7 @@ members = [
   "crates/rpc",
   "crates/eth/",
   "crates/submission",
-  "testing-tools",
+  "testing-tools", "crates/matching-engine",
 ]
 
 
