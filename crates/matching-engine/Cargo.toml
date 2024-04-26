@@ -10,3 +10,4 @@ exclude.workspace = true
 
 [dependencies]
 angstrom-utils.workspace = true
+alloy-primitives.workspace = true
