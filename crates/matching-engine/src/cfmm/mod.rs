@@ -6,37 +6,44 @@
 use core::panic;
 
 use alloy_primitives::Address;
+use malachite::{
+    num::arithmetic::traits::{CheckedSqrt, FloorSqrt, Pow, Sqrt},
+    Rational
+};
+use malachite_q::arithmetic::sqrt;
 
 /// Tick that is split in its price
 struct ActiveTick {
     inner: PassiveTick,
-    price: f64
+    price: Rational
 }
 
 impl ActiveTick {
-    fn get_x_comp_at_price(&self, price: f64) -> f64 {
+    fn get_x_comp_at_price(&self, price: Rational) -> Rational {
+        let b = self.price.pow(0.5);
         (self.inner.liquidity
             * (-price * self.inner.upper.sqrt() + self.inner.upper * price.sqrt()))
             / (price * self.inner.upper)
     }
 
-    fn get_y_comp_at_price(&self, price: f64) -> f64 {
-        -self.inner.liquidity * self.inner.lower.sqrt() + self.inner.liquidity * price.sqrt()
+    fn get_y_comp_at_price(&self, price: Rational) -> Rational {
+        -self.inner.liquidity * self.inner.lower.checked_sqrt()
+            + self.inner.liquidity * price.sqrt()
     }
 
     /// amount to sell to reach tick edge
-    fn full_sell_amount(&self) -> f64 {
+    fn full_sell_amount(&self) -> Rational {
         self.inner.y_given_x(0.0) - self.inner.y_given_x(self.get_x_comp_at_price(self.price))
     }
 
     /// amount to buy to reach tick edge
-    fn full_buy_amount(&self) -> f64 {
+    fn full_buy_amount(&self) -> Rational {
         self.inner.x_given_y(0.0) - self.inner.x_given_y(self.get_y_comp_at_price(self.price))
     }
 
     /// the new price of the tick given we are buying some amount.
     /// NOTE: this assumes tick overflow checks have been done
-    pub fn new_price_buy(&self, amount: f64) -> f64 {
+    pub fn new_price_buy(&self, amount: Rational) -> Rational {
         // buy token 0
         let dx = self.get_x_comp_at_price(self.price) + amount;
         // token 1 sell
@@ -46,7 +53,7 @@ impl ActiveTick {
 
     /// the new price of the tick given we are buying some amount.
     /// NOTE: this assumes tick overflow checks have been done
-    pub fn new_price_sell(&self, amount: f64) -> f64 {
+    pub fn new_price_sell(&self, amount: Rational) -> Rational {
         // buy token 0
         let dy = self.get_y_comp_at_price(self.price) + amount;
         // token 1 sell
@@ -58,44 +65,44 @@ impl ActiveTick {
 /// Tick that isn't split in its price
 struct PassiveTick {
     // tick bounds
-    lower:     f64,
-    upper:     f64,
-    token1:    f64,
-    liquidity: f64
+    lower:     Rational,
+    upper:     Rational,
+    token1:    Rational,
+    liquidity: Rational
 }
 
 impl PassiveTick {
     /// the x component for the given tick.
-    fn x_given_y(&self, y: f64) -> f64 {
+    fn x_given_y(&self, y: Rational) -> Rational {
         (-self.lower.sqrt() * self.liquidity.powi(2) + (self.upper.sqrt() * self.liquidity.powi(2))
             - self.liquidity * y)
             / (self.upper.sqrt() * (self.lower.sqrt() * self.liquidity + y))
     }
 
-    fn y_given_x(&self, x: f64) -> f64 {
+    fn y_given_x(&self, x: Rational) -> Rational {
         ((-self.lower.sqrt() * self.upper.sqrt() * self.liquidity * x)
             - (self.lower.sqrt() * self.liquidity.powi(2)
                 + self.upper.sqrt() * self.liquidity.powi(2)))
             / (self.upper.sqrt() * x + self.liquidity)
     }
 
-    fn price(&self, x: f64, y: f64) -> f64 {
+    fn price(&self, x: Rational, y: Rational) -> Rational {
         (y + self.liquidity * self.lower.sqrt()) / ((self.liquidity / self.upper.sqrt()) + x)
     }
 
-    fn full_buy_amount(&self) -> f64 {
+    fn full_buy_amount(&self) -> Rational {
         self.y_given_x(0.0)
     }
 
     /// NOTE: assumes tick is at the upper tick
-    fn partial_buy_price(&self, amount: f64) -> f64 {
+    fn partial_buy_price(&self, amount: Rational) -> Rational {
         // because x at zero, dx = amount;
         let dy = self.y_given_x(0.0) - self.y_given_x(amount);
         self.price(amount, dy)
     }
 
     /// NOTE: assumes tick is at lower tick
-    fn partial_sell_price(&self, amount: f64) -> f64 {
+    fn partial_sell_price(&self, amount: Rational) -> Rational {
         let dx = self.x_given_y(0.0) - self.x_given_y(amount);
         self.price(dx, amount)
     }
@@ -116,7 +123,7 @@ pub struct UniswapV4Book<const BOUND: usize> {
 
 impl<const BOUND: usize> UniswapV4Book<BOUND> {
     /// returns the price for the amount bought
-    pub fn buy_tokens(&self, mut amount: f64) -> f64 {
+    pub fn buy_tokens(&self, mut amount: Rational) -> Rational {
         if self.mid.full_buy_amount() > amount {
             return (self.mid.price + self.mid.new_price_buy(amount)) / 2.0
         } else {
@@ -151,7 +158,7 @@ impl<const BOUND: usize> UniswapV4Book<BOUND> {
         }
     }
 
-    pub fn sell_tokens(&self, mut amount: f64) -> f64 {
+    pub fn sell_tokens(&self, mut amount: Rational) -> Rational {
         if self.mid.full_sell_amount() > amount {
             return (self.mid.price + self.mid.new_price_sell(amount)) / 2.0
         } else {
