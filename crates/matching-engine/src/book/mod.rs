@@ -1,20 +1,17 @@
 //! basic book impl so we can benchmark
-use malachite::{
-    num::basic::traits::{Two, Zero},
-    Rational
-};
 
 use crate::cfmm::UniswapV4Book;
+use malachite::num::basic::traits::{Two, Zero};
 
 pub trait BookOrder: Ord {
-    fn get_amount(&self) -> Rational;
-    fn get_limit_price(&self) -> Rational;
-    fn set_amount(&mut self, am: Rational);
-    fn set_price(&mut self, price: Rational);
+    fn get_amount(&self) -> f64;
+    fn get_limit_price(&self) -> f64;
+    fn set_amount(&mut self, am: f64);
+    fn set_price(&mut self, price: f64);
 }
 
 pub trait SearcherOrder {
-    fn get_amount(&self) -> Rational;
+    fn get_amount(&self) -> f64;
     fn swap_direction(&self) -> bool;
 }
 
@@ -26,12 +23,12 @@ pub struct BigBoyBook<const BOUND: usize, S: SearcherOrder, O: BookOrder> {
     asks:            Vec<O>
 }
 
-type PriceQty = (Rational, Rational);
+type PriceQty = (f64, f64);
 
 impl<const BOUND: usize, S: SearcherOrder, O: BookOrder> BigBoyBook<BOUND, S, O> {
     pub fn fill_me(mut self) -> Option<PriceQty> {
-        let mut qty = Rational::ZERO;
-        let mut p = Rational::ZERO;
+        let mut qty = f64::ZERO;
+        let mut p = f64::ZERO;
 
         let mut a_idx = 0usize;
         let mut b_idx = 0usize;
@@ -44,11 +41,11 @@ impl<const BOUND: usize, S: SearcherOrder, O: BookOrder> BigBoyBook<BOUND, S, O>
             qty += &matched;
             let excess = b.get_amount() - a.get_amount();
 
-            if excess == Rational::ZERO {
-                p = (a.get_limit_price() + b.get_limit_price()) / Rational::TWO;
+            if excess == f64::ZERO {
+                p = (a.get_limit_price() + b.get_limit_price()) / f64::TWO;
                 a_idx += 1;
                 b_idx += 1;
-            } else if excess > Rational::ZERO {
+            } else if excess > f64::ZERO {
                 p = b.get_limit_price();
                 b.set_price(p.clone());
                 b.set_amount(b.get_amount() - matched);
