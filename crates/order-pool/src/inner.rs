@@ -22,7 +22,7 @@ use futures_util::{Stream, StreamExt};
 use reth_primitives::{Address, PeerId, U256};
 use tokio::sync::mpsc;
 use tracing::{error, trace, warn};
-use validation::order::OrderValidator;
+use validation::order::OrderValidatorHandle;
 
 use crate::{
     common::{Order, ValidOrder},
@@ -31,7 +31,7 @@ use crate::{
     limit::LimitOrderPool,
     searcher::SearcherPool,
     subscriptions::OrderPoolSubscriptions,
-    validator::Validator,
+    validator::PoolOrderValidator,
     OrderSet
 };
 
@@ -45,7 +45,7 @@ where
     CL: PooledComposableOrder + PooledLimitOrder,
     S: PooledSearcherOrder,
     CS: PooledComposableOrder + PooledSearcherOrder,
-    V: OrderValidator
+    V: OrderValidatorHandle
 {
     limit_pool:             LimitOrderPool<L, CL>,
     searcher_pool:          SearcherPool<S, CS>,
@@ -62,7 +62,7 @@ where
     /// Orders that are being validated
     pending_orders:         HashMap<B256, Vec<PeerId>>,
     /// Order Validator
-    validator:              Validator<L, CL, S, CS, V>,
+    validator:              PoolOrderValidator<L, CL, S, CS, V>,
     /// handles sending out subscriptions
     subscriptions:          OrderPoolSubscriptions<L, CL, S, CS>
 }
@@ -74,7 +74,7 @@ where
 
     S: PooledSearcherOrder<ValidationData = SearcherPriorityData>,
     CS: PooledComposableOrder + PooledSearcherOrder<ValidationData = SearcherPriorityData>,
-    V: OrderValidator<
+    V: OrderValidatorHandle<
         LimitOrder = L,
         SearcherOrder = S,
         ComposableLimitOrder = CL,
@@ -92,7 +92,7 @@ where
             hash_to_order_id: HashMap::new(),
             pending_orders: HashMap::new(),
             last_touched_addresses: HashSet::new(),
-            validator: Validator::new(validator),
+            validator: PoolOrderValidator::new(validator),
             subscriptions: OrderPoolSubscriptions::new()
         }
     }
@@ -500,7 +500,7 @@ where
 
     S: PooledSearcherOrder<ValidationData = SearcherPriorityData>,
     CS: PooledComposableOrder + PooledSearcherOrder<ValidationData = SearcherPriorityData>,
-    V: OrderValidator<
+    V: OrderValidatorHandle<
         LimitOrder = L,
         SearcherOrder = S,
         ComposableLimitOrder = CL,

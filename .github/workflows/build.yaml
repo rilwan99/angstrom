@@ -16,6 +16,8 @@ jobs:
           profile: minimal
           override: true
       - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
       - name: Build
         run: cargo build --release
 
@@ -31,5 +33,7 @@ jobs:
           profile: minimal
           override: true
       - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
       - name: Run tests
         run: cargo test

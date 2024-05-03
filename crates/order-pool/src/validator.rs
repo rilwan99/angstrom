@@ -5,30 +5,30 @@ use std::{
 
 use angstrom_types::orders::{OrderOrigin, PoolOrder, ValidationResults};
 use futures_util::{stream::FuturesUnordered, Future, FutureExt, Stream, StreamExt};
-use validation::order::OrderValidator;
+use validation::order::OrderValidatorHandle;
 
 type ValidationFuture<L, CL, S, CS> =
     Pin<Box<dyn Future<Output = ValidationResults<L, CL, S, CS>> + Send + Sync>>;
 
-pub struct Validator<L, CL, S, CS, V>
+pub struct PoolOrderValidator<L, CL, S, CS, V>
 where
     L: PoolOrder,
     CL: PoolOrder,
     S: PoolOrder,
     CS: PoolOrder,
-    V: OrderValidator
+    V: OrderValidatorHandle
 {
     validator: V,
     pending:   FuturesUnordered<ValidationFuture<L, CL, S, CS>>
 }
 
-impl<L, CL, S, CS, V> Validator<L, CL, S, CS, V>
+impl<L, CL, S, CS, V> PoolOrderValidator<L, CL, S, CS, V>
 where
     L: PoolOrder,
     CL: PoolOrder,
     S: PoolOrder,
     CS: PoolOrder,
-    V: OrderValidator<
+    V: OrderValidatorHandle<
         LimitOrder = L,
         SearcherOrder = S,
         ComposableLimitOrder = CL,
@@ -76,13 +76,13 @@ where
     }
 }
 
-impl<L, CL, S, CS, V> Stream for Validator<L, CL, S, CS, V>
+impl<L, CL, S, CS, V> Stream for PoolOrderValidator<L, CL, S, CS, V>
 where
     L: PoolOrder,
     CL: PoolOrder,
     S: PoolOrder,
     CS: PoolOrder,
-    V: OrderValidator
+    V: OrderValidatorHandle
 {
     type Item = ValidationResults<L, CL, S, CS>;
 
