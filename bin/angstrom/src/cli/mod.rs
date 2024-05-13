@@ -26,7 +26,7 @@ use angstrom_types::rpc::{
     EcRecoveredSearcherOrder
 };
 use clap::Parser;
-use consensus::{ConsensusCommand, ConsensusHandle, ConsensusManager};
+use consensus::{ConsensusCommand, ConsensusHandle, ConsensusManager, Signer};
 use reth::{
     args::get_secret_key,
     builder::{components::FullNodeComponents, Node},
@@ -202,9 +202,12 @@ pub fn initialize_strom_components<Node: FullNodeComponents>(
     )
     .build_with_channels(executor.clone(), handles.orderpool_tx, handles.orderpool_rx);
 
+    let signer = Signer::default();
+
     let _consensus_handle = ConsensusManager::new(
         executor.clone(),
         network_handle.clone(),
+        signer,
         pool_handle.clone(),
         validator.clone(),
         node.provider.subscribe_to_canonical_state(),

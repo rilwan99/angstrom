@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+base64 = "0.22.1"
+bitmaps = "3.2.1"
+bls_eth_rust.workspace = true
 bytes = "1.4"
 tracing.workspace = true
 thiserror.workspace = true

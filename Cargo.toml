@@ -54,6 +54,8 @@ angstrom-rpc = { path = "./crates/rpc/" }
 angstrom-network = { path = "./crates/angstrom-net/" }
 testing-tools = { path = "./testing-tools/" }
 
+# BLS library
+bls_eth_rust = { path = "../bls-eth-rust" }
 
 ## async
 async-trait = "0.1.68"

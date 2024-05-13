@@ -16,8 +16,7 @@ use tracing::warn;
 use validation::bundle::BundleValidator;
 
 use crate::{
-    core::{ConsensusCore, ConsensusMessage},
-    ConsensusListener, ConsensusUpdater
+    core::{ConsensusCore, ConsensusMessage}, signer::Signer, ConsensusListener, ConsensusUpdater
 };
 
 #[allow(unused)]
@@ -33,6 +32,7 @@ pub struct ConsensusManager<OrderPool, Validator> {
 
     network: StromNetworkHandle,
 
+    signer: Signer,
     orderpool: OrderPool,
     validator: Validator
 }
@@ -45,6 +45,7 @@ where
     pub fn new<TP: TaskSpawner>(
         tp: TP,
         network: StromNetworkHandle,
+        signer: Signer,
         orderpool: OrderPool,
         validator: Validator,
         canonical_block_stream: CanonStateNotifications,
@@ -62,6 +63,7 @@ where
             subscribers: Vec::new(),
             command: stream,
             network,
+            signer,
             orderpool,
             canonical_block_stream
         };
@@ -75,6 +77,29 @@ where
         match command {
             ConsensusCommand::Subscribe(sender) => self.subscribers.push(sender)
         }
+    }
+
+    fn on_consensus_event(&mut self, command: StromConsensusEvent) -> Option<ConsensusMessage> {
+        match command {
+            // I think we're not worried about pre-proposal yet if we're going to be ignoring lower bound
+            StromConsensusEvent::PrePropose(_,_ ) => todo!(),
+            StromConsensusEvent::Propose(_peer, mut proposal) => {
+                // Validate the proposal itself
+                proposal.validate_proposal(&vec![]);
+                // Validate that the proposal contains the data we also think is the best
+                // Skipping this for now!
+                // Add our signature to the proposal
+                proposal.sign_proposal(self.signer.validator_id, &self.signer.key);
+                // Rebroadcast the proposal to all peers
+                self.broadcast(ConsensusMessage::Proposal(proposal));
+            },
+            StromConsensusEvent::Commit(_,_ ) => ()
+        };
+        None
+    }
+
+    fn broadcast(&mut self, msg: ConsensusMessage) {
+        self.subscribers.retain_mut(|sub| sub.try_send(msg.clone()).is_ok());
     }
 }
 
@@ -93,6 +118,12 @@ where
                 self.on_command(msg)
             }
 
+            // We're handing one event per cycle instead of all events per cycle - might want to change this depending
+            // on the priorty level of these events compared to Command events
+            if let Poll::Ready(Some(msg)) = self.strom_consensus_event.poll_next_unpin(cx) {
+                self.on_consensus_event(msg);
+            }
+
             if let Poll::Ready(msg) = self.core.poll_next_unpin(cx).filter_map(|item| {
                 item.transpose()
                     .map_err(|e| {
@@ -102,8 +133,7 @@ where
                     .ok()
                     .flatten()
             }) {
-                self.subscribers
-                    .retain_mut(|sub| sub.try_send(msg.clone()).is_ok());
+                self.broadcast(msg.clone());
             }
 
             work -= 1;
