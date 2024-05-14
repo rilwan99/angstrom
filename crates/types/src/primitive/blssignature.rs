@@ -1,9 +1,8 @@
 use alloy_rlp::{Encodable, Decodable};
+use anyhow::Error;
 use bitmaps::Bitmap;
-use bytes::BytesMut;
 use serde::{de::Visitor, Deserialize, Serialize};
 use std::ops::{BitAnd, BitOr};
-// use base64::prelude::*;
 use blsful::{Bls12381G1Impl, MultiPublicKey, MultiSignature, PublicKey, Signature};
 
 /// BLS Validator ID is just going to be a u8 for now.  However, our bitmap is only 127 wide so be careful
@@ -67,12 +66,32 @@ impl BLSSignature {
         true
     }
 
-    pub fn to_bytes(&self) -> bool {
-        true
+    pub fn to_bytes(&self) -> [u8;64] {
+        let mut bytes: [u8;64] = [0;64];
+        // Split the pointers into 16 and 48 bytes
+        let (val_output, sig_output) = bytes.split_at_mut(16);
+        // If the sizes here ever change, this can panic so be careful...
+        val_output.copy_from_slice(&self.validators_included.as_value().to_le_bytes());
+        sig_output.copy_from_slice(&self.aggregate_signature.as_raw_value().to_compressed());
+        bytes
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self::default()
+    pub fn from_bytes(bytes: &[u8; 64]) -> Result<Self, Error> {
+        // These should never fail since we're getting precisely 64 bytes in
+        let (bitmap_slice, sig_slice) = bytes.split_at(16);
+        let bitmap_bytes: [u8;16] = bitmap_slice.try_into()?;
+        let sig_bytes: [u8;48] = sig_slice.try_into()?;
+        
+        // Parse out the u128 for our bitmap
+        let bitmap_value = u128::from_le_bytes(bitmap_bytes);
+        let validators_included = Bitmap::from_value(bitmap_value);
+        // Parse the remaining bytes into the signature data
+        let parsed_g1 = blsful::inner_types::G1Projective::from_compressed(&sig_bytes);
+        if parsed_g1.is_none().into() {
+            return Err(Error::msg("Unable to parse signature curve data"));
+        }
+        let aggregate_signature: MultiSignature<Bls12381G1Impl> = MultiSignature::ProofOfPossession(parsed_g1.unwrap());
+        Ok(BLSSignature { validators_included, aggregate_signature })
     }
 }
 
@@ -80,17 +99,7 @@ impl Serialize for BLSSignature {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer {
-        
-        // We're just reusing our `encode` mechanism here for succinctness
-        let mut buf = BytesMut::with_capacity(64);
-        self.encode(&mut buf);
-        serializer.serialize_bytes(&buf.freeze())
-
-        // Serialize_struct way (maybe bad)
-        // let mut state = serializer.serialize_struct("BLSSignature", 2)?;
-        // state.serialize_field("validators", &self.validators_included.as_value().to_le_bytes())?;
-        // state.serialize_field("sig", &self.aggregate_signature)?;
-        // state.end()
+        serializer.serialize_bytes(&self.to_bytes())
     }
 }
 
@@ -98,7 +107,7 @@ struct BLSSignatureVisitor {}
 impl<'de> Visitor<'de> for BLSSignatureVisitor {
     type Value = BLSSignature;
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("An n-wide byte array")
+        formatter.write_str("precisely 64 bytes")
     }
 
     fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
@@ -113,42 +122,9 @@ impl<'de> Visitor<'de> for BLSSignatureVisitor {
                 Err(_e) => return Err(serde::de::Error::custom("Invalid content in sequence"))
             }
         }
-        println!("{}", bytes.len());
-        // Very gross skipping of the headers from the RLS encoding, we should not need to do this
-        let (bitmap_slice, sig_slice) = bytes.split_at(17);
-        let bitmap_bytes: Vec<u8> = bitmap_slice.iter().skip(1).cloned().collect();
-        let sig_vec: Vec<u8> = sig_slice.iter().skip(1).cloned().collect();
-        let sig_bytes: [u8;48] = sig_vec.try_into().map_err(|_| serde::de::Error::custom("Wrong number of bytes for signature"))?;
-        // Parse out the u128 for out bitmap
-        let bitmap_value = u128::from_le_bytes(bitmap_bytes.try_into().map_err(|_| serde::de::Error::custom("Error deserializing bitmap"))?);
-        let validators_included = Bitmap::from_value(bitmap_value);
-        // Parse the remaining bytes into the signature data
-        let parsed_g1 = blsful::inner_types::G1Projective::from_compressed(&sig_bytes);
-        if parsed_g1.is_none().into() {
-            return Err(serde::de::Error::custom("Unable to reconstitute signature from compressed bytes"));
-        }
-        let aggregate_signature: MultiSignature<Bls12381G1Impl> = MultiSignature::ProofOfPossession(parsed_g1.unwrap());
-        Ok(BLSSignature { validators_included, aggregate_signature })
-    }
-
-    fn visit_bytes<E>(self, _v: &[u8]) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error, {
-
-        // let bytevec: Vec<u8> = v.iter().cloned().collect();
-        Err(serde::de::Error::custom("butts"))
-        // BLSSignature::decode(&bytevec).map_err(|e| serde::de::Error::custom(e.to_string()))
-        // if 16 > v.len() {
-        //     return Err(serde::de::Error::invalid_length(v.len(), &"A byte string at least 16 bytes long"));
-        // }
-        // let (bitmap_bytes, sig_bytes) = v.split_at(16);
-        // // Parse out the u128 for out bitmap
-        // let bitmap_value = u128::from_le_bytes(bitmap_bytes.try_into().map_err(serde::de::Error::custom)?);
-        // let validators_included = Bitmap::from_value(bitmap_value);
-        // // Parse the remaining bytes into the signature data
-        // let aggregate_signature = Signature::from_serialized(sig_bytes)
-        //     .map_err(|e| serde::de::Error::custom(format!("BLS Signature decode error: {:?}", e)))?;
-        // Ok(BLSSignature { validators_included, aggregate_signature })
+        if bytes.len() != 64 { return Err(serde::de::Error::invalid_length(bytes.len(), &"precisely 64 bytes")); }
+        let b: [u8;64] = bytes.try_into().unwrap();  // We just made sure this always works
+        BLSSignature::from_bytes(&b).map_err(|_| serde::de::Error::custom("Unable to parse signature"))
     }
 }
 
@@ -198,6 +174,7 @@ impl Decodable for BLSSignature {
 mod tests {
     use blsful::SecretKey;
     use blsful::SignatureSchemes;
+    use bytes::BytesMut;
     use super::*;
     
     /// Create an aggregate BLSSignature over arbitrary data that uses specific keys out of a larger
