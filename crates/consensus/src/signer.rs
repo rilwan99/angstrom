@@ -3,14 +3,14 @@ use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
     primitive::{Angstrom::{Bundle, LowerBound}, BLSValidatorID}
 };
-use bls_eth_rust::SecretKey;
+use blsful::{SecretKey, Bls12381G1Impl};
 
 /// The Signer deals with verifying external signatures as well as
 /// signing our payloads.  Pub fields for now.
 #[derive(Default)]
 pub struct Signer {
     pub validator_id: BLSValidatorID,
-    pub key: SecretKey,
+    pub key: SecretKey<Bls12381G1Impl>,
 }
 
 impl Signer {

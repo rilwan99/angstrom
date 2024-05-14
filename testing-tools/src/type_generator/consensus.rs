@@ -5,7 +5,7 @@ use angstrom_types::{
 };
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use secp256k1::SecretKey as Secp256SecretKey;
-use bls_eth_rust::SecretKey;
+use blsful::SecretKey;
 
 use crate::type_generator::orders::generate_rand_valid_limit_order;
 
@@ -45,8 +45,7 @@ pub fn generate_random_preposal() -> PreProposal {
 
 pub fn generate_random_proposal(validator_id: BLSValidatorID) -> Proposal {
     let mut rng = thread_rng();
-    let mut sk = SecretKey::default();
-    sk.set_by_csprng();
+    let sk = SecretKey::new();
 
     let mut order_buf = Vec::new();
     for _ in 0..rng.gen_range(5..10) {

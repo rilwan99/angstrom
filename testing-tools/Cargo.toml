@@ -9,7 +9,7 @@ repository.workspace = true
 exclude.workspace = true
 
 [dependencies]
-bls_eth_rust.workspace = true
+blsful.workspace = true
 consensus.workspace = true
 angstrom-types.workspace = true
 angstrom-utils.workspace = true
