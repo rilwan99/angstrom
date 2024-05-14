@@ -60,7 +60,7 @@ impl Proposal {
         self.leader_signature.add_signature(validator_id, signature)
     }
 
-    pub fn validate_proposal(&self, public_key_library: &[PublicKey<Bls12381G1Impl>]) -> bool {
+    pub fn validate(&self, public_key_library: &[PublicKey<Bls12381G1Impl>]) -> bool {
         self.leader_signature.validate(public_key_library, &self.payload())
     }
 

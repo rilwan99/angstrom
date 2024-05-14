@@ -11,7 +11,7 @@ use crate::type_generator::orders::generate_rand_valid_limit_order;
 
 pub fn generate_random_commit() -> Commit {
     let mut rng = thread_rng();
-    let sk = Secp256SecretKey::new(&mut rng);
+    let sk = SecretKey::new();
 
     Commit::generate_commit_all(rng.gen(), rng.gen(), rng.gen(), rng.gen(), &sk)
 }

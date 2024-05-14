@@ -25,8 +25,8 @@ impl Signer {
     }
 
     #[allow(dead_code)]
-    pub fn sign_commit(&self, _ethereum_block: u64, _proposal: Proposal) -> eyre::Result<Commit> {
-        todo!()
+    pub fn sign_commit(&self, _ethereum_block: u64, proposal: &Proposal) -> eyre::Result<Commit> {
+        Ok(Commit::from_proposal(proposal, &self.key))
     }
 
     #[allow(dead_code)]

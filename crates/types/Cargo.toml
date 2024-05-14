@@ -5,7 +5,7 @@ edition.workspace = true
 
 [dependencies]
 base64 = "0.22.1"
-bitmaps = "3.2.1"
+bitmaps.workspace = true
 blsful.workspace = true
 bytes = "1.4"
 tracing.workspace = true

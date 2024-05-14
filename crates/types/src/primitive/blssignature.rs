@@ -3,7 +3,7 @@ use anyhow::Error;
 use bitmaps::Bitmap;
 use serde::{de::Visitor, Deserialize, Serialize};
 use std::ops::{BitAnd, BitOr};
-use blsful::{Bls12381G1Impl, MultiPublicKey, MultiSignature, PublicKey, Signature};
+use blsful::{Bls12381G1Impl, MultiPublicKey, MultiSignature, PublicKey, SecretKey, Signature, SignatureSchemes, inner_types::Field};
 
 /// BLS Validator ID is just going to be a u8 for now.  However, our bitmap is only 127 wide so be careful
 pub type BLSValidatorID = u8;
@@ -19,6 +19,25 @@ pub struct BLSSignature {
 }
 
 impl BLSSignature {
+    /// Create a new BLSSignature by signing the provided data with the provided secret key
+    pub fn sign(validator_id: BLSValidatorID, sk: &SecretKey<Bls12381G1Impl>, data: &[u8]) -> Self {
+        // Sign our data and store as a Multisig
+        let signature = sk.sign(SignatureSchemes::ProofOfPossession, data).unwrap();
+        let aggregate_signature: MultiSignature<Bls12381G1Impl> = MultiSignature::ProofOfPossession(signature.as_raw_value().clone());
+        // Setup our bitmap for this validator
+        let mut validators_included: Bitmap<128> = Bitmap::new();
+        validators_included.set(validator_id as usize, true);
+        Self { validators_included, aggregate_signature }
+    }
+
+    /// Sign the given data with the provided secret key and aggregate the resultant signature into
+    /// this BLSSignature
+    pub fn sign_into(&mut self, validator_id: BLSValidatorID, sk: &SecretKey<Bls12381G1Impl>, data: &[u8]) -> bool {
+        // Cannot sign anything with a zero key
+        if sk.0.is_zero().into() { return false; }
+        let new_signature = sk.sign(SignatureSchemes::ProofOfPossession, data).unwrap();
+        self.add_signature(validator_id, new_signature)
+    }
     /// Validates the wrapped signature by using our validator bitmap to pull the appropriate public keys out
     /// of a supplied public key library.
     pub fn validate(&self, public_key_library: &[PublicKey<Bls12381G1Impl>], data: &[u8]) -> bool {
@@ -29,6 +48,22 @@ impl BLSSignature {
         let multikey = MultiPublicKey::from_public_keys(included_public_keys);
         // We're swallowing the error here and might want to record it, but a fail is a fail
         self.aggregate_signature.verify(multikey, data).is_ok()
+    }
+
+    /// Returns the number of validators that have signed this message
+    pub fn num_signed(&self) -> usize {
+        self.validators_included.len()
+    }
+
+    /// Returns true if this signature claims to include the public key of the specified validator.  This does
+    /// not inherently validate the signature so make sure to do that as well!
+    pub fn signed_by(&self, validator_id: BLSValidatorID) -> bool {
+        self.validators_included.get(validator_id as usize)
+    }
+
+    /// Get a reference to the validator bitmap for this signature
+    pub fn validator_map(&self) -> &Bitmap<128> {
+        &self.validators_included
     }
 
     /// Aggregate another `BLSSignature` into this one, modifying this signature in place.  This aggegration
@@ -53,6 +88,7 @@ impl BLSSignature {
     pub fn as_signature(&self) -> Signature<Bls12381G1Impl> {
         Signature::ProofOfPossession(self.aggregate_signature.as_raw_value().clone())
     }
+
 
     pub fn add_signature(&mut self, validator_id: BLSValidatorID, new_signature: Signature<Bls12381G1Impl>) -> bool {
         // If our validator is already included, just return false
