@@ -66,6 +66,11 @@ impl Commit {
         self.message_sig.validator_map()
     }
 
+    /// Returns the number of validators that have signed this Commit message
+    pub fn num_signed(&self) -> usize {
+        self.message_sig.validator_map().len()
+    }
+
     fn hash_message(&self) -> FixedBytes<32> {
         let mut hasher = Keccak256::new();
         hasher.update(self.block_height.to_be_bytes());
