@@ -1,4 +1,4 @@
-use alloy_rlp::{Encodable, Decodable};
+use alloy_rlp::{length_of_length, Decodable, Encodable};
 use anyhow::Error;
 use bitmaps::Bitmap;
 use serde::{de::Visitor, Deserialize, Serialize};
@@ -177,32 +177,27 @@ impl Encodable for BLSSignature {
         // Because of the size of our bitmap, this is u128 (16 bytes).  Note that if we change
         // the size of the bitmap we might wind up changing the number of bytes written
         // and expected here!
-        let tim: [u8;16] = self.validators_included.as_value().to_le_bytes();
-        tim.encode(out);
-        // A compressed G1 signature is 48 bytes
-        self.aggregate_signature.as_raw_value().to_compressed().encode(out);
+        // let tim: [u8;16] = self.validators_included.as_value().to_le_bytes();
+        // tim.encode(out);
+        // // A compressed G1 signature is 48 bytes
+        // self.aggregate_signature.as_raw_value().to_compressed().encode(out);
+        self.to_bytes().encode(out);
     }
 
-    fn length(&self) -> usize { 64 }
+    fn length(&self) -> usize {
+        // 64 bytes plus the length of the header
+        64 + length_of_length(64)
+    }
 }
 
 impl Decodable for BLSSignature {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         //let v = alloy_rlp::Header::decode_bytes(buf, false)?.to_vec();
         // Pull both of our elements back out of the buf
-        let bitmap_bytes: [u8;16] = <[u8;16]>::decode(buf)?;
-        let sig_bytes: [u8;48] = <[u8;48]>::decode(buf)?;
-        
-        // Parse out the u128 for out bitmap
-        let bitmap_value = u128::from_le_bytes(bitmap_bytes.try_into().map_err(|_| alloy_rlp::Error::Custom("Error deserializing bitmap"))?);
-        let validators_included = Bitmap::from_value(bitmap_value);
-        // Parse the remaining bytes into the signature data
-        let parsed_g1 = blsful::inner_types::G1Projective::from_compressed(&sig_bytes);
-        if parsed_g1.is_none().into() {
-            return Err(alloy_rlp::Error::Custom("Unable to reconstitute signature from compressed bytes"));
-        }
-        let aggregate_signature: MultiSignature<Bls12381G1Impl> = MultiSignature::ProofOfPossession(parsed_g1.unwrap());
-        Ok(BLSSignature { validators_included, aggregate_signature })
+        let bytes = <[u8;64]>::decode(buf)?;
+        let decoded = BLSSignature::from_bytes(&bytes)
+            .map_err(|_| alloy_rlp::Error::Custom("BLSSignature from_bytes error"))?;
+        Ok(decoded)
     }
 }
 
