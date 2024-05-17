@@ -104,11 +104,12 @@ impl BLSSignature {
 
     pub fn to_bytes(&self) -> [u8;64] {
         let mut bytes: [u8;64] = [0;64];
-        // Split the pointers into 16 and 48 bytes
-        let (val_output, sig_output) = bytes.split_at_mut(16);
-        // If the sizes here ever change, this can panic so be careful...
-        val_output.copy_from_slice(&self.validators_included.as_value().to_le_bytes());
-        sig_output.copy_from_slice(&self.aggregate_signature.as_raw_value().to_compressed());
+        // Because of the size of our bitmap, validators_included is u128 (16 bytes).
+        // Note that if we change the size of the bitmap we might wind up changing the number
+        // of bytes written and expected here, which would cause a panic!
+        bytes[0..16].copy_from_slice(&self.validators_included.as_value().to_be_bytes());
+        // Compressed signature from a G1 type BLS sig is always 48 bytes, fills the rest of our byte array
+        bytes[16..].copy_from_slice(&self.aggregate_signature.as_raw_value().to_compressed());
         bytes
     }
 
@@ -119,7 +120,7 @@ impl BLSSignature {
         let sig_bytes: [u8;48] = sig_slice.try_into()?;
         
         // Parse out the u128 for our bitmap
-        let bitmap_value = u128::from_le_bytes(bitmap_bytes);
+        let bitmap_value = u128::from_be_bytes(bitmap_bytes);
         let validators_included = Bitmap::from_value(bitmap_value);
         // Parse the remaining bytes into the signature data
         let parsed_g1 = blsful::inner_types::G1Projective::from_compressed(&sig_bytes);
@@ -139,6 +140,10 @@ impl Serialize for BLSSignature {
     }
 }
 
+/// Visitor for Serde deserialization of this value.  Right now we only have a handler for
+/// `visit_seq` because `serde_json` encodes our bytes block into an array of u8s.  It's
+/// possible that for different serialization and deserialization mechanisms we'll have to
+/// expand this.
 struct BLSSignatureVisitor {}
 impl<'de> Visitor<'de> for BLSSignatureVisitor {
     type Value = BLSSignature;
@@ -174,13 +179,6 @@ impl<'de> Deserialize<'de> for BLSSignature {
 
 impl Encodable for BLSSignature {
     fn encode(&self, out: &mut dyn bytes::BufMut) {
-        // Because of the size of our bitmap, this is u128 (16 bytes).  Note that if we change
-        // the size of the bitmap we might wind up changing the number of bytes written
-        // and expected here!
-        // let tim: [u8;16] = self.validators_included.as_value().to_le_bytes();
-        // tim.encode(out);
-        // // A compressed G1 signature is 48 bytes
-        // self.aggregate_signature.as_raw_value().to_compressed().encode(out);
         self.to_bytes().encode(out);
     }
 

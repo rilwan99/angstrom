@@ -111,12 +111,9 @@ where
                 self.broadcast(ConsensusMessage::Commit(commit));
             },
             StromConsensusEvent::Commit(_,mut commit) => {
-                let proposal = match self.canonical_proposal {
-                    Some(ref p) => p,
-                    // If we have no proposal than do we want to do anything here like hold on to existing commits?
-                    // Right now we're just going to leave here and be done
-                    None => return
-                };
+                // If we have no proposal than do we want to do anything here like hold on to existing commits?
+                // Right now we're just going to leave here and be done
+                let Some(proposal) = self.canonical_proposal.as_ref() else { return; };
                 
                 // Validate the commit itself - not currently checked
                 commit.validate(&vec![]);
@@ -133,7 +130,10 @@ where
                         self.broadcast_cache.insert(commit.validator_map().clone());
                         // Add our signature to the commit and broadcast
                         commit.add_signature(self.signer.validator_id, &self.signer.key);
-                        self.broadcast(ConsensusMessage::Commit(commit));
+                        // Broadcast to our local subscribers
+                        self.broadcast(ConsensusMessage::Commit(commit.clone()));
+                        // Also broadcast to the Strom network
+                        self.network.broadcast_tx(angstrom_network::StromMessage::Commit(commit))
                     }
                 }
             }
