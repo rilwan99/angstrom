@@ -36,11 +36,78 @@ pub struct BigBoyBook<const BOUND: usize> {
 
 impl<const BOUND: usize> BigBoyBook<BOUND> {
     pub fn new(amm: UniswapV4Book<BOUND>, bids: Vec<Order>, asks: Vec<Order>) -> Self {
+        // We're assuming right now that everything is sorted coming in
+        // bids are sorted by price in increasing order from 0... (decreasing order from the END of the vector)
+        // asks are sorted by price in decreasing order from 0... (increasing order from the END of the vector)
         assert!(
             bids.windows(2).all(|w| w[0].price <= w[1].price)
                 && asks.windows(2).all(|w| w[0].price >= w[1].price)
         );
         BigBoyBook { amm, bids, asks }
+    }
+
+    pub fn uniform_clearing_lob(&self) -> (Option<f64>, f64) {
+        let mut q = f64::ZERO;
+        let mut p = None;
+
+        // If either list is empty we can just return here
+        if self.asks.is_empty() || self.bids.is_empty() { return (p, q); }
+        
+        // Iterate from the back because that's the order that we need
+        let mut a_iter = self.asks.iter().rev();
+        let mut b_iter = self.bids.iter().rev();
+
+        let mut a = a_iter.next().unwrap();
+        let mut b = b_iter.next().unwrap();
+
+        // This is used as a dumping ground for when I need to make a "remainder" Order to fill in
+        let mut remainder_order = Order { amount: f64::ZERO, price: f64::ZERO };
+
+        while a.price <= b.price {
+            let matched = a.amount.min(b.amount);
+            q += matched;
+            let excess = b.amount - a.amount;
+            if excess == f64::ZERO {
+                p = Some((a.price + b.price) / 2.0);
+                let Some(new_a) = a_iter.next() else { break; };
+                let Some(new_b) = b_iter.next() else { break; };
+                a = new_a;
+                b = new_b;
+            } else if excess > f64::ZERO {
+                p = Some(b.price);
+                let Some(new_a) = a_iter.next() else { break; };
+                a = new_a;
+                b = a; // Convince the borrow checker we aren't going to modify local_bid
+                remainder_order.amount = b.amount - matched;
+                remainder_order.price = b.price;
+                b = &remainder_order;
+            } else {
+                p = Some(a.price);
+                let Some(new_b) = b_iter.next() else { break; };
+                b = new_b;
+                a = b; // Convince the borrow checker we aren't going to modify local_bid
+                remainder_order.amount = a.amount - matched;
+                remainder_order.price = a.price;
+                a = &remainder_order;
+            }
+
+        }
+        (p, q)
+    }
+
+    pub fn uniform_clearing_amm(&self) -> (Option<f64>, f64) {
+        let p: Option<f64> = None;
+        let q = f64::ZERO;
+
+        let p_star = match self.uniform_clearing_lob() {
+            (Some(p), _) => p,
+            _ => return (p, q)
+        };
+
+        //let amm_orders = self.amm_to_order(p_star);
+        
+
+        (p, q)
     }
 
     pub fn fill_me(&mut self) -> (Option<f64>, f64) {
