@@ -1,23 +1,24 @@
 use alloy_primitives::Bytes;
 use angstrom_types::{
     consensus::{Commit, OrderBuffer, PoolOrders, PreProposal, Proposal},
-    primitive::{Bundle, LowerBound, Lvr}
+    primitive::{BLSValidatorID, Bundle, LowerBound, Lvr}
 };
 use rand::{rngs::ThreadRng, thread_rng, Rng};
-use secp256k1::SecretKey;
+use secp256k1::SecretKey as Secp256SecretKey;
+use blsful::SecretKey;
 
 use crate::type_generator::orders::generate_rand_valid_limit_order;
 
 pub fn generate_random_commit() -> Commit {
     let mut rng = thread_rng();
-    let sk = SecretKey::new(&mut rng);
+    let sk = SecretKey::new();
 
     Commit::generate_commit_all(rng.gen(), rng.gen(), rng.gen(), rng.gen(), &sk)
 }
 
 pub fn generate_random_preposal() -> PreProposal {
     let mut rng = thread_rng();
-    let sk = SecretKey::new(&mut rng);
+    let sk = Secp256SecretKey::new(&mut rng);
 
     let mut pre_bundle = Vec::new();
     for _ in 0..rng.gen_range(3..10) {
@@ -42,9 +43,9 @@ pub fn generate_random_preposal() -> PreProposal {
     PreProposal::generate_pre_proposal(rng.gen(), pre_bundle, &sk)
 }
 
-pub fn generate_random_proposal() -> Proposal {
+pub fn generate_random_proposal(validator_id: BLSValidatorID) -> Proposal {
     let mut rng = thread_rng();
-    let sk = SecretKey::new(&mut rng);
+    let sk = SecretKey::new();
 
     let mut order_buf = Vec::new();
     for _ in 0..rng.gen_range(5..10) {
@@ -60,7 +61,7 @@ pub fn generate_random_proposal() -> Proposal {
     let lower_bound = generate_lower_bound(&mut rng);
     let vanilla_bundle = generate_vanilla_bundle(&mut rng);
 
-    Proposal::generate_proposal(rng.gen(), vanilla_bundle, lower_bound, order_buf, &sk)
+    Proposal::generate_proposal(rng.gen(), vanilla_bundle, lower_bound, order_buf, validator_id, &sk)
 }
 
 fn generate_vanilla_bundle(_rng: &mut ThreadRng) -> Bundle {

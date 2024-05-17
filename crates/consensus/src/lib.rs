@@ -10,6 +10,7 @@ use std::pin::Pin;
 
 use futures::Stream;
 pub use manager::*;
+pub use signer::*;
 
 /// Listener for consensus data
 pub trait ConsensusListener: Send + Sync + 'static {

@@ -54,12 +54,17 @@ angstrom-rpc = { path = "./crates/rpc/" }
 angstrom-network = { path = "./crates/angstrom-net/" }
 testing-tools = { path = "./testing-tools/" }
 
+# BLS library
+blsful = "2.5.7"
 
 ## async
 async-trait = "0.1.68"
 futures = "0.3.26"
 pin-project = "1.1.3"
 futures-util = "0.3.29"
+
+## bitmaps
+bitmaps = "3.2.1"
 
 # revm
 revm = { version = "7.2.0", features = ["std", "secp256k1"] }

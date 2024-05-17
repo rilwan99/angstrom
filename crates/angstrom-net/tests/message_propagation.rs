@@ -130,7 +130,7 @@ async fn test_broadcast_consensus_propagation() {
         assert_eq!(res, Ok(true), "failed to receive and react to preposal within 1 second");
 
         // proposals
-        let proposal = generate_random_proposal();
+        let proposal = generate_random_proposal(0);
         let res = tokio::time::timeout(
             Duration::from_secs(1),
             testnet.send_consensus_broadcast(angstrom_network::StromMessage::Propose(proposal))
@@ -170,7 +170,7 @@ async fn test_consensus_propagation() {
         assert_eq!(res, Ok(true), "failed to receive and react to preposal within 1 second");
 
         // proposals
-        let proposal = generate_random_proposal();
+        let proposal = generate_random_proposal(0);
         let res = tokio::time::timeout(
             Duration::from_secs(1),
             testnet.send_consensus_message(angstrom_network::StromMessage::Propose(proposal))

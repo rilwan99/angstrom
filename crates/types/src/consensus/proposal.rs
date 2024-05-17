@@ -1,15 +1,14 @@
 use alloy_rlp::Encodable;
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
-use bytes::BytesMut;
-use reth_primitives::keccak256;
-use secp256k1::SecretKey;
+use bytes::{Bytes, BytesMut};
+use blsful::{SecretKey, PublicKey, Bls12381G1Impl, SignatureSchemes};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     consensus::order_buffer::OrderBuffer,
     primitive::{
         Angstrom::{Bundle, LowerBound},
-        Signature
+        BLSSignature, BLSValidatorID
     }
 };
 
@@ -21,7 +20,7 @@ pub struct Proposal {
     pub order_buffer:     Vec<OrderBuffer>,
     /// This signature is over (etheruem_block | hash(vanilla_bundle) |
     /// hash(order_buffer) | hash(lower_bound))
-    pub leader_signature: Signature
+    pub leader_signature: BLSSignature
 }
 
 impl Proposal {
@@ -30,7 +29,8 @@ impl Proposal {
         vanilla_bundle: Bundle,
         lower_bound: LowerBound,
         order_buffer: Vec<OrderBuffer>,
-        sk: &SecretKey
+        validator_id: BLSValidatorID,
+        sk: &SecretKey<Bls12381G1Impl>
     ) -> Self {
         // TODO: move to different to-byte conversion
         let mut buf = BytesMut::new();
@@ -40,15 +40,36 @@ impl Proposal {
         lower_bound.encode(&mut buf);
         let buf = buf.freeze();
 
-        let hash = keccak256(buf);
-        let sig = reth_primitives::sign_message(sk.secret_bytes().into(), hash).unwrap();
+        // This can only return an error and thusly a default (empty) signature if our signing key is zero.  Highly unlikely but
+        // we should probably make sure we think through this contingency
+        let signature = sk.sign(SignatureSchemes::ProofOfPossession, &buf).unwrap_or_default();
+        let mut leader_signature = BLSSignature::default();
+        leader_signature.add_signature(validator_id, signature);
 
         Self {
             ethereum_block,
             lower_bound,
             order_buffer,
             vanilla_bundle,
-            leader_signature: Signature(sig)
+            leader_signature
         }
+    }
+
+    pub fn sign_proposal(&mut self, validator_id: BLSValidatorID, sk: &SecretKey<Bls12381G1Impl>) -> bool {
+        let Ok(signature) = sk.sign(SignatureSchemes::ProofOfPossession, &self.payload()) else { return false; };
+        self.leader_signature.add_signature(validator_id, signature)
+    }
+
+    pub fn validate(&self, public_key_library: &[PublicKey<Bls12381G1Impl>]) -> bool {
+        self.leader_signature.validate(public_key_library, &self.payload())
+    }
+
+    fn payload(&self) -> Bytes {
+        let mut buf = BytesMut::new();
+        self.ethereum_block.encode(&mut buf);
+        self.vanilla_bundle.encode(&mut buf);
+        self.order_buffer.encode(&mut buf);
+        self.lower_bound.encode(&mut buf);
+        buf.freeze()
     }
 }
