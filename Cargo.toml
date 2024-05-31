@@ -113,6 +113,9 @@ alloy-rlp = { version = "0.3.4" }
 alloy-rlp-derive = { version = "0.3.4" }
 alloy-primitives = { version = "0.7.0", features = ["rlp"] }
 
+# Uniswap math helpers
+uniswap_v3_math = "0.4.1"
+
 hex-literal = "0.4.1"
 
 ## misc

@@ -11,5 +11,6 @@ exclude.workspace = true
 [dependencies]
 angstrom-utils.workspace = true
 alloy-primitives.workspace = true
+uniswap_v3_math.workspace = true
 malachite = "0.4.0"
 malachite-q = "0.4.0"

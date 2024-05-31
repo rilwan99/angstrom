@@ -4,6 +4,9 @@ use malachite::num::basic::traits::Zero;
 
 use crate::cfmm::UniswapV4Book;
 
+pub mod volume;
+pub mod order;
+
 #[derive(Debug)]
 pub struct Order {
     amount: f64,

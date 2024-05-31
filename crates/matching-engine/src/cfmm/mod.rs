@@ -3,6 +3,8 @@
 
 use malachite::num::basic::traits::Zero;
 
+pub mod uniswap;
+
 /// Starts and ends at ticks but might not be a single tick if it spans
 /// uninitialized ticks.
 #[derive(Debug)]
