@@ -10,18 +10,15 @@ use malachite::num::arithmetic::traits::{Pow, PowerOf2};
 use malachite::num::conversion::traits::RoundingInto;
 use malachite::{Natural, Rational};
 
-// Uniswap math crate, annoyingly uses a different uint library so we have to do some conversions
-// Might want to more properly wrap this
-use uniswap_v3_math::utils::{ruint_to_u256, u256_to_ruint};
-use uniswap_v3_math::tick_math::{get_tick_at_sqrt_ratio, get_sqrt_ratio_at_tick};
-use uniswap_v3_math::sqrt_price_math::{self, _get_amount_0_delta};
+use self::math::{new_sqrt_price_from_input, new_sqrt_price_from_output, sqrt_price_at_tick, tick_at_sqrt_price, token_0_delta};
 
+pub mod math;
 /// A Tick is represented as an i32 as its value range is from around -900000..900000
 const MIN_TICK: i32 = -887272;
 const MAX_TICK: i32 = 887272;
 type Tick = i32;
 
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SqrtPriceX96(U160);
 
 impl SqrtPriceX96 {
@@ -67,8 +64,6 @@ impl From<U160> for SqrtPriceX96 {
         Self(value)
     }
 }
-/// SqrtPriceX96 is a 64-bit float
-// pub type SqrtPriceX96 = U160;
 
 /// A PoolRange describes the liquidity conditions within a specific range of ticks.  The range
 /// can be described as `[lower_tick, upper_tick)`.  The range must start and end on a tick bound,
@@ -99,6 +94,7 @@ impl PoolRange {
 /// Snapshot of a particular Uniswap contract and its liquidity.  A contract has a Token0 and a Token1
 /// which represent the two quantities that are being exchanged.  This snapshot contains the current
 /// price and liquidity information representing the state of a Uniswap contract at a point in time.
+#[derive(Debug)]
 pub struct MarketSnapshot {
     /// Known tick ranges and liquidity positions gleaned from the market snapshot
     ranges: Vec<PoolRange>,
@@ -121,7 +117,7 @@ impl MarketSnapshot {
         }
 
         // Get our current tick from our current price
-        let current_tick = get_tick_at_sqrt_ratio(ruint_to_u256(Uint::from(sqrt_price_x96.0)))
+        let current_tick = tick_at_sqrt_price(sqrt_price_x96)
             .map_err(|_| format!("Unable to get a tick from our current price '{}'", sqrt_price_x96.0))?;
 
         // Find the tick range that our current tick lies within
@@ -153,7 +149,7 @@ impl MarketSnapshot {
 /// are bought and sold.  This price will always depend on a specific MarketSnapshot so if underlying parameters
 /// such as Liquidity or the decimal representation of the assets were to change, you would need to procure a new
 /// MarketSnapshot and new MarketPrices dependent on that.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MarketPrice<'a> {
     /// Reference to the Market State we're using as the basis for computation
     state: &'a MarketSnapshot,
@@ -205,36 +201,35 @@ impl<'a> MarketPrice<'a> {
                 if p >= self.price { return None; }
             }
         }
-        let cast_cur_price = ruint_to_u256(self.price.into());
-        let cast_target_price = target_price.map(|p| ruint_to_u256(p.into()));
         let mut new_range_idx = self.range_idx;
         let mut pool = self.state.get_range(new_range_idx)?;
         let (mut tick_bound_price, next_tick) = if buy {
-            let upper_tick_price = get_sqrt_ratio_at_tick(pool.upper_tick).ok()?;
+            let upper_tick_price = sqrt_price_at_tick(pool.upper_tick).ok()?;
             let next_tick = self.range_idx.checked_sub(1);
             (upper_tick_price, next_tick)
         } else {
-            let lower_tick_price = get_sqrt_ratio_at_tick(pool.lower_tick).ok()?;
+            let lower_tick_price = sqrt_price_at_tick(pool.lower_tick).ok()?;
             let next_tick = self.range_idx.checked_add(1);
             (lower_tick_price, next_tick)
         };
-        if cast_cur_price == tick_bound_price {
+        if self.price == tick_bound_price {
             // We're at the tick bound, we need to look at the next pool!
             new_range_idx = next_tick?;
             pool = self.state.get_range(new_range_idx)?;
             tick_bound_price = if buy {
-                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(pool.upper_tick).ok()?
+                sqrt_price_at_tick(pool.upper_tick).ok()?
             } else {
-                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(pool.lower_tick).ok()?
+                sqrt_price_at_tick(pool.lower_tick).ok()?
             };
         }
-        let closest_price = if let Some(p) = cast_target_price {min(p, tick_bound_price)} else { tick_bound_price };
-        let quantity = u256_to_ruint(_get_amount_0_delta(cast_cur_price, closest_price, pool.liquidity, true).ok()?);
+        let closest_price = if let Some(p) = target_price {min(p, tick_bound_price)} else { tick_bound_price };
+        let quantity = token_0_delta(self.price, closest_price, pool.liquidity, true)?;
+        // let quantity = u256_to_ruint(_get_amount_0_delta(cast_cur_price, closest_price, pool.liquidity, true).ok()?);
         let end_bound = Self {
             state: self.state,
-            price: SqrtPriceX96(Uint::from(u256_to_ruint(closest_price))),
+            price: closest_price,
             range_idx: new_range_idx,
-            tick: uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(closest_price).ok()?
+            tick: tick_at_sqrt_price(closest_price).ok()?
         };
         Some(PriceRange { start_bound: self.clone(), end_bound, quantity } )
     }
@@ -245,7 +240,7 @@ impl<'a> MarketPrice<'a> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PriceRange<'a> {
     pub start_bound: MarketPrice<'a>,
     pub end_bound: MarketPrice<'a>,
@@ -264,27 +259,23 @@ impl <'a> PriceRange<'a> {
         }
 
         // Otherwise we have to calculate the precise quantity we have to sell
-        let start_price = ruint_to_u256(self.start_bound.price.into());
-        let end_price = ruint_to_u256(t.into());
-        let liquidity = self.start_bound.liquidity();
-        let quantity = u256_to_ruint(_get_amount_0_delta(start_price, end_price, liquidity, true).unwrap_or(0.into()));
+        let quantity = token_0_delta(self.start_bound.price, t, self.start_bound.liquidity(), true).unwrap_or(Uint::from(0));
         quantity.into()
     }
 
     // Maybe it's OK that I don't check the price again here because in the matching algo I've only offered a quantity
     // bounded by the price, so we should always be OK?
     pub fn fill(&self, quantity: f64) -> Self {
-        let q = ruint_to_u256(Uint::from(quantity));
+        let q = Uint::from(quantity);
         let liquidity = self.start_bound.liquidity();
-        let sqrt_price = ruint_to_u256(self.start_bound.price.into());
         let end_sqrt_price = if self.end_bound.price > self.start_bound.price {
-            sqrt_price_math::get_next_sqrt_price_from_output(sqrt_price, liquidity, q, true).unwrap()
+            new_sqrt_price_from_output(self.start_bound.price, liquidity, q, true).unwrap()
         } else {
-            sqrt_price_math::get_next_sqrt_price_from_input(sqrt_price, liquidity, q, true).unwrap()
+            new_sqrt_price_from_input(self.start_bound.price, liquidity, q, true).unwrap()
         };
         let mut end_bound = self.start_bound.clone();
-        end_bound.price = u256_to_ruint(end_sqrt_price).into();
-        Self { end_bound, start_bound: self.start_bound.clone(), quantity: u256_to_ruint(q)}
+        end_bound.price = end_sqrt_price;
+        Self { end_bound, start_bound: self.start_bound.clone(), quantity: q}
     }
 }
 
@@ -292,7 +283,6 @@ impl <'a> PriceRange<'a> {
 mod tests {
 
     use super::*;
-    use uniswap_v3_math::tick_math;
 
     #[test]
     fn requires_contiguous_ticks() {
@@ -312,10 +302,10 @@ mod tests {
             PoolRange::new(2400, 2500, 10000000).unwrap()
         ];
 
-        let valid_price = u256_to_ruint(tick_math::get_sqrt_ratio_at_tick(2325).unwrap());
+        let valid_price = sqrt_price_at_tick(2325).unwrap();
 
         // Good ranges, good price, should be fine
-        MarketSnapshot::new(good_ranges.clone(), U160::from(valid_price).into()).unwrap();
+        MarketSnapshot::new(good_ranges.clone(), valid_price).unwrap();
         // Good ranges, bad price, should fail
         assert!(MarketSnapshot::new(good_ranges, U160::from(0).into()).is_err());
         // Bad ranges, good price, should fail

@@ -1,31 +1,7 @@
 use std::cell::Cell;
-
 use malachite::num::basic::traits::Zero;
-use crate::cfmm::uniswap::{MarketPrice, MarketSnapshot, SqrtPriceX96};
-use super::order::{OrderOutcome, Order};
-
-pub struct VolumeFillBook<'a> {
-    amm: MarketSnapshot,
-    bids: Vec<Order<'a>>,
-    asks: Vec<Order<'a>>
-}
-
-impl<'a> VolumeFillBook<'a> {
-    pub fn new(amm: MarketSnapshot, mut bids: Vec<Order<'a>>, mut asks: Vec<Order<'a>>) -> Self {
-        // Sort by price and then by volume - highest price first, highest volume first for same price
-        bids.sort_by(|a, b| b.price().partial_cmp(&a.price()).unwrap_or(std::cmp::Ordering::Less)
-            .then(b.quantity(0.0).partial_cmp(&a.quantity(0.0)).unwrap_or(std::cmp::Ordering::Less)));
-        // Sort by price and then by volume - lowest price first, highest volume first for same price
-        asks.sort_by(|a, b| a.price().partial_cmp(&b.price()).unwrap_or(std::cmp::Ordering::Less)
-            .then(b.quantity(0.0).partial_cmp(&a.quantity(0.0)).unwrap_or(std::cmp::Ordering::Less)));
-        Self { amm, bids, asks }
-    }
-}
-
-enum OrderDirection {
-    Bid,
-    Ask
-}
+use crate::cfmm::uniswap::{MarketPrice, SqrtPriceX96};
+use super::{order::{Order, OrderDirection, OrderOutcome}, OrderBook, OrderPrice, OrderVolume};
 
 #[derive(Clone)]
 enum PartialOrder<'a> {
@@ -35,9 +11,9 @@ enum PartialOrder<'a> {
 
 #[derive(Clone)]
 pub struct VolumeFillBookSolver<'a> {
-    book: &'a VolumeFillBook<'a>,
+    book: &'a OrderBook<'a>,
     bid_idx: Cell<usize>,
-    bid_outcomes: Vec<OrderOutcome>,
+    pub bid_outcomes: Vec<OrderOutcome>,
     ask_idx: Cell<usize>,
     ask_outcomes: Vec<OrderOutcome>,
     amm_price: MarketPrice<'a>,
@@ -47,12 +23,12 @@ pub struct VolumeFillBookSolver<'a> {
 }
 
 impl<'a> VolumeFillBookSolver<'a> {
-    pub fn new(book: &'a VolumeFillBook) -> Self {
+    pub fn new(book: &'a OrderBook) -> Self {
         // Create our outcome tracking for our orders
         let bid_outcomes = vec![OrderOutcome::Unfilled; book.bids.len()];
         let ask_outcomes = vec![OrderOutcome::Unfilled; book.asks.len()];
         let amm_price = book.amm.current_position();
-        Self {
+        let mut new_element = Self {
             book,
             bid_idx: Cell::new(0),
             bid_outcomes,
@@ -61,7 +37,10 @@ impl<'a> VolumeFillBookSolver<'a> {
             amm_price,
             current_partial: None,
             checkpoint: None
-        }
+        };
+        // We can checkpoint our initial state as valid
+        new_element.save_checkpoint();
+        new_element
     }
 
     /// Save our current solve state to an internal checkpoint
@@ -81,20 +60,11 @@ impl<'a> VolumeFillBookSolver<'a> {
 
     /// Spawn a new VolumeFillBookSolver from our checkpoint
     pub fn from_checkpoint(&self) -> Option<Self> {
-        let Some(cp) = self.checkpoint.as_ref() else { return None; };
-        Some(Self {
-            book: cp.book,
-            bid_idx: cp.bid_idx.clone(),
-            bid_outcomes: cp.bid_outcomes.clone(),
-            ask_idx: cp.ask_idx.clone(), 
-            ask_outcomes: cp.ask_outcomes.clone(),
-            amm_price: cp.amm_price.clone(),
-            current_partial: cp.current_partial.clone(),
-            checkpoint: None
-        })
+        self.checkpoint.as_ref().map(|cp| *cp.clone())
     }
 
     /// Restore our checkpoint into this VolumeFillBookSolver - not sure if we ever want to do this but we can!
+    #[allow(dead_code)]
     fn restore_checkpoint(&mut self) -> bool {
         let Some(checkpoint) = self.checkpoint.take() else { return false; };
         let Self { bid_idx, bid_outcomes, ask_idx, ask_outcomes, amm_price, current_partial, ..} = *checkpoint;
@@ -107,12 +77,12 @@ impl<'a> VolumeFillBookSolver<'a> {
         true
     }
 
-    pub fn fill(&mut self) -> (Option<f64>, f64) {
+    pub fn fill(&mut self) -> (Option<OrderPrice>, OrderVolume) {
         {
             // Total quantity filled
             let mut q = f64::ZERO;
             // Price found
-            let mut p: Option<f64> = None;
+            let mut p: Option<OrderPrice> = None;
             // Local temporary storage for bid and ask AMM orders since they're generated on the fly
             // and need somewhere to live while we use them
             let mut amm_bid_order: Option<Order>;
@@ -226,29 +196,60 @@ impl<'a> VolumeFillBookSolver<'a> {
         let mut index = index_cell.get();
         // Use the price we're passed in or default to the current checkpoint price
         let amm_price = &self.amm_price;
-        while let Some(OrderOutcome::Killed) = outcomes.get(index + 1) {
+        // Find our next unfilled order
+        while index < outcomes.len() {
+            if let OrderOutcome::Unfilled = outcomes[index] { break; }
             index += 1;
         }
-        match order_book.get(index + 1).map(|o| o.price()) {
+
+        // See if we have an AMM order that takes precedence over our book order
+        let amm_order = match direction {
+            OrderDirection::Bid => {
+                order_book.get(index).and_then(|o| if amm_price.as_float() > o.price() { println!("Prioritizing AMM"); Some(Some(o.price())) } else { Some(None) })
+                .and_then(|o| o.map(|p| amm_price.sell_to_price(SqrtPriceX96::from_float_price(p))))
+                .unwrap_or_else(|| amm_price.sell_to_next_bound())
+            },
+            OrderDirection::Ask => {
+                order_book.get(index).and_then(|o| if amm_price.as_float() < o.price() { Some(Some(o.price())) } else { Some(None) })
+                .and_then(|o| o.map(|p| amm_price.buy_to_price(SqrtPriceX96::from_float_price(p))))
+                .unwrap_or_else(|| amm_price.buy_to_next_bound())
+            }
+        }.map(|r| Order::AMM(r));
+        
+        // If we don't have an AMM order, point our index at the new book order we care about
+        // if amm_order.is_none() { println!("It's none!"); index_cell.set(index); }
+        // return amm_order;
+            
+        
+        match order_book.get(index).map(|o| o.price()) {
             Some(p) if p >= amm_price.as_float() => {
-                index_cell.set(index + 1);
+                println!("It's none!");
+                index_cell.set(index);
                 None
             },
-            // We do have a target price in our order book to match to
-            Some(p) => {
-                let target_price = SqrtPriceX96::from_float_price(p);
-                match direction {
-                    OrderDirection::Bid => Some(Order::AMM(amm_price.sell_to_price(target_price)?)),
-                    OrderDirection::Ask => Some(Order::AMM(amm_price.buy_to_price(target_price)?))
+            e @ _ => {
+                if let Some(p) = e {
+                    let amm_better = match direction {
+                        OrderDirection::Bid => p >= amm_price.as_float(),
+                        OrderDirection::Ask => p <= amm_price.as_float()
+                    };
+                    if amm_better {
+                        index_cell.set(index);
+                        return None;
+                    }
                 }
+                let amm_order = match direction {
+                    OrderDirection::Bid => {
+                        e.and_then(|p| amm_price.sell_to_price(SqrtPriceX96::from_float_price(p)))
+                            .or_else(|| amm_price.sell_to_next_bound())?
+                    },
+                    OrderDirection::Ask => {
+                        e.and_then(|p| amm_price.buy_to_price(SqrtPriceX96::from_float_price(p)))
+                            .or_else(|| amm_price.buy_to_next_bound())?
+                    }
+                };
+                Some(Order::AMM(amm_order))
             },
-            // There's no target price in our order book so just produce an AMM order to the next AMM volume bound
-            _ => {
-                match direction {
-                    OrderDirection::Bid => Some(Order::AMM(amm_price.sell_to_next_bound()?)),
-                    OrderDirection::Ask => Some(Order::AMM(amm_price.buy_to_next_bound()?))
-                }
-            }
         }
     }
 }

@@ -14,3 +14,5 @@ alloy-primitives.workspace = true
 uniswap_v3_math.workspace = true
 malachite = "0.4.0"
 malachite-q = "0.4.0"
+rand.workspace = true
+rand_distr.workspace = true
