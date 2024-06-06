@@ -61,7 +61,7 @@ fn main() {
     ];
     let amm = MarketSnapshot::new(ranges, amm_price).unwrap();
     
-    let book = OrderBook::new(amm, bids, asks, Some(SortStrategy::ByPriceByVolume));
+    let book = OrderBook::new(Some(amm), bids, asks, Some(SortStrategy::ByPriceByVolume));
 
     // We're going to solve using our Simple Checkpoint Strategy
     let solved = SimpleCheckpointStrategy::run(&book).unwrap();

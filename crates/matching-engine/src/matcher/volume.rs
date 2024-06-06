@@ -17,7 +17,7 @@ pub struct VolumeFillMatcher<'a> {
     pub bid_outcomes: Vec<OrderOutcome>,
     ask_idx: Cell<usize>,
     pub ask_outcomes: Vec<OrderOutcome>,
-    amm_price: MarketPrice<'a>,
+    amm_price: Option<MarketPrice<'a>>,
     current_partial: Option<PartialOrder<'a>>,
     results: Solution,
     // A checkpoint should never have a checkpoint stored within itself, otherwise this gets gnarly
@@ -29,7 +29,7 @@ impl<'a> VolumeFillMatcher<'a> {
         // Create our outcome tracking for our orders
         let bid_outcomes = vec![OrderOutcome::Unfilled; book.bids().len()];
         let ask_outcomes = vec![OrderOutcome::Unfilled; book.asks().len()];
-        let amm_price = book.amm().current_position();
+        let amm_price = book.amm().map(|a| a.current_position());
         let mut new_element = Self {
             book,
             bid_idx: Cell::new(0),
@@ -136,10 +136,10 @@ impl<'a> VolumeFillMatcher<'a> {
                 if let (Order::AMM(o), _) | (_, Order::AMM(o)) = (bid,ask) {
                     // We always update our AMM price with any quantity sold
                     let final_amm_order = o.fill(matched);
-                    self.amm_price = final_amm_order.end_bound.clone();
+                    self.amm_price = Some(final_amm_order.end_bound.clone());
                     // Add to our solution
                     self.results.amm_volume += matched;
-                    self.results.amm_final_price = Some(self.amm_price.price().clone());
+                    self.results.amm_final_price = Some(final_amm_order.end_bound.price().clone());
                 }
 
                 // Then we see what else we need to do
@@ -199,8 +199,6 @@ impl<'a> VolumeFillMatcher<'a> {
             OrderDirection::Ask => (&self.ask_idx, self.book.asks(), &self.ask_outcomes)
         };
         let mut index = index_cell.get();
-        // Use the price we're passed in or default to the current checkpoint price
-        let amm_price = &self.amm_price;
         // Find our next unfilled order
         while index < outcomes.len() {
             if let OrderOutcome::Unfilled = outcomes[index] { break; }
@@ -209,19 +207,23 @@ impl<'a> VolumeFillMatcher<'a> {
 
         // See if we have an AMM order that takes precedence over our book order
         let amm_order = {
-            let book_order_price = order_book.get(index)?.price();
-            let target_price = SqrtPriceX96::from_float_price(book_order_price);
-            match direction {
-                OrderDirection::Bid if amm_price.as_float() > book_order_price => {
-                    amm_price.sell_to_price(target_price).or_else(|| amm_price.sell_to_next_bound())
-                },
-                OrderDirection::Ask if amm_price.as_float() < book_order_price => {
-                    amm_price.buy_to_price(target_price).or_else(|| amm_price.buy_to_next_bound())
+            if let Some(amm_price) = &self.amm_price {
+                let book_order_price = order_book.get(index)?.price();
+                let target_price = SqrtPriceX96::from_float_price(book_order_price);
+                match direction {
+                    OrderDirection::Bid if amm_price.as_float() > book_order_price => {
+                        amm_price.sell_to_price(target_price).or_else(|| amm_price.sell_to_next_bound())
+                    },
+                    OrderDirection::Ask if amm_price.as_float() < book_order_price => {
+                        amm_price.buy_to_price(target_price).or_else(|| amm_price.buy_to_next_bound())
+                    }
+                    _ => {
+                        index_cell.set(index);
+                        None
+                    }
                 }
-                _ => {
-                    index_cell.set(index);
-                    None
-                }
+            } else {
+                None
             }
         }.map(|o| Order::AMM(o));
 
