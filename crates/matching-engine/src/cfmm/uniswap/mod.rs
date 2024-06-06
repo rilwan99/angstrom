@@ -183,6 +183,8 @@ impl<'a> MarketPrice<'a> {
         self.order_to_target(None, false)
     }
 
+    pub fn tick(&self) -> Tick { self.tick }
+
     pub fn liquidity(&self) -> u128 {
         self.state.get_range(self.range_idx).map(|p| p.liquidity).unwrap_or(0)
     }

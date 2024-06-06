@@ -1,7 +1,7 @@
 mod volume;
 pub use volume::VolumeFillMatcher;
 
-use crate::{book::{order::OrderDirection, OrderBook, OrderPrice, OrderVolume}, cfmm::uniswap::SqrtPriceX96};
+use crate::{book::{order::OrderDirection, OrderPrice, OrderVolume}, cfmm::uniswap::SqrtPriceX96};
 
 /// Preliminary implementation of a struct that captures all the information we'd want to get out of
 /// a finished match for us to use for heurestics and evaluation
