@@ -1,4 +1,4 @@
-use crate::matcher::VolumeFillBookSolver;
+use crate::matcher::VolumeFillMatcher;
 use super::MatchingStrategy;
 
 /// Very simple strategy where we just roll the solver back to the last "good solve"
@@ -6,7 +6,7 @@ use super::MatchingStrategy;
 pub struct SimpleCheckpointStrategy {}
 
 impl<'a> MatchingStrategy<'a> for SimpleCheckpointStrategy {
-    fn finalize(solver: VolumeFillBookSolver) -> Option<VolumeFillBookSolver> {
+    fn finalize(solver: VolumeFillMatcher) -> Option<VolumeFillMatcher> {
         solver.from_checkpoint()
     }
 }

@@ -11,7 +11,7 @@ enum PartialOrder<'a> {
 }
 
 #[derive(Clone)]
-pub struct VolumeFillBookSolver<'a> {
+pub struct VolumeFillMatcher<'a> {
     book: &'a OrderBook<'a>,
     bid_idx: Cell<usize>,
     pub bid_outcomes: Vec<OrderOutcome>,
@@ -24,7 +24,7 @@ pub struct VolumeFillBookSolver<'a> {
     checkpoint: Option<Box<Self>>
 }
 
-impl<'a> VolumeFillBookSolver<'a> {
+impl<'a> VolumeFillMatcher<'a> {
     pub fn new(book: &'a OrderBook) -> Self {
         // Create our outcome tracking for our orders
         let bid_outcomes = vec![OrderOutcome::Unfilled; book.bids().len()];
