@@ -43,6 +43,7 @@ pub fn new_sqrt_price_from_output(start_price: SqrtPriceX96, liquidity: u128, qu
 pub fn new_sqrt_price_from_input(start_price: SqrtPriceX96, liquidity: u128, quantity: U256, zero_for_one: bool) -> Result<SqrtPriceX96, ()> {
     let sqrt_price = ruint_to_u256(start_price.into());
     let amount_out = ruint_to_u256(quantity);
+    
     get_next_sqrt_price_from_input(sqrt_price, liquidity, amount_out, zero_for_one)
         .map(|x| SqrtPriceX96::from(u256_to_ruint(x))).map_err(|_| ())
 }

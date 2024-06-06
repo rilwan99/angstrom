@@ -7,7 +7,7 @@
 /// a suite of tests that will help us determine what the optimal matching strategy
 /// could be.
 
-use crate::{book::OrderBook, solver::VolumeFillBookSolver};
+use crate::{book::OrderBook, matcher::VolumeFillBookSolver};
 
 mod simplecheckpoint;
 pub use simplecheckpoint::SimpleCheckpointStrategy;
