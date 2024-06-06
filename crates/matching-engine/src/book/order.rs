@@ -5,6 +5,7 @@ use crate::cfmm::uniswap::PriceRange;
 
 use super::{OrderPrice, OrderVolume};
 
+#[derive(Clone, Debug)]
 pub enum OrderDirection {
     Bid,
     Ask

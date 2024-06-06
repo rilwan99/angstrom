@@ -3,7 +3,6 @@
 use self::{order::Order, sort::SortStrategy};
 use crate::cfmm::uniswap::MarketSnapshot;
 
-pub mod volume;
 pub mod order;
 pub mod sort;
 
@@ -24,6 +23,9 @@ impl<'a> OrderBook<'a> {
         strategy.sort_asks(&mut asks);
         Self { amm, bids, asks }
     }
+    pub fn bids(&self) -> &Vec<Order<'a>> { &self.bids }
+    pub fn asks(&self) -> &Vec<Order<'a>> { &self.asks }
+    pub fn amm(&self) -> &MarketSnapshot { &self.amm }
 }
 
 #[cfg(test)]

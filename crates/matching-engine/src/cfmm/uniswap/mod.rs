@@ -1,5 +1,5 @@
 use std::ops::Deref;
-use std::cmp::min;
+use std::cmp::{min, max};
 
 // uint 160 for represending SqrtPriceX96
 use alloy_primitives::Uint;
@@ -222,9 +222,10 @@ impl<'a> MarketPrice<'a> {
                 sqrt_price_at_tick(pool.lower_tick).ok()?
             };
         }
-        let closest_price = if let Some(p) = target_price {min(p, tick_bound_price)} else { tick_bound_price };
-        let quantity = token_0_delta(self.price, closest_price, pool.liquidity, true)?;
-        // let quantity = u256_to_ruint(_get_amount_0_delta(cast_cur_price, closest_price, pool.liquidity, true).ok()?);
+        let closest_price = if let Some(p) = target_price {
+            if buy { min(p, tick_bound_price) } else { max(p, tick_bound_price) }
+        } else { tick_bound_price };
+        let quantity = token_0_delta(self.price, closest_price, pool.liquidity, false)?;
         let end_bound = Self {
             state: self.state,
             price: closest_price,
@@ -233,6 +234,8 @@ impl<'a> MarketPrice<'a> {
         };
         Some(PriceRange { start_bound: self.clone(), end_bound, quantity } )
     }
+
+    pub fn price(&self) -> &SqrtPriceX96 { &self.price }
 
     /// Return the current price as a float - we need to figure out what our price representation is going to look like overall
     pub fn as_float(&self) -> f64 {
@@ -259,7 +262,7 @@ impl <'a> PriceRange<'a> {
         }
 
         // Otherwise we have to calculate the precise quantity we have to sell
-        let quantity = token_0_delta(self.start_bound.price, t, self.start_bound.liquidity(), true).unwrap_or(Uint::from(0));
+        let quantity = token_0_delta(self.start_bound.price, t, self.start_bound.liquidity(), false).unwrap_or(Uint::from(0));
         quantity.into()
     }
 
