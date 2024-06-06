@@ -5,12 +5,17 @@ use std::{
 
 use alloy_primitives::Address;
 use parking_lot::RwLock;
-use reth_interfaces::{provider::ProviderError, RethError};
+use reth_interfaces::{
+    provider::{ProviderError, ProviderResult},
+    RethError, RethResult
+};
 use reth_primitives::{
     revm_primitives::{AccountInfo, Bytecode, B256, U256},
-    KECCAK_EMPTY
+    Account, BlockNumber, StorageKey, StorageValue, KECCAK_EMPTY
 };
-use reth_provider::{AccountReader, StateProvider, StateProviderBox, StateProviderFactory};
+use reth_provider::{
+    AccountReader, BlockNumReader, StateProvider, StateProviderBox, StateProviderFactory
+};
 use reth_revm::{Database, DatabaseRef};
 use revm::db::DbAccount;
 use schnellru::{ByMemoryUsage, LruMap};
@@ -19,6 +24,50 @@ use crate::{
     bundle::errors::SimError,
     common::state::{AddressSlots, RevmBackend}
 };
+
+pub trait BlockStateProvider {
+    fn get_basic_account(&self, address: Address) -> ProviderResult<Option<Account>>;
+
+    fn get_storage(
+        &self,
+        address: Address,
+        key: StorageKey
+    ) -> ProviderResult<Option<StorageValue>>;
+}
+
+pub trait BlockStateProviderFactory: Send + Sync {
+    type Provider: BlockStateProvider;
+
+    fn state_by_block(&self, block: u64) -> ProviderResult<Self::Provider>;
+
+    fn best_block_number(&self) -> ProviderResult<BlockNumber>;
+}
+
+impl BlockStateProvider for StateProviderBox {
+    fn get_basic_account(&self, address: Address) -> ProviderResult<Option<Account>> {
+        AccountReader::basic_account(self, address)
+    }
+
+    fn get_storage(
+        &self,
+        address: Address,
+        key: StorageKey
+    ) -> ProviderResult<Option<StorageValue>> {
+        StateProvider::storage(&self, address, key)
+    }
+}
+
+impl<T: StateProviderFactory> BlockStateProviderFactory for T {
+    type Provider = StateProviderBox;
+
+    fn state_by_block(&self, block: u64) -> ProviderResult<StateProviderBox> {
+        self.state_by_block_id(block.into())
+    }
+
+    fn best_block_number(&self) -> ProviderResult<BlockNumber> {
+        BlockNumReader::best_block_number(self)
+    }
+}
 
 pub struct RevmLRU<DB> {
     state_overrides:    RwLock<HashMap<Address, HashMap<U256, U256>>>,
@@ -44,7 +93,7 @@ impl<DB: Clone> Clone for RevmLRU<DB> {
 
 impl<DB> RevmBackend for RevmLRU<DB>
 where
-    DB: StateProviderFactory
+    DB: BlockStateProviderFactory
 {
     fn update_evm_state(&self, slot_changes: &AddressSlots) -> eyre::Result<(), SimError> {
         let mut accounts = self.accounts.write();
@@ -67,9 +116,10 @@ where
     }
 }
 
-impl<DB> RevmLRU<DB>
+impl<P, DB> RevmLRU<DB>
 where
-    DB: StateProviderFactory
+    P: BlockStateProvider,
+    DB: BlockStateProviderFactory<Provider = P>
 {
     pub fn new(max_bytes: usize, db: Arc<DB>, current_block: Arc<AtomicU64>) -> Self {
         let accounts = Arc::new(RwLock::new(LruMap::new(ByMemoryUsage::new(max_bytes))));
@@ -97,10 +147,10 @@ where
         *self.bytecode_overrides.write() = overrides;
     }
 
-    fn basic_ref_no_cache(&self, address: &Address) -> Result<Option<AccountInfo>, RethError> {
+    fn basic_ref_no_cache(&self, address: &Address) -> RethResult<Option<AccountInfo>> {
         Ok(self
             .get_current_provider()?
-            .basic_account(*address)?
+            .get_basic_account(*address)?
             .map(|account| AccountInfo {
                 balance:   account.balance,
                 nonce:     account.nonce,
@@ -109,25 +159,22 @@ where
             }))
     }
 
-    fn storage_ref_no_cache(&self, address: &Address, index: U256) -> Result<U256, RethError> {
+    fn storage_ref_no_cache(&self, address: &Address, index: U256) -> RethResult<U256> {
         self.get_current_provider()?
-            .storage(*address, index.into())
+            .get_storage(*address, index.into())
             .map(|inner| inner.unwrap_or_default())
             .map_err(RethError::from)
     }
 
-    fn get_current_provider(&self) -> Result<StateProviderBox, ProviderError> {
-        self.db.state_by_block_id(
-            self.current_block
-                .load(std::sync::atomic::Ordering::SeqCst)
-                .into()
-        )
+    fn get_current_provider(&self) -> ProviderResult<P> {
+        self.db
+            .state_by_block(self.current_block.load(std::sync::atomic::Ordering::SeqCst))
     }
 }
 
 impl<DB> Database for RevmLRU<DB>
 where
-    DB: StateProviderFactory
+    DB: BlockStateProviderFactory
 {
     type Error = RethError;
 
@@ -150,7 +197,7 @@ where
 
 impl<DB> DatabaseRef for RevmLRU<DB>
 where
-    DB: StateProviderFactory
+    DB: BlockStateProviderFactory
 {
     type Error = RethError;
 
@@ -185,9 +232,15 @@ where
                     .storage
                     .get(&index)
                     .map(|e| Ok(Some(*e)))
-                    .unwrap_or_else(|| self.get_current_provider()?.storage(address, index.into()))
+                    .unwrap_or_else(|| {
+                        self.get_current_provider()?
+                            .get_storage(address, index.into())
+                    })
             })
-            .unwrap_or_else(|| self.get_current_provider()?.storage(address, index.into()))?
+            .unwrap_or_else(|| {
+                self.get_current_provider()?
+                    .get_storage(address, index.into())
+            })?
             .unwrap_or_default())
     }
 

@@ -15,7 +15,7 @@ use std::{
 };
 
 use angstrom_eth::manager::EthEvent;
-use common::lru_db::RevmLRU;
+use common::lru_db::{BlockStateProviderFactory, RevmLRU};
 use futures::Stream;
 use order::state::config::load_validation_config;
 use reth_provider::StateProviderFactory;
@@ -24,9 +24,9 @@ use validator::Validator;
 
 use crate::validator::ValidationClient;
 
-pub const TOKEN_CONFIG_FILE: &str = "../crates/validation/state_config.toml";
+pub const TOKEN_CONFIG_FILE: &str = "./crates/validation/state_config.toml";
 
-pub fn init_validation<DB: StateProviderFactory + Unpin + Clone + 'static>(
+pub fn init_validation<DB: BlockStateProviderFactory + Unpin + Clone + 'static>(
     db: DB,
     cache_max_bytes: usize,
     block_stream: Pin<Box<dyn Stream<Item = EthEvent> + Send>>
@@ -44,13 +44,15 @@ pub fn init_validation<DB: StateProviderFactory + Unpin + Clone + 'static>(
             .build()
             .unwrap();
 
-        rt.block_on(Validator::new(rx, block_stream, revm_lru, config, current_block.clone()))
+        rt.block_on(async {
+            Validator::new(rx, block_stream, revm_lru, config, current_block.clone()).await
+        })
     });
 
     ValidationClient(tx)
 }
 
-pub fn init_validation_tests<DB: StateProviderFactory + Unpin + Clone + 'static>(
+pub fn init_validation_tests<DB: BlockStateProviderFactory + Unpin + Clone + 'static>(
     db: DB,
     cache_max_bytes: usize,
     block_stream: Pin<Box<dyn Stream<Item = EthEvent> + Send>>
