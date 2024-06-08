@@ -4,8 +4,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-release:
-    name: 'Release'
+  build:
+    name: 'Build'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -19,7 +19,7 @@ jobs:
         with:
           cache-on-failure: true
       - name: Build
-        run: cargo build --release
+        run: cargo build 
 
   test:
     name: 'Run tests'
