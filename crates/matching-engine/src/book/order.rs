@@ -9,6 +9,22 @@ pub enum OrderDirection {
     Ask
 }
 
+impl OrderDirection {
+    pub fn is_bid(&self) -> bool {
+        match self {
+            OrderDirection::Bid => true,
+            OrderDirection::Ask => false
+        }
+    }
+
+    pub fn is_ask(&self) -> bool {
+        match self {
+            OrderDirection::Bid => false,
+            OrderDirection::Ask => true
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum OrderOutcome {
     /// The order has not yet been processed
@@ -59,6 +75,14 @@ pub enum Order<'a> {
 }
 
 impl<'a> Order<'a> {
+    /// Determine if this is an AMM order
+    pub fn is_amm(&self) -> bool {
+        match self {
+            Self::AMM(_) => true,
+            _ => false
+        }
+    }
+
     /// Retrieve the quantity available within the bounds of a given order
     pub fn quantity(&self, limit_price: OrderPrice) -> OrderVolume {
         match self {

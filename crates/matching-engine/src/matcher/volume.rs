@@ -103,7 +103,6 @@ impl<'a> VolumeFillMatcher<'a> {
             // the fly and need somewhere to live while we use them
             let mut amm_bid_order: Option<Order>;
             let mut amm_ask_order: Option<Order>;
-
             loop {
                 let bid = if let Some(PartialOrder::Bid(ref o)) = self.current_partial {
                     o
@@ -135,7 +134,7 @@ impl<'a> VolumeFillMatcher<'a> {
                 };
 
                 // If we're talking to the AMM on both sides, we're done
-                if let (Order::AMM(_), Order::AMM(_)) = (bid, ask) {
+                if bid.is_amm() && ask.is_amm() {
                     break;
                 }
 
@@ -252,33 +251,21 @@ impl<'a> VolumeFillMatcher<'a> {
         }
 
         // See if we have an AMM order that takes precedence over our book order
-        let amm_order = {
-            if let Some(amm_price) = &self.amm_price {
-                let book_order_price = order_book.get(index)?.price();
-                let target_price = SqrtPriceX96::from_float_price(book_order_price);
-                match direction {
-                    OrderDirection::Bid if amm_price.as_float() > book_order_price => amm_price
-                        .sell_to_price(target_price)
-                        .or_else(|| amm_price.sell_to_next_bound()),
-                    OrderDirection::Ask if amm_price.as_float() < book_order_price => amm_price
-                        .buy_to_price(target_price)
-                        .or_else(|| amm_price.buy_to_next_bound()),
-                    _ => {
-                        index_cell.set(index);
-                        None
-                    }
-                }
-            } else {
-                None
-            }
-        }
-        .map(|o| Order::AMM(o));
+        let amm_order = self
+            .amm_price
+            .as_ref()
+            .and_then(|amm_price| {
+                let target_price = order_book
+                    .get(index)
+                    .map(|o| SqrtPriceX96::from_float_price(o.price()));
+                amm_price.order_to_target(target_price, direction.is_ask())
+            })
+            .map(|o| Order::AMM(o));
 
         // If we have no AMM order to look at, point the index at our next order
         if amm_order.is_none() {
             index_cell.set(index);
         }
-
-        return amm_order;
+        amm_order
     }
 }

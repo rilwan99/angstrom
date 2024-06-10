@@ -237,7 +237,7 @@ impl<'a> MarketPrice<'a> {
     /// This will produce a Uniswap Price Range that spans from the current
     /// price to the CLOSER of the target price or the nearest liquidity
     /// pool boundary
-    fn order_to_target(
+    pub fn order_to_target(
         &self,
         target_price: Option<SqrtPriceX96>,
         buy: bool
