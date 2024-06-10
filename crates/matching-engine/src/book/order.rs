@@ -1,9 +1,7 @@
-/// Definition of the various types of order that we can serve, as well as the outcomes
-/// we're able to have for them
-
-use crate::cfmm::uniswap::PriceRange;
-
 use super::{OrderPrice, OrderVolume};
+/// Definition of the various types of order that we can serve, as well as the
+/// outcomes we're able to have for them
+use crate::cfmm::uniswap::PriceRange;
 
 #[derive(Clone, Debug)]
 pub enum OrderDirection {
@@ -30,6 +28,7 @@ impl OrderOutcome {
             _ => false
         }
     }
+
     pub fn partial_fill(&self, quantity: f64) -> Self {
         match self {
             Self::Unfilled => Self::PartialFill(quantity),
@@ -41,10 +40,15 @@ impl OrderOutcome {
 }
 
 #[derive(Clone, Debug)]
-pub struct LimitOrder { price: OrderPrice, quantity: OrderVolume }
+pub struct LimitOrder {
+    price:    OrderPrice,
+    quantity: OrderVolume
+}
 
 impl LimitOrder {
-    pub fn new(price: OrderPrice, quantity: OrderVolume) -> Self { Self { price, quantity }}
+    pub fn new(price: OrderPrice, quantity: OrderVolume) -> Self {
+        Self { price, quantity }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -60,7 +64,7 @@ impl<'a> Order<'a> {
         match self {
             Self::KillOrFill(lo) => lo.quantity,
             Self::PartialFill(lo) => lo.quantity,
-            Self::AMM(ammo) => ammo.quantity(limit_price),
+            Self::AMM(ammo) => ammo.quantity(limit_price)
         }
     }
 
@@ -73,12 +77,19 @@ impl<'a> Order<'a> {
         }
     }
 
-    /// Produce a new order representing the remainder of the current order after the fill operation has been performed
-    /// We need the target price to make sure to bound our AMM orders
+    /// Produce a new order representing the remainder of the current order
+    /// after the fill operation has been performed We need the target price
+    /// to make sure to bound our AMM orders
     pub fn fill(&self, filled_quantity: OrderVolume) -> Self {
         match self {
-            Self::KillOrFill(lo) => Self::KillOrFill(LimitOrder { price: lo.price, quantity: lo.quantity - filled_quantity}),
-            Self::PartialFill(lo) => Self::PartialFill(LimitOrder { price: lo.price, quantity: lo.quantity - filled_quantity}),
+            Self::KillOrFill(lo) => Self::KillOrFill(LimitOrder {
+                price:    lo.price,
+                quantity: lo.quantity - filled_quantity
+            }),
+            Self::PartialFill(lo) => Self::PartialFill(LimitOrder {
+                price:    lo.price,
+                quantity: lo.quantity - filled_quantity
+            }),
             Self::AMM(r) => {
                 r.fill(filled_quantity);
                 Self::PartialFill(LimitOrder { quantity: 0.0, price: 0.0 })
