@@ -81,4 +81,5 @@ fn main() {
     println!("{} bids filled", solved.bid_outcomes.iter().filter(|x| x.is_filled()).count());
     println!("{} asks filled", solved.ask_outcomes.iter().filter(|x| x.is_filled()).count());
     println!("{:?}", results);
+    println!("{:?}", solved.crosspool_outcomes())
 }

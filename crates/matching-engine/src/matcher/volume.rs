@@ -1,11 +1,12 @@
-use std::cell::Cell;
+use std::{borrow::Cow, cell::Cell};
 
 use malachite::num::basic::traits::Zero;
 
 use super::Solution;
 use crate::{
     book::{
-        order::{Order, OrderDirection, OrderOutcome},
+        order::{Order, OrderCoordinate, OrderDirection, OrderExclusion, OrderOutcome},
+        xpool::XPoolOutcomes,
         OrderBook
     },
     cfmm::uniswap::{MarketPrice, SqrtPriceX96}
@@ -22,8 +23,10 @@ pub struct VolumeFillMatcher<'a> {
     book:             &'a OrderBook<'a>,
     bid_idx:          Cell<usize>,
     pub bid_outcomes: Vec<OrderOutcome>,
+    bid_xpool:        Vec<Option<OrderExclusion>>,
     ask_idx:          Cell<usize>,
     pub ask_outcomes: Vec<OrderOutcome>,
+    ask_xpool:        Vec<Option<OrderExclusion>>,
     amm_price:        Option<MarketPrice<'a>>,
     current_partial:  Option<PartialOrder<'a>>,
     results:          Solution,
@@ -33,28 +36,147 @@ pub struct VolumeFillMatcher<'a> {
 
 impl<'a> VolumeFillMatcher<'a> {
     pub fn new(book: &'a OrderBook) -> Self {
-        // Create our outcome tracking for our orders
-        let bid_outcomes = vec![OrderOutcome::Unfilled; book.bids().len()];
-        let ask_outcomes = vec![OrderOutcome::Unfilled; book.asks().len()];
-        let amm_price = book.amm().map(|a| a.current_position());
-        let mut new_element = Self {
-            book,
-            bid_idx: Cell::new(0),
-            bid_outcomes,
-            ask_idx: Cell::new(0),
-            ask_outcomes,
-            amm_price,
-            current_partial: None,
-            results: Solution::default(),
-            checkpoint: None
-        };
+        let mut new_element = Self::with_related(book, None);
         // We can checkpoint our initial state as valid
         new_element.save_checkpoint();
         new_element
     }
 
+    fn with_related(
+        book: &'a OrderBook,
+        xpool: Option<(Vec<Option<OrderExclusion>>, Vec<Option<OrderExclusion>>)>
+    ) -> Self {
+        let (bid_xpool, ask_xpool) =
+            xpool.unwrap_or_else(|| (vec![None; book.bids().len()], vec![None; book.asks().len()]));
+        let bid_outcomes = vec![OrderOutcome::Unfilled; book.bids().len()];
+        let ask_outcomes = vec![OrderOutcome::Unfilled; book.asks().len()];
+        let amm_price = book.amm().map(|a| a.current_position());
+        Self {
+            book,
+            bid_idx: Cell::new(0),
+            bid_outcomes,
+            bid_xpool,
+            ask_idx: Cell::new(0),
+            ask_outcomes,
+            ask_xpool,
+            amm_price,
+            current_partial: None,
+            results: Solution::default(),
+            checkpoint: None
+        }
+    }
+
     pub fn results(&self) -> &Solution {
         &self.results
+    }
+
+    /// Gets the relevant outcomes for cross-pool orders that have components
+    /// that are part of this pool.  Returns an Option - `None` implies that
+    /// there are no cross-pool orders in this pool.  Otherwise we get an
+    /// XPoolOutcomes struct
+    pub fn crosspool_outcomes(&self) -> Option<XPoolOutcomes> {
+        let mut live: Vec<OrderCoordinate> = Vec::new();
+        let mut dead: Vec<OrderCoordinate> = Vec::new();
+        let related_bids = self
+            .book
+            .bids()
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| o.related().is_some())
+            .map(|(i, o)| (OrderDirection::Bid, i, o));
+        let related_asks = self
+            .book
+            .asks()
+            .iter()
+            .enumerate()
+            .filter(|(_, o)| o.related().is_some())
+            .map(|(i, o)| (OrderDirection::Ask, i, o));
+        // For each order that's part of a related order group
+        for (direction, index, order) in related_bids.chain(related_asks) {
+            // Figure out what it's outcome was
+            let outcomes = match direction {
+                OrderDirection::Bid => &self.bid_outcomes,
+                OrderDirection::Ask => &self.ask_outcomes
+            };
+            if outcomes[index].is_filled() {
+                // In our current configuration, the order was filled and should
+                // be live
+                live.extend(order.related().unwrap().iter().cloned()); // Can unwrap because we checked earlier
+            } else {
+                // The order was not filled and should be dead
+                dead.extend(order.related().unwrap().iter().cloned()); // Can unwrap because we checked earlier
+            }
+        }
+        if live.is_empty() && dead.is_empty() {
+            // In the rare situation that it's all empty, we can just say none
+            None
+        } else {
+            Some(XPoolOutcomes::new(live, dead))
+        }
+    }
+
+    fn update_xpool(&self, state: &XPoolOutcomes) -> Option<Self> {
+        let mut new_bid_xpool = Cow::from(&self.bid_xpool);
+        let mut new_ask_xpool = Cow::from(&self.ask_xpool);
+
+        let local_outcomes = state.for_book(self.book.id());
+
+        // Vivify our live orders if they're dead
+        for coord in local_outcomes.live().iter() {
+            let (direction, idx) = if let Some((d, i)) = self.book.find_coordinate(coord) {
+                (d, i)
+            } else {
+                continue;
+            };
+            let pool = match direction {
+                OrderDirection::Bid => &mut new_bid_xpool,
+                OrderDirection::Ask => &mut new_ask_xpool
+            };
+            if let Some(exc @ OrderExclusion::Dead(_)) = &pool[idx] {
+                let new_state = exc.flip();
+                // TTL limit for how many times we'll flip something away from Dead
+                if new_state.ttl() < 6 {
+                    pool.to_mut()[idx].replace(new_state);
+                }
+            }
+        }
+
+        // Kill our dead orders if they're alive
+        for coord in local_outcomes.dead().iter() {
+            let (direction, idx) = if let Some((d, i)) = self.book.find_coordinate(coord) {
+                (d, i)
+            } else {
+                continue;
+            };
+            let pool = match direction {
+                OrderDirection::Bid => &mut new_bid_xpool,
+                OrderDirection::Ask => &mut new_ask_xpool
+            };
+            match &pool[idx] {
+                None => {
+                    pool.to_mut()[idx] = Some(OrderExclusion::Dead(0));
+                }
+                Some(exc @ OrderExclusion::Live(_)) => {
+                    let new_state = exc.flip();
+                    if new_state.ttl() < 6 {
+                        pool.to_mut()[idx].replace(new_state);
+                    }
+                }
+                _ => ()
+            };
+        }
+
+        // If we've changed anything, we spawn a new state to be resolved
+        if let (Cow::Owned(_), _) | (_, Cow::Owned(_)) = (&new_bid_xpool, &new_ask_xpool) {
+            // Time to clone and return something new
+            Some(Self::with_related(
+                self.book,
+                Some((new_bid_xpool.into_owned(), new_ask_xpool.into_owned()))
+            ))
+        } else {
+            // Nothing was changed, we have no update
+            None
+        }
     }
 
     /// Save our current solve state to an internal checkpoint
@@ -63,8 +185,10 @@ impl<'a> VolumeFillMatcher<'a> {
             book:            self.book,
             bid_idx:         self.bid_idx.clone(),
             bid_outcomes:    self.bid_outcomes.clone(),
+            bid_xpool:       self.bid_xpool.clone(),
             ask_idx:         self.ask_idx.clone(),
             ask_outcomes:    self.ask_outcomes.clone(),
+            ask_xpool:       self.ask_xpool.clone(),
             amm_price:       self.amm_price.clone(),
             current_partial: self.current_partial.clone(),
             results:         self.results.clone(),
@@ -237,17 +361,25 @@ impl<'a> VolumeFillMatcher<'a> {
     }
 
     fn try_next_order(&self, direction: OrderDirection) -> Option<Order<'a>> {
-        let (index_cell, order_book, outcomes) = match direction {
-            OrderDirection::Bid => (&self.bid_idx, self.book.bids(), &self.bid_outcomes),
-            OrderDirection::Ask => (&self.ask_idx, self.book.asks(), &self.ask_outcomes)
+        let (index_cell, order_book, outcomes, related) = match direction {
+            OrderDirection::Bid => {
+                (&self.bid_idx, self.book.bids(), &self.bid_outcomes, &self.bid_xpool)
+            }
+            OrderDirection::Ask => {
+                (&self.ask_idx, self.book.asks(), &self.ask_outcomes, &self.ask_xpool)
+            }
         };
         let mut index = index_cell.get();
         // Find our next unfilled order
         while index < outcomes.len() {
-            if let OrderOutcome::Unfilled = outcomes[index] {
-                break;
+            match (&outcomes[index], &related[index]) {
+                // Always skip explicitly dead orders
+                (_, Some(OrderExclusion::Dead(_))) => index += 1,
+                // Otherwise, stop at the first Unfilled order
+                (OrderOutcome::Unfilled, _) => break,
+                // Any other outcome gets skipped
+                _ => index += 1
             }
-            index += 1;
         }
 
         // See if we have an AMM order that takes precedence over our book order

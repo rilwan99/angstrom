@@ -1,7 +1,13 @@
-use super::{OrderPrice, OrderVolume};
+use super::{BookID, OrderID, OrderPrice, OrderVolume};
 /// Definition of the various types of order that we can serve, as well as the
 /// outcomes we're able to have for them
 use crate::cfmm::uniswap::PriceRange;
+
+#[derive(Clone, Debug)]
+pub struct OrderCoordinate {
+    pub book:  BookID,
+    pub order: OrderID
+}
 
 #[derive(Clone, Debug)]
 pub enum OrderDirection {
@@ -26,6 +32,43 @@ impl OrderDirection {
 }
 
 #[derive(Clone, Debug)]
+pub enum OrderExclusion {
+    Live(usize),
+    Dead(usize)
+}
+
+impl OrderExclusion {
+    pub fn flip(&self) -> Self {
+        match self {
+            Self::Live(ttl) => Self::Dead(ttl + 1),
+            Self::Dead(ttl) => Self::Live(ttl + 1)
+        }
+    }
+
+    pub fn ttl(&self) -> usize {
+        match self {
+            Self::Live(ttl) | Self::Dead(ttl) => *ttl
+        }
+    }
+
+    pub fn is_live(&self) -> bool {
+        if let Self::Live(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_dead(&self) -> bool {
+        if let Self::Dead(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
 pub enum OrderOutcome {
     /// The order has not yet been processed
     Unfilled,
@@ -33,7 +76,7 @@ pub enum OrderOutcome {
     CompleteFill,
     /// The order has been partially filled (and how much)
     PartialFill(OrderVolume),
-    /// We have dropped this order, it can not be filled
+    /// We have dropped this order, it can not or should not be filled.
     Killed
 }
 
@@ -48,22 +91,31 @@ impl OrderOutcome {
     pub fn partial_fill(&self, quantity: f64) -> Self {
         match self {
             Self::Unfilled => Self::PartialFill(quantity),
-            Self::CompleteFill => Self::CompleteFill,
-            Self::Killed => Self::Killed,
-            Self::PartialFill(f) => Self::PartialFill(f + quantity)
+            Self::PartialFill(f) => Self::PartialFill(f + quantity),
+            Self::CompleteFill | Self::Killed => self.clone()
         }
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct LimitOrder {
+    id:       OrderID,
+    related:  Option<Vec<OrderCoordinate>>,
     price:    OrderPrice,
     quantity: OrderVolume
 }
 
 impl LimitOrder {
     pub fn new(price: OrderPrice, quantity: OrderVolume) -> Self {
-        Self { price, quantity }
+        Self { id: 10, price, quantity, related: None }
+    }
+
+    pub fn related(&self) -> Option<&Vec<OrderCoordinate>> {
+        self.related.as_ref()
+    }
+
+    pub fn id(&self) -> OrderID {
+        self.id
     }
 }
 
@@ -80,6 +132,20 @@ impl<'a> Order<'a> {
         match self {
             Self::AMM(_) => true,
             _ => false
+        }
+    }
+
+    pub fn id(&self) -> Option<OrderID> {
+        match self {
+            Self::KillOrFill(l) | Self::PartialFill(l) => Some(l.id),
+            _ => None
+        }
+    }
+
+    pub fn related(&self) -> Option<&Vec<OrderCoordinate>> {
+        match self {
+            Self::KillOrFill(l) | Self::PartialFill(l) => l.related.as_ref(),
+            _ => None
         }
     }
 
@@ -102,21 +168,30 @@ impl<'a> Order<'a> {
     }
 
     /// Produce a new order representing the remainder of the current order
-    /// after the fill operation has been performed We need the target price
-    /// to make sure to bound our AMM orders
+    /// after the fill operation has been performed
     pub fn fill(&self, filled_quantity: OrderVolume) -> Self {
         match self {
             Self::KillOrFill(lo) => Self::KillOrFill(LimitOrder {
+                id:       0,
+                related:  None,
                 price:    lo.price,
                 quantity: lo.quantity - filled_quantity
             }),
             Self::PartialFill(lo) => Self::PartialFill(LimitOrder {
+                id:       0,
+                related:  None,
                 price:    lo.price,
                 quantity: lo.quantity - filled_quantity
             }),
             Self::AMM(r) => {
                 r.fill(filled_quantity);
-                Self::PartialFill(LimitOrder { quantity: 0.0, price: 0.0 })
+                // Return a bogus order that we never use
+                Self::PartialFill(LimitOrder {
+                    id:       0,
+                    related:  None,
+                    quantity: 0.0,
+                    price:    0.0
+                })
             }
         }
     }

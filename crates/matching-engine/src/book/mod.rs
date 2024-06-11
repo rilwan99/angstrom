@@ -1,15 +1,21 @@
 //! basic book impl so we can benchmark
 
+use order::{OrderCoordinate, OrderDirection};
+
 use self::{order::Order, sort::SortStrategy};
 use crate::cfmm::uniswap::MarketSnapshot;
 
 pub mod order;
 pub mod sort;
+pub mod xpool;
 
+pub type BookID = u128;
+pub type OrderID = u128;
 pub type OrderVolume = f64;
 pub type OrderPrice = f64;
 
 pub struct OrderBook<'a> {
+    id:   BookID,
     amm:  Option<MarketSnapshot>,
     bids: Vec<Order<'a>>,
     asks: Vec<Order<'a>>
@@ -26,7 +32,11 @@ impl<'a> OrderBook<'a> {
         let strategy = sort.unwrap_or_default();
         strategy.sort_bids(&mut bids);
         strategy.sort_asks(&mut asks);
-        Self { amm, bids, asks }
+        Self { id: 10, amm, bids, asks }
+    }
+
+    pub fn id(&self) -> BookID {
+        self.id
     }
 
     pub fn bids(&self) -> &Vec<Order<'a>> {
@@ -39,6 +49,32 @@ impl<'a> OrderBook<'a> {
 
     pub fn amm(&self) -> Option<&MarketSnapshot> {
         self.amm.as_ref()
+    }
+
+    pub fn find_coordinate(&self, coord: &OrderCoordinate) -> Option<(OrderDirection, usize)> {
+        let OrderCoordinate { book, order } = coord;
+        if *book != self.id {
+            return None;
+        }
+        self.find_order(*order)
+    }
+
+    /// Given an OrderID, find the order with the matching ID and return an
+    /// Option, `None` if not found, otherwise we return a tuple containing the
+    /// order's direction and its index in the various order arrays
+    pub fn find_order(&self, id: OrderID) -> Option<(OrderDirection, usize)> {
+        self.bids
+            .iter()
+            .enumerate()
+            .find(|(_, b)| if let Some(b_id) = b.id() { b_id == id } else { false })
+            .map(|(i, _)| (OrderDirection::Bid, i))
+            .or_else(|| {
+                self.asks
+                    .iter()
+                    .enumerate()
+                    .find(|(_, b)| if let Some(b_id) = b.id() { b_id == id } else { false })
+                    .map(|(i, _)| (OrderDirection::Ask, i))
+            })
     }
 }
 
