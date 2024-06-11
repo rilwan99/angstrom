@@ -26,3 +26,12 @@ clap = "4.5.4"
 [[bench]]
 name = "volume_solver"
 harness = false
+
+
+[profile.maxperf]
+lto = "fat"
+codegen-units = 1
+incremental = false
+opt-level = 3
+panic = 'abort'
+overflow-checks = false
