@@ -17,6 +17,9 @@ jobs:
           override: true
           profile: minimal
           components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
       - name: Run Clippy
         run: cargo clippy --all-targets --all-features -- -Dwarnings
   build:
@@ -27,7 +30,7 @@ jobs:
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           profile: minimal
           override: true
       - uses: Swatinem/rust-cache@v2
@@ -44,7 +47,7 @@ jobs:
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           profile: minimal
           override: true
       - uses: Swatinem/rust-cache@v2
