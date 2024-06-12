@@ -92,3 +92,7 @@ path = "src/testnet_node/main.rs"
 [[bin]]
 name = "add-liquidity"
 path = "src/testnet_node/add_liquidity.rs"
+
+[[bin]]
+name = "order-submitter"
+path = "src/testnet_node/order_submitter.rs"

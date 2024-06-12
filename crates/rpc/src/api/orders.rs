@@ -3,9 +3,7 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 use crate::types::subscriptions::OrderSubscriptionKind;
 
-#[cfg_attr(not(feature = "client"), rpc(server, namespace = "angstrom_order"))]
-#[cfg_attr(feature = "client", rpc(server, client, namespace = "angstrom_order"))]
-#[async_trait::async_trait]
+#[rpc(server, client, namespace = "angstrom_order")]
 pub trait OrderApi {
     /// Users send the rlp encoded signature and order bytes
     #[method(name = "submit_limit_order")]
@@ -23,7 +21,7 @@ pub trait OrderApi {
     #[subscription(
         name = "orders_subscription", 
         unsubscribe = "unsubscribe_orders",
-        item = crate::types::subscription::OrderSubscriptionResult
+        item = crate::types::subscriptions::OrderSubscriptionResult
     )]
     async fn subscribe_orders(
         &self,
