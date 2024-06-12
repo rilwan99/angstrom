@@ -28,6 +28,9 @@ pub struct BidsAndAsks<O: PoolOrder> {
     pub asks: Vec<ValidOrder<O>>
 }
 
+type AllOrderFuture<'a, LO, CLO, SO, CSO> = BoxFuture<'a, AllOrders<LO, CLO, SO, CSO>>;
+type OrderVecStream<LO, CLO, SO, CSO> = ReceiverStream<Vec<Order<LO, CLO, SO, CSO>>>;
+type OrderStream<LO, CLO, SO, CSO> = ReceiverStream<Order<LO, CLO, SO, CSO>>;
 #[derive(Debug)]
 pub struct AllOrders<
     Limit: PoolOrder,
@@ -100,74 +103,56 @@ pub trait OrderPoolHandle: Send + Sync + Clone + Unpin + 'static {
 
     fn get_all_orders(
         &self
-    ) -> BoxFuture<
-        AllOrders<
-            Self::LimitOrder,
-            Self::SearcherOrder,
-            Self::ComposableLimitOrder,
-            Self::ComposableSearcherOrder
-        >
+    ) -> AllOrderFuture<
+        Self::LimitOrder,
+        Self::SearcherOrder,
+        Self::ComposableLimitOrder,
+        Self::ComposableSearcherOrder
     >;
 
     fn get_all_orders_intersection(
         &self,
         buffer: usize
-    ) -> BoxFuture<
-        AllOrders<
-            Self::LimitOrder,
-            Self::SearcherOrder,
-            Self::ComposableLimitOrder,
-            Self::ComposableSearcherOrder
-        >
+    ) -> AllOrderFuture<
+        Self::LimitOrder,
+        Self::SearcherOrder,
+        Self::ComposableLimitOrder,
+        Self::ComposableSearcherOrder
     >;
 
     // subscriptions
     fn subscribe_new_orders(
         &self
-    ) -> ReceiverStream<
-        Order<
-            Self::LimitOrder,
-            Self::ComposableLimitOrder,
-            Self::SearcherOrder,
-            Self::ComposableSearcherOrder
-        >
+    ) -> OrderStream<
+        Self::LimitOrder,
+        Self::ComposableLimitOrder,
+        Self::SearcherOrder,
+        Self::ComposableSearcherOrder
     >;
 
     fn subscribe_finalized_orders(
         &self
-    ) -> ReceiverStream<
-        Vec<
-            Order<
-                Self::LimitOrder,
-                Self::ComposableLimitOrder,
-                Self::SearcherOrder,
-                Self::ComposableSearcherOrder
-            >
-        >
+    ) -> OrderVecStream<
+        Self::LimitOrder,
+        Self::ComposableLimitOrder,
+        Self::SearcherOrder,
+        Self::ComposableSearcherOrder
     >;
     fn subscribe_filled_orders(
         &self
-    ) -> ReceiverStream<
-        Vec<
-            Order<
-                Self::LimitOrder,
-                Self::ComposableLimitOrder,
-                Self::SearcherOrder,
-                Self::ComposableSearcherOrder
-            >
-        >
+    ) -> OrderVecStream<
+        Self::LimitOrder,
+        Self::ComposableLimitOrder,
+        Self::SearcherOrder,
+        Self::ComposableSearcherOrder
     >;
 
     fn subscribe_expired_orders(
         &self
-    ) -> ReceiverStream<
-        Vec<
-            Order<
-                Self::LimitOrder,
-                Self::ComposableLimitOrder,
-                Self::SearcherOrder,
-                Self::ComposableSearcherOrder
-            >
-        >
+    ) -> OrderVecStream<
+        Self::LimitOrder,
+        Self::ComposableLimitOrder,
+        Self::SearcherOrder,
+        Self::ComposableSearcherOrder
     >;
 }

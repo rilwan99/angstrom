@@ -40,7 +40,7 @@ impl AtomicConsensus {
     pub fn update_state(&self, state: ConsensusState) {
         // this is safe due to the bound on the underlying atomic to the enum
         self.0
-            .store(unsafe { std::mem::transmute(state) }, Ordering::SeqCst)
+            .store(unsafe { std::mem::transmute::<ConsensusState, u8>(state) }, Ordering::SeqCst)
     }
 }
 

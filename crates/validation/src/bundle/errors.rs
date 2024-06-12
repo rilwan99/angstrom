@@ -24,10 +24,7 @@ pub enum SimResult {
 
 impl SimResult {
     pub fn is_success(&self) -> bool {
-        match self {
-            SimResult::ExecutionResult(_) => true,
-            _ => false
-        }
+        matches!(self, SimResult::ExecutionResult(_))
     }
 }
 

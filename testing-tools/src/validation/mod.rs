@@ -23,6 +23,12 @@ use validation::{
 
 use crate::mocks::eth_events::MockEthEventHandle;
 
+type ValidatorOperation<DB, T> =
+    dyn FnOnce(
+        TestOrderValidator<DB>,
+        T
+    ) -> Pin<Box<dyn Future<Output = (TestOrderValidator<DB>, T)>>>;
+
 pub struct TestOrderValidator<DB: StateProviderFactory + Clone + Unpin + 'static> {
     /// allows us to set values to ensure
     pub revm_lru:   Arc<RevmLRU<DB>>,
@@ -75,14 +81,7 @@ impl<DB: StateProviderFactory + Clone + Unpin + 'static> TestOrderValidator<DB> 
 pub struct OrderValidatorChain<DB: StateProviderFactory + Clone + Unpin + 'static, T: 'static> {
     validator:     TestOrderValidator<DB>,
     state:         T,
-    operations: Vec<
-        Box<
-            dyn FnOnce(
-                TestOrderValidator<DB>,
-                T
-            ) -> Pin<Box<dyn Future<Output = (TestOrderValidator<DB>, T)>>>
-        >
-    >,
+    operations:    Vec<Box<ValidatorOperation<DB, T>>>,
     poll_duration: Duration
 }
 

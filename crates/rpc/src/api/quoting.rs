@@ -19,7 +19,7 @@ pub trait QuotingApi {
     #[subscription(
         name = "subscribe_BBO", 
         unsubscribe = "unsubscribe_quotes",
-        item = crate::types::subscription::QuotingSubscriptionResult
+        item = crate::types::subscriptions::QuotingSubscriptionResult
     )]
     async fn subscribe_quotes(
         &self,

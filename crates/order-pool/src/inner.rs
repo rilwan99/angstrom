@@ -318,7 +318,7 @@ where
     }
 
     /// Removes all filled orders from the pools
-    pub fn filled_orders(&mut self, block: u64, orders: &Vec<B256>) {
+    pub fn filled_orders(&mut self, block: u64, orders: &[B256]) {
         let filled = orders
             .iter()
             .filter_map(|order_hash| {

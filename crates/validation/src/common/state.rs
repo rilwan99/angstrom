@@ -18,7 +18,7 @@ use crate::{
         errors::{SimError, SimResult},
         BundleOrTransactionResult
     },
-    common::lru_db::{RevmLRU, BlockStateProviderFactory},
+    common::lru_db::{BlockStateProviderFactory, RevmLRU},
     order::state::config::ValidationConfig
 };
 
@@ -27,6 +27,7 @@ pub trait RevmBackend {
 }
 
 pub type AddressSlots = HashMap<Address, HashMap<U256, U256>>;
+type TxResult = Result<(ExecutionResult, HashMap<Address, HashMap<U256, U256>>), SimError>;
 
 /// struct used to share the mutable state across threads
 pub struct RevmState<DB> {
@@ -110,10 +111,11 @@ where
         tx: Transaction,
         contract_overrides: HashMap<Address, Bytecode>
     ) -> Result<SimResult, SimError> {
-        let mut env = TxEnv::default();
-        env.data = tx.input().clone();
-
-        env.transact_to = TransactTo::Call(tx.to().unwrap());
+        let env = TxEnv {
+            data: tx.input().clone(),
+            transact_to: TransactTo::Call(tx.to().unwrap()),
+            ..Default::default()
+        };
         let mut db = self.db.clone();
         db.set_bytecode_overrides(contract_overrides);
 
@@ -196,7 +198,7 @@ where
         &self,
         tx_env: TxEnv,
         overrides: HashMap<Address, HashMap<U256, U256>>
-    ) -> Result<(ExecutionResult, HashMap<Address, HashMap<U256, U256>>), SimError> {
+    ) -> TxResult {
         let mut evm_db = self.db.clone();
         evm_db.set_state_overrides(overrides);
 

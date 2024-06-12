@@ -7,11 +7,12 @@ use angstrom_types::{
 };
 use composable::ComposableSearcherPool;
 
-use self::searcher::VanillaSearcherPool;
+use self::vanilla::VanillaSearcherPool;
 use crate::common::{SizeTracker, ValidOrder};
 
 mod composable;
-mod searcher;
+mod pending;
+mod vanilla;
 
 pub const SEARCHER_POOL_MAX_SIZE: usize = 15;
 

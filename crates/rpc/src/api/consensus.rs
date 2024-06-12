@@ -13,7 +13,7 @@ pub trait ConsensusApi {
     #[subscription(
         name = "consensus_state",
         unsubscribe = "unsubscribe_consensus_state",
-        item = crate::types::subscription::ConsensusSubscriptionResult
+        item = crate::types::subscriptions::ConsensusSubscriptionResult
     )]
     async fn subscribe_consensus_state(
         &self,

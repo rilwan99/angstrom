@@ -26,8 +26,7 @@ async fn test_order_indexing() {
         .map(|_| generate_rand_valid_limit_order())
         .collect::<Vec<_>>();
 
-    let mut pool_config = PoolConfig::default();
-    pool_config.ids = vec![0, 1, 2, 3, 4, 5];
+    let pool_config = PoolConfig { ids: vec![0, 1, 2, 3, 4, 5], ..Default::default() };
     let block_number = 10;
 
     let orderpool = TestnetOrderPool::new_full_mock(
@@ -88,7 +87,7 @@ async fn test_order_indexing() {
                 let res = tokio::time::timeout(
                     Duration::from_secs(1),
                     pool.poll_until(|| {
-                        while let Ok(_) = new_orders.as_mut().try_recv() {
+                        while new_orders.as_mut().try_recv().is_ok() {
                             have += 1;
                         }
                         order_count == have
@@ -119,8 +118,7 @@ async fn test_pool_eviction() {
         .collect::<Vec<_>>();
 
     let block_number = 10;
-    let mut pool_config = PoolConfig::default();
-    pool_config.ids = vec![0, 1, 2, 3, 4, 5];
+    let pool_config = PoolConfig { ids: vec![0, 1, 2, 3, 4, 5], ..Default::default() };
 
     let orderpool = TestnetOrderPool::new_full_mock(
         validator.clone(),
@@ -211,9 +209,7 @@ async fn test_order_fill() {
         .map(|_| generate_rand_valid_limit_order())
         .collect::<Vec<_>>();
 
-    let mut pool_config = PoolConfig::default();
-    pool_config.ids = vec![0, 1, 2, 3, 4, 5];
-
+    let pool_config = PoolConfig { ids: vec![0, 1, 2, 3, 4, 5], ..Default::default() };
     let block_number = 10;
     let orderpool = TestnetOrderPool::new_full_mock(
         validator.clone(),

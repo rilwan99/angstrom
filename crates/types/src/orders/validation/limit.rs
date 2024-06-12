@@ -54,17 +54,16 @@ pub struct OrderPriorityData {
 
 impl PartialOrd for OrderPriorityData {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.price.cmp(&other.price).then_with(|| {
-            self.volume
-                .cmp(&other.volume)
-                .then_with(|| self.gas.cmp(&other.gas))
-        }))
+        Some(self.cmp(other))
     }
 }
 
 impl Ord for OrderPriorityData {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.partial_cmp(other).unwrap()
+        self.price
+            .cmp(&other.price)
+            .then_with(|| self.volume.cmp(&other.volume))
+            .then_with(|| self.gas.cmp(&other.gas))
     }
 }
 

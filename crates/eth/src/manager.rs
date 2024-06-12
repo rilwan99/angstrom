@@ -34,7 +34,7 @@ impl<DB> EthDataCleanser<DB>
 where
     DB: StateProviderFactory + Send + Sync + Unpin + 'static
 {
-    pub fn new<TP: TaskSpawner>(
+    pub fn spawn<TP: TaskSpawner>(
         canonical_updates: CanonStateNotifications,
         db: DB,
         tp: TP,

@@ -27,7 +27,7 @@ pub enum ConsensusMessage {
     /// lower-bound commit for the round
     Proposal(Proposal),
     /// the commit or nil vote the the lower-bound + vanilla proposal
-    Commit(Commit)
+    Commit(Box<Commit>)
 }
 
 #[derive(Debug, Error)]
