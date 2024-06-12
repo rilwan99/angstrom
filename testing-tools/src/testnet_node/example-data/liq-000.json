@@ -1,0 +1,26 @@
+{
+    "ranges": [
+        {
+            "lower_tick": -180,
+            "upper_tick": -60,
+            "liquidity": 92830948290348
+        },
+        {
+            "lower_tick": -60,
+            "upper_tick": 0,
+            "liquidity": 7878792360
+        },
+        {
+            "lower_tick": 0,
+            "upper_tick": 240,
+            "liquidity": 19298722207929729
+        },
+        {
+            "lower_tick": 240,
+            "upper_tick": 360,
+            "liquidity": 39298722207929729
+        }
+    ],
+    "tick_spacing": 60,
+    "sqrt_price":  "0x1000000000000000000000000"
+}

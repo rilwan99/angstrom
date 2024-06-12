@@ -31,6 +31,7 @@ alloy-rlp.workspace = true
 
 alloy-primitives.workspace = true
 alloy-sol-types.workspace = true
+angstrom-hook-bindings.workspace = true
 
 reth-node-ethereum.workspace = true
 reth-revm.workspace = true
@@ -44,6 +45,7 @@ reth-ecies = { git = "https://github.com/paradigmxyz/reth", rev = "6a104cc" }
 # Revision `6aab216` selected so it matches with reth's
 alloy-provider = { git = "https://github.com/alloy-rs/alloy", rev = "6aab216" }
 alloy-transport = { git = "https://github.com/alloy-rs/alloy", rev = "6aab216" }
+alloy-signer-wallet = { git = "https://github.com/alloy-rs/alloy", rev = "6aab216" }
 
 # reth
 reth-discv4 = { git = "https://github.com/paradigmxyz/reth", rev = "6a104cc", features = [
@@ -69,6 +71,8 @@ reth-transaction-pool = { workspace = true, features = ["test-utils"] }
 reth-db.workspace = true
 
 
+serde = { workspace = true , features = ["derive"] }
+serde_json.workspace = true
 enr = { workspace = true, features = ["serde", "rust-secp256k1"] }
 rand.workspace = true
 secp256k1.workspace = true
@@ -84,3 +88,7 @@ eyre = "0.6.12"
 [[bin]]
 name = "cooked-testnet-node"
 path = "src/testnet_node/main.rs"
+
+[[bin]]
+name = "add-liquidity"
+path = "src/testnet_node/add_liquidity.rs"
