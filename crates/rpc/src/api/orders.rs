@@ -23,7 +23,7 @@ pub trait OrderApi {
     #[subscription(
         name = "orders_subscription", 
         unsubscribe = "unsubscribe_orders",
-        item = crate::types::subscription::OrderSubscriptionResult
+        item = crate::types::subscriptions::OrderSubscriptionResult
     )]
     async fn subscribe_orders(
         &self,

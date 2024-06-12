@@ -1,9 +1,18 @@
 name: 'Build'
 on: push
+
 env:
   CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-Dwarnings"
 
 jobs:
+  lint:
+    name: 'Clippy linting'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Clippy
+        run: cargo clippy --all-targets --all-features
   build:
     name: 'Build'
     runs-on: ubuntu-latest
