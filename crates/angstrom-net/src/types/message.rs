@@ -41,7 +41,7 @@ impl StromProtocolMessage {
             StromMessageID::Status => StromMessage::Status(Status::decode(buf)?),
             StromMessageID::PrePropose => StromMessage::PrePropose(PreProposal::decode(buf)?),
             StromMessageID::Propose => StromMessage::Propose(Proposal::decode(buf)?),
-            StromMessageID::Commit => StromMessage::Commit(Commit::decode(buf)?),
+            StromMessageID::Commit => StromMessage::Commit(Box::new(Commit::decode(buf)?)),
             StromMessageID::PropagatePooledOrders => {
                 StromMessage::PropagatePooledOrders(Vec::<PooledOrder>::decode(buf)?)
             }
@@ -104,7 +104,7 @@ pub enum StromMessage {
     /// Consensus
     PrePropose(PreProposal),
     Propose(Proposal),
-    Commit(Commit),
+    Commit(Box<Commit>),
 
     /// Propagation messages that broadcast new orders to all peers
     PropagatePooledOrders(Vec<PooledOrder>)

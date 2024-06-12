@@ -5,16 +5,16 @@ use angstrom_types::{
     primitive::PoolId
 };
 
-use self::{composable::ComposableLimitPool, limit::LimitPool};
+use self::{composable::ComposableLimitPool, standard::LimitPool};
 use crate::{
     common::{SizeTracker, ValidOrder},
     BidsAndAsks
 };
 
 mod composable;
-mod limit;
 mod parked;
 mod pending;
+mod standard;
 
 pub struct LimitOrderPool<O, C>
 where

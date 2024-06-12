@@ -47,10 +47,10 @@ impl<T: Hash + Eq> LruCache<T> {
     }
 
     /// Returns `true` if the set contains a value.
-    pub fn contains<Q: ?Sized>(&self, value: &Q) -> bool
+    pub fn contains<Q>(&self, value: &Q) -> bool
     where
         T: Borrow<Q>,
-        Q: Hash + Eq
+        Q: ?Sized + Hash + Eq
     {
         self.inner.contains(value)
     }

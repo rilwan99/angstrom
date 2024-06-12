@@ -168,7 +168,7 @@ impl<DB> ProcessingCtx<DB> {
         Self { sim, user_orders, state, current_block_number }
     }
 
-    pub fn user_orders<'a>(&'a mut self) -> &'a mut UserOrders {
+    pub fn user_orders(&mut self) -> &mut UserOrders {
         unsafe { &mut (*self.user_orders) }
     }
 }

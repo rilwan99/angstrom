@@ -7,6 +7,8 @@ use std::{
 
 use futures::{stream::FuturesUnordered, Future, FutureExt, StreamExt};
 
+type OperationMap<OP, CX> = HashMap<u8, fn(OP, &mut CX) -> PipelineFut<OP>>;
+
 pub enum PipelineAction<T: PipelineOperation> {
     Next(T),
     Return(T::End),
@@ -45,7 +47,7 @@ where
     OP: PipelineOperation,
     CX: Unpin
 {
-    operations: HashMap<u8, fn(OP, &mut CX) -> PipelineFut<OP>>,
+    operations: OperationMap<OP, CX>,
     _p:         PhantomData<CX>
 }
 
@@ -90,7 +92,7 @@ where
     CX: Unpin
 {
     threadpool: T,
-    operations: HashMap<u8, fn(OP, &mut CX) -> PipelineFut<OP>>,
+    operations: OperationMap<OP, CX>,
     waker:      Option<Waker>,
 
     needing_queue: VecDeque<OP>,

@@ -69,8 +69,8 @@ impl AngstromTestnet {
         // add all peers to each other
         let peers = self.peers.iter().collect::<Vec<_>>();
         for (idx, (_, handle)) in peers.iter().enumerate().take(self.peers.len() - 1) {
-            for idx in (idx + 1)..peers.len() {
-                let (id, neighbour) = &peers[idx];
+            for peer in peers.iter().skip(idx + 1) {
+                let (id, neighbour) = peer;
                 handle.connect_to_peer(**id, neighbour.socket_addr());
             }
         }
@@ -133,7 +133,7 @@ impl AngstromTestnet {
 
             // poll the channel and check all messages are equal
             while let Poll::Ready(Some(received_msg)) = rx.poll_next_unpin(cx) {
-                if &received_msg != &expected {
+                if received_msg != expected {
                     tracing::warn!("unexpected message");
                     return Poll::Ready(false)
                 }
@@ -297,7 +297,7 @@ impl AngstromTestnet {
 pub enum ConsensusMsgTestCmp {
     PrePropose(PreProposal),
     Propose(Proposal),
-    Commit(Commit)
+    Commit(Box<Commit>)
 }
 
 impl TryFrom<StromMessage> for ConsensusMsgTestCmp {

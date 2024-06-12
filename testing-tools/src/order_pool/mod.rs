@@ -26,6 +26,8 @@ type DefaultMockPoolManager = PoolManager<
     MockValidator
 >;
 
+type OrderPoolOperation<T> =
+    dyn FnOnce(TestnetOrderPool, T) -> Pin<Box<dyn Future<Output = (TestnetOrderPool, T)>>>;
 /// The Testnet orderpool allows us to test the orderpool functionality in a
 /// standalone and an iterop mode. what this means is we can use this for
 /// specific unit tests aswell as longer full range tests
@@ -103,11 +105,7 @@ impl TestnetOrderPool {
 pub struct OperationChainer<T: 'static> {
     pool:          TestnetOrderPool,
     state:         T,
-    operations: Vec<
-        Box<
-            dyn FnOnce(TestnetOrderPool, T) -> Pin<Box<dyn Future<Output = (TestnetOrderPool, T)>>>
-        >
-    >,
+    operations:    Vec<Box<OrderPoolOperation<T>>>,
     poll_duration: Duration
 }
 

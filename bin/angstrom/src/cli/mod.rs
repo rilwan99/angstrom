@@ -26,7 +26,7 @@ use angstrom_types::rpc::{
     EcRecoveredSearcherOrder
 };
 use clap::Parser;
-use consensus::{ConsensusCommand, ConsensusHandle, ConsensusManager, Signer};
+use consensus::{ConsensusCommand, ConsensusHandle, ConsensusManager, ManagerNetworkDeps, Signer};
 use reth::{
     args::get_secret_key,
     builder::{components::FullNodeComponents, Node},
@@ -174,7 +174,7 @@ pub fn initialize_strom_components<Node: FullNodeComponents>(
     let (consensus_tx, consensus_rx) =
         reth_metrics::common::mpsc::metered_unbounded_channel("orderpool");
 
-    let eth_handle = EthDataCleanser::new(
+    let eth_handle = EthDataCleanser::spawn(
         node.provider.subscribe_to_canonical_state(),
         node.provider.clone(),
         executor.clone(),
@@ -204,16 +204,18 @@ pub fn initialize_strom_components<Node: FullNodeComponents>(
 
     let signer = Signer::default();
 
-    let _consensus_handle = ConsensusManager::new(
+    let _consensus_handle = ConsensusManager::spawn(
         executor.clone(),
-        network_handle.clone(),
+        ManagerNetworkDeps::new(
+            network_handle.clone(),
+            node.provider.subscribe_to_canonical_state(),
+            consensus_rx,
+            handles.consensus_tx,
+            handles.consensus_rx
+        ),
         signer,
         pool_handle.clone(),
-        validator.clone(),
-        node.provider.subscribe_to_canonical_state(),
-        consensus_rx,
-        handles.consensus_tx,
-        handles.consensus_rx
+        validator.clone()
     );
 }
 

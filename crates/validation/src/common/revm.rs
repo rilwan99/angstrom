@@ -104,7 +104,7 @@ where
                     };
                 };
 
-                let _ = self.threadpool.spawn_task_as(fut, TaskKind::Blocking);
+                self.threadpool.spawn_task_as(fut, TaskKind::Blocking);
             }
             BundleSimRequest::Bundle(tx, caller_info, sender) => {
                 let fut = async move {
@@ -115,7 +115,7 @@ where
                         sender.send(res.unwrap())
                     };
                 };
-                let _ = self.threadpool.spawn_task_as(fut, TaskKind::Blocking);
+                self.threadpool.spawn_task_as(fut, TaskKind::Blocking);
             }
             BundleSimRequest::MevBundle(tx, caller_info, sender) => {
                 let fut = async move {
@@ -126,7 +126,7 @@ where
                         sender.send(res.unwrap())
                     };
                 };
-                let _ = self.threadpool.spawn_task_as(fut, TaskKind::Blocking);
+                self.threadpool.spawn_task_as(fut, TaskKind::Blocking);
             }
             BundleSimRequest::NewBlock(sender) => {
                 let slot_changes = self.slot_changes.clone();

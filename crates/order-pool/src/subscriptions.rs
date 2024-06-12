@@ -1,6 +1,8 @@
 use tokio::sync::mpsc;
 
 use crate::{common::Order, PoolOrder};
+
+type OrderVecSender<L, CL, S, CS> = Vec<mpsc::Sender<Vec<Order<L, CL, S, CS>>>>;
 /// Holds all subscription channels for OrderPool data
 pub struct OrderPoolSubscriptions<L, CL, S, CS>
 where
@@ -10,9 +12,9 @@ where
     CS: PoolOrder
 {
     new_orders:       Vec<mpsc::Sender<Order<L, CL, S, CS>>>,
-    expired_orders:   Vec<mpsc::Sender<Vec<Order<L, CL, S, CS>>>>,
-    filled_orders:    Vec<mpsc::Sender<Vec<Order<L, CL, S, CS>>>>,
-    finalized_orders: Vec<mpsc::Sender<Vec<Order<L, CL, S, CS>>>>
+    expired_orders:   OrderVecSender<L, CL, S, CS>,
+    filled_orders:    OrderVecSender<L, CL, S, CS>,
+    finalized_orders: OrderVecSender<L, CL, S, CS>
 }
 
 impl<L, CL, S, CS> OrderPoolSubscriptions<L, CL, S, CS>
