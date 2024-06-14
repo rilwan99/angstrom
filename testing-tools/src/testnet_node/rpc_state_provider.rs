@@ -4,7 +4,6 @@ use alloy_transport::TransportResult;
 use futures::Future;
 use reth_interfaces::provider::{ProviderError, ProviderResult};
 use reth_primitives::{Account, Address, BlockNumber, StorageKey, StorageValue};
-use tokio;
 use validation::common::lru_db::{BlockStateProvider, BlockStateProviderFactory};
 
 fn async_to_sync<F: Future>(f: F) -> F::Output {
