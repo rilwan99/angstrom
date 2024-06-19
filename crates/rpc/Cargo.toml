@@ -26,6 +26,7 @@ alloy-primitives = { workspace = true, features = ["serde"] }
 async-trait.workspace = true
 thiserror.workspace = true
 rand = "0.8.5"
+angstrom-hook-bindings.workspace = true
 
 reth-metrics = { workspace = true, features = ["common"] }
 metrics.workspace = true

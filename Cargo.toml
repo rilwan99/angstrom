@@ -113,7 +113,7 @@ alloy-rlp = { version = "0.3.4" }
 alloy-rlp-derive = { version = "0.3.4" }
 alloy-primitives = { version = "0.7.0", features = ["rlp"] }
 
-angstrom-hook-bindings = { git = "ssh://git@github.com/SorellaLabs/angstrom-hook-bindings.git", rev = "c9e1dcf0" }
+angstrom-hook-bindings = { git = "ssh://git@github.com/SorellaLabs/angstrom-hook-bindings.git", rev = "468774fe" }
 # For local testing uncomment:
 # angstrom-hook-bindings = { path = "../hook-bindings" }
 
