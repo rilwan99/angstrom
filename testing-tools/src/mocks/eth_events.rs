@@ -1,5 +1,5 @@
 use alloy_primitives::{Address, B256};
-use angstrom_eth::manager::EthEvent;
+use angstrom_eth::{handle::Eth, manager::EthEvent};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
@@ -42,5 +42,28 @@ impl MockEthEventHandle {
         self.tx
             .send(EthEvent::ReorgedOrders(orders))
             .expect("state changes")
+    }
+}
+
+#[derive(Default, Clone)]
+pub struct MockEthSubscription {
+    subscribers: Vec<UnboundedSender<EthEvent>>
+}
+
+impl MockEthSubscription {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn subscribe(&mut self) -> UnboundedReceiverStream<EthEvent> {
+        let (tx, rx) = unbounded_channel();
+        self.subscribers.push(tx);
+        UnboundedReceiverStream::new(rx)
+    }
+
+    pub fn trigger_new_block(&self, block: u64) {
+        for s in self.subscribers.iter() {
+            s.send(EthEvent::NewBlock(block)).expect("failed to send");
+        }
     }
 }
