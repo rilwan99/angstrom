@@ -5,25 +5,10 @@ use std::{
     time::Duration
 };
 
-use angstrom_types::{
-    consensus::{Commit, PreProposal, Proposal},
-    submission::BestBundles
-};
-use angstrom_utils::{return_if, AtomicConsensus, ConsensusState, IsLeader, ORDER_ACCUMULATION};
-use futures::{Future, Stream};
+use angstrom_types::consensus::{Commit, PreProposal, Proposal};
+use angstrom_utils::{AtomicConsensus, IsLeader};
+use futures::{Future, FutureExt};
 use reth_primitives::B512;
-
-use self::{
-    commit::CommitState, completed::CompletedState, order_accumulation::OrderAccumulationState,
-    pre_propose::PreProposeState, propose::ProposeState, submit::SubmitState
-};
-
-pub mod commit;
-pub mod completed;
-pub mod order_accumulation;
-pub mod pre_propose;
-pub mod propose;
-pub mod submit;
 
 /// The current state and subsequent actions that should be taken
 /// for such state in a given round. All state that this contains
@@ -54,7 +39,7 @@ impl RoundState {
             is_leader: is_leader.clone(),
             consensus,
             height,
-            current_state: RoundAction::new(is_leader),
+            current_state: RoundAction::new(),
             leader_address
         }
     }
@@ -66,7 +51,7 @@ impl RoundState {
         self.is_leader.set_leader(is_leader);
         self.leader_address = leader_address;
         self.consensus.reset();
-        self.current_state = RoundAction::new(self.is_leader.clone());
+        self.current_state = RoundAction::new();
     }
 
     pub fn current_height(&self) -> u64 {
@@ -87,40 +72,30 @@ impl RoundState {
     pub fn on_pre_propose(&mut self, _pre_propose: PreProposal) {
         todo!()
     }
-
-    #[allow(dead_code)]
-    // will be updated to include the lower bound and other stuff
-    pub fn new_best_details(&mut self, bundle_details: BestBundles) {
-        let state = self.consensus.get_current_state();
-
-        if self.is_leader.is_leader() || state == ORDER_ACCUMULATION {
-            self.current_state.new_best_details(bundle_details);
-        }
-    }
 }
 
-impl Stream for RoundState {
-    type Item = RoundStateMessage;
+// impl Stream for RoundState {
+//     type Item = RoundStateMessage;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let is_leader = self.is_leader.clone();
-        if let Poll::Ready((new_action, msg)) = Pin::new(&mut self.current_state)
-            .should_transition(cx, GlobalStateContext { is_leader })
-            .map(|(round_action, new_state, message)| {
-                self.consensus.update_state(new_state);
-                (round_action, message)
-            })
-        {
-            self.current_state = new_action;
-            return_if!(msg => { is_some() } map(Poll::Ready));
-        }
+//     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) ->
+// Poll<Option<Self::Item>> {         let is_leader = self.is_leader.clone();
+//         if let Poll::Ready((new_action, msg)) = Pin::new(&mut
+// self.current_state)             .should_transition(cx, GlobalStateContext {
+// is_leader })             .map(|(round_action, new_state, message)| {
+//                 self.consensus.update_state(new_state);
+//                 (round_action, message)
+//             })
+//         {
+//             self.current_state = new_action;
+//             return_if!(msg => { is_some() } map(Poll::Ready));
+//         }
 
-        Poll::Pending
-    }
-}
+//         Poll::Pending
+//     }
+// }
 
 pub enum RoundStateMessage {
-    /// All angstroms lock there lower-bound and broadcast it
+    /// All angstroms broadcast their complete order view across the network
     PrePropose(),
     /// the leader for this round will send out the vanilla bundle and
     /// lower-bound commit for the round
@@ -129,21 +104,6 @@ pub enum RoundStateMessage {
     Commit(),
     /// if leader. then the finalized bundle that is sent to builders
     RelaySubmission()
-}
-
-pub struct GlobalStateContext {
-    pub is_leader: IsLeader
-}
-
-/// Should be on all different states of consensus. These trigger the moves
-trait StateTransition {
-    /// needs to pass context for timeout related tasks. returns the new round
-    /// state with the updater for global consensus
-    fn should_transition(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        global_state: GlobalStateContext
-    ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)>;
 }
 
 #[repr(transparent)]
@@ -172,42 +132,66 @@ impl Timeout {
 /// Representation of a finite-state machine
 pub enum RoundAction {
     /// The precommit state actions we
-    OrderAccumulation(OrderAccumulationState),
-    PrePropose(PreProposeState),
-    Propose(ProposeState),
-    Commit(CommitState),
-    Submit(SubmitState),
-    /// non leader completed state
-    Completed(CompletedState)
+    OrderAccumulation(Timeout),
+    /// Time window during which we expect to be receiving Prepropose messages
+    PrePropose(Timeout),
+    /// We have received 2/3rds of all Prepropose messages and are waiting for
+    /// any extra messages that might arrive
+    PreProposeLaggards(Timeout),
+    /// Trigger proposal generation for the leader, otherwise go right back to
+    /// OrderAccumulation (for the next block tho?)
+    Propose
 }
 
 impl RoundAction {
-    pub fn new(is_leader: IsLeader) -> Self {
-        Self::OrderAccumulation(OrderAccumulationState::new(
-            // TODO: placeholder
-            Timeout::new(Duration::from_secs(6)),
-            is_leader
-        ))
-    }
-
-    pub fn new_best_details(&mut self, _bundle_details: BestBundles) {
-        todo!()
+    pub fn new() -> Self {
+        Self::OrderAccumulation(Timeout::new(Duration::from_secs(6)))
     }
 }
 
-impl StateTransition for RoundAction {
-    fn should_transition(
+impl RoundAction {
+    /// Get the timeout of our current round action
+    pub fn timeout(&self) -> Option<&Timeout> {
+        match self {
+            Self::OrderAccumulation(t) => Some(t),
+            Self::PrePropose(t) => Some(t),
+            Self::PreProposeLaggards(t) => Some(t),
+            Self::Propose => None
+        }
+    }
+
+    pub fn poll_timeout(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        global_state: GlobalStateContext
-    ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)> {
+        acc_timeout: Duration,
+        pre_timeout: Duration
+    ) -> Poll<RoundAction> {
         match &mut *self {
-            RoundAction::OrderAccumulation(p) => Pin::new(p).should_transition(cx, global_state),
-            RoundAction::PrePropose(p) => Pin::new(p).should_transition(cx, global_state),
-            RoundAction::Propose(p) => Pin::new(p).should_transition(cx, global_state),
-            RoundAction::Commit(p) => Pin::new(p).should_transition(cx, global_state),
-            RoundAction::Submit(p) => Pin::new(p).should_transition(cx, global_state),
-            RoundAction::Completed(p) => Pin::new(p).should_transition(cx, global_state)
+            Self::OrderAccumulation(t) => t
+                .poll_unpin(cx)
+                .map(|_| Self::PrePropose(Timeout::new(pre_timeout))),
+            Self::PrePropose(t) => t.poll_unpin(cx).map(|_| Self::Propose),
+            Self::PreProposeLaggards(t) => t.poll_unpin(cx).map(|_| Self::Propose),
+            Self::Propose => Poll::Ready(Self::OrderAccumulation(Timeout::new(acc_timeout)))
         }
     }
 }
+
+// impl StateTransition for RoundAction {
+//     fn should_transition(
+//         mut self: Pin<&mut Self>,
+//         cx: &mut Context<'_>,
+//         global_state: GlobalStateContext
+//     ) -> Poll<(RoundAction, ConsensusState, Option<RoundStateMessage>)> {
+//         match &mut *self {
+//             RoundAction::OrderAccumulation(p) =>
+// Pin::new(p).should_transition(cx, global_state),
+// RoundAction::PrePropose(p) => Pin::new(p).should_transition(cx,
+// global_state),             RoundAction::Propose(p) =>
+// Pin::new(p).should_transition(cx, global_state)
+// RoundAction::Commit(p) => Pin::new(p).should_transition(cx, global_state),
+//             RoundAction::Submit(p) => Pin::new(p).should_transition(cx,
+// global_state),             RoundAction::Completed(p) =>
+// Pin::new(p).should_transition(cx, global_state)         }
+//     }
+// }

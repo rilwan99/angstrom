@@ -36,17 +36,3 @@ impl From<Bundle> for TxEnv {
         todo!()
     }
 }
-
-// TODO: Finish type reorganisation to logically isolate them
-#[derive(Debug, Clone)]
-pub struct BestBundles {
-    pub vanilla:     Option<Bundle>,
-    pub lower_bound: Option<LowerBound>,
-    pub mev_bundle:  Option<Bundle>
-}
-
-impl BestBundles {
-    pub fn get_weight(&self) -> u128 {
-        todo!()
-    }
-}

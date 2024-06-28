@@ -1,15 +1,6 @@
-use std::{
-    collections::VecDeque,
-    pin::Pin,
-    sync::Arc,
-    task::{Context, Poll}
-};
+use std::{collections::VecDeque, sync::Arc};
 
-use angstrom_types::{
-    consensus::{Commit, EvidenceError, PreProposal, Proposal},
-    submission::BestBundles
-};
-use futures::{Stream, StreamExt};
+use angstrom_types::consensus::{Commit, EvidenceError, PreProposal, Proposal};
 use reth_primitives::Block;
 use thiserror::Error;
 use tracing::error;
@@ -21,12 +12,14 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub enum ConsensusMessage {
-    /// All angstroms lock there lower-bound and broadcast it
+    /// Start/Cycle the consensus process as a new block has begun
+    NewBlock(u64),
+    /// All angstrom nodes broadcast their signed order pools to the network
     PrePropose(PreProposal),
-    /// the leader for this round will send out the vanilla bundle and
-    /// lower-bound commit for the round
+    /// The Proposer broadcasts its signed proposal for validation.  This might
+    /// be after execution-time but all nodes need to review this information
     Proposal(Proposal),
-    /// the commit or nil vote the the lower-bound + vanilla proposal
+    /// Commit or nil vote on whether the proposal was properly executed
     Commit(Box<Commit>)
 }
 
@@ -100,18 +93,13 @@ impl ConsensusCore {
     pub fn proposal_commit(&mut self, _commit: Commit) {
         todo!()
     }
-
-    #[allow(dead_code)]
-    pub fn better_bundle(&mut self, _bundle_data: BestBundles) {
-        todo!()
-    }
 }
 
-impl Stream for ConsensusCore {
-    type Item = Result<ConsensusMessage, ConsensusError>;
+// impl Stream for ConsensusCore {
+//     type Item = Result<ConsensusMessage, ConsensusError>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let _ = self.round_state.poll_next_unpin(cx);
-        todo!()
-    }
-}
+//     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) ->
+// Poll<Option<Self::Item>> {         let _ =
+// self.round_state.poll_next_unpin(cx);         todo!()
+//     }
+// }

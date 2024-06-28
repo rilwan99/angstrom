@@ -1,32 +1,28 @@
 use std::{
-    collections::HashSet,
     pin::Pin,
     task::{Context, Poll}
 };
 
+use alloy_primitives::FixedBytes;
 use angstrom_network::{manager::StromConsensusEvent, StromNetworkHandle};
-use angstrom_types::consensus::Proposal;
-use angstrom_utils::PollExt;
-use bitmaps::Bitmap;
 use futures::{Future, FutureExt, Stream, StreamExt};
-use order_pool::OrderPoolHandle;
+use order_pool::{AtomicConsensus, IsLeader, OrderPoolHandle};
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_provider::CanonStateNotifications;
 use reth_tasks::TaskSpawner;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::warn;
 use validation::BundleValidator;
 
 use crate::{
-    core::{ConsensusCore, ConsensusMessage},
-    signer::Signer,
-    ConsensusListener, ConsensusUpdater
+    core::ConsensusMessage, round::RoundState, signer::Signer, ConsensusListener, ConsensusUpdater
 };
 
 #[allow(unused)]
 pub struct ConsensusManager<OrderPool, Validator> {
-    core: ConsensusCore,
+    // core: ConsensusCore,
+    /// keeps track of the current round state
+    roundstate: RoundState,
 
     command:                ReceiverStream<ConsensusCommand>,
     subscribers:            Vec<Sender<ConsensusMessage>>,
@@ -34,15 +30,11 @@ pub struct ConsensusManager<OrderPool, Validator> {
     canonical_block_stream: CanonStateNotifications,
     /// events from the network,
     strom_consensus_event:  UnboundedMeteredReceiver<StromConsensusEvent>,
-
-    network: StromNetworkHandle,
+    network:                StromNetworkHandle,
 
     signer:    Signer,
     orderpool: OrderPool,
-    validator: Validator,
-
-    canonical_proposal: Option<Proposal>,
-    broadcast_cache:    HashSet<Bitmap<128>>
+    validator: Validator
 }
 
 pub struct ManagerNetworkDeps {
@@ -80,20 +72,26 @@ where
         let ManagerNetworkDeps { network, canonical_block_stream, strom_consensus_event, tx, rx } =
             netdeps;
         let stream = ReceiverStream::new(rx);
-        let (core, _bn) = ConsensusCore::new();
+
+        // This is still a lot of stuff to track that we don't necessarily have to worry
+        // about
+        let roundstate = RoundState::new(
+            0,
+            IsLeader::default(),
+            AtomicConsensus::default(),
+            FixedBytes::default()
+        );
 
         let this = Self {
             strom_consensus_event,
             validator,
-            core,
+            roundstate,
             subscribers: Vec::new(),
             command: stream,
             network,
             signer,
             orderpool,
-            canonical_block_stream,
-            canonical_proposal: None,
-            broadcast_cache: HashSet::new()
+            canonical_block_stream
         };
 
         tp.spawn_critical("consensus", this.boxed());
@@ -109,71 +107,46 @@ where
 
     fn on_consensus_event(&mut self, command: StromConsensusEvent) {
         match command {
-            // I think we're not worried about pre-proposal yet if we're going to be ignoring lower
-            // bound
+            // A PrePropose message is a set of orders from a node, signed by that node.  If
+            // we're the leader, we should be holding on to it because we need to collect at
+            // least 2/3rds of these in order to make a Proposal.  If we're not the leader,
+            // do we need to hold onto this?
             StromConsensusEvent::PrePropose(..) => todo!(),
+            // A Proposal is a backwards-looking data packet that contains all the information
+            // needed to validate the actions of the leader in a previous round.  We should
+            // validate this information and send out a commit ASAP when we can.
             StromConsensusEvent::Propose(_peer, proposal) => {
                 // Validate the proposal itself - not currently checked
                 proposal.validate(&[]);
                 // Validate that the proposal contains the data we also think is the best
                 // Also skipping this for now - maybe do this after we check proposal timing?
 
-                // If we have an existing canonical proposal, and it's for the same or newer
-                // block than our incoming proposal, we can reject the incoming
-                // proposal
-                if self
-                    .canonical_proposal
-                    .as_ref()
-                    .is_some_and(|x| x.ethereum_block >= proposal.ethereum_block)
-                {
-                    // Our incoming proposal is old or bad
-                    return
-                }
-                // Otherwise prepare our commit message and this proposal becomes our new
-                // canonical proposal
+                // Otherwise prepare our commit message
                 let commit = self
                     .signer
                     .sign_commit(proposal.ethereum_block, &proposal)
                     .unwrap(); // I don't think this can actually fail, validate
-                self.canonical_proposal = Some(proposal);
-                // Clear the broadcast cache because we have a new Proposal
-                self.broadcast_cache = HashSet::new();
 
                 // Broadcast our Commit message to everyone
                 self.broadcast(ConsensusMessage::Commit(Box::new(commit)));
             }
+            // A Commit message is the validation of a previous proposal by another host.  Right
+            // now I'm not sure what we should do with this but overall SOMEONE has to collect
+            // these for slashing purposes, no?
             StromConsensusEvent::Commit(_, mut commit) => {
-                // If we have no proposal than do we want to do anything here like hold on to
-                // existing commits? Right now we're just going to leave here
-                // and be done
-                let Some(proposal) = self.canonical_proposal.as_ref() else {
-                    return;
-                };
-
                 // Validate the commit itself - not currently checked
                 commit.validate(&[]);
-
-                // See if this commit is for our canonical proposal
-                if commit.is_for(proposal) {
-                    if commit.signed_by(self.signer.validator_id) {
-                        // Do nothing I suppose, we're good.  Maybe we want to
-                        // rebroadcast?
-                    } else {
-                        // Have we already processed a Commit message that had these signatures?
-                        // Skipping similar messages can substantially cut
-                        // down on chatter
-                        if self.broadcast_cache.contains(commit.validator_map()) {
-                            return
-                        }
-                        self.broadcast_cache.insert(*commit.validator_map());
-                        // Add our signature to the commit and broadcast
-                        commit.add_signature(self.signer.validator_id, &self.signer.key);
-                        // Broadcast to our local subscribers
-                        self.broadcast(ConsensusMessage::Commit(commit.clone()));
-                        // Also broadcast to the Strom network
-                        self.network
-                            .broadcast_tx(angstrom_network::StromMessage::Commit(commit))
-                    }
+                if commit.signed_by(self.signer.validator_id) {
+                    // Do nothing I suppose, we're good.  Maybe we want to
+                    // rebroadcast?
+                } else {
+                    // Add our signature to the commit and broadcast
+                    commit.add_signature(self.signer.validator_id, &self.signer.key);
+                    // Broadcast to our local subscribers
+                    self.broadcast(ConsensusMessage::Commit(commit.clone()));
+                    // Also broadcast to the Strom network
+                    self.network
+                        .broadcast_tx(angstrom_network::StromMessage::Commit(commit))
                 }
             }
         }
@@ -207,17 +180,12 @@ where
                 self.on_consensus_event(msg);
             }
 
-            if let Poll::Ready(msg) = self.core.poll_next_unpin(cx).filter_map(|item| {
-                item.transpose()
-                    .map_err(|e| {
-                        warn!(?e, "consensus error");
-                        e
-                    })
-                    .ok()
-                    .flatten()
-            }) {
-                self.broadcast(msg.clone());
-            }
+            // Check our core state to see if we have any state changes or other updates to
+            // worry about - we're not going to do this for the moment
+            // if let Poll::Ready(msg) =
+            // self.roundstate.poll_next_unpin(cx).filter_map(|item| item) {
+            //     self.broadcast(msg.clone());
+            // }
 
             work -= 1;
             if work == 0 {
