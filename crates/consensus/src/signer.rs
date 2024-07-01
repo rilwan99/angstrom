@@ -1,6 +1,6 @@
 use alloy_primitives::B512;
 use angstrom_types::{
-    consensus::{Commit, PreProposal, Proposal},
+    consensus::{Commit, PoolOrders, PreProposal, Proposal},
     primitive::{
         Angstrom::{Bundle, LowerBound},
         BLSValidatorID
@@ -43,7 +43,7 @@ impl Signer {
     pub fn sign_pre_propose(
         &self,
         _ethereum_block: u64,
-        _bundle: Bundle
+        _orders: Vec<PoolOrders>
     ) -> eyre::Result<PreProposal> {
         todo!()
     }

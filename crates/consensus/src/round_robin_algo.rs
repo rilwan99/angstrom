@@ -1,6 +1,6 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
-use reth_primitives::{Block, B512};
+use reth_primitives::{SealedBlock, B512};
 use serde::{Deserialize, Serialize};
 
 use crate::round::Leader;
@@ -36,7 +36,7 @@ impl RoundRobinAlgo {
 
     #[allow(dead_code)]
     /// who the leader is for this round
-    pub fn on_new_block(&mut self, _block: Arc<Block>) -> Leader {
+    pub fn on_new_block(&mut self, _block: &SealedBlock) -> Leader {
         todo!()
     }
 }
