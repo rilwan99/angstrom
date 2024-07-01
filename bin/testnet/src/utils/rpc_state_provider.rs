@@ -1,9 +1,12 @@
+use std::future::IntoFuture;
+
 use alloy_primitives::keccak256;
-use alloy_provider::{Provider, ProviderBuilder, ReqwestProvider};
+use alloy_provider::{Provider, RootProvider};
+use alloy_pubsub::PubSubFrontend;
 use alloy_transport::TransportResult;
 use futures::Future;
-use reth_interfaces::provider::{ProviderError, ProviderResult};
 use reth_primitives::{Account, Address, BlockNumber, StorageKey, StorageValue};
+use reth_provider::{ProviderError, ProviderResult};
 use validation::common::lru_db::{BlockStateProvider, BlockStateProviderFactory};
 
 fn async_to_sync<F: Future>(f: F) -> F::Output {
@@ -14,18 +17,16 @@ fn async_to_sync<F: Future>(f: F) -> F::Output {
 #[derive(Clone, Debug)]
 pub struct RpcStateProvider {
     block:    u64,
-    provider: ReqwestProvider
+    provider: RootProvider<PubSubFrontend>
 }
 
 impl RpcStateProvider {
     async fn get_account(&self, address: Address) -> TransportResult<Account> {
-        let block_id = self.block.into();
-
         let (nonce, balance, bytecode) = futures::try_join!(
-            self.provider.get_transaction_count(address, Some(block_id)),
-            self.provider.get_balance(address, Some(block_id)),
+            self.provider.get_transaction_count(address).into_future(),
+            self.provider.get_balance(address).into_future(),
             // TODO: Ensure correct handling of EOA empty accounts.
-            self.provider.get_code_at(address, block_id)
+            self.provider.get_code_at(address).into_future()
         )?;
 
         let hash = keccak256(bytecode);
@@ -42,7 +43,8 @@ impl BlockStateProvider for RpcStateProvider {
     ) -> ProviderResult<Option<StorageValue>> {
         async_to_sync(
             self.provider
-                .get_storage_at(address, key.into(), Some(self.block.into()))
+                .get_storage_at(address, key.into())
+                .into_future()
         )
         .map(Some)
         // TODO: Better error.
@@ -65,13 +67,11 @@ impl BlockStateProvider for RpcStateProvider {
 
 #[derive(Clone, Debug)]
 pub struct RpcStateProviderFactory {
-    provider: ReqwestProvider
+    provider: RootProvider<PubSubFrontend>
 }
 
 impl RpcStateProviderFactory {
-    pub fn new(raw_rpc_url: &str) -> eyre::Result<Self> {
-        let rpc_url = raw_rpc_url.parse()?;
-        let provider = ProviderBuilder::new().on_http(rpc_url)?;
+    pub fn new(provider: RootProvider<PubSubFrontend>) -> eyre::Result<Self> {
         Ok(Self { provider })
     }
 }
