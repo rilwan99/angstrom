@@ -1,18 +1,20 @@
 use std::{collections::HashSet, net::SocketAddr, sync::Arc, task::Poll};
 
+use alloy_chains::Chain;
 use angstrom_network::{
-    state::StromState, StatusState, StromNetworkEvent, StromNetworkHandle, StromNetworkManager,
-    StromProtocolHandler, StromSessionManager, Swarm, VerificationSidecar
+    manager::StromConsensusEvent, state::StromState, NetworkOrderEvent, StatusState,
+    StromNetworkEvent, StromNetworkHandle, StromNetworkManager, StromProtocolHandler,
+    StromSessionManager, Swarm, VerificationSidecar
 };
 use futures::{Future, FutureExt};
 use parking_lot::RwLock;
 use rand::thread_rng;
-use reth_metrics::common::mpsc::MeteredPollSender;
+use reth_metrics::common::mpsc::{MeteredPollSender, UnboundedMeteredSender};
 use reth_network::test_utils::{Peer, PeerConfig};
-use reth_network_api::Peers;
-use reth_primitives::{Address, Chain};
+use reth_network_api::{PeerId, Peers};
+use reth_network_peers::pk2id;
+use reth_primitives::Address;
 use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
-use reth_rpc_types::{pk_to_id, PeerId};
 use secp256k1::{PublicKey, Secp256k1};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::PollSender;
@@ -44,7 +46,7 @@ where
         let state = StatusState {
             version:   0,
             chain:     Chain::mainnet(),
-            peer:      pk_to_id(&pub_key),
+            peer:      pk2id(&pub_key),
             timestamp: 0
         };
 
@@ -86,13 +88,54 @@ where
         todo!("tx pool not configured for test peer")
     }
 
-    pub fn new_fully_configed() -> Self {
-        todo!("tx pool and consensus startup not built yet")
+    pub async fn new_fully_configed(
+        c: C,
+        sk: SecretKey,
+        validators: Arc<RwLock<HashSet<Address>>>,
+        to_pool_manager: Option<UnboundedMeteredSender<NetworkOrderEvent>>,
+        to_consensus_manager: Option<UnboundedMeteredSender<StromConsensusEvent>>
+    ) -> Self {
+        let peer = PeerConfig::with_secret_key(c.clone(), sk);
+
+        let secp = Secp256k1::default();
+        let pub_key = sk.public_key(&secp);
+
+        let state = StatusState {
+            version:   0,
+            chain:     Chain::mainnet(),
+            peer:      pk2id(&pub_key),
+            timestamp: 0
+        };
+        let (session_manager_tx, session_manager_rx) = tokio::sync::mpsc::channel(100);
+        let sidecar = VerificationSidecar {
+            status:       state,
+            has_sent:     false,
+            has_received: false,
+            secret_key:   sk
+        };
+
+        let protocol = StromProtocolHandler::new(
+            MeteredPollSender::new(PollSender::new(session_manager_tx), "session manager"),
+            sidecar,
+            validators.clone()
+        );
+
+        let state = StromState::new(c.clone(), validators.clone());
+        let sessions = StromSessionManager::new(session_manager_rx);
+        let swarm = Swarm::new(sessions, state);
+
+        let network = StromNetworkManager::new(swarm, to_pool_manager, to_consensus_manager);
+
+        let mut peer = peer.launch().await.unwrap();
+        peer.network_mut().add_rlpx_sub_protocol(protocol);
+        let handle = network.get_handle();
+
+        Self { strom_network: network, eth_peer: peer, secret_key: sk, handle }
     }
 
     pub fn get_node_public_key(&self) -> PeerId {
         let pub_key = PublicKey::from_secret_key(&Secp256k1::default(), &self.secret_key);
-        pk_to_id(&pub_key)
+        pk2id(&pub_key)
     }
 
     pub fn disconnect_peer(&self, id: PeerId) {
