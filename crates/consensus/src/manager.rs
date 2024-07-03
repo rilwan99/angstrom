@@ -3,10 +3,9 @@ use std::{
     task::{Context, Poll}
 };
 
-use alloy_primitives::FixedBytes;
 use angstrom_network::{manager::StromConsensusEvent, StromNetworkHandle};
 use futures::{Future, FutureExt, Stream, StreamExt};
-use order_pool::{AtomicConsensus, IsLeader, OrderPoolHandle};
+use order_pool::{AtomicConsensus, OrderPoolHandle};
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_provider::CanonStateNotifications;
 use reth_tasks::TaskSpawner;
@@ -15,7 +14,10 @@ use tokio_stream::wrappers::ReceiverStream;
 use validation::BundleValidator;
 
 use crate::{
-    core::ConsensusMessage, round::RoundState, signer::Signer, ConsensusListener, ConsensusUpdater
+    core::ConsensusMessage,
+    round::{Leader, RoundState},
+    signer::Signer,
+    ConsensusListener, ConsensusUpdater
 };
 
 #[allow(unused)]
@@ -75,12 +77,7 @@ where
 
         // This is still a lot of stuff to track that we don't necessarily have to worry
         // about
-        let roundstate = RoundState::new(
-            0,
-            IsLeader::default(),
-            AtomicConsensus::default(),
-            FixedBytes::default()
-        );
+        let roundstate = RoundState::new(0, Leader::default(), AtomicConsensus::default());
 
         let this = Self {
             strom_consensus_event,

@@ -70,10 +70,8 @@ impl ConsensusCore {
         if self.round_state.current_height() + 1 == block.number {
             // TODO: wire in angstrom selection stuff
             let new_leader = self.leader_selection.on_new_block(block.clone());
-            let is_leader = self.signer.is_us(&new_leader);
 
-            self.round_state
-                .new_height(block.number, new_leader, is_leader);
+            self.round_state.new_height(block.number, new_leader);
         } else {
             panic!("have a gap in blocks which will break the round robin algo");
         }

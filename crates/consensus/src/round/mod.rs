@@ -5,51 +5,62 @@ use std::{
     time::Duration
 };
 
+use alloy_primitives::FixedBytes;
 use angstrom_types::consensus::{Commit, PreProposal, Proposal};
-use angstrom_utils::{AtomicConsensus, IsLeader};
+use angstrom_utils::AtomicConsensus;
 use futures::{Future, FutureExt};
 use reth_primitives::B512;
+
+pub enum Leader {
+    ThisNode(B512),
+    OtherNode(B512)
+}
+
+impl Leader {
+    pub fn address(&self) -> FixedBytes<64> {
+        match self {
+            Self::ThisNode(a) => *a,
+            Self::OtherNode(a) => *a
+        }
+    }
+
+    pub fn is_me(&self) -> bool {
+        matches!(self, Self::ThisNode(_))
+    }
+}
+
+impl Default for Leader {
+    fn default() -> Self {
+        Self::ThisNode(FixedBytes::default())
+    }
+}
 
 /// The current state and subsequent actions that should be taken
 /// for such state in a given round. All state that this contains
 /// is transient to the given ethereum block height
 pub struct RoundState {
     /// The current ethereum height
-    height:         u64,
-    /// If this angstrom is leader for the given height
-    is_leader:      IsLeader,
-    /// The current leader address,
-    leader_address: B512,
+    height:        u64,
+    /// Who is the current leader
+    leader:        Leader,
     /// global consensus state indicator
-    consensus:      AtomicConsensus,
+    consensus:     AtomicConsensus,
     /// the current action we should be taking at the moment of
     /// time for this height
-    current_state:  RoundAction
+    current_state: RoundAction
 }
 
 impl RoundState {
     #[allow(dead_code)]
-    pub fn new(
-        height: u64,
-        is_leader: IsLeader,
-        consensus: AtomicConsensus,
-        leader_address: B512
-    ) -> Self {
-        Self {
-            is_leader: is_leader.clone(),
-            consensus,
-            height,
-            current_state: RoundAction::new(),
-            leader_address
-        }
+    pub fn new(height: u64, leader: Leader, consensus: AtomicConsensus) -> Self {
+        Self { leader, consensus, height, current_state: RoundAction::new() }
     }
 
-    pub fn new_height(&mut self, block_height: u64, leader_address: B512, is_leader: bool) {
+    pub fn new_height(&mut self, block_height: u64, leader: Leader) {
         assert!(block_height > self.height);
 
         self.height = block_height;
-        self.is_leader.set_leader(is_leader);
-        self.leader_address = leader_address;
+        self.leader = leader;
         self.consensus.reset();
         self.current_state = RoundAction::new();
     }
