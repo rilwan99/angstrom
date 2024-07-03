@@ -14,13 +14,24 @@ use uniswap_v3_math::{
 
 use super::SqrtPriceX96;
 
-pub fn tick_at_sqrt_price(price: SqrtPriceX96) -> Result<i32, ()> {
-    let cast_price = ruint_to_u256(price.into());
-    get_tick_at_sqrt_ratio(cast_price).map_err(|_| ())
+#[derive(Debug)]
+pub struct MathError;
+
+impl std::fmt::Display for MathError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Math error")
+    }
 }
 
-pub fn sqrt_price_at_tick(tick: i32) -> Result<SqrtPriceX96, ()> {
-    let uncast_price = get_sqrt_ratio_at_tick(tick).map_err(|_| ())?;
+impl std::error::Error for MathError {}
+
+pub fn tick_at_sqrt_price(price: SqrtPriceX96) -> Result<i32, MathError> {
+    let cast_price = ruint_to_u256(price.into());
+    get_tick_at_sqrt_ratio(cast_price).map_err(|_| MathError)
+}
+
+pub fn sqrt_price_at_tick(tick: i32) -> Result<SqrtPriceX96, MathError> {
+    let uncast_price = get_sqrt_ratio_at_tick(tick).map_err(|_| MathError)?;
     Ok(SqrtPriceX96::from(u256_to_ruint(uncast_price)))
 }
 
@@ -34,7 +45,7 @@ pub fn token_0_delta(
     let sqrt_ratio_b_x_96 = ruint_to_u256(end_price.into());
     _get_amount_0_delta(sqrt_ratio_a_x_96, sqrt_ratio_b_x_96, liquidity, round_up)
         .ok()
-        .map(|x| u256_to_ruint(x))
+        .map(u256_to_ruint)
 }
 
 /// Computes the new sqrt_price from a given sqrt_price, a liquidity level, and
@@ -47,12 +58,12 @@ pub fn new_sqrt_price_from_output(
     liquidity: u128,
     quantity: U256,
     zero_for_one: bool
-) -> Result<SqrtPriceX96, ()> {
+) -> Result<SqrtPriceX96, MathError> {
     let sqrt_price = ruint_to_u256(start_price.into());
     let amount_out = ruint_to_u256(quantity);
     get_next_sqrt_price_from_output(sqrt_price, liquidity, amount_out, zero_for_one)
         .map(|x| SqrtPriceX96::from(u256_to_ruint(x)))
-        .map_err(|_| ())
+        .map_err(|_| MathError)
 }
 
 /// Computes the new sqrt_price from a given sqrt_price, a liquidity level, and
@@ -65,11 +76,11 @@ pub fn new_sqrt_price_from_input(
     liquidity: u128,
     quantity: U256,
     zero_for_one: bool
-) -> Result<SqrtPriceX96, ()> {
+) -> Result<SqrtPriceX96, MathError> {
     let sqrt_price = ruint_to_u256(start_price.into());
     let amount_out = ruint_to_u256(quantity);
 
     get_next_sqrt_price_from_input(sqrt_price, liquidity, amount_out, zero_for_one)
         .map(|x| SqrtPriceX96::from(u256_to_ruint(x)))
-        .map_err(|_| ())
+        .map_err(|_| MathError)
 }

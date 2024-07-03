@@ -18,7 +18,7 @@ pub trait MatchingStrategy<'a> {
     /// book's standard fill operation and then attempts to run the provided
     /// `finalize()` method to do our "last mile" computation
     fn run(book: &'a OrderBook) -> Option<VolumeFillMatcher<'a>> {
-        let mut solver = VolumeFillMatcher::new(&book);
+        let mut solver = VolumeFillMatcher::new(book);
         solver.fill();
         Self::finalize(solver)
     }

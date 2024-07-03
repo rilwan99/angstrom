@@ -52,19 +52,11 @@ impl OrderExclusion {
     }
 
     pub fn is_live(&self) -> bool {
-        if let Self::Live(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Live(_))
     }
 
     pub fn is_dead(&self) -> bool {
-        if let Self::Dead(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Self::Dead(_))
     }
 }
 
@@ -82,10 +74,7 @@ pub enum OrderOutcome {
 
 impl OrderOutcome {
     pub fn is_filled(&self) -> bool {
-        match self {
-            Self::CompleteFill | Self::PartialFill(_) => true,
-            _ => false
-        }
+        matches!(self, Self::CompleteFill | Self::PartialFill(_))
     }
 
     pub fn partial_fill(&self, quantity: f64) -> Self {
@@ -129,10 +118,7 @@ pub enum Order<'a> {
 impl<'a> Order<'a> {
     /// Determine if this is an AMM order
     pub fn is_amm(&self) -> bool {
-        match self {
-            Self::AMM(_) => true,
-            _ => false
-        }
+        matches!(self, Self::AMM(_))
     }
 
     pub fn id(&self) -> Option<OrderID> {

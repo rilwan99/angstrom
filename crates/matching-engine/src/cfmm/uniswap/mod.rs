@@ -134,7 +134,7 @@ impl MarketSnapshot {
             .windows(2)
             .all(|w| w[0].upper_tick == w[1].lower_tick)
         {
-            return Err(format!("Tick windows not contiguous, cannot create snapshot"));
+            return Err("Tick windows not contiguous, cannot create snapshot".to_string());
         }
 
         // Get our current tick from our current price
@@ -324,10 +324,8 @@ impl<'a> PriceRange<'a> {
             if t > self.end_bound.price {
                 return self.quantity.into();
             }
-        } else {
-            if t < self.end_bound.price {
-                return self.quantity.into();
-            }
+        } else if t < self.end_bound.price {
+            return self.quantity.into();
         }
 
         // Otherwise we have to calculate the precise quantity we have to sell

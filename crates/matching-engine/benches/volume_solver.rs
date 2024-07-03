@@ -9,7 +9,7 @@ use matching_engine::{
 static CENTER_PRICE: f64 = 100_000_000.0;
 
 fn do_solve<'a>(book: &'a OrderBook<'a>) -> Solution {
-    let solved = SimpleCheckpointStrategy::run(&book).unwrap();
+    let solved = SimpleCheckpointStrategy::run(book).unwrap();
     solved.results().clone()
 }
 

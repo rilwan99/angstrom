@@ -18,6 +18,8 @@ enum PartialOrder<'a> {
     Ask(Order<'a>)
 }
 
+type CrossPoolExclusions = Option<(Vec<Option<OrderExclusion>>, Vec<Option<OrderExclusion>>)>;
+
 #[derive(Clone)]
 pub struct VolumeFillMatcher<'a> {
     book:             &'a OrderBook<'a>,
@@ -42,10 +44,7 @@ impl<'a> VolumeFillMatcher<'a> {
         new_element
     }
 
-    fn with_related(
-        book: &'a OrderBook,
-        xpool: Option<(Vec<Option<OrderExclusion>>, Vec<Option<OrderExclusion>>)>
-    ) -> Self {
+    fn with_related(book: &'a OrderBook, xpool: CrossPoolExclusions) -> Self {
         let (bid_xpool, ask_xpool) =
             xpool.unwrap_or_else(|| (vec![None; book.bids().len()], vec![None; book.asks().len()]));
         let bid_outcomes = vec![OrderOutcome::Unfilled; book.bids().len()];
@@ -115,6 +114,7 @@ impl<'a> VolumeFillMatcher<'a> {
         }
     }
 
+    #[allow(dead_code)]
     fn update_xpool(&self, state: &XPoolOutcomes) -> Option<Self> {
         let mut new_bid_xpool = Cow::from(&self.bid_xpool);
         let mut new_ask_xpool = Cow::from(&self.ask_xpool);
@@ -298,7 +298,7 @@ impl<'a> VolumeFillMatcher<'a> {
                     self.amm_price = Some(final_amm_order.end_bound.clone());
                     // Add to our solution
                     self.results.amm_volume += matched;
-                    self.results.amm_final_price = Some(final_amm_order.end_bound.price().clone());
+                    self.results.amm_final_price = Some(*final_amm_order.end_bound.price());
                 }
 
                 // Then we see what else we need to do
@@ -392,7 +392,7 @@ impl<'a> VolumeFillMatcher<'a> {
                     .map(|o| SqrtPriceX96::from_float_price(o.price()));
                 amm_price.order_to_target(target_price, direction.is_ask())
             })
-            .map(|o| Order::AMM(o));
+            .map(Order::AMM);
 
         // If we have no AMM order to look at, point the index at our next order
         if amm_order.is_none() {
