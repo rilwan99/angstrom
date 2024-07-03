@@ -1,13 +1,14 @@
 use std::future::IntoFuture;
 
-use alloy::transports::http::{Client, Http};
 use alloy_primitives::keccak256;
-use alloy_provider::{Provider, RootProvider};
+use alloy_provider::Provider;
 use alloy_transport::TransportResult;
 use futures::Future;
 use reth_primitives::{Account, Address, BlockNumber, StorageKey, StorageValue};
 use reth_provider::{ProviderError, ProviderResult};
 use validation::common::lru_db::{BlockStateProvider, BlockStateProviderFactory};
+
+use crate::anvil_utils::AnvilWalletRpc;
 
 fn async_to_sync<F: Future>(f: F) -> F::Output {
     let handle = tokio::runtime::Handle::try_current().expect("No tokion runtime found");
@@ -17,7 +18,7 @@ fn async_to_sync<F: Future>(f: F) -> F::Output {
 #[derive(Clone, Debug)]
 pub struct RpcStateProvider {
     block:    u64,
-    provider: RootProvider<Http<Client>>
+    provider: AnvilWalletRpc
 }
 
 impl RpcStateProvider {
@@ -67,11 +68,11 @@ impl BlockStateProvider for RpcStateProvider {
 
 #[derive(Clone, Debug)]
 pub struct RpcStateProviderFactory {
-    provider: RootProvider<Http<Client>>
+    pub provider: AnvilWalletRpc
 }
 
 impl RpcStateProviderFactory {
-    pub fn new(provider: RootProvider<Http<Client>>) -> eyre::Result<Self> {
+    pub fn new(provider: AnvilWalletRpc) -> eyre::Result<Self> {
         Ok(Self { provider })
     }
 }

@@ -2,7 +2,7 @@ mod private {
     use alloy_sol_macro::sol;
 
     sol! {
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, PartialEq, Eq)]
         enum OrderMode {
             ExactIn,
             ExactOut,
@@ -10,14 +10,14 @@ mod private {
             Partial
         }
 
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, PartialEq, Eq)]
         enum OrderType {
             Flash,
             #[default]
             Standing
         }
 
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, PartialEq, Eq)]
         enum AssetForm {
             #[default]
             Liquid,
@@ -26,7 +26,7 @@ mod private {
         }
 
 
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, PartialEq, Eq)]
         struct StandingOrder {
             string mode;
             uint256 max_amount_in_or_out;
@@ -41,7 +41,7 @@ mod private {
             uint256 deadline;
         }
 
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, PartialEq, Eq)]
         struct FlashOrder {
             string mode;
             uint256 max_amount_in_or_out;
@@ -55,7 +55,7 @@ mod private {
             uint64 valid_for_block;
         }
 
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, PartialEq, Eq)]
         struct TopOfBlockOrder {
             uint256 amount_in;
             uint256 amount_out;
@@ -68,10 +68,10 @@ mod private {
             uint64 valid_for_block;
         }
 
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, PartialEq, Eq)]
         type AssetIndex is uint16;
 
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, PartialEq, Eq)]
         struct GenericOrder {
             OrderType otype;
             OrderMode mode;
@@ -91,7 +91,7 @@ mod private {
             bytes signature;
         }
 
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, PartialEq, Eq)]
         struct TopOfBlockOrderEnvelope {
             uint256 amountIn;
             uint256 amountOut;
@@ -106,14 +106,14 @@ mod private {
             bytes signature;
         }
 
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, PartialEq, Eq)]
         struct Price {
             AssetIndex outIndex;
             AssetIndex inIndex;
             uint256 price;
         }
 
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, PartialEq, Eq)]
         struct Swap {
             AssetIndex asset0Index;
             AssetIndex asset1Index;
@@ -121,7 +121,7 @@ mod private {
             uint256 amountIn;
         }
 
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, PartialEq, Eq)]
         struct Donate {
             AssetIndex asset0Index;
             AssetIndex asset1Index;
@@ -131,7 +131,7 @@ mod private {
             uint256[] amounts0;
         }
 
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, PartialEq, Eq)]
         struct ContractBundle {
             address[] assets;
             Price[] initial_prices;
@@ -148,20 +148,39 @@ mod private {
             error InsufficientBalance();
             error InsufficientPermission();
 
-            mapping(address owner => mapping(uint256 id => uint256 amount)) public balanceOf;
-            mapping(address owner => mapping(address spender => mapping(uint256 id => uint256 amount))) public allowance;
-            mapping(address owner => mapping(address spender => bool)) public isOperator;
+            mapping(address owner =>
+                mapping(uint256 id => uint256 amount)) public balanceOf;
+            mapping(address owner =>
+                mapping(address spender =>
+                    mapping(uint256 id => uint256 amount))) public allowance;
+            mapping(address owner =>
+                mapping(address spender => bool)) public isOperator;
 
             function transfer(address receiver, uint256 id, uint256 amount) public returns (bool);
-            function transferFrom(address sender, address receiver, uint256 id, uint256 amount) public returns (bool);
+            function transferFrom(
+                address sender,
+                address receiver,
+                uint256 id,
+                uint256 amount
+            ) public returns (bool);
             function approve(address spender, uint256 id, uint256 amount) public returns (bool);
             function setOperator(address spender, bool approved) public returns (bool);
             function supportsInterface(bytes4 interfaceId) public pure returns (bool supported);
 
             function execute(bytes calldata data) external;
 
-            function userToUserLiquidTransfer(address from, address to, address asset, uint256 amount) public;
-            function userToUserV4ClaimTransfer(address from, address to, address asset, uint256 amount) public;
+            function userToUserLiquidTransfer(
+                address from,
+                address to,
+                address asset,
+                uint256 amount
+            ) public;
+            function userToUserV4ClaimTransfer(
+                address from,
+                address to,
+                address asset,
+                uint256 amount
+            ) public;
             function pullLiquid(address from, address asset, uint256 amount) public;
             function pushLiquid(address to, address asset, uint256 amount) public;
             function pullToV4(address from, address asset, uint256 amount) public;
