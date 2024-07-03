@@ -6,7 +6,7 @@ use std::{
 
 use angstrom_network::{manager::StromConsensusEvent, StromNetworkHandle};
 use futures::{Future, FutureExt, Stream, StreamExt};
-use order_pool::{AtomicConsensus, OrderPoolHandle};
+use order_pool::OrderPoolHandle;
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_provider::CanonStateNotifications;
 use reth_tasks::TaskSpawner;

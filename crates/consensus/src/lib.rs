@@ -13,7 +13,6 @@ use futures::Stream;
 pub use global::*;
 pub use manager::*;
 pub use signer::*;
-
 /// Listener for consensus data
 pub trait ConsensusListener: Send + Sync + 'static {
     /// subscribes to new messages from our consensus

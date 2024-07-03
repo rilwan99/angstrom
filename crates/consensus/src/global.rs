@@ -1,6 +1,8 @@
 use std::sync::RwLock;
 
-#[derive(Debug, Default, Clone, Copy)]
+use serde::Serialize;
+
+#[derive(Debug, Default, Clone, Copy, Serialize)]
 pub enum ConsensusState {
     #[default]
     OrderAccumulation,

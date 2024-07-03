@@ -7,7 +7,6 @@ use std::{
 
 use alloy_primitives::FixedBytes;
 use angstrom_types::consensus::{Commit, PreProposal, Proposal};
-use angstrom_utils::AtomicConsensus;
 use futures::{Future, FutureExt};
 use reth_primitives::B512;
 
