@@ -1,5 +1,6 @@
 mod core;
 mod evidence;
+mod global;
 mod manager;
 mod round;
 mod round_robin_algo;
@@ -9,6 +10,7 @@ pub use core::{ConsensusCore, ConsensusMessage};
 use std::pin::Pin;
 
 use futures::Stream;
+pub use global::*;
 pub use manager::*;
 pub use signer::*;
 

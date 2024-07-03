@@ -43,8 +43,6 @@ pub struct RoundState {
     height:        u64,
     /// Who is the current leader
     leader:        Leader,
-    /// global consensus state indicator
-    consensus:     AtomicConsensus,
     /// the current action we should be taking at the moment of
     /// time for this height
     current_state: RoundAction
@@ -52,8 +50,8 @@ pub struct RoundState {
 
 impl RoundState {
     #[allow(dead_code)]
-    pub fn new(height: u64, leader: Leader, consensus: AtomicConsensus) -> Self {
-        Self { leader, consensus, height, current_state: RoundAction::new() }
+    pub fn new(height: u64, leader: Leader) -> Self {
+        Self { leader, height, current_state: RoundAction::new() }
     }
 
     pub fn new_height(&mut self, block_height: u64, leader: Leader) {
@@ -61,7 +59,6 @@ impl RoundState {
 
         self.height = block_height;
         self.leader = leader;
-        self.consensus.reset();
         self.current_state = RoundAction::new();
     }
 

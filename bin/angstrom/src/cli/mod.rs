@@ -1,5 +1,8 @@
 //! CLI definition and entrypoint to executable
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex}
+};
 
 use angstrom_network::manager::StromConsensusEvent;
 use reth_node_builder::{FullNode, NodeHandle};
@@ -23,7 +26,10 @@ use angstrom_rpc::{
     ConsensusApi, OrderApi, QuotesApi
 };
 use clap::Parser;
-use consensus::{ConsensusCommand, ConsensusHandle, ConsensusManager, ManagerNetworkDeps, Signer};
+use consensus::{
+    ConsensusCommand, ConsensusHandle, ConsensusManager, GlobalConsensusState, ManagerNetworkDeps,
+    Signer
+};
 use reth::{
     args::get_secret_key,
     builder::{FullNodeComponents, Node},
@@ -194,8 +200,11 @@ pub fn initialize_strom_components<Node: FullNodeComponents>(
 
     let signer = Signer::default();
 
+    let global_consensus_state = Arc::new(Mutex::new(GlobalConsensusState::default()));
+
     let _consensus_handle = ConsensusManager::spawn(
         executor.clone(),
+        global_consensus_state,
         ManagerNetworkDeps::new(
             network_handle.clone(),
             node.provider.subscribe_to_canonical_state(),

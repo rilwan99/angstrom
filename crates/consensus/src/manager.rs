@@ -1,5 +1,6 @@
 use std::{
     pin::Pin,
+    sync::{Arc, Mutex},
     task::{Context, Poll}
 };
 
@@ -15,6 +16,7 @@ use validation::BundleValidator;
 
 use crate::{
     core::ConsensusMessage,
+    global::GlobalConsensusState,
     round::{Leader, RoundState},
     signer::Signer,
     ConsensusListener, ConsensusUpdater
@@ -24,8 +26,8 @@ use crate::{
 pub struct ConsensusManager<OrderPool, Validator> {
     // core: ConsensusCore,
     /// keeps track of the current round state
-    roundstate: RoundState,
-
+    roundstate:             RoundState,
+    globalstate:            Arc<Mutex<GlobalConsensusState>>,
     command:                ReceiverStream<ConsensusCommand>,
     subscribers:            Vec<Sender<ConsensusMessage>>,
     /// Used to trigger new consensus rounds
@@ -66,6 +68,7 @@ where
 {
     pub fn spawn<TP: TaskSpawner>(
         tp: TP,
+        globalstate: Arc<Mutex<GlobalConsensusState>>,
         netdeps: ManagerNetworkDeps,
         signer: Signer,
         orderpool: OrderPool,
@@ -77,12 +80,13 @@ where
 
         // This is still a lot of stuff to track that we don't necessarily have to worry
         // about
-        let roundstate = RoundState::new(0, Leader::default(), AtomicConsensus::default());
+        let roundstate = RoundState::new(0, Leader::default());
 
         let this = Self {
             strom_consensus_event,
             validator,
             roundstate,
+            globalstate,
             subscribers: Vec::new(),
             command: stream,
             network,
