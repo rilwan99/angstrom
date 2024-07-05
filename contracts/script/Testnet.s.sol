@@ -6,8 +6,8 @@ import {Script} from "forge-std/Script.sol";
 import {Hooks, IHooks} from "v4-core/src/libraries/Hooks.sol";
 import {Angstrom} from "../src/Angstrom.sol";
 import {SEPOLIA_POOL_MANAGER_INITCODE} from "./SepoliaPoolManager.sol";
-import {TestnetHub} from "../test/testnet-utils/TestnetHub.sol";
-import {MockERC20} from "../test/mocks/MockERC20.sol";
+import {PoolGate} from "../test/_helpers/PoolGate.sol";
+import {MockERC20} from "../test/_mocks/MockERC20.sol";
 
 import {console2 as console} from "forge-std/console2.sol";
 
@@ -49,9 +49,9 @@ contract TestnetDeploy is Test, Script {
         address angstrom = address(bytes20(ret));
         console.log("Angstrom: %s", angstrom);
 
-        TestnetHub hub = new TestnetHub(angstrom, uniV4);
+        PoolGate gate = new PoolGate(uniV4);
 
-        console.log("Testnet hub: %s", address(hub));
+        console.log("Pool gate: %s", address(gate));
 
         MockERC20 token0 = new MockERC20();
         MockERC20 token1 = new MockERC20();

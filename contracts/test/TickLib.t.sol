@@ -2,33 +2,32 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
-import {BitmapLib} from "../src/libraries/BitmapLib.sol";
+import {TickLib, TICK_SPACING} from "../src/libraries/TickLib.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract BitmapLibTest is Test {
+contract TickLibTest is Test {
     function setUp() public {}
 
-    function test_fuzzing_findNextGte(uint256 word, uint8 bitPos) public {
-        (bool libInitialized, uint8 libPos) = BitmapLib.nextBitPosGte(word, bitPos);
+    function test_fuzzing_findNextGte(uint256 word, uint8 bitPos) public pure {
+        (bool libInitialized, uint8 libPos) = TickLib.nextBitPosGte(word, bitPos);
         (uint8 cmpPos, bool cmpInitialized) = _findNextGte(word, bitPos);
         assertEq(libPos, cmpPos);
         assertEq(libInitialized, cmpInitialized);
     }
 
-    function test_fuzzing_findNextLte(uint256 word, uint8 bitPos) public {
-        (bool libInitialized, uint8 libPos) = BitmapLib.nextBitPosLte(word, bitPos);
+    function test_fuzzing_findNextLte(uint256 word, uint8 bitPos) public pure {
+        (bool libInitialized, uint8 libPos) = TickLib.nextBitPosLte(word, bitPos);
         (uint8 cmpPos, bool cmpInitialized) = _findNextLte(word, bitPos);
         assertEq(libPos, cmpPos);
         assertEq(libInitialized, cmpInitialized);
     }
 
-    function test_fuzzing_compress(int24 tick, int24 spacing) public {
-        // Assumptin: Tick spacing is always a positive non-negative value.
-        spacing = int24(bound(spacing, 1, type(int24).max));
-        int24 libCompressed = BitmapLib.compress(tick, spacing);
+    function test_fuzzing_compress(int24 tick) public pure {
+        // Assumption: Tick spacing is always a positive non-negative value.
+        int24 libCompressed = TickLib.compress(tick);
 
-        int24 safeCompressed = tick / spacing;
-        if (tick < 0 && tick % spacing != 0) safeCompressed--;
+        int24 safeCompressed = tick / TICK_SPACING;
+        if (tick < 0 && tick % TICK_SPACING != 0) safeCompressed--;
 
         assertEq(libCompressed, safeCompressed);
     }

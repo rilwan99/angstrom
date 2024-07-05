@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
+import {console2 as console} from "forge-std/console2.sol";
+
 struct TickRewards {
-    mapping(int24 tick => uint256 cumulativeFeeGrowth) growthOutside;
-    uint256 globalGrowthOutside;
+    mapping(int24 tick => uint256 growthOutside) tickGrowthOutside;
+    uint256 globalGrowth;
 }
 
 using TickRewardsLib for TickRewards global;
@@ -14,14 +16,17 @@ library TickRewardsLib {
         view
         returns (uint256)
     {
-        uint256 lowerGrowth = self.growthOutside[lower];
-        uint256 upperGrowth = self.growthOutside[upper];
+        uint256 lowerGrowth = self.tickGrowthOutside[lower];
+        uint256 upperGrowth = self.tickGrowthOutside[upper];
         if (current < lower) {
+            console.log("=> lo - hi");
             return lowerGrowth - upperGrowth;
         } else if (current >= upper) {
+            console.log("=> hi - lo");
             return upperGrowth - lowerGrowth;
         } else {
-            return self.globalGrowthOutside - lowerGrowth - upperGrowth;
+            console.log("=> g - lo - hi");
+            return self.globalGrowth - lowerGrowth - upperGrowth;
         }
     }
 }

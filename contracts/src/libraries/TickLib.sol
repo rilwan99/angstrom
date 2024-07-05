@@ -2,9 +2,10 @@
 pragma solidity ^0.8.0;
 
 import {LibBit} from "solady/src/utils/LibBit.sol";
+import {TICK_SPACING} from "../Constants.sol";
 
 /// @author philogy <https://github.com/philogy>
-library BitmapLib {
+library TickLib {
     function nextBitPosLte(uint256 word, uint8 bitPos) internal pure returns (bool initialized, uint8 nextBitPos) {
         unchecked {
             uint8 offset = 0xff - bitPos;
@@ -34,9 +35,9 @@ library BitmapLib {
         nextBitPos = uint8(pos);
     }
 
-    function compress(int24 tick, int24 spacing) internal pure returns (int24 compressed) {
+    function compress(int24 tick) internal pure returns (int24 compressed) {
         assembly {
-            compressed := sub(sdiv(tick, spacing), slt(smod(tick, spacing), 0))
+            compressed := sub(sdiv(tick, TICK_SPACING), slt(smod(tick, TICK_SPACING), 0))
         }
     }
 
@@ -45,5 +46,9 @@ library BitmapLib {
             wordPos = int16(compressed >> 8);
             bitPos = uint8(int8(compressed));
         }
+    }
+
+    function toTick(int16 wordPos, uint8 bitPos) internal pure returns (int24) {
+        return (int24(wordPos) * 256 + int24(uint24(bitPos))) * TICK_SPACING;
     }
 }

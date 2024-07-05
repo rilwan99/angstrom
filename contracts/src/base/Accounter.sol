@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
+import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
 import {SilentERC6909} from "./SilentERC6909.sol";
 import {tuint256, tint256} from "transient-goodies/TransientPrimitives.sol";
 import {AssetForm} from "../interfaces/OrderTypes.sol";
@@ -13,9 +14,7 @@ import {Globals} from "../libraries/Globals.sol";
 
 import {IPoolManager, IUniV4} from "../interfaces/IUniV4.sol";
 import {AssetIndex} from "../libraries/PriceGraph.sol";
-import {BitmapLib} from "../libraries/BitmapLib.sol";
 import {MixedSignLib} from "../libraries/MixedSignLib.sol";
-import {RayMathLib} from "../libraries/RayMathLib.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 
@@ -31,9 +30,8 @@ abstract contract Accounter is SilentERC6909, DumbDispatch {
     using SafeCastLib for uint256;
     using SafeTransferLib for address;
     using ConversionLib for *;
-    using RayMathLib for uint256;
+    using FixedPointMathLib for uint256;
     using PoolIdLibrary for PoolKey;
-    using BitmapLib for uint256;
     using MixedSignLib for uint256;
     using IUniV4 for IPoolManager;
 
@@ -94,11 +92,11 @@ abstract contract Accounter is SilentERC6909, DumbDispatch {
             return;
         }
         if (atype == AssetForm.UniV4Claim) {
-            _accountChange(netV4Claims[to][asset], amount.pos());
+            _accountChange(netV4Claims[to][asset], amount.signed());
             return;
         }
         if (atype == AssetForm.Liquid) {
-            _accountChange(netLiquid[to][asset], amount.pos());
+            _accountChange(netLiquid[to][asset], amount.signed());
             return;
         }
         // Should be unreachable (<3 to Solidity for not having match statements).
@@ -109,7 +107,6 @@ abstract contract Accounter is SilentERC6909, DumbDispatch {
         AssetIndex asset0Index;
         AssetIndex asset1Index;
         int24 startTick;
-        uint256 totalTicks;
         uint128 startLiquidity;
         uint256[] amounts0;
     }
@@ -120,146 +117,18 @@ abstract contract Accounter is SilentERC6909, DumbDispatch {
         PoolId poolid = ConversionLib.toPoolKey(address(this), asset0, asset1).toId();
         int24 currentTick = UNI_V4.getSlot0(poolid).tick();
 
-        uint256 totalDonated;
-        uint256 cumulativeFeeGrowth;
+        uint256 totalDonated = 0;
+        uint256 cumulativeFeeGrowth = 0;
         uint256 liquidity = donate.startLiquidity;
 
         int24 tick = donate.startTick;
 
-        if (tick <= currentTick) {
-            bool initialized = false;
-            uint256 index = 0;
-            while (true) {
-                if (initialized && index < donate.amounts0.length) {
-                    uint256 amount = donate.amounts0[index++];
-                    totalDonated += amount;
-                    cumulativeFeeGrowth += amount.rayDiv(liquidity);
-                }
-
-                {
-                    int24 compressed = BitmapLib.compress(tick - 1, ConversionLib.TICK_SPACING);
-                    (int16 wordPos, uint8 bitPos) = BitmapLib.position(compressed);
-                    (initialized, bitPos) = UNI_V4.getPoolBitmapInfo(poolid, wordPos).nextBitPosLte(bitPos);
-                    tick = ConversionLib.toTick(wordPos, bitPos);
-                }
-
-                if (tick > currentTick) break;
-
-                if (initialized) {
-                    feeGrowthOutside[poolid][tick] += cumulativeFeeGrowth;
-                    (, int256 netLiquidity) = UNI_V4.getTickLiquidity(poolid, tick);
-                    liquidity = liquidity.sub(netLiquidity);
-                }
-            }
-        } else {
-            bool initialized = false;
-            uint256 index = 0;
-            while (true) {
-                {
-                    int24 compressed = BitmapLib.compress(tick + 1, ConversionLib.TICK_SPACING);
-                    (int16 wordPos, uint8 bitPos) = BitmapLib.position(compressed);
-                    (initialized, bitPos) = UNI_V4.getPoolBitmapInfo(poolid, wordPos).nextBitPosLte(bitPos);
-                    tick = ConversionLib.toTick(wordPos, bitPos);
-                }
-
-                if (tick <= currentTick) break;
-
-                if (initialized && index < donate.amounts0.length) {
-                    uint256 amount = donate.amounts0[index++];
-                    totalDonated += amount;
-                    cumulativeFeeGrowth += amount.rayDiv(liquidity);
-                }
-
-                if (initialized) {
-                    feeGrowthOutside[poolid][tick] += cumulativeFeeGrowth;
-                    (, int256 netLiquidity) = UNI_V4.getTickLiquidity(poolid, tick);
-                    liquidity = liquidity.add(netLiquidity);
-                }
-            }
-        }
+        if (tick <= currentTick) {} else {}
 
         require(liquidity == UNI_V4.getPoolLiquidity(poolid), "WRONG_LIQUIDITY");
 
         feeGrowthGlobal[poolid] += cumulativeFeeGrowth;
         freeBalance[asset0].dec(totalDonated);
-    }
-
-    ////////////////////////////////////////////////////////////////
-    //                        USER-TO-USER                        //
-    ////////////////////////////////////////////////////////////////
-
-    function userToUserLiquidTransfer(address from, address to, address asset, uint256 amount) public dispatched {
-        asset.safeTransferFrom(from, to, amount);
-        _accountChange(netLiquid[from][asset], amount.pos());
-        _accountChange(netLiquid[to][asset], amount.neg());
-    }
-
-    function userToUserV4ClaimTransfer(address from, address to, address asset, uint256 amount) public dispatched {
-        UNI_V4.transferFrom(from, to, asset.into(), amount);
-        _accountChange(netV4Claims[from][asset], amount.pos());
-        _accountChange(netV4Claims[to][asset], amount.neg());
-    }
-
-    ////////////////////////////////////////////////////////////////
-    //                       USER-TO-SYSTEM                       //
-    ////////////////////////////////////////////////////////////////
-
-    function pullLiquid(address from, address asset, uint256 amount) public dispatched {
-        asset.safeTransferFrom(from, address(this), amount);
-        _accountChange(netLiquid[from][asset], amount.pos());
-        freeBalance[asset].inc(amount);
-    }
-
-    // 3000.0 USDC (6) / WETH (18)
-    // 3000 * 10**6 / 10**18 * 10**27
-
-    function pushLiquid(address to, address asset, uint256 amount) public dispatched {
-        asset.safeTransfer(to, amount);
-        _accountChange(netLiquid[to][asset], amount.neg());
-        freeBalance[asset].dec(amount);
-    }
-
-    function pullToV4(address from, address asset, uint256 amount) public dispatched {
-        asset.safeTransferFrom(from, address(UNI_V4), amount);
-        _accountChange(netLiquid[from][asset], amount.pos());
-    }
-
-    function pushFromV4(address to, address asset, uint256 amount) public dispatched {
-        UNI_V4.take(Currency.wrap(asset), to, amount);
-        _accountChange(netLiquid[to][asset], amount.neg());
-    }
-
-    function burnV4(address from, address asset, uint256 amount) public dispatched {
-        UNI_V4.burn(from, asset.into(), amount);
-        _accountChange(netV4Claims[from][asset], amount.pos());
-    }
-
-    function mintV4(address to, address asset, uint256 amount) public dispatched {
-        UNI_V4.mint(to, asset.into(), amount);
-        _accountChange(netV4Claims[to][asset], amount.neg());
-    }
-
-    ////////////////////////////////////////////////////////////////
-    //                   SYSTEM TRANSFORMATIONS                   //
-    ////////////////////////////////////////////////////////////////
-
-    function saveNodeFee(address asset, uint256 amount) public dispatched {
-        freeBalance[asset].dec(amount);
-        _savedFees[asset] += amount;
-    }
-
-    function uniV4DeltaToFree(address asset, uint256 amount) public dispatched {
-        UNI_V4.take(Currency.wrap(asset), address(this), amount);
-        freeBalance[asset].inc(amount);
-    }
-
-    function freeToUniV4Free(address asset, uint256 amount) public dispatched {
-        asset.safeTransfer(address(UNI_V4), amount);
-        freeBalance[asset].dec(amount);
-    }
-
-    function allUniV4FreeToUniV4Delta(address asset) public dispatched {
-        UNI_V4.settle(Currency.wrap(asset));
     }
 
     /**

@@ -67,26 +67,17 @@ contract Angstrom is Accounter, ERC712, UnorderedNonces, NodeManager, IUnlockCal
         (
             address[] memory assets,
             Price[] memory initialPrices,
-            bytes[] memory preTransformations,
             TopOfBlockOrderEnvelope[] memory topOfBlockOrders,
             IUniV4.Swap[] memory swaps,
             GenericOrder[] memory orders,
-            bytes[] memory postTransformations,
             Donate[] memory donates
-        ) = abi.decode(
-            data,
-            (address[], Price[], bytes[], TopOfBlockOrderEnvelope[], IUniV4.Swap[], GenericOrder[], bytes[], Donate[])
-        );
+        ) = abi.decode(data, (address[], Price[], TopOfBlockOrderEnvelope[], IUniV4.Swap[], GenericOrder[], Donate[]));
 
         Globals memory g = _validateAndInitGlobals(assets, initialPrices);
-
-        _dispatchTransformations(g, preTransformations);
 
         _validateAndExecuteToB(g, topOfBlockOrders);
 
         _validateAndExecuteOrders(g, orders);
-
-        _dispatchTransformations(g, postTransformations);
 
         // Execute swaps.
         for (uint256 i = 0; i < swaps.length; i++) {
@@ -126,13 +117,6 @@ contract Angstrom is Accounter, ERC712, UnorderedNonces, NodeManager, IUnlockCal
         }
 
         return Globals({prices: prices, assets: assets});
-    }
-
-    function _dispatchTransformations(Globals memory, bytes[] memory transformations) internal {
-        for (uint256 i = 0; i < transformations.length; i++) {
-            (bool success,) = address(this).call(transformations[i]);
-            require(success);
-        }
     }
 
     function _validateAndExecuteToB(Globals memory g, TopOfBlockOrderEnvelope[] memory orders) internal {
