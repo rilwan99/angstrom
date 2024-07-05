@@ -13,12 +13,14 @@ use reth_primitives::B512;
 
 use crate::ConsensusState;
 
+#[allow(dead_code)]
 pub enum Leader {
     ThisNode(B512),
     OtherNode(B512)
 }
 
 impl Leader {
+    #[allow(dead_code)]
     pub fn address(&self) -> FixedBytes<64> {
         match self {
             Self::ThisNode(a) => *a,
@@ -26,6 +28,7 @@ impl Leader {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_me(&self) -> bool {
         matches!(self, Self::ThisNode(_))
     }
@@ -44,9 +47,11 @@ pub struct RoundState {
     /// The current ethereum height
     height:        u64,
     /// Total number of nodes in the Angstrom network for this round
+    #[allow(dead_code)]
     node_count:    u64,
     two_thirds:    usize,
     /// Who is the current leader
+    #[allow(dead_code)]
     leader:        Leader,
     /// the current action we should be taking at the moment of
     /// time for this height
@@ -73,14 +78,6 @@ impl RoundState {
             proposal: None,
             commits: HashMap::new()
         }
-    }
-
-    pub fn new_height(&mut self, block_height: u64, leader: Leader) {
-        assert!(block_height > self.height);
-
-        self.height = block_height;
-        self.leader = leader;
-        self.current_state = RoundAction::new();
     }
 
     pub fn current_height(&self) -> u64 {
@@ -166,18 +163,6 @@ impl Stream for RoundState {
     }
 }
 
-pub enum RoundStateMessage {
-    /// All angstroms broadcast their complete order view across the network
-    PrePropose(),
-    /// the leader for this round will send out the vanilla bundle and
-    /// lower-bound commit for the round
-    Proposal(),
-    /// the commit or nil vote the the lower-bound + vanilla proposal
-    Commit(),
-    /// if leader. then the finalized bundle that is sent to builders
-    RelaySubmission()
-}
-
 #[repr(transparent)]
 pub struct Timeout(Pin<Box<dyn Future<Output = ()> + Send>>);
 
@@ -218,16 +203,6 @@ pub enum RoundAction {
 impl RoundAction {
     pub fn new() -> Self {
         Self::OrderAccumulation(Timeout::new(Duration::from_secs(6)))
-    }
-
-    /// Get the timeout of our current round action
-    pub fn timeout(&self) -> Option<&Timeout> {
-        match self {
-            Self::OrderAccumulation(t) => Some(t),
-            Self::PrePropose(t) => Some(t),
-            Self::PreProposeLaggards(t) => Some(t),
-            Self::Propose => None
-        }
     }
 
     pub fn to_global(&self) -> ConsensusState {
