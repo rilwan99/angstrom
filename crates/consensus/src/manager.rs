@@ -15,12 +15,11 @@ use tokio_stream::wrappers::{BroadcastStream, ReceiverStream};
 use validation::BundleValidator;
 
 use crate::{
-    core::ConsensusMessage,
     global::GlobalConsensusState,
     round::{Leader, RoundState},
     round_robin_algo::RoundRobinAlgo,
     signer::Signer,
-    ConsensusListener, ConsensusState, ConsensusUpdater
+    ConsensusListener, ConsensusMessage, ConsensusState, ConsensusUpdater
 };
 
 #[allow(unused)]
