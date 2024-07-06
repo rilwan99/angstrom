@@ -1,16 +1,18 @@
 use std::{
     pin::Pin,
-    sync::{Arc, Mutex},
-    task::{Context, Poll}
+    sync::{Arc, Mutex}
 };
 
 use angstrom_network::{manager::StromConsensusEvent, StromNetworkHandle};
-use futures::{Future, FutureExt, Stream, StreamExt};
+use futures::{FutureExt, Stream, StreamExt};
 use order_pool::OrderPoolHandle;
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_provider::{CanonStateNotification, CanonStateNotifications};
 use reth_tasks::TaskSpawner;
-use tokio::sync::mpsc::{channel, Receiver, Sender};
+use tokio::{
+    select,
+    sync::mpsc::{channel, Receiver, Sender}
+};
 use tokio_stream::wrappers::{BroadcastStream, ReceiverStream};
 use validation::BundleValidator;
 
@@ -21,6 +23,64 @@ use crate::{
     signer::Signer,
     ConsensusListener, ConsensusMessage, ConsensusState, ConsensusUpdater
 };
+
+pub async fn manager_thread<OrderPool, Validator>(
+    globalstate: Arc<Mutex<GlobalConsensusState>>,
+    netdeps: ManagerNetworkDeps,
+    signer: Signer,
+    orderpool: OrderPool,
+    validator: Validator
+) where
+    OrderPool: OrderPoolHandle,
+    Validator: BundleValidator
+{
+    let ManagerNetworkDeps { network, canonical_block_stream, strom_consensus_event, rx, .. } =
+        netdeps;
+    let stream = ReceiverStream::new(rx);
+
+    // This is still a lot of stuff to track that we don't necessarily have to worry
+    // about
+    let roundstate = RoundState::new(0, 1, Leader::default());
+
+    let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
+    // Use our default round robin algo
+    let (roundrobin, _cacheheight) = RoundRobinAlgo::new();
+
+    let mut manager = ConsensusManager {
+        strom_consensus_event,
+        validator,
+        roundstate,
+        globalstate,
+        subscribers: Vec::new(),
+        command: stream,
+        network,
+        roundrobin,
+        signer,
+        orderpool,
+        canonical_block_stream: wrapped_broadcast_stream
+    };
+
+    // Start message loop
+    loop {
+        select! {
+            Some(msg) = manager.command.next() => {
+                manager.on_command(msg);
+            },
+            Some(msg) = manager.canonical_block_stream.next() => {
+                match msg {
+                    Ok(notification) => manager.on_blockchain_state(notification),
+                    Err(e) => tracing::error!("Error receiving chain state notification: {}", e)
+                }
+            },
+            Some(msg) = manager.strom_consensus_event.next() => {
+                manager.on_network_event(msg);
+            },
+            Some(msg) = manager.roundstate.next() => {
+                manager.on_new_globalstate(msg);
+            }
+        }
+    }
+}
 
 #[allow(unused)]
 pub struct ConsensusManager<OrderPool, Validator> {
@@ -75,33 +135,10 @@ where
         orderpool: OrderPool,
         validator: Validator
     ) -> ConsensusHandle {
-        let ManagerNetworkDeps { network, canonical_block_stream, strom_consensus_event, tx, rx } =
-            netdeps;
-        let stream = ReceiverStream::new(rx);
+        let tx = netdeps.tx.clone();
+        let fut = manager_thread(globalstate, netdeps, signer, orderpool, validator).boxed();
 
-        // This is still a lot of stuff to track that we don't necessarily have to worry
-        // about
-        let roundstate = RoundState::new(0, 1, Leader::default());
-
-        let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
-        // Use our default round robin algo
-        let (roundrobin, _cacheheight) = RoundRobinAlgo::new();
-
-        let this = Self {
-            strom_consensus_event,
-            validator,
-            roundstate,
-            globalstate,
-            subscribers: Vec::new(),
-            command: stream,
-            network,
-            roundrobin,
-            signer,
-            orderpool,
-            canonical_block_stream: wrapped_broadcast_stream
-        };
-
-        tp.spawn_critical("consensus", this.boxed());
+        tp.spawn_critical("consensus", fut);
 
         ConsensusHandle { sender: tx }
     }
@@ -240,59 +277,6 @@ where
     fn broadcast(&mut self, msg: ConsensusMessage) {
         self.subscribers
             .retain_mut(|sub| sub.try_send(msg.clone()).is_ok());
-    }
-}
-
-impl<OrderPool, Validator> Future for ConsensusManager<OrderPool, Validator>
-where
-    OrderPool: OrderPoolHandle,
-    Validator: BundleValidator
-{
-    type Output = ();
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut work = 10;
-
-        loop {
-            // Process all Commands we might have waiting before doing anything else
-            while let Poll::Ready(Some(msg)) = self.command.poll_next_unpin(cx) {
-                self.on_command(msg)
-            }
-
-            // See if there are any updates to the chain state itself.  If this stream
-            // closes for some reason this will currently silently fail for the
-            // rest of our execution
-            if let Poll::Ready(Some(msg)) = self.canonical_block_stream.poll_next_unpin(cx) {
-                match msg {
-                    Ok(notification) => self.on_blockchain_state(notification),
-                    Err(e) => tracing::error!("Error receiving chain state notification: {}", e)
-                }
-            }
-
-            // We're handing one event per cycle instead of all events per cycle - might
-            // want to change this depending on the priorty level of these
-            // events compared to Command events
-            if let Poll::Ready(Some(msg)) = self.strom_consensus_event.poll_next_unpin(cx) {
-                self.on_network_event(msg);
-            }
-
-            // Check our core state to see if we have any state changes or other updates to
-            // worry about - we're not going to do this for the moment
-            if let Poll::Ready(Some(newstate)) = self.roundstate.poll_next_unpin(cx) {
-                // We have changed state, so update the global state marker
-                self.on_new_globalstate(newstate);
-                // If the new state is prepropose, it's time to send out our
-                // preproposal bundle But how do we do that?
-            }
-
-            // Yield after 10 items are processed if we have a backlog of items or
-            // something?
-            work -= 1;
-            if work == 0 {
-                cx.waker().wake_by_ref();
-                return Poll::Pending
-            }
-        }
     }
 }
 
