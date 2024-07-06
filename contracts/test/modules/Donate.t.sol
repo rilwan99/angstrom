@@ -57,8 +57,12 @@ contract DonateTest is BaseTest, Donate {
     }
 
     struct test_donate_TickInfo {
+        Position[] positions;
         uint256[] totalLiqAtIndex;
         bool[] initialized;
+        uint256[] donateIndices;
+        int24[] donateTicks;
+        uint256[] initializedIndices;
     }
 
     function test_donate(int256 input_startCompressedTick, uint256 seed) public {
@@ -72,15 +76,14 @@ contract DonateTest is BaseTest, Donate {
         int8 ticksOff = int8(rng.randbool() ? rng.randint(-64, -1) : rng.randint(1, 64));
 
         // Generate random positions and compute total liquidity for later.
-        Position[] memory positions = new Position[](4);
-        test_donate_TickInfo memory t = test_donate_TickInfo({
-            totalLiqAtIndex: new uint256[](ticksOff.abs() + 1),
-            initialized: new bool[](ticksOff.abs() + 1)
-        });
+        test_donate_TickInfo memory t;
+        t.positions = new Position[](4);
+        t.totalLiqAtIndex = new uint256[](ticksOff.abs() + 1);
+        t.initialized = new bool[](ticksOff.abs() + 1);
         int24 minTick = ticksOff < 0 ? poolTick + TICK_SPACING * ticksOff : poolTick + TICK_SPACING;
 
-        for (uint256 i = 0; i < positions.length; i++) {
-            Position memory p = positions[i];
+        for (uint256 i = 0; i < t.positions.length; i++) {
+            Position memory p = t.positions[i];
             // `lo` a bit biased towards the middle
             uint256 lo = rng.randuint(0, ticksOff.abs());
             uint256 hi = rng.randuint(lo + 1, ticksOff.abs() + 1);
@@ -105,7 +108,6 @@ contract DonateTest is BaseTest, Donate {
         }
 
         uint256 donateTicks;
-        uint256[] memory initializedIndices;
         {
             // Count initialized ticks.
             uint256 totalInitializedTicks = 0;
@@ -114,13 +116,13 @@ contract DonateTest is BaseTest, Donate {
             }
             assertGe(totalInitializedTicks, 1, "Not even one tick was initialized.");
             // Accumulate initialized indices.
-            initializedIndices = new uint256[](totalInitializedTicks);
+            t.initializedIndices = new uint256[](totalInitializedTicks);
             uint256 nextIndex = 0;
             for (uint256 i = 0; i < t.initialized.length; i++) {
-                if (t.initialized[i]) initializedIndices[nextIndex++] = i;
+                if (t.initialized[i]) t.initializedIndices[nextIndex++] = i;
             }
         }
-        donateTicks = rng.randuint(1, initializedIndices.length);
+        donateTicks = rng.randuint(1, t.initializedIndices.length);
 
         // Generate random amounts to be donated.
         uint256[] memory amounts = new uint256[](donateTicks);
@@ -133,11 +135,20 @@ contract DonateTest is BaseTest, Donate {
         // Perform donate
         uint256 total;
         if (ticksOff < 0) {
-            int24 startTick = minTick + i24(initializedIndices[initializedIndices.length - donateTicks]) * TICK_SPACING;
+            int24 startTick =
+                minTick + i24(t.initializedIndices[t.initializedIndices.length - donateTicks]) * TICK_SPACING;
             uint128 startLiquidity =
-                u128(t.totalLiqAtIndex[initializedIndices[initializedIndices.length - donateTicks - 1]]);
+                u128(t.totalLiqAtIndex[t.initializedIndices[t.initializedIndices.length - donateTicks - 1]]);
+
+            t.donateTicks = new int24[](donateTicks);
+            t.donateIndices = new uint256[](donateTicks);
+            for (uint256 i = 0; i < donateTicks; i++) {
+                uint256 index = t.donateIndices[i] = t.initializedIndices[t.initializedIndices.length - donateTicks + i];
+                t.donateTicks[i] = minTick + i24(index) * TICK_SPACING;
+            }
 
             console.log("info:");
+            uint256 k = 0;
             for (uint256 i = 0; i < t.totalLiqAtIndex.length; i++) {
                 bool init = t.initialized[i];
                 int24 tick = minTick + i24(i) * TICK_SPACING;
@@ -147,9 +158,11 @@ contract DonateTest is BaseTest, Donate {
                         tick.toString(),
                         ": ",
                         t.totalLiqAtIndex[i].formatDecimals(),
-                        init ? string.concat(" [", _getNetTickLiquidity(mainId, tick).formatDecimals(), "]") : ""
+                        init ? string.concat(" [", _getNetTickLiquidity(mainId, tick).formatDecimals(), "]") : "",
+                        k >= t.initializedIndices.length - donateTicks ? string.concat(" +", amounts[k].toString()) : ""
                     )
                 );
+                if (init) k++;
             }
 
             console.log("");
@@ -162,6 +175,29 @@ contract DonateTest is BaseTest, Donate {
 
             console.log("\n  total: %s", total);
         } else {}
+
+        for (uint256 i = 0; i < t.positions.length; i++) {
+            Position memory pos = t.positions[i];
+            console.log(
+                "(%s) %s: %s",
+                i,
+                string.concat("[", pos.lowerTick.toString(), "; ", pos.upperTick.toString(), ")"),
+                pos.liq
+            );
+            uint256 expectedEarnings = 0;
+            for (uint256 j = 0; j < amounts.length; j++) {
+                uint256 amount = amounts[j];
+                int24 tick = t.donateTicks[j];
+                uint256 index = t.donateIndices[j];
+                if (pos.lowerTick <= tick && tick < pos.upperTick) {
+                    expectedEarnings += amount * pos.liq / t.totalLiqAtIndex[index];
+                }
+            }
+            console.log("expectedEarnings: %s", expectedEarnings);
+            uint256 growth = rewards.getGrowthInside(poolTick, pos.lowerTick, pos.upperTick).mulWad(pos.liq);
+            console.log("growth: %s", growth);
+            assertEq(expectedEarnings, growth, "unexpected earnings");
+        }
     }
 
     function test_oneOff_donate() public {
