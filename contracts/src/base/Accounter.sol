@@ -20,7 +20,7 @@ import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 
 // TODO: Remove debug.
 import {console2 as console} from "forge-std/console2.sol";
-import {FormatLib} from "../libraries/FormatLib.sol";
+import {FormatLib} from "../../test/_helpers/FormatLib.sol";
 
 /// @author philogy <https://github.com/philogy>
 abstract contract Accounter is SilentERC6909, DumbDispatch {
