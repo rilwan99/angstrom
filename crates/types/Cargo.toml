@@ -11,6 +11,7 @@ blsful.workspace = true
 bytes = "1.4"
 tracing.workspace = true
 thiserror.workspace = true
+itertools.workspace = true
 serde_json.workspace = true
 reth-primitives.workspace = true
 revm.workspace = true

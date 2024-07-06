@@ -48,6 +48,13 @@ impl SearcherPool {
             .get_mut(&id.pool_id)
             .and_then(|pool| pool.remove_order(id.hash))
     }
+
+    pub fn get_all_orders(&self) -> Vec<OrderWithStorageData<TopOfBlockOrder>> {
+        self.searcher_orders
+            .values()
+            .flat_map(|p| p.get_all_orders())
+            .collect()
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

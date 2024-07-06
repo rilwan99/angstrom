@@ -4,7 +4,7 @@ use alloy_sol_types::SolStruct;
 use angstrom_types::{
     orders::PooledOrder,
     primitive::{Order, ANGSTROM_DOMAIN},
-    rpc::SignedLimitOrder
+    rpc::{SignedLimitOrder, SignedSearcherOrder}
 };
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use reth_primitives::{Bytes, U256};
@@ -50,6 +50,11 @@ pub fn generate_rand_valid_limit_order() -> SignedLimitOrder {
         order:     baseline_order,
         signature: our_sig
     }
+}
+
+pub fn generate_rand_valid_searcher_order() -> SignedSearcherOrder {
+    let l = generate_rand_valid_limit_order();
+    SignedSearcherOrder { hash: l.hash, order: l.order, signature: l.signature }
 }
 
 fn generate_order(rng: &mut ThreadRng) -> Order {

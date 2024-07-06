@@ -57,4 +57,11 @@ impl LimitPool {
                     .and_then(|pool| pool.remove_order(order_id))
             })
     }
+
+    pub fn get_all_orders(&self) -> Vec<OrderWithStorageData<GroupedVanillaOrder>> {
+        self.pending_orders
+            .values()
+            .flat_map(|p| p.get_all_orders())
+            .collect()
+    }
 }

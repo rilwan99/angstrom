@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    future::IntoFuture,
     marker::PhantomData,
     num::NonZeroUsize,
     pin::Pin,
@@ -9,9 +10,9 @@ use std::{
 
 use angstrom_eth::manager::EthEvent;
 use angstrom_types::{
-    orders::{OrderOrigin, OrderPriorityData, PooledOrder},
+    orders::{OrderOrigin, OrderPriorityData, OrderSet, PooledOrder},
     rpc::*,
-    sol_bindings::grouped_orders::{AllOrders, PoolOrder}
+    sol_bindings::{grouped_orders::{AllOrders, GroupedVanillaOrder, OrderWithStorageData}, sol::TopOfBlockOrder}
 };
 use futures::{future::BoxFuture, stream::FuturesUnordered, Future, StreamExt};
 use order_pool::{OrderIndexer, OrderPoolHandle, PoolConfig, PoolInnerEvent};
@@ -44,12 +45,22 @@ pub struct PoolHandle {
 #[derive(Debug)]
 pub enum OrderCommand {
     // new orders
-    NewOrder(OrderOrigin, AllOrders)
+    NewOrder(OrderOrigin, AllOrders),
+    // fetch orders
+    FetchAllVanillaOrders(
+        oneshot::Sender<OrderSet<GroupedVanillaOrder, TopOfBlockOrder>>
+    ) /* FetchAllComposableOrders(oneshot::Sender<OrderSet<CL, CS>>, Option<usize>),
+       * FetchAllOrders(oneshot::Sender<AllOrders<L, S, CL, CS>>, Option<usize>) */
 }
 
 impl PoolHandle {
     fn send(&self, cmd: OrderCommand) {
         let _ = self.manager_tx.send(cmd);
+    }
+
+    async fn send_request<T>(&self, rx: oneshot::Receiver<T>, cmd: OrderCommand) -> T {
+        self.send(cmd);
+        rx.await.unwrap()
     }
 }
 
@@ -57,6 +68,39 @@ impl OrderPoolHandle for PoolHandle {
     fn new_order(&self, origin: OrderOrigin, order: AllOrders) {
         self.send(OrderCommand::NewOrder(origin, order))
     }
+
+    fn get_all_vanilla_orders(
+        &self
+    ) -> BoxFuture<OrderSet<GroupedVanillaOrder, TopOfBlockOrder>> {
+        Box::pin(async move {
+            let (tx, rx) = oneshot::channel();
+            self.send_request(rx, OrderCommand::FetchAllVanillaOrders(tx))
+                .await
+        })
+    }
+
+    // fn get_all_composable_orders(
+    //     &self
+    // ) -> BoxFuture<OrderSet<Self::ComposableLimitOrder,
+    // Self::ComposableSearcherOrder>> {     Box::pin(async move {
+    //         let (tx, rx) = oneshot::channel();
+    //         self.send_request(rx, OrderCommand::FetchAllComposableOrders(tx,
+    // None))             .await
+    //     })
+    // }
+
+    // fn get_all_orders(
+    //     &self
+    // ) -> BoxFuture<
+    //     AllOrders<
+    //         Self::LimitOrder,
+    //         Self::SearcherOrder,
+    //         Self::ComposableLimitOrder,
+    //         Self::ComposableSearcherOrder
+    //     >
+    // > { Box::pin(async move { let (tx, rx) = oneshot::channel();
+    // > self.send_request(rx, OrderCommand::FetchAllOrders(tx, None)) .await })
+    // }
 }
 
 pub struct PoolManagerBuilder<V>
@@ -200,6 +244,10 @@ where
     fn on_command(&mut self, cmd: OrderCommand) {
         match cmd {
             OrderCommand::NewOrder(origin, order) => {}
+            OrderCommand::FetchAllVanillaOrders(tx) => {
+                tx.send(self.order_sorter.get_all_orders());
+            }
+            _ => {}
         }
     }
 

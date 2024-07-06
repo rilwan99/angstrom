@@ -1,12 +1,14 @@
 use alloy_primitives::Bytes;
 use angstrom_types::{
-    consensus::{Commit, OrderBuffer, PoolOrders, PreProposal, Proposal},
-    primitive::{BLSValidatorID, Bundle, LowerBound, Lvr}
+    consensus::{Commit, OrderBuffer, PreProposal, Proposal},
+    primitive::{BLSValidatorID, Bundle, LowerBound, Lvr},
+    sol_bindings::sol::TopOfBlockOrder
 };
 use blsful::SecretKey;
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use secp256k1::SecretKey as Secp256SecretKey;
 
+use super::orders::generate_rand_valid_searcher_order;
 use crate::type_generator::orders::generate_rand_valid_limit_order;
 
 pub fn generate_random_commit() -> Commit {
@@ -20,27 +22,20 @@ pub fn generate_random_preposal() -> PreProposal {
     let mut rng = thread_rng();
     let sk = Secp256SecretKey::new(&mut rng);
 
-    let mut pre_bundle = Vec::new();
-    for _ in 0..rng.gen_range(3..10) {
-        pre_bundle.push(PoolOrders {
-            pool:         angstrom_types::primitive::PoolKey {
-                currency0:   rng.gen(),
-                currency1:   rng.gen(),
-                fee:         rng.gen(),
-                tickSpacing: rng.gen(),
-                hooks:       rng.gen()
-            },
-            sorted_bids:  (0..rng.gen_range(3..10))
-                .map(|_| generate_rand_valid_limit_order())
-                .collect(),
-            sorted_asks:  (0..rng.gen_range(3..10))
-                .map(|_| generate_rand_valid_limit_order())
-                .collect(),
-            searcher_bid: generate_rand_valid_limit_order()
-        })
-    }
+    // let mut pre_bundle = Vec::new();
+    // for _ in 0..rng.gen_range(3..10) {
+    // pre_bundle.push(PoolOrders {
+    //     pool:         rng.gen(),
+    //     orders:       vec![],
+    //     // (0..rng.gen_range(3..10))
+    //     //     .map(|_| generate_rand_valid_limit_order())
+    //     //     .collect(),
+    //     // searcher_bid: generate_rand_valid_searcher_order()
+    //     searcher_bid: TopOfBlockOrder::default()
+    // })
+    // }
 
-    PreProposal::generate_pre_proposal(rng.gen(), pre_bundle, &sk)
+    PreProposal::generate_pre_proposal(rng.gen(), vec![], vec![], &sk)
 }
 
 pub fn generate_random_proposal(validator_id: BLSValidatorID) -> Proposal {

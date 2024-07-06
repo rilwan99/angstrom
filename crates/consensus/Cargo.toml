@@ -29,6 +29,7 @@ hex-literal.workspace = true
 rayon.workspace = true
 alloy-rlp.workspace = true
 reth-tasks.workspace = true
+secp256k1.workspace = true
 
 angstrom-types.workspace = true
 angstrom-utils.workspace = true

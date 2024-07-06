@@ -20,7 +20,7 @@ pub enum ConsensusSubscriptionKind {
     Commits
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum ConsensusSubscriptionResult {
@@ -30,7 +30,7 @@ pub enum ConsensusSubscriptionResult {
     Commits(Arc<Commit>)
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum OrderSubscriptionKind {

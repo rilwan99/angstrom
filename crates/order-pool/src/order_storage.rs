@@ -2,9 +2,9 @@ use std::sync::{Arc, Mutex};
 
 use alloy_primitives::FixedBytes;
 use angstrom_types::{
-    orders::OrderId,
+    orders::{OrderId, OrderSet},
     sol_bindings::{
-        grouped_orders::{AllOrders, GroupedUserOrder, OrderWithStorageData},
+        grouped_orders::{AllOrders, GroupedUserOrder, GroupedVanillaOrder, OrderWithStorageData},
         sol::TopOfBlockOrder
     }
 };
@@ -120,5 +120,16 @@ impl OrderStorage {
 
     pub fn remove_limit_order(&self, id: &OrderId) -> Option<OrderWithStorageData<AllOrders>> {
         self.limit_orders.lock().expect("poisoned").remove_order(id)
+    }
+
+    pub fn get_all_orders(&self) -> OrderSet<GroupedVanillaOrder, TopOfBlockOrder> {
+        let limit = self.limit_orders.lock().expect("poisoned").get_all_orders();
+        let searcher = self
+            .searcher_orders
+            .lock()
+            .expect("poisoned")
+            .get_all_orders();
+
+        OrderSet { limit, searcher }
     }
 }

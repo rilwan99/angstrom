@@ -1,5 +1,7 @@
 mod private {
+    use alloy_rlp::{RlpDecodable, RlpEncodable};
     use alloy_sol_macro::sol;
+    use serde::{Deserialize, Serialize};
 
     sol! {
         #[derive(Debug, Default, PartialEq, Eq)]
@@ -17,7 +19,7 @@ mod private {
             Standing
         }
 
-        #[derive(Debug, Default, PartialEq, Eq)]
+        #[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
         enum AssetForm {
             #[default]
             Liquid,
@@ -26,7 +28,7 @@ mod private {
         }
 
 
-        #[derive(Debug, Default, PartialEq, Eq)]
+        #[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
         struct StandingOrder {
             string mode;
             uint256 max_amount_in_or_out;
@@ -42,7 +44,7 @@ mod private {
             bytes signature;
         }
 
-        #[derive(Debug, Default, PartialEq, Eq)]
+        #[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
         struct FlashOrder {
             string mode;
             uint256 max_amount_in_or_out;
@@ -58,7 +60,7 @@ mod private {
         }
 
 
-        #[derive(Debug, Default, PartialEq, Eq)]
+        #[derive(Debug, Default, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
         struct TopOfBlockOrder {
             uint256 amountIn;
             uint256 amountOut;
@@ -195,11 +197,42 @@ mod private {
     }
 }
 
+use alloy_rlp::{Decodable, Encodable};
 pub use private::{
     AngstromContract, AssetForm as SolAssetForm, AssetIndex, ContractBundle, Donate as SolDonate,
     FlashOrder, GenericOrder as SolGenericOrder, OrderMode as SolOrderMode,
     OrderType as SolOrderType, Price as SolPrice, StandingOrder, Swap as SolSwap, TopOfBlockOrder
 };
+
+// RLP encoding implementations needed
+
+impl Encodable for SolAssetForm {
+    fn encode(&self, out: &mut dyn bytes::BufMut) {
+        match self {
+            Self::Liquid => 0_u8.encode(out),
+            Self::UniV4Claim => 1_u8.encode(out),
+            Self::AngstromClaim => 2_u8.encode(out),
+            Self::__Invalid => 3_u8.encode(out)
+        }
+    }
+
+    fn length(&self) -> usize {
+        u8::length(&2_u8)
+    }
+}
+
+impl Decodable for SolAssetForm {
+    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+        let v = u8::decode(buf)?;
+        match v {
+            0 => Ok(Self::Liquid),
+            1 => Ok(Self::UniV4Claim),
+            2 => Ok(Self::AngstromClaim),
+            3 => Ok(Self::__Invalid),
+            _ => Err(alloy_rlp::Error::Custom("Unknown value when decoding AssetForm"))
+        }
+    }
+}
 
 #[derive(Default, Debug, Clone)]
 pub struct InvalidSolEnumVariant;

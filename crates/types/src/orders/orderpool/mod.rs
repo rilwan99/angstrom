@@ -1,11 +1,15 @@
 use std::fmt::Debug;
 
 use alloy_primitives::{Address, B256, U256};
+use alloy_rlp::{Decodable, Encodable, RlpDecodable, RlpEncodable};
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::primitive::PoolId;
+use crate::primitive::{Order, PoolId};
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable,
+)]
 pub struct OrderId {
     pub address:  Address,
     /// Pool id
@@ -20,7 +24,9 @@ pub struct OrderId {
     pub location: OrderLocation
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable,
+)]
 pub struct OrderPriorityData {
     pub price:  u128,
     pub volume: u128,
@@ -42,11 +48,35 @@ impl Ord for OrderPriorityData {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum OrderLocation {
     #[default]
     Limit,
     Searcher
+}
+
+impl Encodable for OrderLocation {
+    fn encode(&self, out: &mut dyn bytes::BufMut) {
+        match self {
+            Self::Limit => 0_u8.encode(out),
+            Self::Searcher => 1_u8.encode(out)
+        }
+    }
+
+    fn length(&self) -> usize {
+        u8::length(&1_u8)
+    }
+}
+
+impl Decodable for OrderLocation {
+    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+        let v = u8::decode(buf)?;
+        match v {
+            0 => Ok(Self::Limit),
+            1 => Ok(Self::Searcher),
+            _ => Err(alloy_rlp::Error::Custom("Unknown value decoding OrderLocation"))
+        }
+    }
 }
 
 #[derive(Debug, Clone, Error)]

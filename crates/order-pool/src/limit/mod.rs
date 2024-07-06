@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{collections::HashMap, fmt::Debug};
 
 use angstrom_types::{
     orders::OrderId,
@@ -67,6 +67,14 @@ impl LimitOrderPool {
                     .and_then(|value| value.try_map_inner(|this| Ok(this.into())).ok())
             })
     }
+
+    pub fn get_all_orders(&self) -> Vec<OrderWithStorageData<GroupedVanillaOrder>> {
+        self.limit_orders.get_all_orders()
+    }
+
+    // pub fn fetch_all_composable_orders(&self) -> Vec<BidsAndAsks<C>> {
+    //     self.composable_orders.fetch_bids_asks_per_pool()
+    // }
 }
 
 #[derive(Debug, thiserror::Error)]

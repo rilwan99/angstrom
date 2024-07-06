@@ -8,10 +8,13 @@ use std::{
 
 use alloy_primitives::{B256, U256};
 use angstrom_types::{
-    orders::{OrderId, OrderOrigin},
+    orders::{OrderId, OrderOrigin, OrderSet},
     primitive::PoolId,
-    sol_bindings::grouped_orders::{
-        AllOrders, GroupedComposableOrder, GroupedVanillaOrder, OrderWithStorageData, *
+    sol_bindings::{
+        grouped_orders::{
+            AllOrders, GroupedComposableOrder, GroupedVanillaOrder, OrderWithStorageData, *
+        },
+        sol::TopOfBlockOrder
     }
 };
 use futures_util::{Stream, StreamExt};
@@ -269,6 +272,10 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         // nonce overlap is checked during validation so its ok we
         // don't check for duplicates
         self.address_to_orders.entry(user).or_default().push(id);
+    }
+
+    pub fn get_all_orders(&self) -> OrderSet<GroupedVanillaOrder, TopOfBlockOrder> {
+        self.order_storage.get_all_orders()
     }
 }
 

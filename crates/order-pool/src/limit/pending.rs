@@ -8,7 +8,7 @@ use angstrom_types::{
     orders::OrderPriorityData, sol_bindings::grouped_orders::OrderWithStorageData
 };
 
-pub struct PendingPool<Order> {
+pub struct PendingPool<Order: Clone> {
     /// all order hashes
     orders: HashMap<FixedBytes<32>, OrderWithStorageData<Order>>,
     /// bids are sorted descending by price, TODO: This should be binned into
@@ -19,7 +19,7 @@ pub struct PendingPool<Order> {
     asks:   BTreeMap<OrderPriorityData, FixedBytes<32>>
 }
 
-impl<Order> PendingPool<Order> {
+impl<Order: Clone> PendingPool<Order> {
     #[allow(unused)]
     pub fn new() -> Self {
         Self { orders: HashMap::new(), bids: BTreeMap::new(), asks: BTreeMap::new() }
@@ -46,5 +46,9 @@ impl<Order> PendingPool<Order> {
 
         // probably fine to strip extra data here
         Some(order)
+    }
+
+    pub fn get_all_orders(&self) -> Vec<OrderWithStorageData<Order>> {
+        self.orders.values().cloned().collect()
     }
 }

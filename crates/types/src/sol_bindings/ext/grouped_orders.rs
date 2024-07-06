@@ -1,8 +1,11 @@
 use std::{fmt, ops::Deref};
 
 use alloy_primitives::{Address, FixedBytes, TxHash, U256};
+use alloy_rlp::{Decodable, Encodable, RlpDecodable, RlpEncodable};
 use alloy_sol_types::SolStruct;
+use itertools::{Either, Itertools};
 use reth_primitives::B256;
+use serde::{Deserialize, Serialize};
 
 use super::FetchAssetIndexes;
 use crate::{
@@ -68,7 +71,7 @@ impl AllOrders {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
 pub struct OrderWithStorageData<Order> {
     /// raw order
     pub order:              Order,
@@ -149,7 +152,7 @@ impl GroupedUserOrder {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GroupedVanillaOrder {
     Partial(StandingOrder),
     KillOrFill(FlashOrder)
@@ -160,6 +163,39 @@ impl GroupedVanillaOrder {
         match self {
             Self::Partial(p) => p.eip712_hash_struct(),
             Self::KillOrFill(k) => k.eip712_hash_struct()
+        }
+    }
+}
+
+impl Encodable for GroupedVanillaOrder {
+    fn encode(&self, out: &mut dyn bytes::BufMut) {
+        match self {
+            Self::Partial(o) => {
+                0_u8.encode(out);
+                o.encode(out);
+            }
+            Self::KillOrFill(o) => {
+                1_u8.encode(out);
+                o.encode(out);
+            }
+        }
+    }
+
+    fn length(&self) -> usize {
+        match self {
+            Self::Partial(o) => u8::length(&0_u8) + o.length(),
+            Self::KillOrFill(o) => u8::length(&1_u8) + o.length()
+        }
+    }
+}
+
+impl Decodable for GroupedVanillaOrder {
+    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+        let v = u8::decode(buf)?;
+        match v {
+            0 => Ok(Self::Partial(StandingOrder::decode(buf)?)),
+            1 => Ok(Self::KillOrFill(FlashOrder::decode(buf)?)),
+            _ => Err(alloy_rlp::Error::Custom("Unknown value when decoding GroupedVanillaOrder"))
         }
     }
 }

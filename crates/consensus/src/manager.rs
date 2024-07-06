@@ -3,7 +3,8 @@ use std::{
     sync::{Arc, Mutex}
 };
 
-use angstrom_network::{manager::StromConsensusEvent, StromNetworkHandle};
+use angstrom_network::{manager::StromConsensusEvent, StromMessage, StromNetworkHandle};
+use angstrom_types::consensus::PreProposal;
 use futures::{FutureExt, Stream, StreamExt};
 use order_pool::OrderPoolHandle;
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
@@ -68,7 +69,7 @@ pub async fn manager_thread<OrderPool, Validator>(
             },
             Some(msg) = manager.canonical_block_stream.next() => {
                 match msg {
-                    Ok(notification) => manager.on_blockchain_state(notification),
+                    Ok(notification) => manager.on_blockchain_state(notification).await,
                     Err(e) => tracing::error!("Error receiving chain state notification: {}", e)
                 }
             },
@@ -76,7 +77,7 @@ pub async fn manager_thread<OrderPool, Validator>(
                 manager.on_network_event(msg);
             },
             Some(msg) = manager.roundstate.next() => {
-                manager.on_new_globalstate(msg);
+                manager.on_new_globalstate(msg).await;
             }
         }
     }
@@ -143,8 +144,13 @@ where
         ConsensusHandle { sender: tx }
     }
 
-    fn send_preproposal(&self) {
+    async fn send_preproposal(&mut self) {
+        let orders = self.orderpool.get_all_vanilla_orders().await;
+        let preproposal = PreProposal::new(0, &self.signer.key, orders);
         tracing::info!("Sending out preproposal");
+        self.network
+            .broadcast_tx(StromMessage::PrePropose(preproposal.clone()));
+        self.broadcast(ConsensusMessage::PrePropose(preproposal));
     }
 
     fn send_proposal(&self) {
@@ -157,7 +163,7 @@ where
         }
     }
 
-    fn on_new_globalstate(&self, new_state: ConsensusState) {
+    async fn on_new_globalstate(&mut self, new_state: ConsensusState) {
         // First let's update our global state
         match self.globalstate.lock() {
             Ok(mut lock) => {
@@ -170,7 +176,7 @@ where
         // Depending on what state we moved into, we might have some work to do
         match new_state {
             // Send out our preproposal if we entered PreProposal state
-            ConsensusState::PreProposal => self.send_preproposal(),
+            ConsensusState::PreProposal => self.send_preproposal().await,
             // Send out our Proposal if we're the leader and we entered Proposal state
             ConsensusState::Proposal => {
                 if self.roundstate.is_leader() {
@@ -181,7 +187,7 @@ where
         }
     }
 
-    fn on_blockchain_state(&mut self, notification: CanonStateNotification) {
+    async fn on_blockchain_state(&mut self, notification: CanonStateNotification) {
         // Get the newest block height
         let new_block = notification.tip();
         let new_block_height = new_block.block.number;
@@ -194,7 +200,8 @@ where
             // Update our round state to the new round state
             self.roundstate = new_round_state;
             // Update the global state to show that we're back in OrderAccumulation
-            self.on_new_globalstate(ConsensusState::OrderAccumulation);
+            self.on_new_globalstate(ConsensusState::OrderAccumulation)
+                .await;
             // Broadcast that we have a new block
             self.broadcast(ConsensusMessage::NewBlock(new_block_height));
         } else {
@@ -259,7 +266,7 @@ where
                     // rebroadcast?
                 } else {
                     // Add our signature to the commit and broadcast
-                    commit.add_signature(self.signer.validator_id, &self.signer.key);
+                    commit.add_signature(self.signer.validator_id, &self.signer.bls_key);
                     // Broadcast to our local subscribers
                     self.broadcast(ConsensusMessage::Commit(commit.clone()));
                     // Also broadcast to the Strom network
