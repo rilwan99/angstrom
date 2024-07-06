@@ -4,6 +4,8 @@ pragma solidity ^0.8.0;
 import {LibString} from "solady/src/utils/LibString.sol";
 
 library FormatLib {
+    using FormatLib for *;
+
     using LibString for uint256;
     using LibString for int256;
 
@@ -73,7 +75,20 @@ library FormatLib {
         return string.concat(str, "]");
     }
 
-    function abs(int256 x) internal pure returns (int256) {
+    function toString(bool b) internal pure returns (string memory) {
+        return b ? "true" : "false";
+    }
+
+    function toString(bool[] memory values) internal pure returns (string memory) {
+        if (values.length == 0) return "[]";
+        string memory str = string.concat("[", values[0].toString());
+        for (uint256 i = 1; i < values.length; i++) {
+            str = string.concat(str, ", ", values[i].toString());
+        }
+        return string.concat(str, "]");
+    }
+
+    function abs(int256 x) private pure returns (int256) {
         return x < 0 ? -x : x;
     }
 }
