@@ -66,13 +66,13 @@ impl<'a> OrderBook<'a> {
         self.bids
             .iter()
             .enumerate()
-            .find(|(_, b)| if let Some(b_id) = b.id() { b_id == id } else { false })
+            .find(|(_, b)| b.id() == Some(id))
             .map(|(i, _)| (OrderDirection::Bid, i))
             .or_else(|| {
                 self.asks
                     .iter()
                     .enumerate()
-                    .find(|(_, b)| if let Some(b_id) = b.id() { b_id == id } else { false })
+                    .find(|(_, b)| b.id() == Some(id))
                     .map(|(i, _)| (OrderDirection::Ask, i))
             })
     }
