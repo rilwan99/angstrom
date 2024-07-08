@@ -218,12 +218,11 @@ where
                 .into_iter()
                 // remove hash from id
                 .map(|hash| self.hash_to_order_id.remove(&hash).unwrap())
-                .map(|order_id| {
+                .inspect(|order_id| {
                     self.address_to_orders
                         .values_mut()
                         // remove from address to orders
-                        .for_each(|v| v.retain(|o| o != &order_id));
-                    order_id
+                        .for_each(|v| v.retain(|o| o != order_id));
                 })
                 // remove from all underlying pools
                 .filter_map(|id| match id.location {

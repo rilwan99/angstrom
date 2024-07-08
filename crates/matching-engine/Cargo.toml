@@ -1,0 +1,37 @@
+[package]
+name = "matching-engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[dev-dependencies]
+divan = "0.1.14"
+
+[dependencies]
+angstrom-utils.workspace = true
+alloy-primitives.workspace = true
+uniswap_v3_math.workspace = true
+malachite = "0.4.0"
+malachite-q = "0.4.0"
+rand.workspace = true
+rand_distr.workspace = true
+criterion.workspace = true
+# Using clap for our bookgen command-line tool
+clap = "4.5.4"
+
+[[bench]]
+name = "volume_solver"
+harness = false
+
+
+[profile.maxperf]
+lto = "fat"
+codegen-units = 1
+incremental = false
+opt-level = 3
+panic = 'abort'
+overflow-checks = false
