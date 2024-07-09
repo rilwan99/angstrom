@@ -7,15 +7,8 @@ import {TickLib} from "../libraries/TickLib.sol";
 import {MixedSignLib} from "../libraries/MixedSignLib.sol";
 import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
 
-import {FormatLib} from "test/_helpers/FormatLib.sol";
-import {LibString} from "solady/src/utils/LibString.sol";
-import {console2 as console} from "forge-std/console2.sol";
-
 /// @author philogy <https://github.com/philogy>
 abstract contract Donate {
-    using FormatLib for *;
-    using LibString for *;
-
     using FixedPointMathLib for uint256;
     using TickLib for uint256;
     using MixedSignLib for uint128;
@@ -41,7 +34,7 @@ abstract contract Donate {
         uint128 endLiquidity;
         (total, cumulativeGrowth, endLiquidity) = tick <= currentTick
             ? _donateBelow(rewards, id, tick, currentTick, startLiquidity, amounts)
-            : _donateAbove(rewards, id, tick, startLiquidity, amounts);
+            : _donateAbove(rewards, id, tick, currentTick, startLiquidity, amounts);
         uint128 currentLiquidity = _getCurrentLiquidity(id);
         if (endLiquidity != currentLiquidity) revert WrongEndLiquidity(endLiquidity, currentLiquidity);
         rewards.globalGrowth += cumulativeGrowth;
@@ -51,71 +44,73 @@ abstract contract Donate {
         TickRewards storage rewards,
         PoolId id,
         int24 tick,
-        int24 endTick,
+        int24 currentTick,
         uint128 liquidity,
         uint256[] memory amounts
-    ) internal returns (uint256 totalDonated, uint256 cumulativeGrowth, uint128 endLiquidity) {
-        uint256 amountIndex = 0;
+    ) internal returns (uint256, uint256, uint128) {
+        // To not waste a loop iteration we assume the given tick is a valid initialized tick.
+        // TODO(security): Check that this doesn't allow breaking invariants if invoked with an
+        // unitialized tick.
         bool initialized = true;
+        uint256 amountIndex = 0;
+        uint256 total;
+        uint256 cumulativeGrowth;
+
         do {
             if (initialized) {
-                console.log("%s", tick.toString());
                 uint256 amount = amounts[amountIndex++];
-                console.log("    amount: %s", amount.toString());
-                console.log("    liquidity: %s", liquidity.toString());
-                totalDonated += amount;
-                cumulativeGrowth += flatDivWad(amount, liquidity);
+                total += amount;
 
+                cumulativeGrowth += flatDivWad(amount, liquidity);
                 rewards.tickGrowthOutside[tick] += cumulativeGrowth;
 
-                int128 netLiquidity = _getNetTickLiquidity(id, tick);
-                console.log("    netLiquidity: %s", netLiquidity.toString());
-                liquidity = liquidity.add(netLiquidity);
+                liquidity = liquidity.add(_getNetTickLiquidity(id, tick));
             }
 
             (initialized, tick) = _findNextTickUp(id, tick);
-        } while (tick <= endTick);
+        } while (tick <= currentTick);
 
-        endLiquidity = liquidity;
-        endTick = tick;
+        return (total, cumulativeGrowth, liquidity);
     }
 
     function _donateAbove(
         TickRewards storage rewards,
         PoolId id,
         int24 tick,
+        int24 currentTick,
         uint128 liquidity,
         uint256[] memory amounts
-    ) internal returns (uint256 totalDonated, uint256 cumulativeGrowth, uint128 endLiquidity) {
+    ) internal returns (uint256, uint256, uint128) {
         // To not waste a loop iteration we assume the given tick is a valid initialized tick.
         // TODO(security): Check that this doesn't allow breaking invariants if invoked with an
         // unitialized tick.
         bool initialized = true;
         uint256 amountIndex = 0;
+        uint256 total;
+        uint256 cumulativeGrowth;
 
-        while (true) {
+        do {
             if (initialized) {
                 uint256 amount = amounts[amountIndex++];
-                totalDonated += amount;
-                cumulativeGrowth += amount.divWad(liquidity);
+                total += amount;
+
+                cumulativeGrowth += flatDivWad(amount, liquidity);
                 rewards.tickGrowthOutside[tick] += cumulativeGrowth;
-                liquidity = liquidity.sub(_getNetTickLiquidity(id, tick));
-                if (amountIndex >= amounts.length) break;
+
+                int128 netLiquidity = _getNetTickLiquidity(id, tick);
+                liquidity = liquidity.sub(netLiquidity);
             }
 
             (initialized, tick) = _findNextTickDown(id, tick);
-        }
+        } while (currentTick < tick);
 
-        endLiquidity = liquidity;
-        // Need to go down one final time because when donating above we *do not* want to update the current.
-        // (, endTick) = _findNextTickDown(id, tick);
+        return (total, cumulativeGrowth, liquidity);
     }
 
     function _findNextTickUp(PoolId id, int24 tick) internal view returns (bool initialized, int24 newTick) {
         (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick) + 1);
         (initialized, bitPos) = _getPoolBitmapInfo(id, wordPos).nextBitPosGte(bitPos);
         newTick = TickLib.toTick(wordPos, bitPos);
-        console.log("    %s -> %s", tick.toString(), newTick.toString());
     }
 
     function _findNextTickDown(PoolId id, int24 tick) internal view returns (bool initialized, int24 newTick) {

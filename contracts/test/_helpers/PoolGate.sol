@@ -94,7 +94,6 @@ contract PoolGate is IUnlockCallback {
     function _settleMintable(address asset, uint256 amount, bool needsSync) internal {
         if (amount > 0) {
             if (needsSync) UNI_V4.sync(asset.intoC());
-            console.log("settling (%s): %s", asset, amount.formatDecimals());
             MockERC20(asset).mint(address(UNI_V4), amount);
             UNI_V4.settle(asset.intoC());
         }
