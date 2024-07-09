@@ -14,6 +14,7 @@ use self::math::{
     new_sqrt_price_from_input, new_sqrt_price_from_output, sqrt_price_at_tick, tick_at_sqrt_price,
     token_0_delta
 };
+use crate::book::OrderPrice;
 
 pub mod math;
 /// A Tick is represented as an i32 as its value range is from around
@@ -306,6 +307,10 @@ impl<'a> MarketPrice<'a> {
     pub fn as_float(&self) -> f64 {
         self.price.as_float_price()
     }
+
+    pub fn as_u256(&self) -> U256 {
+        self.price.into()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -316,39 +321,36 @@ pub struct PriceRange<'a> {
 }
 
 impl<'a> PriceRange<'a> {
-    pub fn quantity(&self, target_price: f64) -> f64 {
-        let t = SqrtPriceX96::from_float_price(target_price);
+    pub fn quantity(&self, target_price: OrderPrice) -> U256 {
+        let t = SqrtPriceX96::from(target_price);
 
         // If our target price is past our end bound, our quantity is the entire range
         if self.end_bound.price > self.start_bound.price {
             if t > self.end_bound.price {
-                return self.quantity.into();
+                return self.quantity;
             }
         } else if t < self.end_bound.price {
-            return self.quantity.into();
+            return self.quantity;
         }
 
         // Otherwise we have to calculate the precise quantity we have to sell
-        let quantity =
-            token_0_delta(self.start_bound.price, t, self.start_bound.liquidity(), false)
-                .unwrap_or(Uint::from(0));
-        quantity.into()
+        token_0_delta(self.start_bound.price, t, self.start_bound.liquidity(), false)
+            .unwrap_or(Uint::from(0))
     }
 
     // Maybe it's OK that I don't check the price again here because in the matching
     // algo I've only offered a quantity bounded by the price, so we should
     // always be OK?
-    pub fn fill(&self, quantity: f64) -> Self {
-        let q = Uint::from(quantity);
+    pub fn fill(&self, quantity: U256) -> Self {
         let liquidity = self.start_bound.liquidity();
         let end_sqrt_price = if self.end_bound.price > self.start_bound.price {
-            new_sqrt_price_from_output(self.start_bound.price, liquidity, q, true).unwrap()
+            new_sqrt_price_from_output(self.start_bound.price, liquidity, quantity, true).unwrap()
         } else {
-            new_sqrt_price_from_input(self.start_bound.price, liquidity, q, true).unwrap()
+            new_sqrt_price_from_input(self.start_bound.price, liquidity, quantity, true).unwrap()
         };
         let mut end_bound = self.start_bound.clone();
         end_bound.price = end_sqrt_price;
-        Self { end_bound, start_bound: self.start_bound.clone(), quantity: q }
+        Self { end_bound, start_bound: self.start_bound.clone(), quantity }
     }
 }
 

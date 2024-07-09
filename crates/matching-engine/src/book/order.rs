@@ -1,3 +1,5 @@
+use angstrom_types::sol_bindings::sol::{FlashOrder, StandingOrder};
+
 use super::{BookID, OrderID, OrderPrice, OrderVolume};
 /// Definition of the various types of order that we can serve, as well as the
 /// outcomes we're able to have for them
@@ -77,7 +79,7 @@ impl OrderOutcome {
         matches!(self, Self::CompleteFill | Self::PartialFill(_))
     }
 
-    pub fn partial_fill(&self, quantity: f64) -> Self {
+    pub fn partial_fill(&self, quantity: OrderVolume) -> Self {
         match self {
             Self::Unfilled => Self::PartialFill(quantity),
             Self::PartialFill(f) => Self::PartialFill(f + quantity),
@@ -87,31 +89,9 @@ impl OrderOutcome {
 }
 
 #[derive(Clone, Debug)]
-pub struct LimitOrder {
-    id:       OrderID,
-    related:  Option<Vec<OrderCoordinate>>,
-    price:    OrderPrice,
-    quantity: OrderVolume
-}
-
-impl LimitOrder {
-    pub fn new(price: OrderPrice, quantity: OrderVolume) -> Self {
-        Self { id: 10, price, quantity, related: None }
-    }
-
-    pub fn related(&self) -> Option<&Vec<OrderCoordinate>> {
-        self.related.as_ref()
-    }
-
-    pub fn id(&self) -> OrderID {
-        self.id
-    }
-}
-
-#[derive(Clone, Debug)]
 pub enum Order<'a> {
-    KillOrFill(LimitOrder),
-    PartialFill(LimitOrder),
+    KillOrFill(FlashOrder),
+    PartialFill(StandingOrder),
     AMM(PriceRange<'a>)
 }
 
@@ -123,14 +103,16 @@ impl<'a> Order<'a> {
 
     pub fn id(&self) -> Option<OrderID> {
         match self {
-            Self::KillOrFill(l) | Self::PartialFill(l) => Some(l.id),
+            Self::KillOrFill(_) => Some(0),
+            Self::PartialFill(_) => Some(0),
             _ => None
         }
     }
 
     pub fn related(&self) -> Option<&Vec<OrderCoordinate>> {
         match self {
-            Self::KillOrFill(l) | Self::PartialFill(l) => l.related.as_ref(),
+            Self::KillOrFill(_) => None,
+            Self::PartialFill(_) => None,
             _ => None
         }
     }
@@ -138,8 +120,8 @@ impl<'a> Order<'a> {
     /// Retrieve the quantity available within the bounds of a given order
     pub fn quantity(&self, limit_price: OrderPrice) -> OrderVolume {
         match self {
-            Self::KillOrFill(lo) => lo.quantity,
-            Self::PartialFill(lo) => lo.quantity,
+            Self::KillOrFill(lo) => lo.max_amount_in_or_out,
+            Self::PartialFill(lo) => lo.max_amount_in_or_out,
             Self::AMM(ammo) => ammo.quantity(limit_price)
         }
     }
@@ -147,9 +129,9 @@ impl<'a> Order<'a> {
     /// Retrieve the price for a given order
     pub fn price(&self) -> OrderPrice {
         match self {
-            Self::KillOrFill(lo) => lo.price,
-            Self::PartialFill(lo) => lo.price,
-            Self::AMM(ammo) => ammo.start_bound.as_float()
+            Self::KillOrFill(lo) => lo.min_price,
+            Self::PartialFill(lo) => lo.min_price,
+            Self::AMM(ammo) => ammo.start_bound.as_u256()
         }
     }
 
@@ -157,27 +139,18 @@ impl<'a> Order<'a> {
     /// after the fill operation has been performed
     pub fn fill(&self, filled_quantity: OrderVolume) -> Self {
         match self {
-            Self::KillOrFill(lo) => Self::KillOrFill(LimitOrder {
-                id:       0,
-                related:  None,
-                price:    lo.price,
-                quantity: lo.quantity - filled_quantity
+            Self::KillOrFill(lo) => Self::KillOrFill(FlashOrder {
+                max_amount_in_or_out: lo.max_amount_in_or_out - filled_quantity,
+                ..lo.clone()
             }),
-            Self::PartialFill(lo) => Self::PartialFill(LimitOrder {
-                id:       0,
-                related:  None,
-                price:    lo.price,
-                quantity: lo.quantity - filled_quantity
+            Self::PartialFill(lo) => Self::PartialFill(StandingOrder {
+                max_amount_in_or_out: lo.max_amount_in_or_out - filled_quantity,
+                ..lo.clone()
             }),
             Self::AMM(r) => {
                 r.fill(filled_quantity);
                 // Return a bogus order that we never use
-                Self::PartialFill(LimitOrder {
-                    id:       0,
-                    related:  None,
-                    quantity: 0.0,
-                    price:    0.0
-                })
+                Self::PartialFill(StandingOrder::default())
             }
         }
     }

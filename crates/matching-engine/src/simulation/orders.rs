@@ -1,6 +1,8 @@
+use alloy_primitives::U256;
+use angstrom_types::sol_bindings::sol::FlashOrder;
 use rand_distr::{Distribution, SkewNormal};
 
-use crate::book::order::{LimitOrder, Order};
+use crate::book::order::Order;
 
 pub fn order_distribution<'a>(
     number: usize,
@@ -20,7 +22,13 @@ pub fn order_distribution<'a>(
     Ok(price_gen
         .sample_iter(&mut rng)
         .zip(quantity_gen.sample_iter(&mut rng2))
-        .map(|(p, q)| Order::KillOrFill(LimitOrder::new(p, q)))
+        .map(|(p, q)| {
+            Order::KillOrFill(FlashOrder {
+                max_amount_in_or_out: U256::from(q),
+                min_price: U256::from(p),
+                ..FlashOrder::default()
+            })
+        })
         .take(number)
         .collect())
 }

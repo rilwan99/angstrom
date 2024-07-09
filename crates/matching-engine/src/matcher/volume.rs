@@ -1,6 +1,6 @@
-use std::{borrow::Cow, cell::Cell};
+use std::{borrow::Cow, cell::Cell, cmp::Ordering};
 
-use malachite::num::basic::traits::Zero;
+use alloy_primitives::U256;
 
 use super::Solution;
 use crate::{
@@ -274,7 +274,7 @@ impl<'a> VolumeFillMatcher<'a> {
 
                 // If either quantity is zero maybe we should break here? (could be a
                 // replacement for price cross checking if we implement that)
-                if ask_q == f64::ZERO || bid_q == f64::ZERO {
+                if ask_q == U256::ZERO || bid_q == U256::ZERO {
                     break;
                 }
 
@@ -302,48 +302,52 @@ impl<'a> VolumeFillMatcher<'a> {
                 }
 
                 // Then we see what else we need to do
-                if excess == f64::ZERO {
-                    // We annihilated
-                    self.results.price = Some((ask.price() + bid.price()) / 2.0);
-                    // Mark as filled if non-AMM order
-                    if let Order::KillOrFill(_) | Order::PartialFill(_) = ask {
-                        self.ask_outcomes[self.ask_idx.get()] = OrderOutcome::CompleteFill
-                    }
-                    if let Order::KillOrFill(_) | Order::PartialFill(_) = bid {
-                        self.bid_outcomes[self.bid_idx.get()] = OrderOutcome::CompleteFill
-                    }
-                    self.current_partial = None;
-                    // Take a snapshot as a good solve state
-                    self.save_checkpoint();
-                    // We're done here, we'll get our next bid and ask on the
-                    // next round
-                } else if excess > f64::ZERO {
-                    self.results.price = Some(bid.price());
-                    // Ask was completely filled, remainder bid
-                    if let Order::KillOrFill(_) | Order::PartialFill(_) = ask {
-                        self.ask_outcomes[self.ask_idx.get()] = OrderOutcome::CompleteFill
-                    }
-                    // Create and save our partial bid
-                    if let Order::KillOrFill(_) | Order::PartialFill(_) = bid {
-                        self.bid_outcomes[self.bid_idx.get()] =
-                            self.bid_outcomes[self.bid_idx.get()].partial_fill(matched);
-                        self.current_partial = Some(PartialOrder::Bid(bid.fill(ask_q)));
-                    } else {
+                match excess.cmp(&U256::ZERO) {
+                    Ordering::Equal => {
+                        // We annihilated
+                        self.results.price = Some((ask.price() + bid.price()) / U256::from(2));
+                        // Mark as filled if non-AMM order
+                        if let Order::KillOrFill(_) | Order::PartialFill(_) = ask {
+                            self.ask_outcomes[self.ask_idx.get()] = OrderOutcome::CompleteFill
+                        }
+                        if let Order::KillOrFill(_) | Order::PartialFill(_) = bid {
+                            self.bid_outcomes[self.bid_idx.get()] = OrderOutcome::CompleteFill
+                        }
                         self.current_partial = None;
+                        // Take a snapshot as a good solve state
+                        self.save_checkpoint();
+                        // We're done here, we'll get our next bid and ask on
+                        // the next round
                     }
-                } else {
-                    self.results.price = Some(ask.price());
-                    // Bid was completely filled, remainder ask
-                    if let Order::KillOrFill(_) | Order::PartialFill(_) = bid {
-                        self.bid_outcomes[self.bid_idx.get()] = OrderOutcome::CompleteFill
+                    Ordering::Greater => {
+                        self.results.price = Some(bid.price());
+                        // Ask was completely filled, remainder bid
+                        if let Order::KillOrFill(_) | Order::PartialFill(_) = ask {
+                            self.ask_outcomes[self.ask_idx.get()] = OrderOutcome::CompleteFill
+                        }
+                        // Create and save our partial bid
+                        if let Order::KillOrFill(_) | Order::PartialFill(_) = bid {
+                            self.bid_outcomes[self.bid_idx.get()] =
+                                self.bid_outcomes[self.bid_idx.get()].partial_fill(matched);
+                            self.current_partial = Some(PartialOrder::Bid(bid.fill(ask_q)));
+                        } else {
+                            self.current_partial = None;
+                        }
                     }
-                    // Create and save our parital ask
-                    if let Order::KillOrFill(_) | Order::PartialFill(_) = ask {
-                        self.ask_outcomes[self.ask_idx.get()] =
-                            self.ask_outcomes[self.ask_idx.get()].partial_fill(matched);
-                        self.current_partial = Some(PartialOrder::Ask(ask.fill(bid_q)));
-                    } else {
-                        self.current_partial = None;
+                    Ordering::Less => {
+                        self.results.price = Some(ask.price());
+                        // Bid was completely filled, remainder ask
+                        if let Order::KillOrFill(_) | Order::PartialFill(_) = bid {
+                            self.bid_outcomes[self.bid_idx.get()] = OrderOutcome::CompleteFill
+                        }
+                        // Create and save our parital ask
+                        if let Order::KillOrFill(_) | Order::PartialFill(_) = ask {
+                            self.ask_outcomes[self.ask_idx.get()] =
+                                self.ask_outcomes[self.ask_idx.get()].partial_fill(matched);
+                            self.current_partial = Some(PartialOrder::Ask(ask.fill(bid_q)));
+                        } else {
+                            self.current_partial = None;
+                        }
                     }
                 }
                 // We can checkpoint if we annihilated (No partial), if we completely filled an
@@ -387,9 +391,7 @@ impl<'a> VolumeFillMatcher<'a> {
             .amm_price
             .as_ref()
             .and_then(|amm_price| {
-                let target_price = order_book
-                    .get(index)
-                    .map(|o| SqrtPriceX96::from_float_price(o.price()));
+                let target_price = order_book.get(index).map(|o| SqrtPriceX96::from(o.price()));
                 amm_price.order_to_target(target_price, direction.is_ask())
             })
             .map(Order::AMM);

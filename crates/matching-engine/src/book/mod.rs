@@ -1,5 +1,5 @@
 //! basic book impl so we can benchmark
-
+use alloy_primitives::U256;
 use order::{OrderCoordinate, OrderDirection};
 
 use self::{order::Order, sort::SortStrategy};
@@ -11,8 +11,8 @@ pub mod xpool;
 
 pub type BookID = u128;
 pub type OrderID = u128;
-pub type OrderVolume = f64;
-pub type OrderPrice = f64;
+pub type OrderVolume = U256;
+pub type OrderPrice = U256;
 
 pub struct OrderBook<'a> {
     id:   BookID,

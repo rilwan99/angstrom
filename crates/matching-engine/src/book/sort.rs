@@ -1,3 +1,5 @@
+use alloy_primitives::U256;
+
 /// There are lots of different ways we can sort the orders we get in, so let's
 /// make this modular
 use super::order::Order;
@@ -23,8 +25,8 @@ impl SortStrategy {
                     .partial_cmp(&a.price())
                     .unwrap_or(std::cmp::Ordering::Less)
                     .then(
-                        b.quantity(0.0)
-                            .partial_cmp(&a.quantity(0.0))
+                        b.quantity(U256::ZERO)
+                            .partial_cmp(&a.quantity(U256::ZERO))
                             .unwrap_or(std::cmp::Ordering::Less)
                     )
             });
@@ -40,8 +42,8 @@ impl SortStrategy {
                     .partial_cmp(&b.price())
                     .unwrap_or(std::cmp::Ordering::Less)
                     .then(
-                        b.quantity(0.0)
-                            .partial_cmp(&a.quantity(0.0))
+                        b.quantity(U256::ZERO)
+                            .partial_cmp(&a.quantity(U256::ZERO))
                             .unwrap_or(std::cmp::Ordering::Less)
                     )
             });
