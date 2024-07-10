@@ -1,39 +1,29 @@
 use std::fmt::Debug;
 
 use angstrom_types::{
-    orders::{OrderId, OrderLocation, OrderPriorityData, PooledComposableOrder, PooledLimitOrder},
-    primitive::PoolId
+    primitive::PoolId,
+    sol_bindings::grouped_orders::{
+        GroupedComposableOrder, GroupedVanillaOrder, OrderWithStorageData
+    }
 };
 
 use self::{composable::ComposableLimitPool, standard::LimitPool};
-use crate::{
-    common::{SizeTracker, ValidOrder},
-    BidsAndAsks
-};
-
+use crate::common::SizeTracker;
 mod composable;
 mod parked;
 mod pending;
 mod standard;
 
-pub struct LimitOrderPool<O, C>
-where
-    O: PooledLimitOrder,
-    C: PooledComposableOrder + PooledLimitOrder
-{
+pub struct LimitOrderPool {
     /// Sub-pool of all limit orders
-    limit_orders:      LimitPool<O>,
+    limit_orders:      LimitPool,
     /// Sub-pool of all composable orders
-    composable_orders: ComposableLimitPool<C>,
+    composable_orders: ComposableLimitPool,
     /// The size of the current transactions.
     size:              SizeTracker
 }
 
-impl<O: PooledLimitOrder, C: PooledComposableOrder + PooledLimitOrder> LimitOrderPool<O, C>
-where
-    O: PooledLimitOrder<ValidationData = OrderPriorityData>,
-    C: PooledComposableOrder + PooledLimitOrder<ValidationData = OrderPriorityData>
-{
+impl LimitOrderPool {
     pub fn new(ids: &[PoolId], max_size: Option<usize>) -> Self {
         Self {
             composable_orders: ComposableLimitPool::new(ids),
@@ -42,51 +32,37 @@ where
         }
     }
 
-    pub fn add_composable_order(&mut self, order: ValidOrder<C>) -> Result<(), LimitPoolError<C>> {
+    pub fn add_composable_order(
+        &mut self,
+        order: OrderWithStorageData<GroupedComposableOrder>
+    ) -> Result<(), LimitPoolError> {
         let size = order.size();
         if !self.size.has_space(size) {
-            return Err(LimitPoolError::MaxSize(order.order))
+            return Err(LimitPoolError::MaxSize)
         }
 
-        self.composable_orders.add_order(order)?;
-
-        Ok(())
+        self.composable_orders.add_order(order)
     }
 
-    pub fn add_limit_order(&mut self, order: ValidOrder<O>) -> Result<(), LimitPoolError<O>> {
+    pub fn add_vanilla_order(
+        &mut self,
+        order: OrderWithStorageData<GroupedVanillaOrder>
+    ) -> Result<(), LimitPoolError> {
         let size = order.size();
         if !self.size.has_space(size) {
-            return Err(LimitPoolError::MaxSize(order.order))
+            return Err(LimitPoolError::MaxSize)
         }
-        self.limit_orders.add_order(order)?;
 
-        Ok(())
-    }
-
-    pub fn fetch_all_vanilla_orders(&self) -> Vec<BidsAndAsks<O>> {
-        self.limit_orders.fetch_bids_asks_per_pool()
-    }
-
-    pub fn fetch_all_composable_orders(&self) -> Vec<BidsAndAsks<C>> {
-        self.composable_orders.fetch_bids_asks_per_pool()
-    }
-
-    pub fn remove_limit_order(&mut self, order_id: &OrderId) -> Option<ValidOrder<O>> {
-        self.limit_orders.remove_order(order_id)
-    }
-
-    pub fn remove_composable_limit_order(&mut self, order_id: &OrderId) -> Option<ValidOrder<C>> {
-        self.composable_orders.remove_order(order_id)
+        self.limit_orders.add_order(order)
     }
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum LimitPoolError<O: Debug> {
-    #[error(
-        "Pool has reached max size, and order doesn't satisify replacment requirements, Order: \
-         {0:#?}"
-    )]
-    MaxSize(O),
-    #[error("No pool was found for address: {0} Order: {1:#?}")]
-    NoPool(PoolId, O)
+pub enum LimitPoolError {
+    #[error("Pool has reached max size, and order doesn't satisify replacment requirements")]
+    MaxSize,
+    #[error("No pool was found for address: {0} ")]
+    NoPool(PoolId),
+    #[error(transparent)]
+    Unknown(#[from] eyre::Error)
 }

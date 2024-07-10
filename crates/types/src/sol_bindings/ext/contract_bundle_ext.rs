@@ -3,9 +3,9 @@ use alloy_sol_types::SolStruct;
 #[cfg(feature = "testnet")]
 use rand::{rngs::ThreadRng, Rng};
 
-use crate::sol::ContractBundle;
+use crate::sol_bindings::sol::ContractBundle;
 #[cfg(feature = "testnet")]
-use crate::sol::{SolGenericOrder, SolTopOfBlockOrderEnvelope};
+use crate::sol_bindings::sol::{SolGenericOrder, TopOfBlockOrder};
 
 impl ContractBundle {
     pub fn get_filled_hashes(&self) -> Vec<B256> {
@@ -24,7 +24,7 @@ impl ContractBundle {
 
         let assets = vec![Address::new(rng.gen::<[u8; 20]>())];
 
-        let mut tob = SolTopOfBlockOrderEnvelope::default();
+        let mut tob = TopOfBlockOrder::default();
         let rand_am_in: U256 = U256::from_be_bytes(rng.gen::<[u8; 32]>());
         let rand_am_out: U256 = U256::from_be_bytes(rng.gen::<[u8; 32]>());
         tob.amountIn = rand_am_in;
@@ -54,7 +54,7 @@ pub mod test {
     pub fn test_contract_bundle_encode_decode() {
         use alloy_sol_types::SolValue;
 
-        use crate::sol::ContractBundle;
+        use crate::sol_bindings::sol::ContractBundle;
 
         let rand = ContractBundle::generate_random_bundles(10);
         let encoded = rand.abi_encode();

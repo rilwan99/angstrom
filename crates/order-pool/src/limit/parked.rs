@@ -1,23 +1,24 @@
 use std::collections::HashMap;
 
-use alloy_primitives::B256;
-use angstrom_types::orders::PoolOrder;
+use alloy_primitives::FixedBytes;
+use angstrom_types::sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData};
 
-use crate::common::ValidOrder;
+pub struct ParkedPool(HashMap<FixedBytes<32>, OrderWithStorageData<GroupedVanillaOrder>>);
 
-pub struct ParkedPool<O: PoolOrder>(HashMap<B256, ValidOrder<O>>);
-
-impl<O: PoolOrder> ParkedPool<O> {
+impl ParkedPool {
     #[allow(dead_code)]
     pub fn new() -> Self {
         Self(HashMap::new())
     }
 
-    pub fn remove_order(&mut self, order_hash: &B256) -> Option<ValidOrder<O>> {
-        self.0.remove(order_hash)
+    pub fn remove_order(
+        &mut self,
+        order_id: FixedBytes<32>
+    ) -> Option<OrderWithStorageData<GroupedVanillaOrder>> {
+        self.0.remove(&order_id)
     }
 
-    pub fn new_order(&mut self, order: ValidOrder<O>) {
+    pub fn new_order(&mut self, order: OrderWithStorageData<GroupedVanillaOrder>) {
         self.0.insert(order.hash(), order);
     }
 }

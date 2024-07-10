@@ -2,8 +2,8 @@ use std::{pin::pin, time::Duration};
 
 use alloy_primitives::{Address, U256};
 use alloy_provider::ext::AnvilApi;
+use angstrom_types::sol_bindings::testnet::{MockERC20, PoolManagerDeployer, TestnetHub};
 use futures::Future;
-use sol_bindings::testnet::{MockERC20, PoolManagerDeployer, TestnetHub};
 use tokio::time::timeout;
 
 use crate::anvil_utils::AnvilWalletRpc;
@@ -74,7 +74,9 @@ pub async fn anvil_mine_delay<F0: Future + Unpin>(
     delay: Duration
 ) -> F0::Output {
     let mut pinned = pin!(f0);
-    if let Ok(v) = timeout(delay, &mut pinned).await { return v }
+    if let Ok(v) = timeout(delay, &mut pinned).await {
+        return v
+    }
     provider
         .anvil_mine(Some(U256::from(1)), None)
         .await

@@ -1,56 +1,54 @@
-use std::collections::{BTreeMap, HashMap};
-
-use alloy_primitives::B256;
-use angstrom_types::orders::{
-    OrderLocation, PooledSearcherOrder, SearcherPriorityData, ValidatedOrder
+use std::{
+    cmp::Reverse,
+    collections::{BTreeMap, HashMap}
 };
 
-use super::{SearcherPoolError, SEARCHER_POOL_MAX_SIZE};
-use crate::common::{SizeTracker, ValidOrder};
+use alloy_primitives::FixedBytes;
+use angstrom_types::{
+    orders::OrderPriorityData,
+    sol_bindings::{grouped_orders::OrderWithStorageData, sol::TopOfBlockOrder}
+};
 
-pub struct PendingPool<O: PooledSearcherOrder> {
-    orders:        HashMap<B256, ValidatedOrder<O>>,
-    ordered_arbs:  BTreeMap<O::ValidationData, B256>,
-    _size_tracker: SizeTracker
+pub struct PendingPool {
+    /// all order hashes
+    orders: HashMap<FixedBytes<32>, OrderWithStorageData<TopOfBlockOrder>>,
+    /// bids are sorted descending by price, TODO: This should be binned into
+    /// ticks based off of the underlying pools params
+    bids:   BTreeMap<Reverse<OrderPriorityData>, FixedBytes<32>>,
+    /// asks are sorted ascending by price,  TODO: This should be binned into
+    /// ticks based off of the underlying pools params
+    asks:   BTreeMap<OrderPriorityData, FixedBytes<32>>
 }
 
-impl<O: PooledSearcherOrder> PendingPool<O>
-where
-    O: PooledSearcherOrder<ValidationData = SearcherPriorityData>
-{
+impl PendingPool {
+    #[allow(unused)]
     pub fn new() -> Self {
-        Self {
-            orders:        HashMap::new(),
-            ordered_arbs:  BTreeMap::new(),
-            _size_tracker: SizeTracker::new(Some(SEARCHER_POOL_MAX_SIZE))
+        Self { orders: HashMap::new(), bids: BTreeMap::new(), asks: BTreeMap::new() }
+    }
+
+    pub fn add_order(&mut self, order: OrderWithStorageData<TopOfBlockOrder>) {
+        if order.is_bid {
+            self.bids
+                .insert(Reverse(order.priority_data), order.order_id.hash);
+        } else {
+            self.asks.insert(order.priority_data, order.order_id.hash);
         }
+        self.orders.insert(order.order_id.hash, order);
     }
 
-    pub fn add_order(
+    pub fn remove_order(
         &mut self,
-        order: ValidOrder<O>
-    ) -> Result<OrderLocation, SearcherPoolError<O>> {
-        let priority_data = order.priority_data();
-        let hash = order.hash();
-        self.orders.insert(hash, order);
-        self.ordered_arbs.insert(priority_data, hash);
+        id: FixedBytes<32>
+    ) -> Option<OrderWithStorageData<TopOfBlockOrder>> {
+        let order = self.orders.remove(&id)?;
 
-        Ok(OrderLocation::VanillaSearcher)
-    }
+        if order.is_bid {
+            self.bids.remove(&Reverse(order.priority_data))?;
+        } else {
+            self.asks.remove(&order.priority_data)?;
+        }
 
-    pub fn remove_order(&mut self, hash: B256) -> Option<ValidOrder<O>> {
-        let order = self.orders.remove(&hash)?;
-        //TODO: why fetch when we could pass it as param, given that we do the initial
-        // lookup?
-        let priority = order.priority_data();
-
-        self.ordered_arbs.remove(&priority);
+        // probably fine to strip extra data here
         Some(order)
-    }
-
-    pub fn winning_order(&self) -> Option<&ValidOrder<O>> {
-        self.ordered_arbs
-            .first_key_value()
-            .and_then(|(_, hash)| self.orders.get(hash))
     }
 }

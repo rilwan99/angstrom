@@ -1,47 +1,50 @@
 use std::collections::HashMap;
 
-use angstrom_types::orders::PoolOrder;
-use reth_primitives::B256;
+use alloy_primitives::FixedBytes;
+use angstrom_types::sol_bindings::grouped_orders::{AllOrders, OrderWithStorageData};
 
-use crate::common::Order;
-
-pub struct FinalizationPool<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> {
-    hashes_to_orders: HashMap<B256, Order<L, CL, S, CS>>,
-    block_to_hashes:  HashMap<u64, Vec<B256>>
+pub struct FinalizationPool {
+    id_to_orders: HashMap<FixedBytes<32>, AllOrders>,
+    block_to_ids: HashMap<u64, Vec<FixedBytes<32>>>
 }
 
-impl<L: PoolOrder, CL: PoolOrder, S: PoolOrder, CS: PoolOrder> FinalizationPool<L, CL, S, CS> {
+impl Default for FinalizationPool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl FinalizationPool {
     pub fn new() -> Self {
-        Self { block_to_hashes: HashMap::default(), hashes_to_orders: HashMap::default() }
+        Self { block_to_ids: HashMap::default(), id_to_orders: HashMap::default() }
     }
 
-    pub fn new_orders(&mut self, block: u64, orders: Vec<Order<L, CL, S, CS>>) {
-        let hashes = orders
+    pub fn new_orders(&mut self, block: u64, orders: Vec<OrderWithStorageData<AllOrders>>) {
+        let ids = orders
             .into_iter()
             .map(|order| {
-                let hash = order.hash();
-                self.hashes_to_orders.insert(hash, order);
+                let id = order.order_hash();
+                self.id_to_orders.insert(id, order.order);
 
-                hash
+                id
             })
             .collect::<Vec<_>>();
 
-        assert!(self.block_to_hashes.insert(block, hashes).is_none());
+        assert!(self.block_to_ids.insert(block, ids).is_none());
     }
 
-    pub fn reorg(&mut self, orders: Vec<B256>) -> impl Iterator<Item = Order<L, CL, S, CS>> + '_ {
+    pub fn reorg(&mut self, orders: Vec<FixedBytes<32>>) -> impl Iterator<Item = AllOrders> + '_ {
         orders
             .into_iter()
-            .filter_map(|hash| self.hashes_to_orders.remove(&hash))
+            .filter_map(|id| self.id_to_orders.remove(&id))
     }
 
-    pub fn finalized(&mut self, block: u64) -> Vec<Order<L, CL, S, CS>> {
-        self.block_to_hashes
+    pub fn finalized(&mut self, block: u64) -> Vec<AllOrders> {
+        self.block_to_ids
             .remove(&block)
-            .map(|hashes| {
-                hashes
-                    .into_iter()
-                    .filter_map(|hash| self.hashes_to_orders.remove(&hash))
+            .map(|ids| {
+                ids.into_iter()
+                    .filter_map(|hash| self.id_to_orders.remove(&hash))
                     .collect()
             })
             .unwrap_or_default()
