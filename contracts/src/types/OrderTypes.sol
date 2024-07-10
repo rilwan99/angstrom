@@ -1,13 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {AssetIndex} from "../libraries/PriceGraph.sol";
-
-enum AssetForm {
-    Liquid,
-    UniV4Claim,
-    AngstromClaim
-}
+import {AssetIndex} from "./PriceGraph.sol";
 
 enum OrderMode {
     ExactIn,
@@ -28,9 +22,7 @@ struct GenericOrder {
     uint256 amountSpecified;
     uint256 minPrice;
     AssetIndex assetInIndex;
-    AssetForm assetInForm;
     AssetIndex assetOutIndex;
-    AssetForm assetOutForm;
     uint64 nonce;
     uint256 deadline;
     address recipient;
@@ -47,9 +39,7 @@ struct TopOfBlockOrderEnvelope {
     uint256 amountIn;
     uint256 amountOut;
     AssetIndex assetInIndex;
-    AssetForm assetInForm;
     AssetIndex assetOutIndex;
-    AssetForm assetOutForm;
     address recipient;
     address hook;
     bytes hookPayload;
@@ -69,9 +59,7 @@ library OrderLib {
            "uint256 max_amount_in_or_out,"
            "uint256 min_price,"
            "address asset_in,"
-           "uint8 asset_in_form,"
            "address asset_out,"
-           "uint8 asset_out_form,"
            "address recipient,"
            "bytes hook_data,"
            "uint64 nonce,"
@@ -86,9 +74,7 @@ library OrderLib {
            "uint256 max_amount_in_or_out,"
            "uint256 min_price,"
            "address asset_in,"
-           "uint8 asset_in_form,"
            "address asset_out,"
-           "uint8 asset_out_form,"
            "address recipient,"
            "bytes hook_data,"
            "uint64 valid_for_block"
@@ -119,9 +105,7 @@ library OrderLib {
                     order.amountSpecified,
                     order.minPrice,
                     assetIn,
-                    order.assetInForm,
                     assetOut,
-                    order.assetOutForm,
                     order.recipient,
                     _hashHookData(order.hook, order.hookPayload),
                     order.nonce,
@@ -137,9 +121,7 @@ library OrderLib {
                     order.amountSpecified,
                     order.minPrice,
                     assetIn,
-                    order.assetInForm,
                     assetOut,
-                    order.assetOutForm,
                     order.recipient,
                     _hashHookData(order.hook, order.hookPayload),
                     block.number
@@ -161,9 +143,7 @@ library OrderLib {
                 order.amountIn,
                 order.amountOut,
                 assetIn,
-                order.assetInForm,
                 assetOut,
-                order.assetOutForm,
                 order.recipient,
                 _hashHookData(order.hook, order.hookPayload),
                 block.number

@@ -21,12 +21,15 @@ abstract contract Donate {
      * @param id The pool id to use to retrieve pool data
      * @param tick The start tick from which to donate
      * @param startLiquidity The assumed startLiquidity
+     * @param currentDonate Amount to donate to the current tick
+     * @param amounts The amounts to donate across the ticks
      */
     function _donate(
         TickRewards storage rewards,
         PoolId id,
         int24 tick,
         uint128 startLiquidity,
+        uint256 currentDonate,
         uint256[] memory amounts
     ) internal returns (uint256 total) {
         int24 currentTick = _getCurrentTick(id);
@@ -37,7 +40,8 @@ abstract contract Donate {
             : _donateAbove(rewards, id, tick, currentTick, startLiquidity, amounts);
         uint128 currentLiquidity = _getCurrentLiquidity(id);
         if (endLiquidity != currentLiquidity) revert WrongEndLiquidity(endLiquidity, currentLiquidity);
-        rewards.globalGrowth += cumulativeGrowth;
+        total += currentDonate;
+        rewards.globalGrowth += cumulativeGrowth + currentDonate.divWad(currentLiquidity);
     }
 
     function _donateBelow(

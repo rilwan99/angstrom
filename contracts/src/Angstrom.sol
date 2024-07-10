@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.24;
 
-import {ERC712} from "./base/ERC712.sol";
-import {NodeManager} from "./base/NodeManager.sol";
-import {Accounter} from "./base/Accounter.sol";
-import {UnorderedNonces} from "./libraries/UnorderedNonces.sol";
+import {ERC712} from "./modules/ERC712.sol";
+import {NodeManager} from "./modules/NodeManager.sol";
+import {Accounter, PoolSwap} from "./modules/Accounter.sol";
+import {PoolRewardsManager, PoolRewardsUpdate} from "./modules/PoolRewardsManager.sol";
+import {UnorderedNonces} from "./modules/UnorderedNonces.sol";
+import {UniConsumer} from "./modules/UniConsumer.sol";
 
-import {Globals} from "./libraries/Globals.sol";
+import {Globals} from "./types/Globals.sol";
+import {Asset} from "./types/Asset.sol";
 import {tuint256} from "transient-goodies/TransientPrimitives.sol";
-import {PriceGraphLib, PriceGraph, AssetIndex} from "./libraries/PriceGraph.sol";
-import {GenericOrder, TopOfBlockOrderEnvelope, OrderType, OrderMode, AssetForm} from "./interfaces/OrderTypes.sol";
+import {PriceGraphLib, PriceGraph, AssetIndex} from "./types/PriceGraph.sol";
+import {GenericOrder, TopOfBlockOrderEnvelope, OrderType, OrderMode} from "./types/OrderTypes.sol";
 
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
@@ -20,11 +23,8 @@ import {IAngstromComposable} from "./interfaces/IAngstromComposable.sol";
 import {IUnlockCallback} from "v4-core/src/interfaces/callback/IUnlockCallback.sol";
 import {IPoolManager, IUniV4} from "./interfaces/IUniV4.sol";
 
-// TODO: Remove debug helpers
-import {console2 as console} from "forge-std/console2.sol";
-
 /// @author philogy <https://github.com/philogy>
-contract Angstrom is Accounter, ERC712, UnorderedNonces, NodeManager, IUnlockCallback {
+contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, NodeManager, IUnlockCallback {
     using RayMathLib for uint256;
     using IUniV4 for IPoolManager;
     using SafeCastLib for uint256;
@@ -54,9 +54,8 @@ contract Angstrom is Accounter, ERC712, UnorderedNonces, NodeManager, IUnlockCal
         AssetIndex inIndex;
         uint256 price;
     }
-    // RAY 1e27
 
-    constructor(address uniV4PoolManager, address governance) Accounter(uniV4PoolManager) NodeManager(governance) {}
+    constructor(address uniV4PoolManager, address governance) UniConsumer(uniV4PoolManager) NodeManager(governance) {}
 
     function execute(bytes calldata data) external onlyNode {
         UNI_V4.unlock(data);
@@ -65,35 +64,29 @@ contract Angstrom is Accounter, ERC712, UnorderedNonces, NodeManager, IUnlockCal
     function unlockCallback(bytes calldata data) external override onlyUniV4 returns (bytes memory) {
         // TODO: Optimize, letting solc do this is terribly inefficient.
         (
-            address[] memory assets,
+            Asset[] memory assets,
             Price[] memory initialPrices,
             TopOfBlockOrderEnvelope[] memory topOfBlockOrders,
-            IUniV4.Swap[] memory swaps,
+            PoolSwap[] memory swaps,
             GenericOrder[] memory orders,
-            Donate[] memory donates
-        ) = abi.decode(data, (address[], Price[], TopOfBlockOrderEnvelope[], IUniV4.Swap[], GenericOrder[], Donate[]));
+            PoolRewardsUpdate[] memory poolRewardsUpdates
+        ) = abi.decode(
+            data, (Asset[], Price[], TopOfBlockOrderEnvelope[], PoolSwap[], GenericOrder[], PoolRewardsUpdate[])
+        );
 
         Globals memory g = _validateAndInitGlobals(assets, initialPrices);
 
+        _borrowAssets(assets);
+        _execPoolSwaps(g, swaps);
         _validateAndExecuteToB(g, topOfBlockOrders);
-
+        _rewardPools(g, poolRewardsUpdates);
         _validateAndExecuteOrders(g, orders);
-
-        // Execute swaps.
-        for (uint256 i = 0; i < swaps.length; i++) {
-            UNI_V4.swap(swaps[i], g);
-        }
-
-        for (uint256 i = 0; i < donates.length; i++) {
-            _donate(g, donates[i]);
-        }
-
-        _validateAndResolveFinal();
+        _saveAndSettle(assets);
 
         return new bytes(0);
     }
 
-    function _validateAndInitGlobals(address[] memory assets, Price[] memory initialPrices)
+    function _validateAndInitGlobals(Asset[] memory assets, Price[] memory initialPrices)
         internal
         returns (Globals memory)
     {
@@ -102,9 +95,9 @@ contract Angstrom is Accounter, ERC712, UnorderedNonces, NodeManager, IUnlockCal
         lastBlockUpdated = block.number;
 
         // Validate asset list.
-        address lastAsset = assets[0];
+        address lastAsset = assets[0].addr;
         for (uint256 i = 1; i < assets.length; i++) {
-            address nextAsset = assets[i];
+            address nextAsset = assets[i].addr;
             if (nextAsset <= lastAsset) revert AssetsOutOfOrder();
             lastAsset = nextAsset;
         }
@@ -144,8 +137,8 @@ contract Angstrom is Accounter, ERC712, UnorderedNonces, NodeManager, IUnlockCal
                 ) revert InvalidHookReturn();
             }
 
-            _accountIn(order.from, order.assetInForm, assetIn, order.amountIn);
-            _accountOut(order.from, order.assetOutForm, assetOut, order.amountOut);
+            _accountIn(order.from, assetIn, order.amountIn);
+            _accountOut(order.from, assetOut, order.amountOut);
         }
     }
 
@@ -181,8 +174,8 @@ contract Angstrom is Accounter, ERC712, UnorderedNonces, NodeManager, IUnlockCal
             }
 
             (uint256 amountIn, uint256 amountOut) = _getAmounts(order, price);
-            _accountIn(order.from, order.assetInForm, assetIn, amountIn);
-            _accountOut(order.from, order.assetOutForm, assetOut, amountOut);
+            _accountIn(order.from, assetIn, amountIn);
+            _accountOut(order.from, assetOut, amountOut);
         }
     }
 
@@ -208,9 +201,5 @@ contract Angstrom is Accounter, ERC712, UnorderedNonces, NodeManager, IUnlockCal
         } else {
             assert(false);
         }
-    }
-
-    function _validateAndResolveFinal() internal view {
-        if (unresolvedChanges.get() != 0) revert Unresolved();
     }
 }

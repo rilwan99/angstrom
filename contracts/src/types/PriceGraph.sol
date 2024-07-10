@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.4;
 
-import {Branchless} from "./Branchless.sol";
-import {RayMathLib} from "./RayMathLib.sol";
+import {Branchless} from "../libraries/Branchless.sol";
+import {RayMathLib} from "../libraries/RayMathLib.sol";
 
 /// @dev Packed `uint232(memOffset) || uint24(width)
 type PriceGraph is uint256;

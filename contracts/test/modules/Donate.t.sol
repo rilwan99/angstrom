@@ -133,7 +133,7 @@ contract DonateTest is BaseTest, Donate {
             // Tick from which to start updating total growth outside.
             int24 startTick = v.map.brangeToTick(v.donateTicks - 1);
 
-            v.total = _donate(rewards, mainId, startTick, startLiquidity, v.amounts);
+            v.total = _donate(rewards, mainId, startTick, startLiquidity, 0, v.amounts);
         } else {
             // Donating above.
 
@@ -141,7 +141,7 @@ contract DonateTest is BaseTest, Donate {
             uint128 startLiquidity = u128(v.totalLiqAtIndex[v.map.rangeToIndex(v.donateTicks - 1)]);
             int24 startTick = v.map.rangeToTick(v.donateTicks - 1);
 
-            v.total = _donate(rewards, mainId, startTick, startLiquidity, v.amounts);
+            v.total = _donate(rewards, mainId, startTick, startLiquidity, 0, v.amounts);
         }
 
         v.realTotal = 0;

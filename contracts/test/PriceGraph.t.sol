@@ -2,11 +2,11 @@
 pragma solidity ^0.8.4;
 
 import {Test} from "forge-std/Test.sol";
-import {PriceGraphLib, PriceGraph, AssetIndex} from "src/libraries/PriceGraph.sol";
+import {PriceGraphLib, PriceGraph, AssetIndex} from "src/types/PriceGraph.sol";
 
 /// @author philogy <https://github.com/philogy>
 contract PriceGraphTest is Test {
-    function test_fuzzing_allocGraph(uint256 width) public {
+    function test_fuzzing_allocGraph(uint256 width) public pure {
         width = bound(width, 0, PriceGraphLib.MAX_WIDTH);
         PriceGraph graph = PriceGraphLib.init(width);
         assertEq(graph.width(), width);

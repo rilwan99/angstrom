@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {pptr} from "./Pointers.sol";
+import {pptr} from "src/types/Pointers.sol";
 
 /// @author philogy <https://github.com/philogy>
 abstract contract UnorderedNonces {

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {UnorderedNonces} from "../src/libraries/UnorderedNonces.sol";
+import {UnorderedNonces} from "src/modules/UnorderedNonces.sol";
 import {Utils} from "./_helpers/Utils.sol";
 
 /// @author philogy <https://github.com/philogy>
