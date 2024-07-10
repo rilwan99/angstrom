@@ -66,9 +66,10 @@ abstract contract Accounter is UniConsumer {
             Asset memory asset = assets[i];
             address addr = asset.addr;
             uint256 saving = asset.save;
-            freeBalance[addr].dec(saving);
-            savedFees[addr] += saving;
             uint256 settle = asset.settle;
+
+            freeBalance[addr].dec(saving + settle);
+            savedFees[addr] += saving;
             if (settle > 0) {
                 addr.safeTransfer(address(UNI_V4), settle);
                 UNI_V4.settle(addr.intoC());
