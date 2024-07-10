@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 import {LibString} from "solady/src/utils/LibString.sol";
 
+import {console2 as console} from "forge-std/console2.sol";
+
 library FormatLib {
     using FormatLib for *;
 
@@ -18,20 +20,17 @@ library FormatLib {
     }
 
     function formatDecimals(int256 value, uint8 roundTo, uint8 decimals) internal pure returns (string memory) {
-        int256 one = int256(10 ** decimals);
-        assert(one > 0);
-
-        int256 aboveDecimal = abs(value / one);
-        int256 belowDecimal = abs(value % one);
-
         roundTo = roundTo > decimals ? decimals : roundTo;
-
         int256 roundedUnit = int256(10 ** uint256(decimals - roundTo));
+        int256 decimalValue = (value + roundedUnit / 2) / roundedUnit;
         assert(roundedUnit > 0);
 
-        int256 decimalValue = (belowDecimal + roundedUnit / 2) / roundedUnit;
+        uint256 one = 10 ** roundTo;
 
-        string memory decimalRepr = decimalValue.toString();
+        uint256 aboveDecimal = uint256(abs(decimalValue)) / one;
+        uint256 belowDecimal = uint256(abs(decimalValue)) % one;
+
+        string memory decimalRepr = belowDecimal.toString();
         while (bytes(decimalRepr).length < roundTo) {
             decimalRepr = string.concat("0", decimalRepr);
         }
@@ -48,17 +47,15 @@ library FormatLib {
     }
 
     function formatDecimals(uint256 value, uint8 roundTo, uint8 decimals) internal pure returns (string memory) {
-        uint256 one = 10 ** uint256(decimals);
-        uint256 aboveDecimal = value / one;
-        uint256 belowDecimal = value % one;
-
         roundTo = roundTo > decimals ? decimals : roundTo;
-
         uint256 roundedUnit = 10 ** uint256(decimals - roundTo);
+        uint256 decimalValue = (value + roundedUnit / 2) / roundedUnit;
 
-        uint256 decimalValue = (belowDecimal + roundedUnit / 2) / roundedUnit;
+        uint256 one = 10 ** roundTo;
+        uint256 aboveDecimal = decimalValue / one;
+        uint256 belowDecimal = decimalValue % one;
 
-        string memory decimalRepr = decimalValue.toString();
+        string memory decimalRepr = belowDecimal.toString();
         while (bytes(decimalRepr).length < roundTo) {
             decimalRepr = string.concat("0", decimalRepr);
         }
