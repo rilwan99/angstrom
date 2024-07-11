@@ -38,6 +38,7 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
     error InvalidHookReturn();
     error OrderAlreadyExecuted();
 
+    error FillingTooLittle();
     error FillingTooMuch();
     error InvalidSignature();
     error Unresolved();
@@ -195,6 +196,7 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
             amountIn += amountIn.rayMul(feeRay);
         } else if (order.mode == OrderMode.Partial) {
             amountIn = order.amountFilled;
+            if (amountIn < order.minAmountIn) revert FillingTooLittle();
             if (amountIn > order.amountSpecified) revert FillingTooMuch();
             amountOut = amountIn.rayDiv(price);
             amountOut -= amountOut.rayMul(feeRay);

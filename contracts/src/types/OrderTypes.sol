@@ -19,6 +19,7 @@ enum OrderType {
 struct GenericOrder {
     OrderType otype;
     OrderMode mode;
+    uint256 minAmountIn;
     uint256 amountSpecified;
     uint256 minPrice;
     AssetIndex assetInIndex;
@@ -56,6 +57,7 @@ library OrderLib {
     bytes32 internal constant STANDING_ORDER_TYPEHASH = keccak256(
         "StandingOrder("
            "string mode,"
+           "uint256 min_amount_in,"
            "uint256 max_amount_in_or_out,"
            "uint256 min_price,"
            "address asset_in,"
@@ -71,6 +73,7 @@ library OrderLib {
     bytes32 internal constant FLASH_ORDER_TYPEHASH = keccak256(
         "FlashOrder("
            "string mode,"
+           "uint256 min_amount_in,"
            "uint256 max_amount_in_or_out,"
            "uint256 min_price,"
            "address asset_in,"
@@ -102,6 +105,7 @@ library OrderLib {
                 abi.encode(
                     STANDING_ORDER_TYPEHASH,
                     order.mode.hash(),
+                    order.minAmountIn,
                     order.amountSpecified,
                     order.minPrice,
                     assetIn,
@@ -118,6 +122,7 @@ library OrderLib {
                 abi.encode(
                     FLASH_ORDER_TYPEHASH,
                     order.mode.hash(),
+                    order.minAmountIn,
                     order.amountSpecified,
                     order.minPrice,
                     assetIn,
