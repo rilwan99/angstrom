@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use angstrom_types::{
-    orders::PoolOrder,
     primitive::PoolId,
     sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
 };
@@ -14,18 +13,20 @@ pub mod matcher;
 pub mod simulation;
 pub mod strategy;
 
-pub fn build_books<'a>(
+pub fn build_books(
     source_orders: Vec<OrderWithStorageData<GroupedVanillaOrder>>
-) -> HashMap<PoolId, OrderBook<'a>> {
+) -> HashMap<PoolId, OrderBook> {
+    // let output = HashMap::new();
+    for o in source_orders.into_iter() {}
     HashMap::new()
 }
 
-pub fn build_book<'a, O: PoolOrder>(
+pub fn build_book(
     id: PoolId,
     amm: Option<MarketSnapshot>,
-    orders: BidsAndAsks<O>
-) -> OrderBook<'a> {
-    let mut book =
-        OrderBook::new(amm, vec![], vec![], Some(book::sort::SortStrategy::ByPriceByVolume));
-    book
+    orders: Vec<OrderWithStorageData<GroupedVanillaOrder>>
+) -> OrderBook {
+    let (bids, asks) = orders.into_iter().partition(|o| o.is_bid);
+
+    OrderBook::new(amm, bids, asks, Some(book::sort::SortStrategy::ByPriceByVolume))
 }

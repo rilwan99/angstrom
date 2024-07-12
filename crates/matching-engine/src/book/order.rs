@@ -1,14 +1,21 @@
-use angstrom_types::sol_bindings::sol::{FlashOrder, StandingOrder};
+use angstrom_types::{
+    orders::OrderId,
+    primitive::PoolId,
+    sol_bindings::{
+        grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
+        sol::{FlashOrder, StandingOrder}
+    }
+};
 
-use super::{BookID, OrderID, OrderPrice, OrderVolume};
+use super::{OrderID, OrderPrice, OrderVolume};
 /// Definition of the various types of order that we can serve, as well as the
 /// outcomes we're able to have for them
 use crate::cfmm::uniswap::PriceRange;
 
 #[derive(Clone, Debug)]
 pub struct OrderCoordinate {
-    pub book:  BookID,
-    pub order: OrderID
+    pub book:  PoolId,
+    pub order: OrderId
 }
 
 #[derive(Clone, Debug)]
@@ -84,6 +91,79 @@ impl OrderOutcome {
             Self::Unfilled => Self::PartialFill(quantity),
             Self::PartialFill(f) => Self::PartialFill(f + quantity),
             Self::CompleteFill | Self::Killed => self.clone()
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum OrderContainer<'a, 'b> {
+    BookOrder(&'a OrderWithStorageData<GroupedVanillaOrder>),
+    Partial(&'b OrderWithStorageData<GroupedVanillaOrder>),
+    AMM(PriceRange<'a>)
+}
+
+impl<'a, 'b> OrderContainer<'a, 'b> {
+    pub fn id(&self) -> Option<OrderId> {
+        match self {
+            Self::BookOrder(o) => Some(o.order_id),
+            Self::Partial(o) => Some(o.order_id),
+            _ => None
+        }
+    }
+
+    pub fn is_amm(&self) -> bool {
+        matches!(self, Self::AMM(_))
+    }
+
+    /// To be removed
+    #[deprecated]
+    pub fn related(&self) -> Option<&Vec<OrderCoordinate>> {
+        None
+    }
+
+    pub fn is_partial(&self) -> bool {
+        match self {
+            Self::BookOrder(o) => {
+                matches!(o.order, GroupedVanillaOrder::Partial(_))
+            }
+            Self::Partial(o) => {
+                matches!(o.order, GroupedVanillaOrder::Partial(_))
+            }
+            Self::AMM(_) => false
+        }
+    }
+
+    /// Retrieve the quantity available within the bounds of a given order
+    pub fn quantity(&self, limit_price: OrderPrice) -> OrderVolume {
+        match self {
+            Self::BookOrder(o) => o.quantity(),
+            Self::Partial(o) => o.quantity(),
+            Self::AMM(ammo) => ammo.quantity(limit_price)
+        }
+    }
+
+    /// Retrieve the price for a given order
+    pub fn price(&self) -> OrderPrice {
+        match self {
+            Self::BookOrder(o) => o.price(),
+            Self::Partial(o) => o.price(),
+            Self::AMM(o) => o.start_bound.as_u256()
+        }
+    }
+
+    /// Produce a new order representing the remainder of the current order
+    /// after the fill operation has been performed
+    pub fn fill(&self, filled_quantity: OrderVolume) -> OrderWithStorageData<GroupedVanillaOrder> {
+        match self {
+            Self::AMM(_) => panic!("This should never happen"),
+            Self::BookOrder(o) => {
+                let newo = (**o).clone();
+                newo.try_map_inner(|f| Ok(f.fill(filled_quantity))).unwrap()
+            }
+            Self::Partial(o) => {
+                let newo = (**o).clone();
+                newo.try_map_inner(|f| Ok(f.fill(filled_quantity))).unwrap()
+            }
         }
     }
 }

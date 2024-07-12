@@ -1,8 +1,13 @@
 //! basic book impl so we can benchmark
 use alloy_primitives::U256;
+use angstrom_types::{
+    orders::OrderId,
+    primitive::PoolId,
+    sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
+};
 use order::{OrderCoordinate, OrderDirection};
 
-use self::{order::Order, sort::SortStrategy};
+use self::sort::SortStrategy;
 use crate::cfmm::uniswap::MarketSnapshot;
 
 pub mod order;
@@ -14,18 +19,19 @@ pub type OrderID = u128;
 pub type OrderVolume = U256;
 pub type OrderPrice = U256;
 
-pub struct OrderBook<'a> {
-    id:   BookID,
+#[derive(Default)]
+pub struct OrderBook {
+    id:   PoolId,
     amm:  Option<MarketSnapshot>,
-    bids: Vec<Order<'a>>,
-    asks: Vec<Order<'a>>
+    bids: Vec<OrderWithStorageData<GroupedVanillaOrder>>,
+    asks: Vec<OrderWithStorageData<GroupedVanillaOrder>>
 }
 
-impl<'a> OrderBook<'a> {
+impl OrderBook {
     pub fn new(
         amm: Option<MarketSnapshot>,
-        mut bids: Vec<Order<'a>>,
-        mut asks: Vec<Order<'a>>,
+        mut bids: Vec<OrderWithStorageData<GroupedVanillaOrder>>,
+        mut asks: Vec<OrderWithStorageData<GroupedVanillaOrder>>,
         sort: Option<SortStrategy>
     ) -> Self {
         // Use our sorting strategy to sort our bids and asks
@@ -35,15 +41,15 @@ impl<'a> OrderBook<'a> {
         Self { id: 10, amm, bids, asks }
     }
 
-    pub fn id(&self) -> BookID {
+    pub fn id(&self) -> PoolId {
         self.id
     }
 
-    pub fn bids(&self) -> &Vec<Order<'a>> {
+    pub fn bids(&self) -> &Vec<OrderWithStorageData<GroupedVanillaOrder>> {
         &self.bids
     }
 
-    pub fn asks(&self) -> &Vec<Order<'a>> {
+    pub fn asks(&self) -> &Vec<OrderWithStorageData<GroupedVanillaOrder>> {
         &self.asks
     }
 
@@ -62,17 +68,17 @@ impl<'a> OrderBook<'a> {
     /// Given an OrderID, find the order with the matching ID and return an
     /// Option, `None` if not found, otherwise we return a tuple containing the
     /// order's direction and its index in the various order arrays
-    pub fn find_order(&self, id: OrderID) -> Option<(OrderDirection, usize)> {
+    pub fn find_order(&self, id: OrderId) -> Option<(OrderDirection, usize)> {
         self.bids
             .iter()
             .enumerate()
-            .find(|(_, b)| b.id() == Some(id))
+            .find(|(_, b)| b.order_id == id)
             .map(|(i, _)| (OrderDirection::Bid, i))
             .or_else(|| {
                 self.asks
                     .iter()
                     .enumerate()
-                    .find(|(_, b)| b.id() == Some(id))
+                    .find(|(_, b)| b.order_id == id)
                     .map(|(i, _)| (OrderDirection::Ask, i))
             })
     }

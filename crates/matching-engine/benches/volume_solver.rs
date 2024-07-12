@@ -8,15 +8,17 @@ use matching_engine::{
 
 static CENTER_PRICE: f64 = 100_000_000.0;
 
-fn do_solve<'a>(book: &'a OrderBook<'a>) -> Solution {
+fn do_solve(book: &OrderBook) -> Solution {
     let solved = SimpleCheckpointStrategy::run(book).unwrap();
     solved.results().clone()
 }
 
-fn generate_book<'a>() -> OrderBook<'a> {
+fn generate_book() -> OrderBook {
     // Generate our bid and ask distribution
-    let bids = order_distribution(1000, CENTER_PRICE, 100000.0, -2.0, 100.0, 10.0, 0.0).unwrap();
-    let asks = order_distribution(1000, CENTER_PRICE, 100000.0, 2.0, 100.0, 10.0, 0.0).unwrap();
+    let bids =
+        order_distribution(true, 1000, CENTER_PRICE, 100000.0, -2.0, 100.0, 10.0, 0.0).unwrap();
+    let asks =
+        order_distribution(false, 1000, CENTER_PRICE, 100000.0, 2.0, 100.0, 10.0, 0.0).unwrap();
     let middle_tick = tick_at_sqrt_price(SqrtPriceX96::from_float_price(CENTER_PRICE)).unwrap();
     let amm = single_position_amm(middle_tick, 10000, 2e18 as u128).unwrap();
 

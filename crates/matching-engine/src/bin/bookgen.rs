@@ -47,7 +47,8 @@ fn main() {
     let args = Args::parse();
 
     let asks = order_distribution(
-        100,
+        false,
+        10,
         args.price,
         args.ask_price_scale,
         args.ask_price_shape,
@@ -58,7 +59,8 @@ fn main() {
     .unwrap();
 
     let bids = order_distribution(
-        100,
+        true,
+        10,
         args.price,
         args.bid_price_scale,
         args.bid_price_shape,
@@ -73,6 +75,9 @@ fn main() {
 
     let book = OrderBook::new(Some(amm), bids, asks, Some(SortStrategy::ByPriceByVolume));
 
+    //println!("Orderbook\n{:?}", book.amm());
+    //return;
+
     // We're going to solve using our Simple Checkpoint Strategy
     let solved = SimpleCheckpointStrategy::run(&book).unwrap();
 
@@ -81,5 +86,5 @@ fn main() {
     println!("{} bids filled", solved.bid_outcomes.iter().filter(|x| x.is_filled()).count());
     println!("{} asks filled", solved.ask_outcomes.iter().filter(|x| x.is_filled()).count());
     println!("{:?}", results);
-    println!("{:?}", solved.crosspool_outcomes())
+    // println!("{:?}", solved.crosspool_outcomes())
 }

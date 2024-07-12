@@ -3,7 +3,6 @@ use std::{fmt, ops::Deref};
 use alloy_primitives::{Address, FixedBytes, TxHash, U256};
 use alloy_rlp::{Decodable, Encodable, RlpDecodable, RlpEncodable};
 use alloy_sol_types::SolStruct;
-use itertools::{Either, Itertools};
 use reth_primitives::B256;
 use serde::{Deserialize, Serialize};
 
@@ -71,7 +70,9 @@ impl AllOrders {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
+#[derive(
+    Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable,
+)]
 pub struct OrderWithStorageData<Order> {
     /// raw order
     pub order:              Order,
@@ -163,6 +164,33 @@ impl GroupedVanillaOrder {
         match self {
             Self::Partial(p) => p.eip712_hash_struct(),
             Self::KillOrFill(k) => k.eip712_hash_struct()
+        }
+    }
+
+    pub fn price(&self) -> U256 {
+        match self {
+            Self::Partial(o) => o.min_price,
+            Self::KillOrFill(o) => o.min_price
+        }
+    }
+
+    pub fn quantity(&self) -> U256 {
+        match self {
+            Self::Partial(o) => o.max_amount_in_or_out,
+            Self::KillOrFill(o) => o.max_amount_in_or_out
+        }
+    }
+
+    pub fn fill(&self, filled_quantity: U256) -> Self {
+        match self {
+            Self::Partial(o) => Self::Partial(StandingOrder {
+                max_amount_in_or_out: o.max_amount_in_or_out - filled_quantity,
+                ..o.clone()
+            }),
+            Self::KillOrFill(o) => Self::KillOrFill(FlashOrder {
+                max_amount_in_or_out: o.max_amount_in_or_out - filled_quantity,
+                ..o.clone()
+            })
         }
     }
 }
