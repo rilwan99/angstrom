@@ -1,6 +1,6 @@
-use std::ops::Deref;
+use std::{fmt, ops::Deref};
 
-use alloy_primitives::{Address, FixedBytes};
+use alloy_primitives::{Address, FixedBytes, TxHash, U256};
 use alloy_sol_types::SolStruct;
 use reth_primitives::B256;
 
@@ -16,6 +16,8 @@ pub enum AllOrders {
     KillOrFill(FlashOrder),
     TOB(TopOfBlockOrder)
 }
+
+impl AllOrders {}
 
 impl From<TopOfBlockOrder> for AllOrders {
     fn from(value: TopOfBlockOrder) -> Self {
@@ -146,7 +148,7 @@ impl GroupedUserOrder {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum GroupedVanillaOrder {
     Partial(StandingOrder),
     KillOrFill(FlashOrder)
@@ -161,7 +163,7 @@ impl GroupedVanillaOrder {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum GroupedComposableOrder {
     Partial(StandingOrder),
     KillOrFill(FlashOrder)
@@ -173,5 +175,185 @@ impl GroupedComposableOrder {
             Self::Partial(p) => p.eip712_hash_struct(),
             Self::KillOrFill(k) => k.eip712_hash_struct()
         }
+    }
+}
+
+pub trait PoolOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
+    /// Hash of the order
+    fn hash(&self) -> TxHash;
+
+    /// The order signer
+    fn from(&self) -> Address;
+
+    /// Transaction nonce
+    fn nonce(&self) -> U256;
+
+    /// Amount of tokens to sell
+    fn amount_in(&self) -> u128;
+
+    /// Token in
+    fn token_in(&self) -> Address;
+
+    /// Min amount of tokens to buy
+    fn amount_out_min(&self) -> u128;
+
+    /// Token out
+    fn token_out(&self) -> Address;
+
+    /// Limit Price
+    fn limit_price(&self) -> u128;
+
+    /// Order deadline
+    fn deadline(&self) -> U256;
+}
+
+impl PoolOrder for TopOfBlockOrder {
+    fn from(&self) -> Address {
+        self.from
+    }
+
+    fn hash(&self) -> TxHash {
+        self.eip712_hash_struct()
+    }
+
+    fn nonce(&self) -> U256 {
+        todo!()
+    }
+
+    fn token_in(&self) -> Address {
+        todo!()
+    }
+
+    fn deadline(&self) -> U256 {
+        todo!()
+    }
+
+    fn amount_in(&self) -> u128 {
+        todo!()
+    }
+
+    fn token_out(&self) -> Address {
+        todo!()
+    }
+
+    fn limit_price(&self) -> u128 {
+        todo!()
+    }
+
+    fn amount_out_min(&self) -> u128 {
+        todo!()
+    }
+}
+
+impl PoolOrder for GroupedVanillaOrder {
+    fn from(&self) -> Address {
+        todo!()
+    }
+
+    fn hash(&self) -> TxHash {
+        todo!()
+    }
+
+    fn nonce(&self) -> U256 {
+        todo!()
+    }
+
+    fn token_in(&self) -> Address {
+        todo!()
+    }
+
+    fn deadline(&self) -> U256 {
+        todo!()
+    }
+
+    fn amount_in(&self) -> u128 {
+        todo!()
+    }
+
+    fn token_out(&self) -> Address {
+        todo!()
+    }
+
+    fn limit_price(&self) -> u128 {
+        todo!()
+    }
+
+    fn amount_out_min(&self) -> u128 {
+        todo!()
+    }
+}
+impl PoolOrder for AllOrders {
+    fn from(&self) -> Address {
+        todo!()
+    }
+
+    fn hash(&self) -> TxHash {
+        todo!()
+    }
+
+    fn nonce(&self) -> U256 {
+        todo!()
+    }
+
+    fn token_in(&self) -> Address {
+        todo!()
+    }
+
+    fn deadline(&self) -> U256 {
+        todo!()
+    }
+
+    fn amount_in(&self) -> u128 {
+        todo!()
+    }
+
+    fn token_out(&self) -> Address {
+        todo!()
+    }
+
+    fn limit_price(&self) -> u128 {
+        todo!()
+    }
+
+    fn amount_out_min(&self) -> u128 {
+        todo!()
+    }
+}
+
+impl PoolOrder for GroupedComposableOrder {
+    fn from(&self) -> Address {
+        todo!()
+    }
+
+    fn hash(&self) -> TxHash {
+        todo!()
+    }
+
+    fn nonce(&self) -> U256 {
+        todo!()
+    }
+
+    fn token_in(&self) -> Address {
+        todo!()
+    }
+
+    fn deadline(&self) -> U256 {
+        todo!()
+    }
+
+    fn amount_in(&self) -> u128 {
+        todo!()
+    }
+
+    fn token_out(&self) -> Address {
+        todo!()
+    }
+
+    fn limit_price(&self) -> u128 {
+        todo!()
+    }
+
+    fn amount_out_min(&self) -> u128 {
+        todo!()
     }
 }

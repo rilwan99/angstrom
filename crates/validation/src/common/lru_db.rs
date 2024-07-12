@@ -18,10 +18,7 @@ use reth_revm::{Database, DatabaseRef};
 use revm::db::DbAccount;
 use schnellru::{ByMemoryUsage, LruMap};
 
-use crate::{
-    bundle::errors::SimError,
-    common::state::{AddressSlots, RevmBackend}
-};
+use crate::common::state::{AddressSlots, RevmBackend};
 
 pub trait BlockStateProvider {
     fn get_basic_account(&self, address: Address) -> ProviderResult<Option<Account>>;
@@ -93,7 +90,7 @@ impl<DB> RevmBackend for RevmLRU<DB>
 where
     DB: BlockStateProviderFactory
 {
-    fn update_evm_state(&self, slot_changes: &AddressSlots) -> eyre::Result<(), SimError> {
+    fn update_evm_state(&self, slot_changes: &AddressSlots) -> eyre::Result<()> {
         let mut accounts = self.accounts.write();
 
         for (addr, storage) in slot_changes.iter() {

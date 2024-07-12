@@ -1,10 +1,12 @@
 use std::{collections::HashMap, fmt::Debug};
 
 use alloy_primitives::{Address, U256};
-use angstrom_types::orders::{
-    OrderLocation, OrderPriorityData, OrderValidationOutcome, PoolOrder, PooledLimitOrder,
-    PooledSearcherOrder, SearcherPriorityData, StateValidationError, ValidatedOrder,
-    ValidationError
+use angstrom_types::{
+    orders::{OrderLocation, OrderPriorityData, StateValidationError, ValidationError},
+    sol_bindings::{
+        grouped_orders::{GroupedVanillaOrder, OrderWithStorageData, PoolOrder},
+        sol::TopOfBlockOrder
+    }
 };
 
 use super::upkeepers::UserAccountDetails;
@@ -35,89 +37,57 @@ impl UserOrders {
         Self(HashMap::new())
     }
 
-    pub fn new_searcher_order<O: PooledSearcherOrder<ValidationData = SearcherPriorityData>>(
+    pub fn new_searcher_order(
         &mut self,
-        order: O,
+        order: TopOfBlockOrder,
         deltas: UserAccountDetails,
         block_number: u64
-    ) -> OrderValidationOutcome<O> {
-        self.basic_order_validation(order, deltas, false, block_number, |order| {
-            SearcherPriorityData {
-                donated: order.donated(),
-                volume:  order.volume(),
-                gas:     order.gas()
-            }
-        })
+    ) -> OrderWithStorageData<TopOfBlockOrder> {
+        self.basic_order_validation(order, deltas, false, block_number)
     }
 
-    pub fn new_limit_order<O: PooledLimitOrder<ValidationData = OrderPriorityData>>(
+    pub fn new_limit_order(
         &mut self,
-        order: O,
+        order: GroupedVanillaOrder,
         deltas: UserAccountDetails,
         block_number: u64
-    ) -> OrderValidationOutcome<O> {
-        self.basic_order_validation(order, deltas, true, block_number, |order| OrderPriorityData {
-            price:  order.limit_price(),
-            volume: order.limit_price().saturating_mul(order.amount_out_min()),
-            gas:    order.gas()
-        })
-    }
-
-    pub fn new_composable_limit_order<O: PooledLimitOrder<ValidationData = OrderPriorityData>>(
-        &mut self,
-        order: O,
-        deltas: UserAccountDetails,
-        block_number: u64
-    ) -> (OrderValidationOutcome<O>, HashMap<Address, HashMap<U256, U256>>) {
-        todo!()
-    }
-
-    pub fn new_composable_searcher_order<
-        O: PooledSearcherOrder<ValidationData = SearcherPriorityData>
-    >(
-        &mut self,
-        order: O,
-        deltas: UserAccountDetails,
-        block_number: u64
-    ) -> (OrderValidationOutcome<O>, HashMap<Address, HashMap<U256, U256>>) {
-        todo!()
+    ) -> OrderWithStorageData<GroupedVanillaOrder> {
+        self.basic_order_validation(order, deltas, true, block_number)
     }
 
     /// called when a user has a state change on their address. When this
     /// happens we re-evaluate all of there pending orders so we do a
     /// hard-reset here.
-    pub fn fkresh_state(&mut self, state: HashMap<Address, PendingState>) {
+    pub fn refresh_state(&mut self, state: HashMap<Address, PendingState>) {
         state.into_iter().for_each(|(k, v)| {
             self.0.insert(k, (v, vec![]));
         });
     }
 
-    fn basic_order_validation<
-        O: PoolOrder<ValidationData = Data>,
-        Data: Send + Debug + Sync + Clone + Unpin + 'static,
-        F: FnOnce(&O) -> Data
-    >(
+    fn basic_order_validation<O: PoolOrder>(
         &mut self,
         order: O,
         deltas: UserAccountDetails,
         limit: bool,
-        block_number: u64,
-        build_priority: F
-    ) -> OrderValidationOutcome<O> {
+        block_number: u64
+    ) -> OrderWithStorageData<O> {
         tracing::debug!(?deltas);
         // always invalid
         if !deltas.is_valid_nonce
             || !deltas.is_valid_pool
             || self.has_nonce_overlap(&order.from(), &order.nonce())
         {
-            let hash = order.hash();
-            let nonce = order.nonce();
-            return OrderValidationOutcome::Invalid(
+            // default data
+            return OrderWithStorageData {
+                is_valid: false,
                 order,
-                ValidationError::StateValidationError(StateValidationError::InvalidNonce(
-                    hash, nonce
-                ))
-            )
+                is_bid: false,
+                pool_id: 0,
+                order_id: Default::default(),
+                valid_block: 0,
+                priority_data: Default::default(),
+                is_currently_valid: false
+            }
         }
 
         let user = order.from();
@@ -186,25 +156,28 @@ impl UserOrders {
         // token balances to allow multi hop with different
         // intents within a single transaction
 
-        let data = build_priority(&order);
-
-        let res = ValidatedOrder {
-            order,
-            data,
-            is_bid: deltas.is_bid,
-            pool_id: deltas.pool_id,
-            location: if limit {
-                if has_balances {
-                    OrderLocation::Limit
-                } else {
-                    OrderLocation::Limit
-                }
-            } else {
-                OrderLocation::Searcher
-            }
+        let priority = OrderPriorityData {
+            price:  order.limit_price(),
+            volume: order.limit_price().saturating_mul(order.amount_out_min()),
+            gas:    0
         };
-
-        OrderValidationOutcome::Valid { order: res, propagate: true, block_number }
+        OrderWithStorageData {
+            is_currently_valid: has_balances,
+            priority_data: priority,
+            valid_block: block_number,
+            order_id: angstrom_types::orders::OrderId {
+                address:  order.from(),
+                pool_id:  deltas.pool_id,
+                hash:     order.hash(),
+                nonce:    order.nonce(),
+                deadline: order.deadline(),
+                location: if limit { OrderLocation::Limit } else { OrderLocation::Searcher }
+            },
+            pool_id: deltas.pool_id,
+            order,
+            is_bid: deltas.is_bid,
+            is_valid: true
+        }
     }
 
     /// Helper function for checking for duplicates when adding orders

@@ -9,12 +9,9 @@ use std::{
 
 use angstrom_eth::manager::EthEvent;
 use angstrom_types::{
-    orders::{
-        OrderConversion, OrderOrigin, OrderPriorityData, PoolOrder, PooledComposableOrder,
-        PooledLimitOrder, PooledOrder, PooledSearcherOrder, SearcherPriorityData
-    },
+    orders::{OrderOrigin, OrderPriorityData, PooledOrder},
     rpc::*,
-    sol_bindings::grouped_orders::AllOrders
+    sol_bindings::grouped_orders::{AllOrders, PoolOrder}
 };
 use futures::{future::BoxFuture, stream::FuturesUnordered, Future, StreamExt};
 use order_pool::{OrderIndexer, OrderPoolHandle, PoolConfig, PoolInnerEvent};
@@ -76,7 +73,7 @@ where
 
 impl<V> PoolManagerBuilder<V>
 where
-    V: OrderValidatorHandle + Unpin
+    V: OrderValidatorHandle<Order = AllOrders> + Unpin
 {
     pub fn new(
         validator: V,
@@ -177,7 +174,7 @@ where
 
 impl<V> PoolManager<V>
 where
-    V: OrderValidatorHandle
+    V: OrderValidatorHandle<Order = AllOrders>
 {
     pub fn new(
         order_sorter: OrderIndexer<V>,
@@ -211,7 +208,9 @@ where
             EthEvent::FilledOrders(orders, block) => {
                 self.order_sorter.filled_orders(block, &orders);
             }
-            EthEvent::ReorgedOrders(orders) => self.order_sorter.reorg(orders),
+            EthEvent::ReorgedOrders(orders) => {
+                self.order_sorter.reorg(orders);
+            }
             EthEvent::EOAStateChanges(state_changes) => {
                 self.order_sorter.eoa_state_change(state_changes);
             }
@@ -346,7 +345,7 @@ where
 
 impl<V> Future for PoolManager<V>
 where
-    V: OrderValidatorHandle + Unpin
+    V: OrderValidatorHandle<Order = AllOrders> + Unpin
 {
     type Output = ();
 

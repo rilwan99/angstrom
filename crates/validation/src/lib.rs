@@ -3,7 +3,7 @@
 #![allow(unused_mut)]
 #![allow(unused_variables)]
 #![allow(unreachable_code)]
-pub mod bundle;
+
 pub mod common;
 pub mod order;
 pub mod validator;
@@ -76,3 +76,7 @@ pub fn init_validation_tests<DB: BlockStateProviderFactory + Unpin + Clone + 'st
 
     (ValidationClient(tx), revm_lru)
 }
+
+pub trait BundleValidator: Send + Sync + Clone + Unpin + 'static {}
+
+impl BundleValidator for ValidationClient {}
