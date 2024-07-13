@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.0;
 
-import {PoolSwap} from "./Accounter.sol";
-import {PoolRewardsUpdate} from "./PoolRewardsManager.sol";
+import {PoolSwap} from "../modules/Accounter.sol";
+import {PoolRewardsUpdate} from "../modules/PoolRewardsManager.sol";
 
 import {Asset} from "../types/Asset.sol";
 import {Price} from "../types/PriceGraph.sol";
 import {GenericOrder, TopOfBlockOrderEnvelope} from "../types/OrderTypes.sol";
 
 /// @author philogy <https://github.com/philogy>
-abstract contract Unpacker {
-    function _unpack(bytes calldata data)
+library DecoderLib {
+    function unpack(bytes calldata data)
         internal
         pure
         returns (

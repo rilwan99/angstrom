@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
-import {Unpacker} from "src/modules/Unpacker.sol";
+import {DecoderLib} from "src/libraries/DecoderLib.sol";
 import {PRNG} from "../_helpers/PRNG.sol";
 
 import {PoolSwap} from "src/modules/Accounter.sol";
@@ -13,7 +13,7 @@ import {Price, AssetIndex} from "src/types/PriceGraph.sol";
 import {GenericOrder, TopOfBlockOrderEnvelope, OrderType, OrderMode} from "src/types/OrderTypes.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract UnpackerTest is Test, Unpacker {
+contract DecoderLibTest is Test {
     uint256 constant MAX_RAND_LEN = 5;
 
     function test_fuzzing_unpacks(uint256 seed) public {
@@ -135,6 +135,6 @@ contract UnpackerTest is Test, Unpacker {
             PoolRewardsUpdate[] calldata
         )
     {
-        return _unpack(data);
+        return DecoderLib.unpack(data);
     }
 }
