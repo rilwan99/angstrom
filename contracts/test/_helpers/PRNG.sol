@@ -19,6 +19,34 @@ library PRNGLib {
         return self.randuint(1e18) <= p ? x : y;
     }
 
+    function randaddr(PRNG memory self) internal pure returns (address) {
+        return address(uint160(self.randuint(1 << 160)));
+    }
+
+    function randuint16(PRNG memory self) internal pure returns (uint16) {
+        return uint16(self.randuint(1 << 16));
+    }
+
+    function randuint64(PRNG memory self) internal pure returns (uint64) {
+        return uint64(self.randuint(1 << 64));
+    }
+
+    function randuint8(PRNG memory self) internal pure returns (uint8) {
+        return uint8(self.randuint(1 << 8));
+    }
+
+    function randuint8(PRNG memory self, uint256 max) internal pure returns (uint8) {
+        require(max <= 256, "Invalid max");
+        return uint8(self.randuint(max));
+    }
+
+    function randBytes(PRNG memory rng, uint256 minLen, uint256 maxLen) internal pure returns (bytes memory b) {
+        b = new bytes(rng.randuint(minLen, maxLen));
+        for (uint256 i = 0; i < b.length; i++) {
+            b[i] = bytes1(uint8(rng.randuint(256)));
+        }
+    }
+
     function randint(PRNG memory self, int256 lowerBound, int256 upperBound) internal pure returns (int256 num) {
         if (lowerBound >= upperBound) revert InvalidBounds();
         uint256 rangeSize;
