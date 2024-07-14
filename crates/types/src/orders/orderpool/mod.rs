@@ -8,7 +8,17 @@ use thiserror::Error;
 use crate::primitive::{Order, PoolId};
 
 #[derive(
-    Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable,
+    Debug,
+    Default,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    RlpEncodable,
+    RlpDecodable,
 )]
 pub struct OrderId {
     pub address:  Address,
@@ -48,7 +58,7 @@ impl Ord for OrderPriorityData {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum OrderLocation {
     #[default]
     Limit,

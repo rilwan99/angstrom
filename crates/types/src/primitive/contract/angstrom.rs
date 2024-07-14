@@ -78,7 +78,7 @@ sol! {
             bytes postHook;
         }
 
-        #[derive(Serialize, Deserialize, RlpEncodable, RlpDecodable)]
+        #[derive(Default, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
         struct Bundle {
             /// @member All executed user orders.
             ExecutedOrder[] orders;

@@ -1,17 +1,27 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use angstrom_types::{
+    consensus::{PreProposal, Proposal},
     primitive::PoolId,
     sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
 };
 use book::OrderBook;
 use cfmm::uniswap::MarketSnapshot;
+use futures_util::future::BoxFuture;
 
 pub mod book;
 pub mod cfmm;
+pub mod manager;
 pub mod matcher;
 pub mod simulation;
 pub mod strategy;
+
+pub use manager::MatchingManager;
+
+pub trait MatchingEngineHandle: Send + Sync + Clone + Unpin + 'static {
+    fn build_proposal(&self, preproposals: Vec<PreProposal>)
+        -> BoxFuture<Result<Proposal, String>>;
+}
 
 pub fn build_books(
     source_orders: Vec<OrderWithStorageData<GroupedVanillaOrder>>
@@ -24,9 +34,9 @@ pub fn build_books(
 pub fn build_book(
     id: PoolId,
     amm: Option<MarketSnapshot>,
-    orders: Vec<OrderWithStorageData<GroupedVanillaOrder>>
+    orders: HashSet<OrderWithStorageData<GroupedVanillaOrder>>
 ) -> OrderBook {
     let (bids, asks) = orders.into_iter().partition(|o| o.is_bid);
 
-    OrderBook::new(amm, bids, asks, Some(book::sort::SortStrategy::ByPriceByVolume))
+    OrderBook::new(id, amm, bids, asks, Some(book::sort::SortStrategy::ByPriceByVolume))
 }

@@ -23,7 +23,7 @@ fn generate_book() -> OrderBook {
     let amm = single_position_amm(middle_tick, 10000, 2e18 as u128).unwrap();
 
     // Create our book
-    OrderBook::new(Some(amm), bids, asks, Some(SortStrategy::ByPriceByVolume))
+    OrderBook::new(10, Some(amm), bids, asks, Some(SortStrategy::ByPriceByVolume))
 }
 
 fn main() {

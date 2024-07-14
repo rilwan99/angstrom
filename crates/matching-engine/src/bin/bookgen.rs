@@ -73,7 +73,7 @@ fn main() {
     let middle_tick = tick_at_sqrt_price(SqrtPriceX96::from_float_price(args.price)).unwrap();
     let amm = single_position_amm(middle_tick, 10000, 2e18 as u128).unwrap();
 
-    let book = OrderBook::new(Some(amm), bids, asks, Some(SortStrategy::ByPriceByVolume));
+    let book = OrderBook::new(10, Some(amm), bids, asks, Some(SortStrategy::ByPriceByVolume));
 
     //println!("Orderbook\n{:?}", book.amm());
     //return;

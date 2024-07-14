@@ -131,6 +131,10 @@ impl RoundState {
         }
         Ok(())
     }
+
+    pub fn get_preproposals(&self) -> Vec<PreProposal> {
+        self.pre_proposals.values().cloned().collect()
+    }
 }
 
 impl Stream for RoundState {

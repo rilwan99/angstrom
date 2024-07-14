@@ -29,6 +29,7 @@ pub struct OrderBook {
 
 impl OrderBook {
     pub fn new(
+        id: PoolId,
         amm: Option<MarketSnapshot>,
         mut bids: Vec<OrderWithStorageData<GroupedVanillaOrder>>,
         mut asks: Vec<OrderWithStorageData<GroupedVanillaOrder>>,
@@ -38,7 +39,7 @@ impl OrderBook {
         let strategy = sort.unwrap_or_default();
         strategy.sort_bids(&mut bids);
         strategy.sort_asks(&mut asks);
-        Self { id: 10, amm, bids, asks }
+        Self { id, amm, bids, asks }
     }
 
     pub fn id(&self) -> PoolId {
@@ -95,6 +96,6 @@ mod test {
         let bids = vec![];
         let asks = vec![];
         let amm = MarketSnapshot::new(vec![], SqrtPriceX96::from_float_price(0.0)).unwrap();
-        OrderBook::new(Some(amm), bids, asks, None);
+        OrderBook::new(10, Some(amm), bids, asks, None);
     }
 }

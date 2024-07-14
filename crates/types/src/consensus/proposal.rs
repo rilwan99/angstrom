@@ -12,7 +12,9 @@ use crate::{
     }
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+#[derive(
+    Debug, Clone, Serialize, Default, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable,
+)]
 pub struct Proposal {
     pub ethereum_block:   u64,
     pub vanilla_bundle:   Bundle,

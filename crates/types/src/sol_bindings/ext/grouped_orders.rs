@@ -1,4 +1,4 @@
-use std::{fmt, ops::Deref};
+use std::{fmt, hash::Hash, ops::Deref};
 
 use alloy_primitives::{Address, FixedBytes, TxHash, U256};
 use alloy_rlp::{Decodable, Encodable, RlpDecodable, RlpEncodable};
@@ -90,6 +90,12 @@ pub struct OrderWithStorageData<Order> {
     pub valid_block:        u64,
     /// holds expiry data
     pub order_id:           OrderId
+}
+
+impl<Order> Hash for OrderWithStorageData<Order> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.order_id.hash(state)
+    }
 }
 
 impl OrderWithStorageData<AllOrders> {

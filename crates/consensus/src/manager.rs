@@ -6,6 +6,7 @@ use std::{
 use angstrom_network::{manager::StromConsensusEvent, StromMessage, StromNetworkHandle};
 use angstrom_types::consensus::PreProposal;
 use futures::{FutureExt, Stream, StreamExt};
+use matching_engine::MatchingEngineHandle;
 use order_pool::OrderPoolHandle;
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_provider::{CanonStateNotification, CanonStateNotifications};
@@ -25,14 +26,16 @@ use crate::{
     ConsensusListener, ConsensusMessage, ConsensusState, ConsensusUpdater
 };
 
-pub async fn manager_thread<OrderPool, Validator>(
+pub async fn manager_thread<OrderPool, Matcher, Validator>(
     globalstate: Arc<Mutex<GlobalConsensusState>>,
     netdeps: ManagerNetworkDeps,
     signer: Signer,
     orderpool: OrderPool,
+    matcher: Matcher,
     validator: Validator
 ) where
     OrderPool: OrderPoolHandle,
+    Matcher: MatchingEngineHandle,
     Validator: BundleValidator
 {
     let ManagerNetworkDeps { network, canonical_block_stream, strom_consensus_event, rx, .. } =
@@ -58,6 +61,7 @@ pub async fn manager_thread<OrderPool, Validator>(
         roundrobin,
         signer,
         orderpool,
+        matcher,
         canonical_block_stream: wrapped_broadcast_stream
     };
 
@@ -84,7 +88,7 @@ pub async fn manager_thread<OrderPool, Validator>(
 }
 
 #[allow(unused)]
-pub struct ConsensusManager<OrderPool, Validator> {
+pub struct ConsensusManager<OrderPool, Matcher, Validator> {
     // core: ConsensusCore,
     /// keeps track of the current round state
     roundstate:             RoundState,
@@ -100,6 +104,7 @@ pub struct ConsensusManager<OrderPool, Validator> {
     roundrobin: RoundRobinAlgo,
     signer:     Signer,
     orderpool:  OrderPool,
+    matcher:    Matcher,
     validator:  Validator
 }
 
@@ -123,9 +128,10 @@ impl ManagerNetworkDeps {
     }
 }
 
-impl<OrderPool, Validator> ConsensusManager<OrderPool, Validator>
+impl<OrderPool, Matcher, Validator> ConsensusManager<OrderPool, Matcher, Validator>
 where
     OrderPool: OrderPoolHandle,
+    Matcher: MatchingEngineHandle,
     Validator: BundleValidator
 {
     pub fn spawn<TP: TaskSpawner>(
@@ -134,10 +140,12 @@ where
         netdeps: ManagerNetworkDeps,
         signer: Signer,
         orderpool: OrderPool,
+        matcher: Matcher,
         validator: Validator
     ) -> ConsensusHandle {
         let tx = netdeps.tx.clone();
-        let fut = manager_thread(globalstate, netdeps, signer, orderpool, validator).boxed();
+        let fut =
+            manager_thread(globalstate, netdeps, signer, orderpool, matcher, validator).boxed();
 
         tp.spawn_critical("consensus", fut);
 
@@ -153,8 +161,13 @@ where
         self.broadcast(ConsensusMessage::PrePropose(preproposal));
     }
 
-    fn send_proposal(&self) {
+    async fn send_proposal(&mut self) {
+        let preproposals = self.roundstate.get_preproposals();
+        let proposal = self.matcher.build_proposal(preproposals).await.unwrap();
         tracing::info!("Sending out proposal");
+        self.network
+            .broadcast_tx(StromMessage::Propose(proposal.clone()));
+        self.broadcast(ConsensusMessage::Proposal(proposal));
     }
 
     fn on_command(&mut self, command: ConsensusCommand) {
@@ -180,7 +193,7 @@ where
             // Send out our Proposal if we're the leader and we entered Proposal state
             ConsensusState::Proposal => {
                 if self.roundstate.is_leader() {
-                    self.send_proposal()
+                    self.send_proposal().await
                 }
             }
             _ => ()
@@ -252,7 +265,9 @@ where
                 let _ = self.roundstate.on_proposal(proposal.clone());
                 // Update local subscribers to the fact that a proposal was received
                 self.broadcast(ConsensusMessage::Proposal(proposal));
-                // Then, broadcast our Commit message to all local subscribers
+                // Then, broadcast our Commit message to all local subscribers and the network
+                self.network
+                    .broadcast_tx(StromMessage::Commit(Box::new(commit.clone())));
                 self.broadcast(ConsensusMessage::Commit(Box::new(commit)));
             }
             // A Commit message is the validation of a previous proposal by another host.  Right
