@@ -2,44 +2,44 @@ use alloy_rlp::Encodable;
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use blsful::{Bls12381G1Impl, PublicKey, SecretKey, SignatureSchemes};
 use bytes::{Bytes, BytesMut};
+use reth_network_peers::PeerId;
 use serde::{Deserialize, Serialize};
 
+use super::PreProposal;
 use crate::{
-    consensus::order_buffer::OrderBuffer,
-    primitive::{
-        Angstrom::{Bundle, LowerBound},
-        BLSSignature, BLSValidatorID
-    }
+    orders::PoolSolution,
+    primitive::{BLSSignature, BLSValidatorID}
 };
 
 #[derive(
     Debug, Clone, Serialize, Default, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable,
 )]
 pub struct Proposal {
-    pub ethereum_block:   u64,
-    pub vanilla_bundle:   Bundle,
-    pub lower_bound:      LowerBound,
-    pub order_buffer:     Vec<OrderBuffer>,
+    // Might not be necessary as this is encoded in all the proposals anyways
+    pub ethereum_height: u64,
+    pub source:          PeerId,
+    pub preproposals:    Vec<PreProposal>,
+    pub solutions:       Vec<PoolSolution>,
     /// This signature is over (etheruem_block | hash(vanilla_bundle) |
     /// hash(order_buffer) | hash(lower_bound))
-    pub leader_signature: BLSSignature
+    pub signature:       BLSSignature
 }
 
 impl Proposal {
     pub fn generate_proposal(
-        ethereum_block: u64,
-        vanilla_bundle: Bundle,
-        lower_bound: LowerBound,
-        order_buffer: Vec<OrderBuffer>,
+        ethereum_height: u64,
+        source: PeerId,
+        preproposals: Vec<PreProposal>,
+        solutions: Vec<PoolSolution>,
         validator_id: BLSValidatorID,
         sk: &SecretKey<Bls12381G1Impl>
     ) -> Self {
         // TODO: move to different to-byte conversion
         let mut buf = BytesMut::new();
-        ethereum_block.encode(&mut buf);
-        vanilla_bundle.encode(&mut buf);
-        order_buffer.encode(&mut buf);
-        lower_bound.encode(&mut buf);
+        ethereum_height.encode(&mut buf);
+        source.encode(&mut buf);
+        preproposals.encode(&mut buf);
+        solutions.encode(&mut buf);
         let buf = buf.freeze();
 
         // This can only return an error and thusly a default (empty) signature if our
@@ -51,7 +51,7 @@ impl Proposal {
         let mut leader_signature = BLSSignature::default();
         leader_signature.add_signature(validator_id, signature);
 
-        Self { ethereum_block, lower_bound, order_buffer, vanilla_bundle, leader_signature }
+        Self { ethereum_height, source, preproposals, solutions, signature: leader_signature }
     }
 
     pub fn sign_proposal(
@@ -62,20 +62,19 @@ impl Proposal {
         let Ok(signature) = sk.sign(SignatureSchemes::ProofOfPossession, &self.payload()) else {
             return false;
         };
-        self.leader_signature.add_signature(validator_id, signature)
+        self.signature.add_signature(validator_id, signature)
     }
 
     pub fn validate(&self, public_key_library: &[PublicKey<Bls12381G1Impl>]) -> bool {
-        self.leader_signature
-            .validate(public_key_library, &self.payload())
+        self.signature.validate(public_key_library, &self.payload())
     }
 
     fn payload(&self) -> Bytes {
         let mut buf = BytesMut::new();
-        self.ethereum_block.encode(&mut buf);
-        self.vanilla_bundle.encode(&mut buf);
-        self.order_buffer.encode(&mut buf);
-        self.lower_bound.encode(&mut buf);
+        self.ethereum_height.encode(&mut buf);
+        self.source.encode(&mut buf);
+        self.preproposals.encode(&mut buf);
+        self.solutions.encode(&mut buf);
         buf.freeze()
     }
 }

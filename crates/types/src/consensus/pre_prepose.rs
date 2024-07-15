@@ -1,6 +1,7 @@
 use alloy_rlp::Encodable;
 use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
 use bytes::BytesMut;
+use reth_network_peers::PeerId;
 use reth_primitives::keccak256;
 use secp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
@@ -24,16 +25,18 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, RlpEncodable, RlpDecodable)]
 pub struct PreProposal {
     pub ethereum_height: u64,
+    pub source:          PeerId,
     pub limit:           Vec<OrderWithStorageData<GroupedVanillaOrder>>,
     pub searcher:        Vec<OrderWithStorageData<TopOfBlockOrder>>,
-    /// the signature is over the ethereum height and the bundle hash
-    /// sign(ethereum_height | hash(pre_bundle))
+    /// The signature is over the ethereum height as well as the limit and
+    /// searcher sets
     pub signature:       Signature
 }
 
 impl PreProposal {
     pub fn generate_pre_proposal(
         ethereum_height: u64,
+        source: PeerId,
         limit: Vec<OrderWithStorageData<GroupedVanillaOrder>>,
         searcher: Vec<OrderWithStorageData<TopOfBlockOrder>>,
         sk: &SecretKey
@@ -46,12 +49,13 @@ impl PreProposal {
         let hash = keccak256(buf);
         let sig = reth_primitives::sign_message(sk.secret_bytes().into(), hash).unwrap();
 
-        Self { limit, searcher, ethereum_height, signature: Signature(sig) }
+        Self { limit, source, searcher, ethereum_height, signature: Signature(sig) }
     }
 
     pub fn new(
         ethereum_height: u64,
         sk: &SecretKey,
+        source: PeerId,
         orders: OrderSet<GroupedVanillaOrder, TopOfBlockOrder>
     ) -> Self {
         let OrderSet { limit, searcher } = orders;
@@ -78,6 +82,6 @@ impl PreProposal {
         let buf = buf.freeze();
         let hash = keccak256(buf);
         let sig = reth_primitives::sign_message(sk.secret_bytes().into(), hash).unwrap();
-        Self { ethereum_height, limit, searcher, signature: Signature(sig) }
+        Self { ethereum_height, source, limit, searcher, signature: Signature(sig) }
     }
 }

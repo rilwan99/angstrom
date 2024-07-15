@@ -154,7 +154,8 @@ where
 
     async fn send_preproposal(&mut self) {
         let orders = self.orderpool.get_all_vanilla_orders().await;
-        let preproposal = PreProposal::new(0, &self.signer.key, orders);
+        let preproposal =
+            PreProposal::new(0, &self.signer.key, alloy_primitives::FixedBytes::default(), orders);
         tracing::info!("Sending out preproposal");
         self.network
             .broadcast_tx(StromMessage::PrePropose(preproposal.clone()));
@@ -256,7 +257,7 @@ where
                 // Given that the proposal has passed validation, prepare our commit message
                 let commit = self
                     .signer
-                    .sign_commit(proposal.ethereum_block, &proposal)
+                    .sign_commit(proposal.ethereum_height, &proposal)
                     .unwrap(); // I don't think this can actually fail, validate
 
                 // Store the current proposal in our Round State as the Proposal for our round

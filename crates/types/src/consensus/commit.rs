@@ -112,7 +112,7 @@ impl Commit {
     /// Validate that this commit message is associated with a specific Proposal
     /// - incomplete
     pub fn is_for(&self, proposal: &Proposal) -> bool {
-        self.block_height == proposal.ethereum_block
+        self.block_height == proposal.ethereum_height
         // Also check to make sure our hashes match the proposal data
     }
 
@@ -127,7 +127,7 @@ impl Commit {
     }
 
     pub fn from_proposal(proposal: &Proposal, sk: &SecretKey<Bls12381G1Impl>) -> Self {
-        let block_height = proposal.ethereum_block;
+        let block_height = proposal.ethereum_height;
         let vanilla_bundle_hash = B256::random();
         let lower_bound_hash = B256::random();
         let order_buffer_hash = B256::random();

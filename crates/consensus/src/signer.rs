@@ -1,4 +1,4 @@
-use alloy_primitives::B512;
+use alloy_primitives::{FixedBytes, B512};
 use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
     primitive::{
@@ -26,16 +26,11 @@ impl Default for Signer {
 
 impl Signer {
     #[allow(dead_code)]
-    pub fn sign_proposal(
-        &self,
-        ethereum_block: u64,
-        vanilla_bundle: Bundle,
-        lower_bound: LowerBound
-    ) -> eyre::Result<Proposal> {
+    pub fn sign_proposal(&self, ethereum_block: u64) -> eyre::Result<Proposal> {
         Ok(Proposal::generate_proposal(
             ethereum_block,
-            vanilla_bundle,
-            lower_bound,
+            FixedBytes::default(),
+            vec![],
             vec![],
             self.validator_id,
             &self.bls_key
