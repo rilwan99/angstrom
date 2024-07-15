@@ -3,13 +3,18 @@ pragma solidity ^0.8.0;
 
 import {Donate} from "./Donate.sol";
 import {UniConsumer} from "./UniConsumer.sol";
-import {TickRewards} from "../types/TickRewards.sol";
+import {ILiqChangeHooks} from "../interfaces/ILiqChangeHooks.sol";
 
+import {TickRewards} from "../types/TickRewards.sol";
 import {IUniV4} from "../interfaces/IUniV4.sol";
+import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {IPoolManager} from "../interfaces/IUniV4.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {AssetIndex} from "../types/PriceGraph.sol";
 import {Globals} from "../types/Globals.sol";
+import {MixedSignLib} from "../libraries/MixedSignLib.sol";
 
 import {ConversionLib} from "../libraries/ConversionLib.sol";
 
@@ -23,19 +28,54 @@ struct PoolRewardsUpdate {
 }
 
 /// @author philogy <https://github.com/philogy>
-abstract contract PoolRewardsManager is Donate, UniConsumer {
+abstract contract PoolRewardsManager is Donate, ILiqChangeHooks, UniConsumer {
+    using PoolIdLibrary for PoolKey;
     using IUniV4 for IPoolManager;
+    using MixedSignLib for uint128;
 
-    mapping(PoolId id => TickRewards rewards) internal rewards;
+    struct Position {
+        uint256 rewardDebt;
+    }
 
-    function _rewardPools(Globals memory g, PoolRewardsUpdate[] memory updates) internal returns (uint256 total) {
+    struct Pool {
+        TickRewards rewards;
+        mapping(address owner => mapping(int24 tickLower => mapping(int24 tickUpper => Position))) positions;
+    }
+
+    mapping(PoolId id => Pool pool) internal pools;
+
+    constructor() {
+        _checkHookPermissions(Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG);
+    }
+
+    function beforeAddLiquidity(
+        address sender,
+        PoolKey calldata key,
+        IPoolManager.ModifyLiquidityParams calldata params,
+        bytes calldata hookData
+    ) external override onlyUniV4 returns (bytes4) {
+        PoolId id = key.toId();
+        Position storage position = pools[id].positions[sender][params.tickLower][params.tickUpper];
+        return this.beforeAddLiquidity.selector;
+    }
+
+    function afterRemoveLiquidity(
+        address sender,
+        PoolKey calldata key,
+        IPoolManager.ModifyLiquidityParams calldata params,
+        BalanceDelta delta,
+        bytes calldata hookData
+    ) external returns (bytes4, BalanceDelta) {}
+
+    function _rewardPools(Globals memory g, PoolRewardsUpdate[] calldata updates) internal returns (uint256 total) {
         for (uint256 i = 0; i < updates.length; i++) {
-            PoolRewardsUpdate memory update = updates[i];
+            PoolRewardsUpdate calldata update = updates[i];
             address asset0 = g.get(update.asset0);
             address asset1 = g.get(update.asset1);
-            PoolId id = PoolIdLibrary.toId(ConversionLib.toPoolKey(address(this), asset0, asset1));
-            total =
-                _donate(rewards[id], id, update.startTick, update.startLiquidity, update.currentDonate, update.amounts);
+            PoolId id = ConversionLib.toPoolKey(address(this), asset0, asset1).toId();
+            total = _donate(
+                pools[id].rewards, id, update.startTick, update.startLiquidity, update.currentDonate, update.amounts
+            );
         }
     }
 

@@ -11,10 +11,14 @@ import {UniConsumer} from "./modules/UniConsumer.sol";
 import {Globals} from "./types/Globals.sol";
 import {Asset} from "./types/Asset.sol";
 import {tuint256} from "transient-goodies/TransientPrimitives.sol";
-import {PriceGraphLib, PriceGraph, AssetIndex} from "./types/PriceGraph.sol";
+import {PriceGraphLib, PriceGraph, AssetIndex, Price} from "./types/PriceGraph.sol";
 import {GenericOrder, TopOfBlockOrderEnvelope, OrderType, OrderMode} from "./types/OrderTypes.sol";
+import {Hooks} from "v4-core/src/libraries/Hooks.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {SET_POOL_FEE, TICK_SPACING} from "./Constants.sol";
 
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
+import {DecoderLib} from "./libraries/DecoderLib.sol";
 import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 import {RayMathLib} from "./libraries/RayMathLib.sol";
@@ -29,6 +33,8 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
     using IUniV4 for IPoolManager;
     using SafeCastLib for uint256;
     using FixedPointMathLib for uint256;
+
+    error InvalidPoolKey();
 
     error AssetsOutOfOrder();
     error OnlyOncePerBlock();
@@ -50,30 +56,28 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
     // transient storage
     mapping(bytes32 => tuint256) internal alreadyExecuted;
 
-    struct Price {
-        AssetIndex outIndex;
-        AssetIndex inIndex;
-        uint256 price;
+    constructor(address uniV4PoolManager, address governance) UniConsumer(uniV4PoolManager) NodeManager(governance) {
+        _checkHookPermissions(Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_INITIALIZE_FLAG);
     }
 
-    constructor(address uniV4PoolManager, address governance) UniConsumer(uniV4PoolManager) NodeManager(governance) {}
+    function beforeInitialize(address, PoolKey calldata poolKey, uint160) external onlyUniV4 returns (bytes4) {
+        if (poolKey.tickSpacing != TICK_SPACING || poolKey.fee != SET_POOL_FEE) revert InvalidPoolKey();
+        return this.beforeInitialize.selector;
+    }
 
     function execute(bytes calldata data) external onlyNode {
         UNI_V4.unlock(data);
     }
 
     function unlockCallback(bytes calldata data) external override onlyUniV4 returns (bytes memory) {
-        // TODO: Optimize, letting solc do this is terribly inefficient.
         (
-            Asset[] memory assets,
-            Price[] memory initialPrices,
-            TopOfBlockOrderEnvelope[] memory topOfBlockOrders,
-            PoolSwap[] memory swaps,
-            GenericOrder[] memory orders,
-            PoolRewardsUpdate[] memory poolRewardsUpdates
-        ) = abi.decode(
-            data, (Asset[], Price[], TopOfBlockOrderEnvelope[], PoolSwap[], GenericOrder[], PoolRewardsUpdate[])
-        );
+            Asset[] calldata assets,
+            Price[] calldata initialPrices,
+            TopOfBlockOrderEnvelope[] calldata topOfBlockOrders,
+            PoolSwap[] calldata swaps,
+            GenericOrder[] calldata orders,
+            PoolRewardsUpdate[] calldata poolRewardsUpdates
+        ) = DecoderLib.unpack(data);
 
         Globals memory g = _validateAndInitGlobals(assets, initialPrices);
 
@@ -87,7 +91,7 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
         return new bytes(0);
     }
 
-    function _validateAndInitGlobals(Asset[] memory assets, Price[] memory initialPrices)
+    function _validateAndInitGlobals(Asset[] calldata assets, Price[] calldata initialPrices)
         internal
         returns (Globals memory)
     {
@@ -106,16 +110,16 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
         // Initialize and validate price graph.
         PriceGraph prices = PriceGraphLib.init(assets.length);
         for (uint256 i = 0; i < initialPrices.length; i++) {
-            Price memory init = initialPrices[i];
+            Price calldata init = initialPrices[i];
             prices.set(init.outIndex, init.inIndex, init.price);
         }
 
         return Globals({prices: prices, assets: assets});
     }
 
-    function _validateAndExecuteToB(Globals memory g, TopOfBlockOrderEnvelope[] memory orders) internal {
+    function _validateAndExecuteToB(Globals memory g, TopOfBlockOrderEnvelope[] calldata orders) internal {
         for (uint256 i = 0; i < orders.length; i++) {
-            TopOfBlockOrderEnvelope memory order = orders[i];
+            TopOfBlockOrderEnvelope calldata order = orders[i];
 
             address assetIn = g.get(order.assetInIndex);
             address assetOut = g.get(order.assetOutIndex);
@@ -143,9 +147,9 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
         }
     }
 
-    function _validateAndExecuteOrders(Globals memory g, GenericOrder[] memory orders) internal {
+    function _validateAndExecuteOrders(Globals memory g, GenericOrder[] calldata orders) internal {
         for (uint256 i = 0; i < orders.length; i++) {
-            GenericOrder memory order = orders[i];
+            GenericOrder calldata order = orders[i];
             uint256 price = g.prices.get(order.assetOutIndex, order.assetInIndex);
             if (price < order.minPrice) revert LimitViolated();
 
@@ -180,7 +184,7 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
         }
     }
 
-    function _getAmounts(GenericOrder memory order, uint256 price)
+    function _getAmounts(GenericOrder calldata order, uint256 price)
         internal
         view
         returns (uint256 amountIn, uint256 amountOut)

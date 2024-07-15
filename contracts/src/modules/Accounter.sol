@@ -32,9 +32,9 @@ abstract contract Accounter is UniConsumer {
     mapping(address => uint256) internal savedFees;
     mapping(address => tuint256) internal freeBalance;
 
-    function _borrowAssets(Asset[] memory assets) internal {
+    function _borrowAssets(Asset[] calldata assets) internal {
         for (uint256 i = 0; i < assets.length; i++) {
-            Asset memory asset = assets[i];
+            Asset calldata asset = assets[i];
             uint256 amount = asset.borrow;
             address addr = asset.addr;
             UNI_V4.take(addr.intoC(), address(this), amount);
@@ -42,9 +42,9 @@ abstract contract Accounter is UniConsumer {
         }
     }
 
-    function _execPoolSwaps(Globals memory g, PoolSwap[] memory swaps) internal {
+    function _execPoolSwaps(Globals memory g, PoolSwap[] calldata swaps) internal {
         for (uint256 i = 0; i < swaps.length; i++) {
-            PoolSwap memory swap = swaps[i];
+            PoolSwap calldata swap = swaps[i];
             address asset0 = g.get(swap.asset0Index);
             address asset1 = g.get(swap.asset1Index);
             BalanceDelta delta = UNI_V4.swap(
@@ -61,9 +61,9 @@ abstract contract Accounter is UniConsumer {
         }
     }
 
-    function _saveAndSettle(Asset[] memory assets) internal {
+    function _saveAndSettle(Asset[] calldata assets) internal {
         for (uint256 i = 0; i < assets.length; i++) {
-            Asset memory asset = assets[i];
+            Asset calldata asset = assets[i];
             address addr = asset.addr;
             uint256 saving = asset.save;
             uint256 settle = asset.settle;

@@ -17,6 +17,12 @@ function into(AssetIndex index) pure returns (uint16) {
 
 using {into} for AssetIndex global;
 
+struct Price {
+    AssetIndex outIndex;
+    AssetIndex inIndex;
+    uint256 price;
+}
+
 /// @author philogy <https://github.com/philogy>
 library PriceGraphLib {
     using RayMathLib for uint256;

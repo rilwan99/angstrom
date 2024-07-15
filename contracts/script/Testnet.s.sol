@@ -42,7 +42,11 @@ contract TestnetDeploy is Test, Script {
         bytes memory angstromInitcode = abi.encodePacked(type(Angstrom).creationCode, abi.encode(uniV4, governance));
         bytes32 initcodeHash = keccak256(angstromInitcode);
 
-        bytes32 salt = bytes32(mineSalt(initcodeHash, Hooks.BEFORE_SWAP_FLAG));
+        uint256 salt = mineSalt(
+            initcodeHash,
+            Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
+                | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
+        );
 
         (bool success, bytes memory ret) = CREATE2_FACTORY.call(abi.encodePacked(salt, angstromInitcode));
         assertTrue(success);
