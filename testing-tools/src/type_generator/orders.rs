@@ -2,9 +2,13 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use alloy_sol_types::SolStruct;
 use angstrom_types::{
-    orders::PooledOrder,
+    orders::{OrderId, OrderPriorityData, PooledOrder},
     primitive::{Order, ANGSTROM_DOMAIN},
-    rpc::{SignedLimitOrder, SignedSearcherOrder}
+    rpc::{SignedLimitOrder, SignedSearcherOrder},
+    sol_bindings::{
+        grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
+        sol::FlashOrder
+    }
 };
 use rand::{rngs::ThreadRng, thread_rng, Rng};
 use reth_primitives::{Bytes, U256};
@@ -63,7 +67,6 @@ fn generate_order(rng: &mut ThreadRng) -> Order {
         .unwrap()
         .as_secs()
         + 30;
-
     Order {
         nonce:        U256::from(rng.gen_range(0..u64::MAX)),
         orderType:    angstrom_types::primitive::OrderType::Limit,
@@ -74,5 +77,21 @@ fn generate_order(rng: &mut ThreadRng) -> Order {
         deadline:     U256::from(timestamp),
         currencyOut:  rng.gen(),
         amountOutMin: rng.gen()
+    }
+}
+
+fn generate_kof_order(rng: &mut ThreadRng) -> OrderWithStorageData<GroupedVanillaOrder> {
+    let order =
+        FlashOrder { max_amount_in_or_out: rng.gen(), min_price: rng.gen(), ..Default::default() };
+    // Todo: Sign It, make this overall better
+    OrderWithStorageData {
+        order:              GroupedVanillaOrder::KillOrFill(order),
+        priority_data:      OrderPriorityData::default(),
+        is_bid:             true,
+        is_currently_valid: true,
+        is_valid:           true,
+        order_id:           OrderId::default(),
+        pool_id:            0,
+        valid_block:        0
     }
 }
