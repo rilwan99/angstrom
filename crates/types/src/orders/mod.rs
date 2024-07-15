@@ -1,22 +1,16 @@
 mod origin;
-use std::{collections::HashMap, fmt};
 
+use bincode::{Decode, Encode};
 pub mod orderpool;
 
-use alloy_rlp::{RlpDecodable, RlpEncodable};
 pub use orderpool::*;
 pub use origin::*;
 
-mod pooled;
-pub use pooled::*;
-use serde::{Deserialize, Serialize};
-
+// mod pooled;
+// pub use pooled::*;
 use crate::{
     primitive::PoolId,
-    sol_bindings::{
-        grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
-        sol::TopOfBlockOrder
-    }
+    sol_bindings::{grouped_orders::OrderWithStorageData, sol::TopOfBlockOrder}
 };
 
 #[derive(Debug)]
@@ -25,9 +19,7 @@ pub struct OrderSet<Limit, Searcher> {
     pub searcher: Vec<OrderWithStorageData<Searcher>>
 }
 
-#[derive(
-    Debug, Clone, Serialize, Default, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable,
-)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Encode, Decode)]
 pub struct PoolSolution {
     /// Id of this pool
     pub id:       PoolId,
