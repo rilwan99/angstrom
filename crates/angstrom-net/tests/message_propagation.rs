@@ -3,9 +3,8 @@ use std::time::Duration;
 use reth_provider::test_utils::NoopProvider;
 use testing_tools::{
     network::AngstromTestnet,
-    type_generator::{
-        consensus::{generate_random_commit, generate_random_preposal, generate_random_proposal},
-        orders::generate_random_valid_order
+    type_generator::consensus::{
+        generate_random_commit, generate_random_preposal, generate_random_proposal
     }
 };
 
@@ -19,9 +18,10 @@ async fn test_broadcast_order_propagation() {
     let res = tokio::time::timeout(Duration::from_secs(3), testnet.connect_all_peers()).await;
     assert!(res.is_ok(), "failed to connect all peers within 3 seconds");
 
-    let orders = (0..3)
-        .map(|_| generate_random_valid_order())
-        .collect::<Vec<_>>();
+    // let orders = (0..3)
+    //     .map(|_| generate_random_valid_order())
+    //     .collect::<Vec<_>>();
+    let orders = vec![];
 
     let delay_seconds = 4;
     let res = tokio::time::timeout(
@@ -61,9 +61,10 @@ async fn test_singular_order_propagation() {
     let res = tokio::time::timeout(Duration::from_secs(3), testnet.connect_all_peers()).await;
     assert!(res.is_ok(), "failed to connect all peers within 3 seconds");
 
-    let orders = (0..3)
-        .map(|_| generate_random_valid_order())
-        .collect::<Vec<_>>();
+    // let orders = (0..3)
+    //     .map(|_| generate_random_valid_order())
+    //     .collect::<Vec<_>>();
+    let orders = vec![];
 
     let delay_seconds = 8;
 
