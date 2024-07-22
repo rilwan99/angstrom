@@ -1,20 +1,17 @@
-use std::{
-    cmp::{max, min},
-    ops::Deref
-};
+use std::cmp::{max, min};
 
 // uint 160 for represending SqrtPriceX96
-use alloy_primitives::aliases::{U160, U256};
+use alloy_primitives::aliases::U256;
 use alloy_primitives::Uint;
-// Malachite stuff for our math and conversions
-use malachite::num::arithmetic::traits::{Pow, PowerOf2};
-use malachite::{num::conversion::traits::RoundingInto, Natural, Rational};
+use angstrom_types::{
+    matching::{Ray, SqrtPriceX96},
+    orders::OrderPrice
+};
 
 use self::math::{
     new_sqrt_price_from_input, new_sqrt_price_from_output, sqrt_price_at_tick, tick_at_sqrt_price,
     token_0_delta
 };
-use crate::book::OrderPrice;
 
 pub mod math;
 /// A Tick is represented as an i32 as its value range is from around
@@ -22,55 +19,6 @@ pub mod math;
 const MIN_TICK: i32 = -887272;
 const MAX_TICK: i32 = 887272;
 type Tick = i32;
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub struct SqrtPriceX96(U160);
-
-impl SqrtPriceX96 {
-    /// Uses malachite.rs to approximate this value as a floating point number.
-    /// Converts from the internal U160 representation of `sqrt(P)` to an
-    /// approximated f64 representation of `P`, which is a change to the
-    /// value of this number and why this isn't `From<SqrtPriceX96> for f64`
-    pub fn as_float_price(&self) -> f64 {
-        let numerator = Natural::from_limbs_asc(self.0.as_limbs());
-        let denominator: Natural = Natural::power_of_2(96u64);
-        let sqrt_price = Rational::from_naturals(numerator, denominator);
-        let price = sqrt_price.pow(2u64);
-        let (res, _) = price.rounding_into(malachite::rounding_modes::RoundingMode::Floor);
-        res
-    }
-
-    /// Convert a floating point price `P` into a SqrtPriceX96 `sqrt(P)`
-    pub fn from_float_price(price: f64) -> Self {
-        SqrtPriceX96(U160::from(price.sqrt() * (2.0_f64.pow(96))))
-    }
-}
-
-impl Deref for SqrtPriceX96 {
-    type Target = U160;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl From<SqrtPriceX96> for U256 {
-    fn from(value: SqrtPriceX96) -> Self {
-        Uint::from(value.0)
-    }
-}
-
-impl From<U256> for SqrtPriceX96 {
-    fn from(value: U256) -> Self {
-        Self(Uint::from(value))
-    }
-}
-
-impl From<U160> for SqrtPriceX96 {
-    fn from(value: U160) -> Self {
-        Self(value)
-    }
-}
 
 /// A PoolRange describes the liquidity conditions within a specific range of
 /// ticks.  The range can be described as `[lower_tick, upper_tick)`.  The range
@@ -140,7 +88,7 @@ impl MarketSnapshot {
 
         // Get our current tick from our current price
         let current_tick = tick_at_sqrt_price(sqrt_price_x96).map_err(|_| {
-            format!("Unable to get a tick from our current price '{}'", sqrt_price_x96.0)
+            format!("Unable to get a tick from our current price '{:?}'", sqrt_price_x96)
         })?;
 
         // Find the tick range that our current tick lies within
@@ -305,7 +253,7 @@ impl<'a> MarketPrice<'a> {
     /// Return the current price as a float - we need to figure out what our
     /// price representation is going to look like overall
     pub fn as_float(&self) -> f64 {
-        self.price.as_float_price()
+        self.price.as_f64()
     }
 
     pub fn as_u256(&self) -> U256 {
@@ -322,7 +270,7 @@ pub struct PriceRange<'a> {
 
 impl<'a> PriceRange<'a> {
     pub fn quantity(&self, target_price: OrderPrice) -> U256 {
-        let t = SqrtPriceX96::from(target_price);
+        let t: SqrtPriceX96 = Ray::from(*target_price).into();
 
         // If our target price is past our end bound, our quantity is the entire range
         if self.end_bound.price > self.start_bound.price {
@@ -356,6 +304,8 @@ impl<'a> PriceRange<'a> {
 
 #[cfg(test)]
 mod tests {
+
+    use alloy_primitives::U160;
 
     use super::*;
 

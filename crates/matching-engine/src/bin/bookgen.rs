@@ -1,7 +1,8 @@
+use angstrom_types::matching::SqrtPriceX96;
 use clap::Parser;
 use matching_engine::{
     book::{sort::SortStrategy, OrderBook},
-    cfmm::uniswap::{math::tick_at_sqrt_price, SqrtPriceX96},
+    cfmm::uniswap::math::tick_at_sqrt_price,
     simulation::{amm::single_position_amm, orders::order_distribution},
     strategy::{MatchingStrategy, SimpleCheckpointStrategy}
 };
@@ -71,7 +72,7 @@ fn main() {
     .unwrap();
 
     let middle_tick = tick_at_sqrt_price(SqrtPriceX96::from_float_price(args.price)).unwrap();
-    let amm = single_position_amm(middle_tick, 10000, 2e18 as u128).unwrap();
+    let amm = single_position_amm(middle_tick, 10000, 2e36 as u128).unwrap();
 
     let book = OrderBook::new(10, Some(amm), bids, asks, Some(SortStrategy::ByPriceByVolume));
 

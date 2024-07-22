@@ -14,11 +14,6 @@ pub mod order;
 pub mod sort;
 pub mod xpool;
 
-pub type BookID = u128;
-pub type OrderID = u128;
-pub type OrderVolume = U256;
-pub type OrderPrice = U256;
-
 #[derive(Default)]
 pub struct OrderBook {
     id:   PoolId,
@@ -87,8 +82,9 @@ impl OrderBook {
 
 #[cfg(test)]
 mod test {
+    use angstrom_types::matching::SqrtPriceX96;
+
     use super::*;
-    use crate::cfmm::uniswap::SqrtPriceX96;
 
     #[test]
     fn can_construct_order_book() {

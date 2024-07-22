@@ -7,6 +7,7 @@ use reth_primitives::B256;
 
 use super::FetchAssetIndexes;
 use crate::{
+    matching::Ray,
     orders::{OrderId, OrderPriorityData},
     primitive::PoolId,
     sol_bindings::sol::{FlashOrder, StandingOrder, TopOfBlockOrder}
@@ -168,10 +169,17 @@ impl GroupedVanillaOrder {
         }
     }
 
-    pub fn price(&self) -> U256 {
+    pub fn float_price(&self) -> f64 {
         match self {
-            Self::Partial(o) => o.min_price,
-            Self::KillOrFill(o) => o.min_price
+            Self::Partial(o) => Ray::from(o.min_price).as_f64(),
+            Self::KillOrFill(o) => Ray::from(o.min_price).as_f64()
+        }
+    }
+
+    pub fn price(&self) -> Ray {
+        match self {
+            Self::Partial(o) => o.min_price.into(),
+            Self::KillOrFill(o) => o.min_price.into()
         }
     }
 

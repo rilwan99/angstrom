@@ -1,7 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use angstrom_types::{
-    consensus::{PreProposal, Proposal},
+    consensus::PreProposal,
+    orders::PoolSolution,
     primitive::PoolId,
     sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
 };
@@ -19,8 +20,10 @@ pub mod strategy;
 pub use manager::MatchingManager;
 
 pub trait MatchingEngineHandle: Send + Sync + Clone + Unpin + 'static {
-    fn build_proposal(&self, preproposals: Vec<PreProposal>)
-        -> BoxFuture<Result<Proposal, String>>;
+    fn solve_pools(
+        &self,
+        preproposals: Vec<PreProposal>
+    ) -> BoxFuture<Result<Vec<PoolSolution>, String>>;
 }
 
 pub fn build_books(

@@ -1,16 +1,23 @@
 use std::{borrow::Cow, cell::Cell, cmp::Ordering};
 
 use alloy_primitives::U256;
-use angstrom_types::sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData};
+use angstrom_types::{
+    matching::{Ray, SqrtPriceX96},
+    orders::{NetAmmOrder, OrderFillState, OrderOutcome, PoolSolution},
+    sol_bindings::{
+        grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
+        sol::TopOfBlockOrder
+    }
+};
 
 use super::Solution;
 use crate::{
     book::{
-        order::{OrderContainer, OrderDirection, OrderExclusion, OrderOutcome},
+        order::{OrderContainer, OrderDirection, OrderExclusion},
         xpool::XPoolOutcomes,
         OrderBook
     },
-    cfmm::uniswap::{MarketPrice, SqrtPriceX96}
+    cfmm::uniswap::MarketPrice
 };
 
 type CrossPoolExclusions = Option<(Vec<Option<OrderExclusion>>, Vec<Option<OrderExclusion>>)>;
@@ -19,12 +26,13 @@ type CrossPoolExclusions = Option<(Vec<Option<OrderExclusion>>, Vec<Option<Order
 pub struct VolumeFillMatcher<'a> {
     book:             &'a OrderBook,
     bid_idx:          Cell<usize>,
-    pub bid_outcomes: Vec<OrderOutcome>,
+    pub bid_outcomes: Vec<OrderFillState>,
     bid_xpool:        Vec<Option<OrderExclusion>>,
     ask_idx:          Cell<usize>,
-    pub ask_outcomes: Vec<OrderOutcome>,
+    pub ask_outcomes: Vec<OrderFillState>,
     ask_xpool:        Vec<Option<OrderExclusion>>,
     amm_price:        Option<MarketPrice<'a>>,
+    amm_outcome:      Option<NetAmmOrder>,
     current_partial:  Option<OrderWithStorageData<GroupedVanillaOrder>>,
     results:          Solution,
     // A checkpoint should never have a checkpoint stored within itself, otherwise this gets gnarly
@@ -42,8 +50,8 @@ impl<'a> VolumeFillMatcher<'a> {
     fn with_related(book: &'a OrderBook, xpool: CrossPoolExclusions) -> Self {
         let (bid_xpool, ask_xpool) =
             xpool.unwrap_or_else(|| (vec![None; book.bids().len()], vec![None; book.asks().len()]));
-        let bid_outcomes = vec![OrderOutcome::Unfilled; book.bids().len()];
-        let ask_outcomes = vec![OrderOutcome::Unfilled; book.asks().len()];
+        let bid_outcomes = vec![OrderFillState::Unfilled; book.bids().len()];
+        let ask_outcomes = vec![OrderFillState::Unfilled; book.asks().len()];
         let amm_price = book.amm().map(|a| a.current_position());
         Self {
             book,
@@ -54,6 +62,7 @@ impl<'a> VolumeFillMatcher<'a> {
             ask_outcomes,
             ask_xpool,
             amm_price,
+            amm_outcome: None,
             current_partial: None,
             results: Solution::default(),
             checkpoint: None
@@ -185,6 +194,7 @@ impl<'a> VolumeFillMatcher<'a> {
             ask_outcomes:    self.ask_outcomes.clone(),
             ask_xpool:       self.ask_xpool.clone(),
             amm_price:       self.amm_price.clone(),
+            amm_outcome:     self.amm_outcome.clone(),
             current_partial: self.current_partial.clone(),
             results:         self.results.clone(),
             checkpoint:      None
@@ -258,9 +268,6 @@ impl<'a> VolumeFillMatcher<'a> {
                     }
                 };
 
-                println!("Bid is at price {:?} and amm {}", bid.price(), bid.is_amm());
-                println!("Ask is at price {:?} and amm {}", ask.price(), ask.is_amm());
-
                 // If we're talking to the AMM on both sides, we're done
                 if bid.is_amm() && ask.is_amm() {
                     break;
@@ -303,19 +310,26 @@ impl<'a> VolumeFillMatcher<'a> {
                     // Add to our solution
                     self.results.amm_volume += matched;
                     self.results.amm_final_price = Some(*final_amm_order.end_bound.price());
+                    // Update our overall AMM volume
+                    let amm_out = self
+                        .amm_outcome
+                        .get_or_insert_with(|| NetAmmOrder::new(bid.is_amm()));
+                    amm_out.add_quantity(matched);
                 }
 
                 // Then we see what else we need to do
                 match excess.cmp(&U256::ZERO) {
                     Ordering::Equal => {
                         // We annihilated
-                        self.results.price = Some((ask.price() + bid.price()) / U256::from(2));
+                        self.results.price =
+                            Some((*(ask.price() + bid.price()) / U256::from(2)).into());
+                        // self.results.price = Some((ask.price() + bid.price()) / 2.0_f64);
                         // Mark as filled if non-AMM order
                         if !ask.is_amm() {
-                            self.ask_outcomes[self.ask_idx.get()] = OrderOutcome::CompleteFill
+                            self.ask_outcomes[self.ask_idx.get()] = OrderFillState::CompleteFill
                         }
                         if !bid.is_amm() {
-                            self.bid_outcomes[self.bid_idx.get()] = OrderOutcome::CompleteFill
+                            self.bid_outcomes[self.bid_idx.get()] = OrderFillState::CompleteFill
                         }
                         self.current_partial = None;
                         // Take a snapshot as a good solve state
@@ -327,7 +341,7 @@ impl<'a> VolumeFillMatcher<'a> {
                         self.results.price = Some(bid.price());
                         // Ask was completely filled, remainder bid
                         if !ask.is_amm() {
-                            self.ask_outcomes[self.ask_idx.get()] = OrderOutcome::CompleteFill
+                            self.ask_outcomes[self.ask_idx.get()] = OrderFillState::CompleteFill
                         }
                         // Create and save our partial bid
                         if !bid.is_amm() {
@@ -342,7 +356,7 @@ impl<'a> VolumeFillMatcher<'a> {
                         self.results.price = Some(ask.price());
                         // Bid was completely filled, remainder ask
                         if !bid.is_amm() {
-                            self.bid_outcomes[self.bid_idx.get()] = OrderOutcome::CompleteFill
+                            self.bid_outcomes[self.bid_idx.get()] = OrderFillState::CompleteFill
                         }
                         // Create and save our parital ask
                         if !ask.is_amm() {
@@ -385,7 +399,7 @@ impl<'a> VolumeFillMatcher<'a> {
                 // Always skip explicitly dead orders
                 (_, Some(OrderExclusion::Dead(_))) => index += 1,
                 // Otherwise, stop at the first Unfilled order
-                (OrderOutcome::Unfilled, _) => break,
+                (OrderFillState::Unfilled, _) => break,
                 // Any other outcome gets skipped
                 _ => index += 1
             }
@@ -398,7 +412,8 @@ impl<'a> VolumeFillMatcher<'a> {
             .and_then(|amm_price| {
                 let target_price = order_book
                     .get(index)
-                    .map(|o| SqrtPriceX96::from(OrderContainer::BookOrder(o).price()));
+                    // .map(|o| SqrtPriceX96::from(OrderContainer::BookOrder(o).price()));
+                    .map(|o| SqrtPriceX96::from(Ray::from(*OrderContainer::BookOrder(o).price())));
                 amm_price.order_to_target(target_price, direction.is_ask())
             })
             .map(OrderContainer::AMM);
@@ -408,5 +423,28 @@ impl<'a> VolumeFillMatcher<'a> {
             index_cell.set(index);
         }
         amm_order
+    }
+
+    pub fn solution(&self, searcher: OrderWithStorageData<TopOfBlockOrder>) -> PoolSolution {
+        let limit = self
+            .bid_outcomes
+            .iter()
+            .enumerate()
+            .map(|(idx, outcome)| (self.book.bids()[idx].order_id, outcome))
+            .chain(
+                self.ask_outcomes
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, outcome)| (self.book.bids()[idx].order_id, outcome))
+            )
+            .filter_map(|(id, outcome)| match outcome {
+                OrderFillState::CompleteFill => Some(OrderOutcome { id, outcome: outcome.clone() }),
+                OrderFillState::PartialFill(_) => {
+                    Some(OrderOutcome { id, outcome: outcome.clone() })
+                }
+                _ => None
+            })
+            .collect();
+        PoolSolution { id: self.book.id(), amm_quantity: self.amm_outcome.clone(), searcher, limit }
     }
 }

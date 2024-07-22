@@ -1,5 +1,6 @@
 use alloy_primitives::U256;
 use angstrom_types::{
+    matching::Ray,
     orders::{OrderId, OrderPriorityData},
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
@@ -29,8 +30,8 @@ pub fn order_distribution(
         .zip(quantity_gen.sample_iter(&mut rng2))
         .map(|(p, q)| {
             let order = GroupedVanillaOrder::KillOrFill(FlashOrder {
-                max_amount_in_or_out: U256::from(q),
-                min_price: U256::from(p),
+                max_amount_in_or_out: U256::from(q.floor()),
+                min_price: Ray::from(p).into(),
                 ..FlashOrder::default()
             });
             OrderWithStorageData {

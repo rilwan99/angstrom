@@ -1,17 +1,25 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
-use angstrom_types::consensus::{PreProposal, Proposal};
+use angstrom_types::{consensus::PreProposal, orders::PoolSolution};
 use futures_util::FutureExt;
 use reth_tasks::TaskSpawner;
-use tokio::sync::{
-    mpsc::{Receiver, Sender},
-    oneshot
+use tokio::{
+    sync::{
+        mpsc::{Receiver, Sender},
+        oneshot
+    },
+    task::JoinSet
 };
 
-use crate::{book::OrderBook, build_book, MatchingEngineHandle};
+use crate::{
+    book::OrderBook,
+    build_book,
+    strategy::{MatchingStrategy, SimpleCheckpointStrategy},
+    MatchingEngineHandle
+};
 
 pub enum MatcherCommand {
-    BuildProposal(Vec<PreProposal>, oneshot::Sender<Result<Proposal, String>>)
+    BuildProposal(Vec<PreProposal>, oneshot::Sender<Result<Vec<PoolSolution>, String>>)
 }
 
 #[derive(Debug, Clone)]
@@ -31,10 +39,10 @@ impl MatcherHandle {
 }
 
 impl MatchingEngineHandle for MatcherHandle {
-    fn build_proposal(
+    fn solve_pools(
         &self,
         preproposals: Vec<PreProposal>
-    ) -> futures_util::future::BoxFuture<Result<Proposal, String>> {
+    ) -> futures_util::future::BoxFuture<Result<Vec<PoolSolution>, String>> {
         Box::pin(async move {
             let (tx, rx) = oneshot::channel();
             self.send_request(rx, MatcherCommand::BuildProposal(preproposals, tx))
@@ -55,7 +63,10 @@ impl MatchingManager {
         MatcherHandle { sender: tx }
     }
 
-    pub fn build_proposal(&self, preproposals: Vec<PreProposal>) -> Result<Proposal, String> {
+    pub async fn build_proposal(
+        &self,
+        preproposals: Vec<PreProposal>
+    ) -> Result<Vec<PoolSolution>, String> {
         let mut book_sources = HashMap::new();
         // Pull all the orders out of all the preproposals and build OrderPools out of
         // them This is ugly and inefficient right now
@@ -71,6 +82,18 @@ impl MatchingManager {
                 }
             });
 
+        let mut searcher_orders = HashMap::new();
+        preproposals
+            .iter()
+            .flat_map(|p| p.searcher.iter())
+            .for_each(|o| {
+                // We're just taking the first searcher order we have here, this is not optimal
+                // at all
+                if let Entry::Vacant(e) = searcher_orders.entry(o.pool_id) {
+                    e.insert(o.clone());
+                }
+            });
+
         let books: Vec<OrderBook> = book_sources
             .into_iter()
             .map(|(id, orders)| {
@@ -78,15 +101,26 @@ impl MatchingManager {
                 build_book(id, amm, orders)
             })
             .collect();
+        let mut solution_set = JoinSet::new();
+        books.into_iter().for_each(|b| {
+            let searcher = searcher_orders.get(&b.id()).unwrap().clone();
+            // Using spawn-blocking here is not BAD but it might be suboptimal as it allows
+            // us to spawn many more tasks that the CPu has threads.  Better solution is a
+            // dedicated threadpool and some suggest the `rayon` crate.  This is probably
+            // not a problem while I'm testing, but leaving this note here as it may be
+            // important for future efficiency gains
+            solution_set.spawn_blocking(move || {
+                SimpleCheckpointStrategy::run(&b).map(|s| s.solution(searcher))
+            });
+        });
+        let mut solutions = Vec::new();
+        while let Some(res) = solution_set.join_next().await {
+            if let Ok(Some(r)) = res {
+                solutions.push(r);
+            }
+        }
 
-        // let solutions = books
-        //     .iter()
-        //     .filter_map(|b| SimpleCheckpointStrategy::run(&b))
-        //     .collect();
-        // Use an AMM starting position and get to where we know the AMM is
-        // Run our matching algo on all the pools
-        // Put together a proposal of what we think should happen
-        Ok(Proposal::default())
+        Ok(solutions)
     }
 }
 
@@ -96,7 +130,7 @@ pub async fn manager_thread(mut input: Receiver<MatcherCommand>) {
     while let Some(c) = input.recv().await {
         match c {
             MatcherCommand::BuildProposal(p, r) => {
-                r.send(manager.build_proposal(p)).unwrap();
+                r.send(manager.build_proposal(p).await).unwrap();
             }
         }
     }

@@ -1,6 +1,7 @@
+use angstrom_types::matching::SqrtPriceX96;
 use matching_engine::{
     book::{sort::SortStrategy, OrderBook},
-    cfmm::uniswap::{math::tick_at_sqrt_price, SqrtPriceX96},
+    cfmm::uniswap::math::tick_at_sqrt_price,
     matcher::Solution,
     simulation::{amm::single_position_amm, orders::order_distribution},
     strategy::{MatchingStrategy, SimpleCheckpointStrategy}

@@ -1,5 +1,5 @@
 use angstrom_types::{
-    orders::OrderId,
+    orders::{OrderID, OrderId, OrderPrice, OrderVolume},
     primitive::PoolId,
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
@@ -7,7 +7,6 @@ use angstrom_types::{
     }
 };
 
-use super::{OrderID, OrderPrice, OrderVolume};
 /// Definition of the various types of order that we can serve, as well as the
 /// outcomes we're able to have for them
 use crate::cfmm::uniswap::PriceRange;
@@ -69,32 +68,6 @@ impl OrderExclusion {
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum OrderOutcome {
-    /// The order has not yet been processed
-    Unfilled,
-    /// The order has been completely filled
-    CompleteFill,
-    /// The order has been partially filled (and how much)
-    PartialFill(OrderVolume),
-    /// We have dropped this order, it can not or should not be filled.
-    Killed
-}
-
-impl OrderOutcome {
-    pub fn is_filled(&self) -> bool {
-        matches!(self, Self::CompleteFill | Self::PartialFill(_))
-    }
-
-    pub fn partial_fill(&self, quantity: OrderVolume) -> Self {
-        match self {
-            Self::Unfilled => Self::PartialFill(quantity),
-            Self::PartialFill(f) => Self::PartialFill(f + quantity),
-            Self::CompleteFill | Self::Killed => self.clone()
-        }
-    }
-}
-
 #[derive(Clone)]
 pub enum OrderContainer<'a, 'b> {
     BookOrder(&'a OrderWithStorageData<GroupedVanillaOrder>),
@@ -145,9 +118,9 @@ impl<'a, 'b> OrderContainer<'a, 'b> {
     /// Retrieve the price for a given order
     pub fn price(&self) -> OrderPrice {
         match self {
-            Self::BookOrder(o) => o.price(),
-            Self::Partial(o) => o.price(),
-            Self::AMM(o) => o.start_bound.as_u256()
+            Self::BookOrder(o) => o.price().into(),
+            Self::Partial(o) => o.price().into(),
+            Self::AMM(o) => o.start_bound.price().clone().into()
         }
     }
 
@@ -207,13 +180,13 @@ impl<'a> Order<'a> {
     }
 
     /// Retrieve the price for a given order
-    pub fn price(&self) -> OrderPrice {
-        match self {
-            Self::KillOrFill(lo) => lo.min_price,
-            Self::PartialFill(lo) => lo.min_price,
-            Self::AMM(ammo) => ammo.start_bound.as_u256()
-        }
-    }
+    // pub fn price(&self) -> OrderPrice {
+    //     match self {
+    //         Self::KillOrFill(lo) => lo.min_price,
+    //         Self::PartialFill(lo) => lo.min_price,
+    //         Self::AMM(ammo) => ammo.start_bound.as_u256()
+    //     }
+    // }
 
     /// Produce a new order representing the remainder of the current order
     /// after the fill operation has been performed
