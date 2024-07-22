@@ -1,4 +1,4 @@
-use bincode::{config::standard, encode_into_slice, Decode, Encode};
+use bincode::{config::standard, encode_into_slice, encode_to_vec, Decode, Encode};
 use reth_network_peers::PeerId;
 use reth_primitives::keccak256;
 use secp256k1::SecretKey;
@@ -41,9 +41,9 @@ impl PreProposal {
     ) -> Self {
         let mut buf = Vec::new();
         let std = standard();
-        encode_into_slice(ethereum_height, &mut buf, std).unwrap();
-        encode_into_slice(&limit, &mut buf, std).unwrap();
-        encode_into_slice(&searcher, &mut buf, std).unwrap();
+        buf.extend(encode_to_vec(ethereum_height, std).unwrap());
+        buf.extend(encode_to_vec(&limit, std).unwrap());
+        buf.extend(encode_to_vec(&searcher, std).unwrap());
 
         let hash = keccak256(buf);
         let sig = reth_primitives::sign_message(sk.secret_bytes().into(), hash).unwrap();
@@ -58,30 +58,23 @@ impl PreProposal {
         orders: OrderSet<GroupedVanillaOrder, TopOfBlockOrder>
     ) -> Self {
         let OrderSet { limit, searcher } = orders;
-        // orders
-        //     .limit
-        //     .keys()
-        //     .cloned()
-        //     .chain(orders.searcher.keys().cloned())
-        //     .collect();
-        // let pre_bundle: Vec<PoolOrders> = all_pools
-        //     .iter()
-        //     .map(|p| {
-        //         // Gross that we have to reach in here because of the deref and clone
-        // overlap         let searcher_bid =
-        // orders.searcher.get(p).unwrap().clone();         let limit =
-        // orders.limit.get(p);         let orders = limit.map(|m|
-        // m.as_slice().into()).unwrap_or_default();         PoolOrders { pool:
-        // *p, searcher_bid, orders }     })
-        //     .collect();
-        let mut buf = Vec::new();
-        let std = standard();
-        encode_into_slice(ethereum_height, &mut buf, std).unwrap();
-        encode_into_slice(&limit, &mut buf, std).unwrap();
-        encode_into_slice(&searcher, &mut buf, std).unwrap();
+        Self::generate_pre_proposal(ethereum_height, source, limit, searcher, sk)
+    }
+}
 
-        let hash = keccak256(buf);
-        let sig = reth_primitives::sign_message(sk.secret_bytes().into(), hash).unwrap();
-        Self { ethereum_height, source, limit, searcher, signature: Signature(sig) }
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::FixedBytes;
+
+    use super::{PreProposal, SecretKey};
+
+    #[test]
+    fn can_be_constructed() {
+        let ethereum_height = 100;
+        let limit = vec![];
+        let searcher = vec![];
+        let source = FixedBytes::default();
+        let sk = SecretKey::new(&mut rand::thread_rng());
+        PreProposal::generate_pre_proposal(ethereum_height, source, limit, searcher, &sk);
     }
 }

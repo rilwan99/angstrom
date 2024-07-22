@@ -164,7 +164,15 @@ where
 
     async fn send_proposal(&mut self) {
         let preproposals = self.roundstate.get_preproposals();
-        let proposal = self.matcher.build_proposal(preproposals).await.unwrap();
+        let solutions = self
+            .matcher
+            .solve_pools(preproposals.clone())
+            .await
+            .unwrap();
+        let proposal = self
+            .signer
+            .sign_proposal(self.roundstate.current_height(), preproposals, solutions)
+            .unwrap();
         tracing::info!("Sending out proposal");
         self.network
             .broadcast_tx(StromMessage::Propose(proposal.clone()));
@@ -194,6 +202,10 @@ where
             // Send out our Proposal if we're the leader and we entered Proposal state
             ConsensusState::Proposal => {
                 if self.roundstate.is_leader() {
+                    // This now sits and waits on a pretty long computational task - do we want the
+                    // Consensus Manager thread to be effectively blocked on awaiting this or do we
+                    // want to spawn it and figure out how to sync it back up here presuming it
+                    // completes in time?
                     self.send_proposal().await
                 }
             }

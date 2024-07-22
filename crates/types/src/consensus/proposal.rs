@@ -1,4 +1,4 @@
-use bincode::{config::standard, encode_into_slice, Decode, Encode};
+use bincode::{config::standard, encode_to_vec, Decode, Encode};
 use blsful::{Bls12381G1Impl, PublicKey, SecretKey, SignatureSchemes};
 use bytes::Bytes;
 use reth_network_peers::PeerId;
@@ -34,10 +34,10 @@ impl Proposal {
     ) -> Self {
         let mut buf = Vec::new();
         let std = standard();
-        encode_into_slice(ethereum_height, &mut buf, std).unwrap();
+        buf.extend(encode_to_vec(ethereum_height, std).unwrap());
         buf.extend(*source);
-        encode_into_slice(&preproposals, &mut buf, std).unwrap();
-        encode_into_slice(&solutions, &mut buf, std).unwrap();
+        buf.extend(encode_to_vec(&preproposals, std).unwrap());
+        buf.extend(encode_to_vec(&solutions, std).unwrap());
 
         // This can only return an error and thusly a default (empty) signature if our
         // signing key is zero.  Highly unlikely but we should probably make
@@ -69,11 +69,36 @@ impl Proposal {
     fn payload(&self) -> Bytes {
         let mut buf = Vec::new();
         let std = standard();
-        encode_into_slice(self.ethereum_height, &mut buf, std).unwrap();
+        buf.extend(encode_to_vec(self.ethereum_height, std).unwrap());
         buf.extend(*self.source);
-        encode_into_slice(&self.preproposals, &mut buf, std).unwrap();
-        encode_into_slice(&self.solutions, &mut buf, std).unwrap();
+        buf.extend(encode_to_vec(&self.preproposals, std).unwrap());
+        buf.extend(encode_to_vec(&self.solutions, std).unwrap());
 
         Bytes::from_iter(buf)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::FixedBytes;
+
+    use super::{Proposal, SecretKey};
+
+    #[test]
+    fn can_be_constructed() {
+        let ethereum_height = 100;
+        let source = FixedBytes::random();
+        let preproposals = vec![];
+        let solutions = vec![];
+        let validator_id = 100;
+        let sk = SecretKey::default();
+        Proposal::generate_proposal(
+            ethereum_height,
+            source,
+            preproposals,
+            solutions,
+            validator_id,
+            &sk
+        );
     }
 }
