@@ -76,7 +76,7 @@ library PriceGraphLib {
     }
 
     function get(PriceGraph self, AssetIndex i, AssetIndex j) internal pure returns (uint256 price) {
-        return i.into() > j.into() ? _get(self, i, j) : _get(self, j, i).inv();
+        return i.into() > j.into() ? _get(self, i, j) : _get(self, j, i).invRay();
     }
 
     function _get(PriceGraph self, AssetIndex i, AssetIndex j) private pure returns (uint256 price) {

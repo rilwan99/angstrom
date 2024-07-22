@@ -45,7 +45,7 @@ abstract contract PoolRewardsManager is Donate, ILiqChangeHooks, UniConsumer {
     mapping(PoolId id => Pool pool) internal pools;
 
     constructor() {
-        _checkHookPermissions(Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG);
+        _checkHookPermissions(Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG);
     }
 
     function beforeAddLiquidity(

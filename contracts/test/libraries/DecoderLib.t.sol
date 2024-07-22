@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
 import {DecoderLib} from "src/libraries/DecoderLib.sol";
-import {PRNG} from "../_helpers/PRNG.sol";
+import {PRNG} from "super-sol/collections/PRNG.sol";
 
 import {PoolSwap} from "src/modules/Accounter.sol";
 import {PoolRewardsUpdate} from "src/modules/PoolRewardsManager.sol";

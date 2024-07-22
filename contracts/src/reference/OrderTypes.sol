@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.24;
 
 import {AssetIndex} from "../types/PriceGraph.sol";
-import {GenericOrder} from "./GenericOrder.sol";
+import {GenericOrder, OrderMode, OrderType} from "../types/OrderTypes.sol";
+
+struct OrderMeta {
+    address from;
+    bytes signature;
+}
 
 struct PartialStandingOrder {
     uint256 minAmountIn;
@@ -14,6 +19,8 @@ struct PartialStandingOrder {
     bytes hookData;
     uint64 nonce;
     uint40 deadline;
+    uint256 amountFilled;
+    OrderMeta meta;
 }
 
 struct ExactStandingOrder {
@@ -26,6 +33,7 @@ struct ExactStandingOrder {
     bytes hookData;
     uint64 nonce;
     uint40 deadline;
+    OrderMeta meta;
 }
 
 struct PartialFlashOrder {
@@ -37,6 +45,8 @@ struct PartialFlashOrder {
     address recipient;
     bytes hookData;
     uint64 validForBlock;
+    uint256 amountFilled;
+    OrderMeta meta;
 }
 
 struct ExactFlashOrder {
@@ -48,6 +58,7 @@ struct ExactFlashOrder {
     address recipient;
     bytes hookData;
     uint64 validForBlock;
+    OrderMeta meta;
 }
 
 struct TopOfBlockOrder {
@@ -58,6 +69,7 @@ struct TopOfBlockOrder {
     address recipient;
     bytes hookData;
     uint64 validForBlock;
+    OrderMeta meta;
 }
 
 using OrdersLib for PartialStandingOrder global;
@@ -138,67 +150,173 @@ library OrdersLib {
         ")"
     );
 
-    // function hash(GenericOrder memory order, address assetIn, address assetOut) internal view returns (bytes32) {
-    //     if (order.otype == OrderType.Standing) {
-    //         return keccak256(
-    //             abi.encode(
-    //                 STANDING_ORDER_TYPEHASH,
-    //                 order.mode.hash(),
-    //                 order.minAmountIn,
-    //                 order.amountSpecified,
-    //                 order.minPrice,
-    //                 assetIn,
-    //                 assetOut,
-    //                 order.recipient,
-    //                 _hashHookData(order.hook, order.hookPayload),
-    //                 order.nonce,
-    //                 order.deadline
-    //             )
-    //         );
-    //     }
-    //     if (order.otype == OrderType.Flash) {
-    //         return keccak256(
-    //             abi.encode(
-    //                 FLASH_ORDER_TYPEHASH,
-    //                 order.mode.hash(),
-    //                 order.minAmountIn,
-    //                 order.amountSpecified,
-    //                 order.minPrice,
-    //                 assetIn,
-    //                 assetOut,
-    //                 order.recipient,
-    //                 _hashHookData(order.hook, order.hookPayload),
-    //                 block.number
-    //             )
-    //         );
-    //     }
-    //     assert(false);
-    //     return bytes32(0);
-    // }
+    function hash(PartialStandingOrder memory order) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                PARTIAL_STANDING_ORDER_TYPEHASH,
+                order.minAmountIn,
+                order.maxAmountIn,
+                order.minPrice,
+                order.assetIn,
+                order.assetOut,
+                order.recipient,
+                keccak256(order.hookData),
+                order.nonce,
+                order.deadline
+            )
+        );
+    }
 
-    // function hash(TopOfBlockOrderEnvelope memory order, address assetIn, address assetOut)
-    //     internal
-    //     view
-    //     returns (bytes32)
-    // {
-    //     return keccak256(
-    //         abi.encode(
-    //             TOP_OF_BLOCK_ORDER_TYPEHASH,
-    //             order.amountIn,
-    //             order.amountOut,
-    //             assetIn,
-    //             assetOut,
-    //             order.recipient,
-    //             _hashHookData(order.hook, order.hookPayload),
-    //             block.number
-    //         )
-    //     );
-    // }
+    function hash(ExactStandingOrder memory order) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                EXACT_STANDING_ORDER_TYPEHASH,
+                order.exactIn,
+                order.amount,
+                order.minPrice,
+                order.assetIn,
+                order.assetOut,
+                order.recipient,
+                keccak256(order.hookData),
+                order.nonce,
+                order.deadline
+            )
+        );
+    }
 
-    function _hashHookData(address hook, bytes memory hookPayload) internal pure returns (bytes32) {
-        if (hook == address(0)) {
-            return keccak256("");
+    function hash(PartialFlashOrder memory order) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                PARTIAL_FLASH_ORDER_TYPEHASH,
+                order.minAmountIn,
+                order.maxAmountIn,
+                order.minPrice,
+                order.assetIn,
+                order.assetOut,
+                order.recipient,
+                keccak256(order.hookData),
+                order.validForBlock
+            )
+        );
+    }
+
+    function hash(ExactFlashOrder memory order) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                EXACT_FLASH_ORDER_TYPEHASH,
+                order.exactIn,
+                order.amount,
+                order.minPrice,
+                order.assetIn,
+                order.assetOut,
+                order.recipient,
+                keccak256(order.hookData),
+                order.validForBlock
+            )
+        );
+    }
+
+    function hash(TopOfBlockOrder memory order) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                TOP_OF_BLOCK_ORDER_TYPEHASH,
+                order.amountIn,
+                order.amountOut,
+                order.assetIn,
+                order.assetOut,
+                order.recipient,
+                keccak256(order.hookData),
+                order.validForBlock
+            )
+        );
+    }
+
+    function setGeneric(PartialStandingOrder memory o, GenericOrder memory g, address[] memory assets) internal pure {
+        g.otype = OrderType.Standing;
+        g.mode = OrderMode.Partial;
+        g.minAmountIn = o.minAmountIn;
+        g.amountSpecified = o.maxAmountIn;
+        g.minPrice = o.minPrice;
+        g.assetInIndex = _toAssetIndex(assets, o.assetIn);
+        g.assetOutIndex = _toAssetIndex(assets, o.assetOut);
+        g.nonce = o.nonce;
+        g.deadline = o.deadline;
+        g.recipient = o.recipient;
+        _decodeHookData(g, o.hookData);
+        g.amountFilled = o.amountFilled;
+        g.from = o.meta.from;
+        g.signature = o.meta.signature;
+    }
+
+    function setGeneric(ExactStandingOrder memory o, GenericOrder memory g, address[] memory assets) internal pure {
+        g.otype = OrderType.Standing;
+        g.mode = o.exactIn ? OrderMode.ExactIn : OrderMode.ExactOut;
+        g.amountSpecified = o.amount;
+        g.minPrice = o.minPrice;
+        g.assetInIndex = _toAssetIndex(assets, o.assetIn);
+        g.assetOutIndex = _toAssetIndex(assets, o.assetOut);
+        g.nonce = o.nonce;
+        g.deadline = o.deadline;
+        g.recipient = o.recipient;
+        _decodeHookData(g, o.hookData);
+        g.from = o.meta.from;
+        g.signature = o.meta.signature;
+    }
+
+    function setGeneric(PartialFlashOrder memory o, GenericOrder memory g, address[] memory assets) internal pure {
+        g.otype = OrderType.Standing;
+        g.mode = OrderMode.Partial;
+        g.minAmountIn = o.minAmountIn;
+        g.amountSpecified = o.maxAmountIn;
+        g.minPrice = o.minPrice;
+        g.assetInIndex = _toAssetIndex(assets, o.assetIn);
+        g.assetOutIndex = _toAssetIndex(assets, o.assetOut);
+        g.recipient = o.recipient;
+        _decodeHookData(g, o.hookData);
+        g.amountFilled = o.amountFilled;
+        g.from = o.meta.from;
+        g.signature = o.meta.signature;
+    }
+
+    function setGeneric(ExactFlashOrder memory o, GenericOrder memory g, address[] memory assets) internal pure {
+        g.otype = OrderType.Standing;
+        g.mode = o.exactIn ? OrderMode.ExactIn : OrderMode.ExactOut;
+        g.amountSpecified = o.amount;
+        g.minPrice = o.minPrice;
+        g.assetInIndex = _toAssetIndex(assets, o.assetIn);
+        g.assetOutIndex = _toAssetIndex(assets, o.assetOut);
+        g.recipient = o.recipient;
+        _decodeHookData(g, o.hookData);
+        g.from = o.meta.from;
+        g.signature = o.meta.signature;
+    }
+
+    function _decodeHookData(GenericOrder memory g, bytes memory data) internal pure {
+        uint256 dataLength = data.length;
+        if (dataLength != 0) {
+            require(dataLength >= 20, "Invalid hookData length");
+            address hook;
+            bytes memory hookPayload;
+            assembly ("memory-safe") {
+                hook := mload(add(data, 20))
+                let len := sub(mload(data), 20)
+
+                hookPayload := mload(0x40)
+                let offset := add(hookPayload, 0x20)
+                mstore(0x40, add(offset, len))
+
+                mstore(hookPayload, len)
+                mcopy(offset, add(data, 52), len)
+            }
+            g.hook = hook;
+            g.hookPayload = hookPayload;
         }
-        return keccak256(abi.encodePacked(hook, hookPayload));
+    }
+
+    function _toAssetIndex(address[] memory assets, address asset) internal pure returns (AssetIndex) {
+        for (uint16 i = 0; i < assets.length; i++) {
+            if (assets[i] == asset) return AssetIndex.wrap(i);
+        }
+        revert("Asset not found");
     }
 }

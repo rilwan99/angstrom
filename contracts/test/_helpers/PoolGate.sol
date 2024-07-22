@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {MockERC20} from "../_mocks/MockERC20.sol";
+import {MockERC20} from "super-sol/mocks/MockERC20.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {IUnlockCallback} from "v4-core/src/interfaces/callback/IUnlockCallback.sol";
 import {Angstrom} from "../../src/Angstrom.sol";
@@ -13,7 +13,7 @@ import {ConversionLib} from "../../src/libraries/ConversionLib.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 
 import {console2 as console} from "forge-std/console2.sol";
-import {FormatLib} from "./FormatLib.sol";
+import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 /// @author philogy <https://github.com/philogy>
 /// @dev Interacts with pools
@@ -54,6 +54,14 @@ contract PoolGate is IUnlockCallback {
         amount1 = uint128(-callerDelta.amount1());
     }
 
+    function mint(address asset, uint256 amount) public {
+        mint(msg.sender, asset, amount);
+    }
+
+    function mint(address to, address asset, uint256 amount) public {
+        UNI_V4.unlock(abi.encodeCall(this.__mint, (to, asset, amount)));
+    }
+
     function isInitialized(address asset0, address asset1) public view returns (bool) {
         PoolKey memory poolKey = hook.toPoolKey(asset0, asset1);
         Slot0 slot0 = UNI_V4.getSlot0(poolKey.toId());
@@ -89,6 +97,14 @@ contract PoolGate is IUnlockCallback {
 
         _settleMintable(asset0, uint128(-callerDelta.amount0()), true);
         _settleMintable(asset1, uint128(-callerDelta.amount1()), true);
+    }
+
+    function __mint(address to, address asset, uint256 amount) public {
+        uint256 id;
+        // forgefmt: disable-next-item
+        assembly { id := asset }
+        UNI_V4.mint(to, id, amount);
+        _settleMintable(asset, amount, true);
     }
 
     function _settleMintable(address asset, uint256 amount, bool needsSync) internal {

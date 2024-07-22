@@ -192,18 +192,18 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
         uint256 feeRay = halfSpreadRay;
         if (order.mode == OrderMode.ExactIn) {
             amountIn = order.amountSpecified;
-            amountOut = amountIn.rayDiv(price);
-            amountOut -= amountOut.rayMul(feeRay);
+            amountOut = amountIn.divRay(price);
+            amountOut -= amountOut.mulRay(feeRay);
         } else if (order.mode == OrderMode.ExactOut) {
             amountOut = order.amountSpecified;
-            amountIn = amountOut.rayMul(price);
-            amountIn += amountIn.rayMul(feeRay);
+            amountIn = amountOut.mulRay(price);
+            amountIn += amountIn.mulRay(feeRay);
         } else if (order.mode == OrderMode.Partial) {
             amountIn = order.amountFilled;
             if (amountIn < order.minAmountIn) revert FillingTooLittle();
             if (amountIn > order.amountSpecified) revert FillingTooMuch();
-            amountOut = amountIn.rayDiv(price);
-            amountOut -= amountOut.rayMul(feeRay);
+            amountOut = amountIn.divRay(price);
+            amountOut -= amountOut.mulRay(feeRay);
         } else {
             assert(false);
         }

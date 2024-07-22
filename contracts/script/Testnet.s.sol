@@ -7,12 +7,13 @@ import {Hooks, IHooks} from "v4-core/src/libraries/Hooks.sol";
 import {Angstrom} from "../src/Angstrom.sol";
 import {SEPOLIA_POOL_MANAGER_INITCODE} from "./SepoliaPoolManager.sol";
 import {PoolGate} from "../test/_helpers/PoolGate.sol";
-import {MockERC20} from "../test/_mocks/MockERC20.sol";
+import {MockERC20} from "super-sol/mocks/MockERC20.sol";
+import {HookDeployer} from "../test/_helpers/HookDeployer.sol";
 
 import {console2 as console} from "forge-std/console2.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract TestnetDeploy is Test, Script {
+contract TestnetDeploy is Test, Script, HookDeployer {
     using Hooks for IHooks;
 
     // This is a known private key (default anvil account key), so it's fine to put it in plain text
@@ -40,17 +41,9 @@ contract TestnetDeploy is Test, Script {
         address governance = deployer;
 
         bytes memory angstromInitcode = abi.encodePacked(type(Angstrom).creationCode, abi.encode(uniV4, governance));
-        bytes32 initcodeHash = keccak256(angstromInitcode);
 
-        uint256 salt = mineSalt(
-            initcodeHash,
-            Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
-                | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG
-        );
-
-        (bool success, bytes memory ret) = CREATE2_FACTORY.call(abi.encodePacked(salt, angstromInitcode));
+        (bool success, address angstrom,) = deployHook(angstromInitcode, _angstromFlags(), _newFactory());
         assertTrue(success);
-        address angstrom = address(bytes20(ret));
         console.log("Angstrom: %s", angstrom);
 
         PoolGate gate = new PoolGate(uniV4);
@@ -63,11 +56,5 @@ contract TestnetDeploy is Test, Script {
         console.log("(%s, %s)", address(token0), address(token1));
 
         vm.stopBroadcast();
-    }
-
-    function mineSalt(bytes32 initcodeHash, uint160 flags) internal pure returns (uint256 salt) {
-        while (uint160(computeCreate2Address(bytes32(salt), initcodeHash)) & Hooks.ALL_HOOK_MASK != flags) {
-            salt++;
-        }
     }
 }
