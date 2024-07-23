@@ -1,5 +1,4 @@
 //! basic book impl so we can benchmark
-use alloy_primitives::U256;
 use angstrom_types::{
     orders::OrderId,
     primitive::PoolId,

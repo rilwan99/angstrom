@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use angstrom_types::{
     consensus::PreProposal,
@@ -24,14 +24,6 @@ pub trait MatchingEngineHandle: Send + Sync + Clone + Unpin + 'static {
         &self,
         preproposals: Vec<PreProposal>
     ) -> BoxFuture<Result<Vec<PoolSolution>, String>>;
-}
-
-pub fn build_books(
-    source_orders: Vec<OrderWithStorageData<GroupedVanillaOrder>>
-) -> HashMap<PoolId, OrderBook> {
-    // let output = HashMap::new();
-    for o in source_orders.into_iter() {}
-    HashMap::new()
 }
 
 pub fn build_book(

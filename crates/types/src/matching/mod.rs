@@ -83,7 +83,7 @@ mod tests {
         let mut rng = thread_rng();
         let value: U256 = rng.sample(rand::distributions::Standard);
         let ray = Ray::from(value);
-        let m = MatchingPrice::from(ray.clone());
+        let m = MatchingPrice::from(ray);
         assert_eq!(*m, *ray);
     }
 

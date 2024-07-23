@@ -4,7 +4,7 @@ use alloy_primitives::{aliases::U320, Uint, U256};
 use malachite::{
     num::{
         arithmetic::traits::{DivRound, Pow},
-        conversion::traits::{FromSciString, RoundingInto}
+        conversion::traits::RoundingInto
     },
     Natural, Rational
 };

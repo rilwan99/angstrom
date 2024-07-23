@@ -120,7 +120,7 @@ impl<'a, 'b> OrderContainer<'a, 'b> {
         match self {
             Self::BookOrder(o) => o.price().into(),
             Self::Partial(o) => o.price().into(),
-            Self::AMM(o) => o.start_bound.price().clone().into()
+            Self::AMM(o) => (*o.start_bound.price()).into()
         }
     }
 

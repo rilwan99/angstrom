@@ -1,4 +1,4 @@
-use bincode::{config::standard, encode_into_slice, encode_to_vec, Decode, Encode};
+use bincode::{config::standard, encode_to_vec, Decode, Encode};
 use reth_network_peers::PeerId;
 use reth_primitives::keccak256;
 use secp256k1::SecretKey;

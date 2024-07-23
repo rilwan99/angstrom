@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use alloy_primitives::{aliases::U320, Uint, U160, U256};
+use alloy_primitives::{Uint, U160, U256};
 use malachite::{
     num::{
         arithmetic::traits::{CeilingRoot, DivRound, Pow, PowerOf2},
