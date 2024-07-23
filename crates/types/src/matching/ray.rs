@@ -10,6 +10,7 @@ use malachite::{
 };
 
 use super::{const_2_192, SqrtPriceX96};
+use crate::matching::const_1e27;
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Ray(U256);
 
@@ -58,8 +59,7 @@ impl From<f64> for Ray {
 impl From<&Ray> for f64 {
     fn from(value: &Ray) -> Self {
         let numerator = Natural::from_limbs_asc(value.0.as_limbs());
-        let denominator: Natural = Natural::from_sci_string("1e27").unwrap();
-        println!("Denominator: {:?}", denominator);
+        let denominator: Natural = const_1e27().clone();
         let price = Rational::from_naturals(numerator, denominator);
         let (res, _) = price.rounding_into(malachite::rounding_modes::RoundingMode::Floor);
         res
@@ -70,15 +70,9 @@ impl From<SqrtPriceX96> for Ray {
     fn from(value: SqrtPriceX96) -> Self {
         let p: U320 = value.widening_mul(*value);
 
-        let numerator =
-            Natural::from_limbs_asc(p.as_limbs()) * Natural::from_sci_string("1e27").unwrap();
+        let numerator = Natural::from_limbs_asc(p.as_limbs()) * const_1e27();
         let (res, _) =
             numerator.div_round(const_2_192(), malachite::rounding_modes::RoundingMode::Floor);
-        // let res = numerator / const_2_192();
-        // let denominator = Natural::power_of_2(192);
-        // let price = Rational::from_naturals(numerator, denominator);
-        // let (res, _): (Natural, _) =
-        //     price.rounding_into(malachite::rounding_modes::RoundingMode::Floor);
         let reslimbs = res.into_limbs_asc();
         let output: U256 = Uint::from_limbs_slice(&reslimbs);
         Self(output)

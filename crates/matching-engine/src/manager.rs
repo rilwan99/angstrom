@@ -1,6 +1,13 @@
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
-use angstrom_types::{consensus::PreProposal, orders::PoolSolution};
+use angstrom_types::{
+    consensus::PreProposal,
+    orders::PoolSolution,
+    sol_bindings::{
+        grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
+        sol::TopOfBlockOrder
+    }
+};
 use futures_util::FutureExt;
 use reth_tasks::TaskSpawner;
 use tokio::{
@@ -67,31 +74,24 @@ impl MatchingManager {
         &self,
         preproposals: Vec<PreProposal>
     ) -> Result<Vec<PoolSolution>, String> {
-        let mut book_sources = HashMap::new();
         // Pull all the orders out of all the preproposals and build OrderPools out of
-        // them This is ugly and inefficient right now
-        preproposals
-            .iter()
-            .flat_map(|p| p.limit.iter())
-            .for_each(|o| match book_sources.entry(o.pool_id) {
-                Entry::Vacant(e) => {
-                    e.insert(HashSet::from([o.clone()]));
-                }
-                Entry::Occupied(mut v) => {
-                    v.get_mut().insert(o.clone());
-                }
-            });
+        // them.  This is ugly and inefficient right now
+        let book_sources: HashMap<usize, HashSet<OrderWithStorageData<GroupedVanillaOrder>>> =
+            preproposals
+                .iter()
+                .flat_map(|p| p.limit.iter())
+                .cloned()
+                .fold(HashMap::new(), |mut acc, order| {
+                    acc.entry(order.pool_id).or_default().insert(order);
+                    acc
+                });
 
-        let mut searcher_orders = HashMap::new();
-        preproposals
+        let searcher_orders: HashMap<usize, OrderWithStorageData<TopOfBlockOrder>> = preproposals
             .iter()
             .flat_map(|p| p.searcher.iter())
-            .for_each(|o| {
-                // We're just taking the first searcher order we have here, this is not optimal
-                // at all
-                if let Entry::Vacant(e) = searcher_orders.entry(o.pool_id) {
-                    e.insert(o.clone());
-                }
+            .fold(HashMap::new(), |mut acc, order| {
+                acc.entry(order.pool_id).or_insert(order.clone());
+                acc
             });
 
         let books: Vec<OrderBook> = book_sources

@@ -237,34 +237,34 @@ impl<'a> VolumeFillMatcher<'a> {
                     Some(ref o) if o.is_bid => OrderContainer::Partial(o),
                     _ => {
                         amm_bid_order = self.try_next_order(OrderDirection::Bid);
-                        if let Some(o) = amm_bid_order.or_else(|| {
+                        let Some(o) = amm_bid_order.or_else(|| {
                             self.book
                                 .bids()
                                 .get(self.bid_idx.get())
                                 .map(OrderContainer::BookOrder)
-                        }) {
-                            o
-                        } else {
+                        }) else {
                             break;
-                        } // Break if there are no more valid bid orders to work
-                          // with
+                            // Break if there are no more valid bid orders to
+                            // work with
+                        };
+                        o
                     }
                 };
                 let ask = match self.current_partial {
                     Some(ref o) if !o.is_bid => OrderContainer::Partial(o),
                     _ => {
                         amm_ask_order = self.try_next_order(OrderDirection::Ask);
-                        if let Some(o) = amm_ask_order.or_else(|| {
+                        let Some(o) = amm_ask_order.or_else(|| {
                             self.book
                                 .asks()
                                 .get(self.ask_idx.get())
                                 .map(OrderContainer::BookOrder)
-                        }) {
-                            o
-                        } else {
+                        }) else {
                             break;
-                        } // Break if there are no more valid bid orders to work
-                          // with
+                            // Break if there are no more valid bid orders to
+                            // work with
+                        };
+                        o
                     }
                 };
 
