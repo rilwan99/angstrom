@@ -6,6 +6,8 @@ import {UintVec, VecLib} from "super-sol/collections/Vec.sol";
 import {UserOrder, OrderMeta} from "../../../src/reference/UserOrder.sol";
 import {TypedDataHasher} from "src/types/TypedDataHasher.sol";
 
+import {console2 as console} from "forge-std/console2.sol";
+
 struct Trader {
     uint256 key;
     address addr;
@@ -24,14 +26,15 @@ library TraderLib {
     uint256 internal constant _NEXT_NONCE_CACHE_SLOT =
         0x4ef60bdb50c7c20e080f0dbe0c461b46fed86729a8fde2574c4a51e10dac62ad;
 
-    function sign(Trader memory self, bytes32 hash) internal pure returns (uint8 v, bytes32 r, bytes32 s) {
+    function sign(Trader memory self, bytes32 hash) internal pure returns (bytes32 r, bytes32 s, uint8 v) {
         (v, r, s) = vm.sign(self.key, hash);
     }
 
     function sign(Trader memory self, UserOrder order, TypedDataHasher typedHasher) internal pure {
         bytes32 hash = order.hash712(typedHasher);
-        (uint8 v, bytes32 r, bytes32 s) = self.sign(hash);
-        order.setMeta(OrderMeta({from: self.addr, signature: abi.encodePacked(v, r, s)}));
+        (bytes32 r, bytes32 s, uint8 v) = self.sign(hash);
+        bytes memory sig = abi.encodePacked(r, s, v);
+        order.setMeta(OrderMeta({from: self.addr, signature: sig}));
     }
 
     function getFreshNonce(Trader memory self) internal pure returns (uint256 nonce) {

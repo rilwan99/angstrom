@@ -13,6 +13,8 @@ import {Asset} from "./types/Asset.sol";
 import {tuint256} from "transient-goodies/TransientPrimitives.sol";
 import {PriceGraphLib, PriceGraph, AssetIndex, Price} from "./types/PriceGraph.sol";
 import {GenericOrder, TopOfBlockOrderEnvelope, OrderType, OrderMode} from "./types/OrderTypes.sol";
+import {TypedDataHasher} from "./types/TypedDataHasher.sol";
+import {RefAdapaterLib} from "./types/RefAdapaterLib.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {SET_POOL_FEE, TICK_SPACING} from "./Constants.sol";
@@ -148,17 +150,18 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
     }
 
     function _validateAndExecuteOrders(Globals memory g, GenericOrder[] calldata orders) internal {
+        TypedDataHasher typedHasher = _erc712Hasher();
         for (uint256 i = 0; i < orders.length; i++) {
             GenericOrder calldata order = orders[i];
-            uint256 price = g.prices.get(order.assetOutIndex, order.assetInIndex);
-            if (price < order.minPrice) revert LimitViolated();
+            uint256 priceOutVsIn = g.prices.get(order.assetOutIndex, order.assetInIndex);
+            if (priceOutVsIn < order.minPrice) revert LimitViolated();
 
             address assetIn = g.get(order.assetInIndex);
             address assetOut = g.get(order.assetOutIndex);
             // The `.hash` method validates the `block.number` for flash orders.
-            bytes32 orderHash = order.hash(assetIn, assetOut);
+            bytes32 orderHash = typedHasher.hashTypedData(RefAdapaterLib.adaptHash(order, assetIn, assetOut));
 
-            if (!SignatureCheckerLib.isValidSignatureNow(order.from, _hashTypedData(orderHash), order.signature)) {
+            if (!SignatureCheckerLib.isValidSignatureNow(order.from, orderHash, order.signature)) {
                 revert InvalidSignature();
             }
 
@@ -178,13 +181,13 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
                 ) revert InvalidHookReturn();
             }
 
-            (uint256 amountIn, uint256 amountOut) = _getAmounts(order, price);
+            (uint256 amountIn, uint256 amountOut) = _getAmounts(order, priceOutVsIn);
             _accountIn(order.from, assetIn, amountIn);
             _accountOut(order.from, assetOut, amountOut);
         }
     }
 
-    function _getAmounts(GenericOrder calldata order, uint256 price)
+    function _getAmounts(GenericOrder calldata order, uint256 priceOutVsIn)
         internal
         view
         returns (uint256 amountIn, uint256 amountOut)
@@ -192,17 +195,17 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
         uint256 feeRay = halfSpreadRay;
         if (order.mode == OrderMode.ExactIn) {
             amountIn = order.amountSpecified;
-            amountOut = amountIn.divRay(price);
+            amountOut = amountIn.mulRay(priceOutVsIn);
             amountOut -= amountOut.mulRay(feeRay);
         } else if (order.mode == OrderMode.ExactOut) {
             amountOut = order.amountSpecified;
-            amountIn = amountOut.mulRay(price);
+            amountIn = amountOut.divRay(priceOutVsIn);
             amountIn += amountIn.mulRay(feeRay);
         } else if (order.mode == OrderMode.Partial) {
             amountIn = order.amountFilled;
             if (amountIn < order.minAmountIn) revert FillingTooLittle();
             if (amountIn > order.amountSpecified) revert FillingTooMuch();
-            amountOut = amountIn.divRay(price);
+            amountOut = amountIn.mulRay(priceOutVsIn);
             amountOut -= amountOut.mulRay(feeRay);
         } else {
             assert(false);

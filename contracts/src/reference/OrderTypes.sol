@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 import {AssetIndex} from "../types/PriceGraph.sol";
 import {GenericOrder, OrderMode, OrderType} from "../types/OrderTypes.sol";
 
+import {FormatLib} from "super-sol/libraries/FormatLib.sol";
+
 struct OrderMeta {
     address from;
     bytes signature;
@@ -72,6 +74,7 @@ struct TopOfBlockOrder {
     OrderMeta meta;
 }
 
+using OrdersLib for OrderMeta global;
 using OrdersLib for PartialStandingOrder global;
 using OrdersLib for ExactStandingOrder global;
 using OrdersLib for PartialFlashOrder global;
@@ -79,6 +82,8 @@ using OrdersLib for ExactFlashOrder global;
 using OrdersLib for TopOfBlockOrder global;
 
 library OrdersLib {
+    using FormatLib for *;
+
     /// forgefmt: disable-next-item
     bytes32 internal constant PARTIAL_STANDING_ORDER_TYPEHASH = keccak256(
         "PartialStandingOrder("
@@ -264,7 +269,7 @@ library OrdersLib {
     }
 
     function setGeneric(PartialFlashOrder memory o, GenericOrder memory g, address[] memory assets) internal pure {
-        g.otype = OrderType.Standing;
+        g.otype = OrderType.Flash;
         g.mode = OrderMode.Partial;
         g.minAmountIn = o.minAmountIn;
         g.amountSpecified = o.maxAmountIn;
@@ -279,7 +284,7 @@ library OrdersLib {
     }
 
     function setGeneric(ExactFlashOrder memory o, GenericOrder memory g, address[] memory assets) internal pure {
-        g.otype = OrderType.Standing;
+        g.otype = OrderType.Flash;
         g.mode = o.exactIn ? OrderMode.ExactIn : OrderMode.ExactOut;
         g.amountSpecified = o.amount;
         g.minPrice = o.minPrice;
@@ -289,6 +294,130 @@ library OrdersLib {
         _decodeHookData(g, o.hookData);
         g.from = o.meta.from;
         g.signature = o.meta.signature;
+    }
+
+    function toStr(PartialStandingOrder memory o) internal pure returns (string memory str) {
+        str = string.concat(
+            "PartialStandingOrder {",
+            "\n  minAmountIn: ",
+            o.minAmountIn.toStr(),
+            ",\n  maxAmountIn: ",
+            o.maxAmountIn.toStr(),
+            ",\n  minPrice: ",
+            o.minPrice.toStr(),
+            ",\n  assetIn: ",
+            o.assetIn.toStr(),
+            ",\n  assetOut: ",
+            o.assetOut.toStr(),
+            ",\n  recipient: "
+        );
+        str = string.concat(
+            str,
+            o.recipient.toStr(),
+            ",\n  hookData: ",
+            o.hookData.toStr(),
+            ",\n  nonce: ",
+            o.nonce.toStr(),
+            ",\n  deadline: ",
+            o.deadline.toStr(),
+            ",\n  amountFilled: ",
+            o.amountFilled.toStr(),
+            ",\n  meta: ",
+            o.meta.toStr(),
+            "\n}"
+        );
+    }
+
+    function toStr(ExactStandingOrder memory o) internal pure returns (string memory str) {
+        str = string.concat(
+            "ExactStandingOrder {",
+            "\n  exactIn: ",
+            o.exactIn.toStr(),
+            ",\n  amount: ",
+            o.amount.toStr(),
+            ",\n  minPrice: ",
+            o.minPrice.toStr(),
+            ",\n  assetIn: ",
+            o.assetIn.toStr(),
+            ",\n  assetOut: ",
+            o.assetOut.toStr()
+        );
+        str = string.concat(
+            str,
+            ",\n  recipient: ",
+            o.recipient.toStr(),
+            ",\n  hookData: ",
+            o.hookData.toStr(),
+            ",\n  nonce: ",
+            o.nonce.toStr(),
+            ",\n  deadline: ",
+            o.deadline.toStr(),
+            ",\n  meta: ",
+            o.meta.toStr(),
+            "\n}"
+        );
+    }
+
+    function toStr(PartialFlashOrder memory o) internal pure returns (string memory str) {
+        str = string.concat(
+            "PartialFlashOrder {",
+            "\n  minAmountIn: ",
+            o.minAmountIn.toStr(),
+            ",\n  maxAmountIn: ",
+            o.maxAmountIn.toStr(),
+            ",\n  minPrice: ",
+            o.minPrice.toStr(),
+            ",\n  assetIn: ",
+            o.assetIn.toStr(),
+            ",\n  assetOut: ",
+            o.assetOut.toStr()
+        );
+        str = string.concat(
+            str,
+            ",\n  recipient: ",
+            o.recipient.toStr(),
+            ",\n  hookData: ",
+            o.hookData.toStr(),
+            ",\n  validForBlock: ",
+            o.validForBlock.toStr(),
+            ",\n  amountFilled: ",
+            o.amountFilled.toStr(),
+            ",\n  meta: ",
+            o.meta.toStr(),
+            "\n}"
+        );
+    }
+
+    function toStr(ExactFlashOrder memory o) internal pure returns (string memory str) {
+        str = string.concat(
+            "ExactFlashOrder {",
+            "\n  exactIn: ",
+            o.exactIn.toStr(),
+            ",\n  amount: ",
+            o.amount.toStr(),
+            ",\n  minPrice: ",
+            o.minPrice.toStr(),
+            ",\n  assetIn: ",
+            o.assetIn.toStr(),
+            ",\n  assetOut: "
+        );
+        str = string.concat(
+            str,
+            o.assetOut.toStr(),
+            ",\n  recipient: ",
+            o.recipient.toStr(),
+            ",\n  hookData: ",
+            o.hookData.toStr(),
+            ",\n  validForBlock: ",
+            o.validForBlock.toStr(),
+            ",\n  meta: ",
+            o.meta.toStr(),
+            "\n}"
+        );
+    }
+
+    function toStr(OrderMeta memory meta) internal pure returns (string memory) {
+        return string.concat("OrderMeta {", " from: ", meta.from.toStr(), ", signature: ", meta.signature.toStr(), " }");
     }
 
     function _decodeHookData(GenericOrder memory g, bytes memory data) internal pure {

@@ -111,6 +111,21 @@ library UserOrderLib {
         }
     }
 
+    function toStr(UserOrder order) internal pure returns (string memory) {
+        OrderVariant variant = order.getVariant();
+        if (variant == OrderVariant.PartialStandingOrder) {
+            return _toPartialStandingFn(_toMemPtr)(order).toStr();
+        } else if (variant == OrderVariant.ExactStandingOrder) {
+            return _toExactStandingFn(_toMemPtr)(order).toStr();
+        } else if (variant == OrderVariant.PartialFlashOrder) {
+            return _toPartialFlashFn(_toMemPtr)(order).toStr();
+        } else if (variant == OrderVariant.ExactFlashOrder) {
+            return _toExactFlashFn(_toMemPtr)(order).toStr();
+        } else {
+            revert("Unimplemented variant");
+        }
+    }
+
     function _toPartialStandingFn(function(UserOrder) internal pure returns (bytes32) fnIn)
         private
         pure

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {AssetIndex} from "./PriceGraph.sol";
+import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 enum OrderMode {
     ExactIn,
@@ -16,6 +17,8 @@ enum OrderType {
     Standing
 }
 
+using OrderLib for OrderType global;
+
 struct GenericOrder {
     OrderType otype;
     OrderMode mode;
@@ -25,7 +28,7 @@ struct GenericOrder {
     AssetIndex assetInIndex;
     AssetIndex assetOutIndex;
     uint64 nonce;
-    uint256 deadline;
+    uint40 deadline;
     address recipient;
     address hook;
     bytes hookPayload;
@@ -51,38 +54,9 @@ struct TopOfBlockOrderEnvelope {
 using OrderLib for TopOfBlockOrderEnvelope global;
 
 library OrderLib {
+    using FormatLib for *;
+
     error CannotFlashloanZero();
-
-    /// forgefmt: disable-next-item
-    bytes32 internal constant STANDING_ORDER_TYPEHASH = keccak256(
-        "StandingOrder("
-           "string mode,"
-           "uint256 min_amount_in,"
-           "uint256 max_amount_in_or_out,"
-           "uint256 min_price,"
-           "address asset_in,"
-           "address asset_out,"
-           "address recipient,"
-           "bytes hook_data,"
-           "uint64 nonce,"
-           "uint256 deadline"
-        ")"
-    );
-
-    /// forgefmt: disable-next-item
-    bytes32 internal constant FLASH_ORDER_TYPEHASH = keccak256(
-        "FlashOrder("
-           "string mode,"
-           "uint256 min_amount_in,"
-           "uint256 max_amount_in_or_out,"
-           "uint256 min_price,"
-           "address asset_in,"
-           "address asset_out,"
-           "address recipient,"
-           "bytes hook_data,"
-           "uint64 valid_for_block"
-        ")"
-    );
 
     /// forgefmt: disable-next-item
     bytes32 internal constant TOP_OF_BLOCK_ORDER_TYPEHASH = keccak256(
@@ -98,44 +72,6 @@ library OrderLib {
            "uint256 validForBlock"
         ")"
     );
-
-    function hash(GenericOrder memory order, address assetIn, address assetOut) internal view returns (bytes32) {
-        if (order.otype == OrderType.Standing) {
-            return keccak256(
-                abi.encode(
-                    STANDING_ORDER_TYPEHASH,
-                    order.mode.hash(),
-                    order.minAmountIn,
-                    order.amountSpecified,
-                    order.minPrice,
-                    assetIn,
-                    assetOut,
-                    order.recipient,
-                    _hashHookData(order.hook, order.hookPayload),
-                    order.nonce,
-                    order.deadline
-                )
-            );
-        }
-        if (order.otype == OrderType.Flash) {
-            return keccak256(
-                abi.encode(
-                    FLASH_ORDER_TYPEHASH,
-                    order.mode.hash(),
-                    order.minAmountIn,
-                    order.amountSpecified,
-                    order.minPrice,
-                    assetIn,
-                    assetOut,
-                    order.recipient,
-                    _hashHookData(order.hook, order.hookPayload),
-                    block.number
-                )
-            );
-        }
-        assert(false);
-        return bytes32(0);
-    }
 
     function hash(TopOfBlockOrderEnvelope memory order, address assetIn, address assetOut)
         internal
@@ -156,18 +92,20 @@ library OrderLib {
         );
     }
 
-    function hash(OrderMode mode) internal pure returns (bytes32) {
-        if (mode == OrderMode.ExactIn) {
-            return keccak256("ExactIn");
-        }
-        if (mode == OrderMode.ExactOut) {
-            return keccak256("ExactOut");
-        }
-        if (mode == OrderMode.Partial) {
-            return keccak256("ExactOut");
-        }
-        assert(false);
-        return bytes32(0);
+    // function toStr(GenericOrder memory order) internal pure returns (string memory) {
+    // }
+
+    function toStr(OrderMode mode) internal pure returns (string memory) {
+        if (mode == OrderMode.ExactIn) return "OrderMode::ExactIn";
+        else if (mode == OrderMode.ExactOut) return "OrderMode::ExactOut";
+        else if (mode == OrderMode.Partial) return "OrderMode::Partial";
+        else revert("Unknown order mode variant");
+    }
+
+    function toStr(OrderType otype) internal pure returns (string memory) {
+        if (otype == OrderType.Flash) return "OrderType::Flash";
+        else if (otype == OrderType.Standing) return "OrderType::Standing";
+        else revert("Unknown order mode variant");
     }
 
     function _hashHookData(address hook, bytes memory hookPayload) internal pure returns (bytes32) {

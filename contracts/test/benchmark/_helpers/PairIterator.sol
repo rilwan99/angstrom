@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
+import {console2 as console} from "forge-std/console2.sol";
+
 struct Pair {
     address asset0;
     address asset1;
@@ -41,9 +43,17 @@ library PairIteratorLib {
         iter.assets = assets;
         iter.prices = prices;
         iter.orderCounts = orderCounts;
-        iter.asset0Index = 0;
-        iter.asset1Index = 1;
-        iter.pi = 0;
+        iter.reset();
+    }
+
+    function reset(PairIterator memory self) internal pure {
+        self.asset0Index = 0;
+        self.asset1Index = 1;
+        self.pi = 0;
+    }
+
+    function totalPairs(PairIterator memory self) internal pure returns (uint256) {
+        return self.prices.length;
     }
 
     function totalOrders(PairIterator memory self) internal pure returns (uint256 total) {
@@ -71,7 +81,7 @@ library PairIteratorLib {
     }
 
     function done(PairIterator memory self) internal pure returns (bool) {
-        return self.asset0Index + 1 == self.asset1Index && self.asset1Index + 1 == self.assets.length;
+        return self.asset0Index + 1 == self.asset1Index && self.asset1Index >= self.assets.length;
     }
 
     /**

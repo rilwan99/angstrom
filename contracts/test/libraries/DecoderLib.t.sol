@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {Test} from "forge-std/Test.sol";
+import {BaseTest} from "test/_helpers/BaseTest.sol";
 import {DecoderLib} from "src/libraries/DecoderLib.sol";
 import {PRNG} from "super-sol/collections/PRNG.sol";
 
@@ -13,7 +13,7 @@ import {Price, AssetIndex} from "src/types/PriceGraph.sol";
 import {GenericOrder, TopOfBlockOrderEnvelope, OrderType, OrderMode} from "src/types/OrderTypes.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract DecoderLibTest is Test {
+contract DecoderLibTest is BaseTest {
     uint256 constant MAX_RAND_LEN = 5;
 
     function test_fuzzing_unpacks(uint256 seed) public {
@@ -98,7 +98,7 @@ contract DecoderLibTest is Test {
             AssetIndex.wrap(rng.randuint16()),
             AssetIndex.wrap(rng.randuint16()),
             rng.randuint64(),
-            rng.next(),
+            u40(rng.next()),
             rng.randaddr(),
             rng.randaddr(),
             rng.randBytes(0, 200),

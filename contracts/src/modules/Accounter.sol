@@ -12,6 +12,8 @@ import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {ConversionLib} from "src/libraries/ConversionLib.sol";
 
+import {console2 as console} from "forge-std/console2.sol";
+
 struct PoolSwap {
     AssetIndex asset0Index;
     AssetIndex asset1Index;
@@ -71,9 +73,12 @@ abstract contract Accounter is UniConsumer {
             freeBalance[addr].dec(saving + settle);
             savedFees[addr] += saving;
             if (settle > 0) {
+                UNI_V4.sync(addr.intoC());
                 addr.safeTransfer(address(UNI_V4), settle);
                 UNI_V4.settle(addr.intoC());
             }
+
+            console.log("final excess [%s]: %s", addr, freeBalance[addr].get());
         }
     }
 

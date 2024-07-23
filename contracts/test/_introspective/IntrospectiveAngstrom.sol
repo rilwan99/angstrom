@@ -7,6 +7,10 @@ import {Angstrom} from "../../src/Angstrom.sol";
 contract IntrospectiveAngstrom is Angstrom {
     constructor(address uniV4PoolManager, address governance) Angstrom(uniV4PoolManager, governance) {}
 
+    function isNode(address addr) public view returns (bool) {
+        return _isNode[addr];
+    }
+
     function DOMAIN_SEPARATOR() external view returns (bytes32) {
         return _domainSeparator();
     }

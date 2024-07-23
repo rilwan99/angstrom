@@ -13,6 +13,7 @@ import {
     OrderMeta
 } from "../../src/reference/OrderTypes.sol";
 import {IntrospectiveAngstrom} from "../_introspective/IntrospectiveAngstrom.sol";
+import {TopOfBlockOrderEnvelope, PoolSwap, GenericOrder, PoolRewardsUpdate} from "src/Angstrom.sol";
 
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {UniV4Inspector} from "../_introspective/UniV4Inspector.sol";
@@ -22,12 +23,13 @@ import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
 import {RayMathLib} from "../../src/libraries/RayMathLib.sol";
 import {PairIterator, Pair, PairIteratorLib} from "./_helpers/PairIterator.sol";
 import {TypedDataHasher, TypedDataHasherLib} from "src/types/TypedDataHasher.sol";
+import {Asset} from "src/types/Asset.sol";
+import {Price, AssetIndex} from "src/types/PriceGraph.sol";
 
 import {PoolGate} from "../_helpers/PoolGate.sol";
 import {Trader} from "../_helpers/types/Trader.sol";
 import {PRNG} from "super-sol/collections/PRNG.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
-import {console2 as console} from "forge-std/console2.sol";
 
 /// @author philogy <https://github.com/philogy>
 contract UserOrderExecution is BaseTest, HookDeployer {
@@ -37,6 +39,8 @@ contract UserOrderExecution is BaseTest, HookDeployer {
 
     address gov = makeAddr("gov");
     address owner = makeAddr("owner");
+    address node = makeAddr("node");
+
     UniV4Inspector uniV4;
     PoolGate gate;
     IntrospectiveAngstrom angstrom;
@@ -73,13 +77,35 @@ contract UserOrderExecution is BaseTest, HookDeployer {
         angstrom = IntrospectiveAngstrom(addr);
 
         vm.warp(REAL_TIMESTAMP);
+
+        address[] memory nodes = new address[](1);
+        nodes[0] = node;
+        vm.prank(gov);
+        angstrom.updateNodes(nodes);
     }
 
-    struct WIPOrder {
+    mapping(uint256 => bool) usedIndices;
+    mapping(address trader => mapping(address asset => uint256)) traderTotals;
+
+    mapping(address => uint256) totalOuts;
+
+    struct test_gas1Vars {
+        PairIterator pairIter;
+        Trader[] traders;
+        UserOrder[] orders;
+        OrderMeta empty;
+        Asset[] assets;
+        Price[] prices;
+        Pair pair;
+        TypedDataHasher hasher;
+        uint256 amount0Cleared;
+        uint256 amount1Cleared;
         bool zeroToOne;
         uint256 refPrice;
         uint256 amountOut;
         uint256 amountIn;
+        address assetIn;
+        address assetOut;
         bool isFlash;
         uint256 minPrice;
         Trader trader;
@@ -87,108 +113,177 @@ contract UserOrderExecution is BaseTest, HookDeployer {
         uint256 minAmountIn;
         uint256 maxAmountIn;
         uint256 deadline;
+        GenericOrder[] finalOrders;
     }
 
-    mapping(uint256 => bool) internal usedIndices;
-
     function test_gas_execute_limit_1() public {
+        test_gas1Vars memory v;
         PRNG memory rng = _rng("exec_1");
 
-        PairIterator memory pairIter =
-            PairIteratorLib.init(assets, _randPrices(rng, TOTAL_PAIRS), _randOrderCounts(rng, TOTAL_PAIRS, 40, 75));
+        // Initialize random pairs with order counts.
+        v.pairIter =
+            PairIteratorLib.init(assets, _randPrices(rng, TOTAL_PAIRS), _randOrderCounts(rng, TOTAL_PAIRS, 12, 32));
+        v.orders = new UserOrder[](v.pairIter.totalOrders());
 
-        UserOrder[] memory orders = new UserOrder[](pairIter.totalOrders());
-        Trader[] memory traders = makeTraders(20);
-        OrderMeta memory empty;
+        // Initialize trader actors.
+        v.traders = makeTraders(TOTAL_ACTORS);
 
-        TypedDataHasher typedHasher = TypedDataHasherLib.init(angstrom.DOMAIN_SEPARATOR());
+        v.prices = new Price[](v.pairIter.prices.length);
+        v.hasher = TypedDataHasherLib.init(angstrom.DOMAIN_SEPARATOR());
+        v.finalOrders = new GenericOrder[](v.orders.length);
 
-        while (!pairIter.done()) {
-            Pair memory pair = pairIter.next();
-            for (uint256 i = 0; i < pair.orderCount; i++) {
-                uint256 oi = pair.orderOffset + i;
+        for (uint256 j = 0; j < v.pairIter.prices.length; j++) {
+            Price memory price = v.prices[j];
+            price.outIndex = AssetIndex.wrap(u16(v.pairIter.asset1Index));
+            price.inIndex = AssetIndex.wrap(u16(v.pairIter.asset0Index));
+            v.pair = v.pairIter.next(); // price = amount1 / amount0
+            price.price = v.pair.price;
+
+            v.amount0Cleared = 0;
+            v.amount1Cleared = 0;
+
+            for (uint256 i = 0; i < v.pair.orderCount; i++) {
+                uint256 oi = v.pair.orderOffset + i;
                 assertFalse(usedIndices[oi]);
                 usedIndices[oi] = true;
-                WIPOrder memory r;
-                r.zeroToOne = rng.randbool();
-                r.refPrice = r.zeroToOne ? pair.price : pair.price.invRay();
-                r.amountOut = rng.randuint((r.refPrice / 10).rayToWad(), (r.refPrice * 10).rayToWad());
-                r.amountIn = r.amountOut.divRay(r.refPrice);
-                r.isFlash = rng.randbool();
-                r.minPrice = r.refPrice.mulWad(rng.randuint(0.89e18, 1.0e18));
-                r.trader = traders[rng.randuint(traders.length)];
-                r.deadline = block.timestamp + 240 + rng.randuint(0, 3600);
 
-                r.p = rng.randuint(1e18);
-                if (r.p <= 0.4e18) {
-                    r.minAmountIn = r.amountIn.mulWad(rng.randuint(0.2e18, 1.0e18));
-                    r.maxAmountIn = r.amountIn.mulWad(rng.randuint(1.0e18, 10.0e18));
+                bool isLast = i == v.pair.orderCount - 1;
+                v.zeroToOne = isLast ? v.amount1Cleared < v.amount0Cleared.mulRay(v.pair.price) : rng.randbool();
+
+                v.refPrice = v.zeroToOne ? v.pair.price : v.pair.price.invRay(); // out / in
+                v.amountOut = isLast
+                    ? (
+                        v.zeroToOne
+                            ? v.amount0Cleared.mulRay(v.pair.price) - v.amount1Cleared
+                            : v.amount1Cleared.divRay(v.pair.price) - v.amount0Cleared
+                    )
+                    : rng.randuint((v.refPrice / 10).rayToWad(), (v.refPrice * 10).rayToWad());
+                v.amountIn = v.amountOut.divRay(v.refPrice);
+
+                if (v.zeroToOne) {
+                    v.amount1Cleared += v.amountOut;
+                } else {
+                    v.amount0Cleared += v.amountOut;
+                }
+
+                v.assetIn = v.zeroToOne ? v.pair.asset0 : v.pair.asset1;
+                v.assetOut = v.zeroToOne ? v.pair.asset1 : v.pair.asset0;
+
+                v.isFlash = rng.randbool();
+                v.minPrice = v.refPrice.mulWad(rng.randuint(0.89e18, 1.0e18));
+                v.trader = v.traders[rng.randuint(v.traders.length)];
+                v.deadline = block.timestamp + 240 + rng.randuint(0, 3600);
+                traderTotals[v.trader.addr][v.assetIn] += v.amountIn;
+
+                v.p = rng.randuint(1e18);
+                if (v.p <= 0.4e18) {
+                    v.minAmountIn = v.amountIn.mulWad(rng.randuint(0.2e18, 1.0e18));
+                    v.maxAmountIn = v.amountIn.mulWad(rng.randuint(1.0e18, 10.0e18));
                     // Partial order
-                    orders[oi] = r.isFlash
+                    v.orders[oi] = v.isFlash
                         ? UserOrderLib.from(
                             PartialFlashOrder({
-                                minAmountIn: r.minAmountIn,
-                                maxAmountIn: r.maxAmountIn,
-                                minPrice: r.minPrice,
-                                assetIn: r.zeroToOne ? pair.asset0 : pair.asset1,
-                                assetOut: r.zeroToOne ? pair.asset1 : pair.asset0,
-                                recipient: r.trader.addr,
+                                minAmountIn: v.minAmountIn,
+                                maxAmountIn: v.maxAmountIn,
+                                minPrice: v.minPrice,
+                                assetIn: v.assetIn,
+                                assetOut: v.assetOut,
+                                recipient: v.trader.addr,
                                 hookData: new bytes(0),
                                 validForBlock: u64(block.number),
-                                amountFilled: r.amountIn,
-                                meta: empty
+                                amountFilled: v.amountIn,
+                                meta: v.empty
                             })
                         )
                         : UserOrderLib.from(
                             PartialStandingOrder({
-                                minAmountIn: r.minAmountIn,
-                                maxAmountIn: r.maxAmountIn,
-                                minPrice: r.minPrice,
-                                assetIn: r.zeroToOne ? pair.asset0 : pair.asset1,
-                                assetOut: r.zeroToOne ? pair.asset1 : pair.asset0,
-                                recipient: r.trader.addr,
+                                minAmountIn: v.minAmountIn,
+                                maxAmountIn: v.maxAmountIn,
+                                minPrice: v.minPrice,
+                                assetIn: v.assetIn,
+                                assetOut: v.assetOut,
+                                recipient: v.trader.addr,
                                 hookData: new bytes(0),
-                                nonce: u64(r.trader.getFreshNonce()),
-                                deadline: u40(r.deadline),
-                                amountFilled: r.amountIn,
-                                meta: empty
+                                nonce: u64(v.trader.getFreshNonce()),
+                                deadline: u40(v.deadline),
+                                amountFilled: v.amountIn,
+                                meta: v.empty
                             })
                         );
                 } else {
-                    bool exactIn = r.p <= 0.7e18;
+                    bool exactIn = v.p <= 0.7e18;
                     // Exact in/out order
-                    orders[oi] = r.isFlash
+                    v.orders[oi] = v.isFlash
                         ? UserOrderLib.from(
                             ExactFlashOrder({
                                 exactIn: exactIn,
-                                amount: exactIn ? r.amountIn : r.amountOut,
-                                minPrice: r.minPrice,
-                                assetIn: r.zeroToOne ? pair.asset0 : pair.asset1,
-                                assetOut: r.zeroToOne ? pair.asset1 : pair.asset0,
-                                recipient: r.trader.addr,
+                                amount: exactIn ? v.amountIn : v.amountOut,
+                                minPrice: v.minPrice,
+                                assetIn: v.assetIn,
+                                assetOut: v.assetOut,
+                                recipient: v.trader.addr,
                                 hookData: new bytes(0),
                                 validForBlock: u64(block.number),
-                                meta: empty
+                                meta: v.empty
                             })
                         )
                         : UserOrderLib.from(
                             ExactStandingOrder({
                                 exactIn: exactIn,
-                                amount: exactIn ? r.amountIn : r.amountOut,
-                                minPrice: r.minPrice,
-                                assetIn: r.zeroToOne ? pair.asset0 : pair.asset1,
-                                assetOut: r.zeroToOne ? pair.asset1 : pair.asset0,
-                                recipient: r.trader.addr,
+                                amount: exactIn ? v.amountIn : v.amountOut,
+                                minPrice: v.minPrice,
+                                assetIn: v.assetIn,
+                                assetOut: v.assetOut,
+                                recipient: v.trader.addr,
                                 hookData: new bytes(0),
-                                nonce: u64(r.trader.getFreshNonce()),
-                                deadline: u40(r.deadline),
-                                meta: empty
+                                nonce: u64(v.trader.getFreshNonce()),
+                                deadline: u40(v.deadline),
+                                meta: v.empty
                             })
                         );
                 }
-                r.trader.sign(orders[oi], typedHasher);
+                v.trader.sign(v.orders[oi], v.hasher);
+                v.finalOrders[oi] = v.orders[oi].into(assets);
             }
+            totalOuts[v.pair.asset0] += v.amount0Cleared;
+            totalOuts[v.pair.asset1] += v.amount1Cleared;
         }
+        assertTrue(v.pairIter.done());
+
+        for (uint256 i = 0; i < v.traders.length; i++) {
+            address trader = v.traders[i].addr;
+            vm.startPrank(trader);
+            for (uint256 j = 0; j < assets.length; j++) {
+                address asset = assets[j];
+                MockERC20 erc20 = MockERC20(asset);
+                erc20.approve(address(angstrom), type(uint256).max);
+                erc20.mint(trader, traderTotals[trader][asset]);
+            }
+            vm.stopPrank();
+        }
+
+        v.assets = new Asset[](assets.length);
+        for (uint256 i = 0; i < assets.length; i++) {
+            address addr = assets[i];
+            Asset memory asset = v.assets[i];
+            asset.addr = addr;
+            asset.borrow = totalOuts[addr];
+            asset.save = 0;
+            asset.settle = totalOuts[addr];
+            gate.mint(addr, totalOuts[addr]);
+        }
+
+        vm.prank(node);
+        angstrom.execute(
+            abi.encode(
+                v.assets,
+                v.prices,
+                new TopOfBlockOrderEnvelope[](0),
+                new PoolSwap[](0),
+                v.finalOrders,
+                new PoolRewardsUpdate[](0)
+            )
+        );
     }
 
     function _rng(bytes32 seed) internal pure returns (PRNG memory) {

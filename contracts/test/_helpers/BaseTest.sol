@@ -24,6 +24,11 @@ contract BaseTest is Test {
         y = uint128(x);
     }
 
+    function u16(uint256 x) internal pure returns (uint16 y) {
+        assertLe(x, type(uint16).max, "Unsafe cast to uint16");
+        y = uint16(x);
+    }
+
     function u64(uint256 x) internal pure returns (uint64 y) {
         assertLe(x, type(uint64).max, "Unsafe cast to uint64");
         y = uint64(x);
