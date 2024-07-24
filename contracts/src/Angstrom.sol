@@ -29,6 +29,8 @@ import {IAngstromComposable} from "./interfaces/IAngstromComposable.sol";
 import {IUnlockCallback} from "v4-core/src/interfaces/callback/IUnlockCallback.sol";
 import {IPoolManager, IUniV4} from "./interfaces/IUniV4.sol";
 
+import {DiffMeter} from "super-sol/collections/GasMetering.sol";
+
 /// @author philogy <https://github.com/philogy>
 contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, NodeManager, IUnlockCallback {
     using RayMathLib for uint256;
@@ -72,23 +74,31 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
     }
 
     function unlockCallback(bytes calldata data) external override onlyUniV4 returns (bytes memory) {
+        DiffMeter meter = DiffMeter.wrap(gasleft());
         (
             Asset[] calldata assets,
             Price[] calldata initialPrices,
-            TopOfBlockOrderEnvelope[] calldata topOfBlockOrders,
-            PoolSwap[] calldata swaps,
+            /*TopOfBlockOrderEnvelope[] calldata topOfBlockOrders*/
+            ,
+            /*PoolSwap[] calldata swaps*/
+            ,
             GenericOrder[] calldata orders,
-            PoolRewardsUpdate[] calldata poolRewardsUpdates
+            /*PoolRewardsUpdate[] calldata poolRewardsUpdates*/
         ) = DecoderLib.unpack(data);
+        meter = meter.diffAndLog("DecoderLib.unpack: %s");
 
         Globals memory g = _validateAndInitGlobals(assets, initialPrices);
+        meter = meter.diffAndLog("_validateAndInitGlobals: %s");
 
         _borrowAssets(assets);
-        _execPoolSwaps(g, swaps);
-        _validateAndExecuteToB(g, topOfBlockOrders);
-        _rewardPools(g, poolRewardsUpdates);
+        meter = meter.diffAndLog("_borrowAssets: %s");
+        // _execPoolSwaps(g, swaps);
+        // _validateAndExecuteToB(g, topOfBlockOrders);
+        // _rewardPools(g, poolRewardsUpdates);
         _validateAndExecuteOrders(g, orders);
+        meter = meter.diffAndLog("_validateAndExecuteOrders: %s");
         _saveAndSettle(assets);
+        meter = meter.diffAndLog("_saveAndSettle: %s");
 
         return new bytes(0);
     }

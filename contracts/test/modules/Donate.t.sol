@@ -8,7 +8,7 @@ import {ConversionLib} from "../../src/libraries/ConversionLib.sol";
 
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {TICK_SPACING} from "../../src/Constants.sol";
-import {UniV4Inspector} from "../_introspective/UniV4Inspector.sol";
+import {UniV4Inspector} from "../_view-ext/UniV4Inspector.sol";
 import {MockERC20} from "super-sol/mocks/MockERC20.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {TickRangeMap} from "../_helpers/TickRangeMap.sol";

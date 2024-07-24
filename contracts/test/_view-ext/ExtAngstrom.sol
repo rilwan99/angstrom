@@ -4,8 +4,12 @@ pragma solidity ^0.8.24;
 import {Angstrom} from "../../src/Angstrom.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract IntrospectiveAngstrom is Angstrom {
+contract ExtAngstrom is Angstrom {
     constructor(address uniV4PoolManager, address governance) Angstrom(uniV4PoolManager, governance) {}
+
+    function updateLastBlock() public {
+        lastBlockUpdated = block.number;
+    }
 
     function isNode(address addr) public view returns (bool) {
         return _isNode[addr];

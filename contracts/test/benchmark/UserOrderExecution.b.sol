@@ -12,11 +12,11 @@ import {
     ExactFlashOrder,
     OrderMeta
 } from "../../src/reference/OrderTypes.sol";
-import {IntrospectiveAngstrom} from "../_introspective/IntrospectiveAngstrom.sol";
+import {ExtAngstrom} from "../_view-ext/ExtAngstrom.sol";
 import {TopOfBlockOrderEnvelope, PoolSwap, GenericOrder, PoolRewardsUpdate} from "src/Angstrom.sol";
 
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
-import {UniV4Inspector} from "../_introspective/UniV4Inspector.sol";
+import {UniV4Inspector} from "../_view-ext/UniV4Inspector.sol";
 import {MockERC20} from "super-sol/mocks/MockERC20.sol";
 import {HookDeployer} from "../_helpers/HookDeployer.sol";
 import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
@@ -31,6 +31,8 @@ import {Trader} from "../_helpers/types/Trader.sol";
 import {PRNG} from "super-sol/collections/PRNG.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
+import {console2 as console} from "forge-std/console2.sol";
+
 /// @author philogy <https://github.com/philogy>
 contract UserOrderExecution is BaseTest, HookDeployer {
     using FormatLib for *;
@@ -43,13 +45,13 @@ contract UserOrderExecution is BaseTest, HookDeployer {
 
     UniV4Inspector uniV4;
     PoolGate gate;
-    IntrospectiveAngstrom angstrom;
+    ExtAngstrom angstrom;
 
     uint256 constant TOTAL_ASSETS = 4;
     uint256 constant TOTAL_PAIRS = TOTAL_ASSETS * (TOTAL_ASSETS - 1) / 2;
     address[] assets;
 
-    uint256 constant TOTAL_ACTORS = 20;
+    uint256 constant TOTAL_ACTORS = 1_000;
 
     function setUp() public {
         for (uint256 i = 0; i < TOTAL_ASSETS; i++) {
@@ -69,12 +71,12 @@ contract UserOrderExecution is BaseTest, HookDeployer {
         vm.stopPrank();
 
         (bool succ, address addr,) = deployHook(
-            abi.encodePacked(type(IntrospectiveAngstrom).creationCode, abi.encode(address(uniV4), gov)),
+            abi.encodePacked(type(ExtAngstrom).creationCode, abi.encode(address(uniV4), gov)),
             _angstromFlags(),
             _newFactory()
         );
         assertTrue(succ, "Failed to deploy angstrom");
-        angstrom = IntrospectiveAngstrom(addr);
+        angstrom = ExtAngstrom(addr);
 
         vm.warp(REAL_TIMESTAMP);
 
@@ -117,6 +119,11 @@ contract UserOrderExecution is BaseTest, HookDeployer {
     }
 
     function test_gas_execute_limit_1() public {
+        vm.pauseGasMetering();
+
+        angstrom.updateLastBlock();
+        vm.roll(block.number + 1);
+
         test_gas1Vars memory v;
         PRNG memory rng = _rng("exec_1");
 
@@ -273,17 +280,28 @@ contract UserOrderExecution is BaseTest, HookDeployer {
             gate.mint(addr, totalOuts[addr]);
         }
 
-        vm.prank(node);
-        angstrom.execute(
-            abi.encode(
-                v.assets,
-                v.prices,
-                new TopOfBlockOrderEnvelope[](0),
-                new PoolSwap[](0),
-                v.finalOrders,
-                new PoolRewardsUpdate[](0)
-            )
+        bytes memory payload = abi.encode(
+            v.assets,
+            v.prices,
+            new TopOfBlockOrderEnvelope[](0),
+            new PoolSwap[](0),
+            v.finalOrders,
+            new PoolRewardsUpdate[](0)
         );
+
+        uint256 zeros;
+        uint256 nonZeros;
+        for (uint256 i = 0; i < payload.length; i++) {
+            payload[i] == 0x00 ? zeros++ : nonZeros++;
+        }
+
+        console.log("totalOrders: %s\n", v.finalOrders.length);
+        console.log("calldata cost: %s (%s, %s)", zeros * 4 + nonZeros * 16, zeros, nonZeros);
+
+        vm.resumeGasMetering();
+
+        vm.prank(node);
+        angstrom.execute(payload);
     }
 
     function _rng(bytes32 seed) internal pure returns (PRNG memory) {

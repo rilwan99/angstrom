@@ -77,8 +77,6 @@ abstract contract Accounter is UniConsumer {
                 addr.safeTransfer(address(UNI_V4), settle);
                 UNI_V4.settle(addr.intoC());
             }
-
-            console.log("final excess [%s]: %s", addr, freeBalance[addr].get());
         }
     }
 
