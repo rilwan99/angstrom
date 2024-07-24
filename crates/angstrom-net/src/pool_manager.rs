@@ -18,7 +18,9 @@ use angstrom_types::{
     }
 };
 use futures::{future::BoxFuture, stream::FuturesUnordered, Future, StreamExt};
-use order_pool::{OrderIndexer, OrderPoolHandle, PoolConfig, PoolInnerEvent};
+use order_pool::{
+    order_storage::OrderStorage, OrderIndexer, OrderPoolHandle, PoolConfig, PoolInnerEvent
+};
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_network_peers::PeerId;
 use reth_primitives::{TxHash, B256};
@@ -29,7 +31,7 @@ use tokio::sync::{
     oneshot
 };
 use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
-use validation::order::OrderValidatorHandle;
+use validation::order::{self, OrderValidatorHandle};
 
 use crate::{
     LruCache, NetworkOrderEvent, ReputationChangeKind, StromMessage, StromNetworkEvent,
@@ -48,10 +50,7 @@ pub struct PoolHandle {
 #[derive(Debug)]
 pub enum OrderCommand {
     // new orders
-    NewOrder(OrderOrigin, AllOrders),
-    // fetch orders
-    FetchAllVanillaOrders(oneshot::Sender<OrderSet<GroupedVanillaOrder, TopOfBlockOrder>>) /* FetchAllComposableOrders(oneshot::Sender<OrderSet<CL, CS>>, Option<usize>),
-                                                                                            * FetchAllOrders(oneshot::Sender<AllOrders<L, S, CL, CS>>, Option<usize>) */
+    NewOrder(OrderOrigin, AllOrders)
 }
 
 impl PoolHandle {
@@ -69,37 +68,6 @@ impl OrderPoolHandle for PoolHandle {
     fn new_order(&self, origin: OrderOrigin, order: AllOrders) {
         self.send(OrderCommand::NewOrder(origin, order))
     }
-
-    fn get_all_vanilla_orders(&self) -> BoxFuture<OrderSet<GroupedVanillaOrder, TopOfBlockOrder>> {
-        Box::pin(async move {
-            let (tx, rx) = oneshot::channel();
-            self.send_request(rx, OrderCommand::FetchAllVanillaOrders(tx))
-                .await
-        })
-    }
-
-    // fn get_all_composable_orders(
-    //     &self
-    // ) -> BoxFuture<OrderSet<Self::ComposableLimitOrder,
-    // Self::ComposableSearcherOrder>> {     Box::pin(async move {
-    //         let (tx, rx) = oneshot::channel();
-    //         self.send_request(rx, OrderCommand::FetchAllComposableOrders(tx,
-    // None))             .await
-    //     })
-    // }
-
-    // fn get_all_orders(
-    //     &self
-    // ) -> BoxFuture<
-    //     AllOrders<
-    //         Self::LimitOrder,
-    //         Self::SearcherOrder,
-    //         Self::ComposableLimitOrder,
-    //         Self::ComposableSearcherOrder
-    //     >
-    // > { Box::pin(async move { let (tx, rx) = oneshot::channel();
-    // > self.send_request(rx, OrderCommand::FetchAllOrders(tx, None)) .await })
-    // }
 }
 
 pub struct PoolManagerBuilder<V>
@@ -107,6 +75,7 @@ where
     V: OrderValidatorHandle
 {
     validator:            V,
+    order_storage:        Option<Arc<OrderStorage>>,
     network_handle:       StromNetworkHandle,
     strom_network_events: UnboundedReceiverStream<StromNetworkEvent>,
     eth_network_events:   UnboundedReceiverStream<EthEvent>,
@@ -120,6 +89,7 @@ where
 {
     pub fn new(
         validator: V,
+        order_storage: Option<Arc<OrderStorage>>,
         network_handle: StromNetworkHandle,
         eth_network_events: UnboundedReceiverStream<EthEvent>,
         order_events: UnboundedMeteredReceiver<NetworkOrderEvent>
@@ -130,12 +100,18 @@ where
             strom_network_events: network_handle.subscribe_network_events(),
             network_handle,
             validator,
+            order_storage,
             config: Default::default()
         }
     }
 
     pub fn with_config(mut self, config: PoolConfig) -> Self {
         self.config = config;
+        self
+    }
+
+    pub fn with_storage(mut self, order_storage: Arc<OrderStorage>) -> Self {
+        self.order_storage.insert(order_storage);
         self
     }
 
@@ -146,20 +122,24 @@ where
         rx: UnboundedReceiver<OrderCommand>
     ) -> PoolHandle {
         let rx = UnboundedReceiverStream::new(rx);
+        let order_storage = self
+            .order_storage
+            .unwrap_or_else(|| Arc::new(OrderStorage::new(&self.config)));
         let handle = PoolHandle { manager_tx: tx.clone() };
-        let inner = OrderIndexer::new(self.validator, self.config, 0);
+        let inner = OrderIndexer::new(self.validator, order_storage.clone(), 0);
 
         task_spawner.spawn_critical(
             "transaction manager",
             Box::pin(PoolManager {
-                eth_network_events:   self.eth_network_events,
+                eth_network_events: self.eth_network_events,
                 strom_network_events: self.strom_network_events,
-                order_events:         self.order_events,
-                peers:                HashMap::default(),
-                order_sorter:         inner,
-                network:              self.network_handle,
-                _command_tx:          tx,
-                command_rx:           rx
+                order_events: self.order_events,
+                order_storage,
+                peers: HashMap::default(),
+                order_sorter: inner,
+                network: self.network_handle,
+                _command_tx: tx,
+                command_rx: rx
             })
         );
 
@@ -169,20 +149,24 @@ where
     pub fn build<TP: TaskSpawner>(self, task_spawner: TP) -> PoolHandle {
         let (tx, rx) = unbounded_channel();
         let rx = UnboundedReceiverStream::new(rx);
+        let order_storage = self
+            .order_storage
+            .unwrap_or_else(|| Arc::new(OrderStorage::new(&self.config)));
         let handle = PoolHandle { manager_tx: tx.clone() };
-        let inner = OrderIndexer::new(self.validator, self.config, 0);
+        let inner = OrderIndexer::new(self.validator, order_storage.clone(), 0);
 
         task_spawner.spawn_critical(
             "transaction manager",
             Box::pin(PoolManager {
-                eth_network_events:   self.eth_network_events,
+                eth_network_events: self.eth_network_events,
                 strom_network_events: self.strom_network_events,
-                order_events:         self.order_events,
-                peers:                HashMap::default(),
-                order_sorter:         inner,
-                network:              self.network_handle,
-                _command_tx:          tx,
-                command_rx:           rx
+                order_events: self.order_events,
+                order_storage,
+                peers: HashMap::default(),
+                order_sorter: inner,
+                network: self.network_handle,
+                _command_tx: tx,
+                command_rx: rx
             })
         );
 
@@ -196,6 +180,8 @@ where
 {
     /// access to validation and sorted storage of orders.
     order_sorter:         OrderIndexer<V>,
+    /// Shared order storage object
+    order_storage:        Arc<OrderStorage>,
     /// Network access.
     network:              StromNetworkHandle,
     /// Subscriptions to all the strom-network related events.
@@ -226,12 +212,14 @@ where
         eth_network_events: UnboundedReceiverStream<EthEvent>,
         _command_tx: UnboundedSender<OrderCommand>,
         command_rx: UnboundedReceiverStream<OrderCommand>,
-        order_events: UnboundedMeteredReceiver<NetworkOrderEvent>
+        order_events: UnboundedMeteredReceiver<NetworkOrderEvent>,
+        order_storage: Arc<OrderStorage>
     ) -> Self {
         Self {
             strom_network_events,
             network,
             order_sorter,
+            order_storage,
             peers: HashMap::new(),
             order_events,
             command_rx,
@@ -243,10 +231,6 @@ where
     fn on_command(&mut self, cmd: OrderCommand) {
         match cmd {
             OrderCommand::NewOrder(origin, order) => {}
-            OrderCommand::FetchAllVanillaOrders(tx) => {
-                tx.send(self.order_sorter.get_all_orders());
-            }
-            _ => {}
         }
     }
 

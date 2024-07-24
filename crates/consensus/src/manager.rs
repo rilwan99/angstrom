@@ -7,7 +7,7 @@ use angstrom_network::{manager::StromConsensusEvent, StromMessage, StromNetworkH
 use angstrom_types::consensus::PreProposal;
 use futures::{FutureExt, Stream, StreamExt};
 use matching_engine::MatchingEngineHandle;
-use order_pool::OrderPoolHandle;
+use order_pool::order_storage::OrderStorage;
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_provider::{CanonStateNotification, CanonStateNotifications};
 use reth_tasks::TaskSpawner;
@@ -26,15 +26,14 @@ use crate::{
     ConsensusListener, ConsensusMessage, ConsensusState, ConsensusUpdater
 };
 
-pub async fn manager_thread<OrderPool, Matcher, Validator>(
+pub async fn manager_thread<Matcher, Validator>(
     globalstate: Arc<Mutex<GlobalConsensusState>>,
     netdeps: ManagerNetworkDeps,
     signer: Signer,
-    orderpool: OrderPool,
+    order_storage: Arc<OrderStorage>,
     matcher: Matcher,
     validator: Validator
 ) where
-    OrderPool: OrderPoolHandle,
     Matcher: MatchingEngineHandle,
     Validator: BundleValidator
 {
@@ -60,7 +59,7 @@ pub async fn manager_thread<OrderPool, Matcher, Validator>(
         network,
         roundrobin,
         signer,
-        orderpool,
+        order_storage,
         matcher,
         canonical_block_stream: wrapped_broadcast_stream
     };
@@ -88,7 +87,7 @@ pub async fn manager_thread<OrderPool, Matcher, Validator>(
 }
 
 #[allow(unused)]
-pub struct ConsensusManager<OrderPool, Matcher, Validator> {
+pub struct ConsensusManager<Matcher, Validator> {
     // core: ConsensusCore,
     /// keeps track of the current round state
     roundstate:             RoundState,
@@ -101,11 +100,11 @@ pub struct ConsensusManager<OrderPool, Matcher, Validator> {
     strom_consensus_event:  UnboundedMeteredReceiver<StromConsensusEvent>,
     network:                StromNetworkHandle,
 
-    roundrobin: RoundRobinAlgo,
-    signer:     Signer,
-    orderpool:  OrderPool,
-    matcher:    Matcher,
-    validator:  Validator
+    roundrobin:    RoundRobinAlgo,
+    signer:        Signer,
+    order_storage: Arc<OrderStorage>,
+    matcher:       Matcher,
+    validator:     Validator
 }
 
 pub struct ManagerNetworkDeps {
@@ -128,9 +127,8 @@ impl ManagerNetworkDeps {
     }
 }
 
-impl<OrderPool, Matcher, Validator> ConsensusManager<OrderPool, Matcher, Validator>
+impl<Matcher, Validator> ConsensusManager<Matcher, Validator>
 where
-    OrderPool: OrderPoolHandle,
     Matcher: MatchingEngineHandle,
     Validator: BundleValidator
 {
@@ -139,21 +137,21 @@ where
         globalstate: Arc<Mutex<GlobalConsensusState>>,
         netdeps: ManagerNetworkDeps,
         signer: Signer,
-        orderpool: OrderPool,
+        order_storage: Arc<OrderStorage>,
         matcher: Matcher,
         validator: Validator
     ) -> ConsensusHandle {
         let tx = netdeps.tx.clone();
         let fut =
-            manager_thread(globalstate, netdeps, signer, orderpool, matcher, validator).boxed();
+            manager_thread(globalstate, netdeps, signer, order_storage, matcher, validator).boxed();
 
         tp.spawn_critical("consensus", fut);
 
         ConsensusHandle { sender: tx }
     }
 
-    async fn send_preproposal(&mut self) {
-        let orders = self.orderpool.get_all_vanilla_orders().await;
+    fn send_preproposal(&mut self) {
+        let orders = self.order_storage.get_all_orders();
         let preproposal =
             PreProposal::new(0, &self.signer.key, alloy_primitives::FixedBytes::default(), orders);
         tracing::info!("Sending out preproposal");
@@ -198,7 +196,7 @@ where
         // Depending on what state we moved into, we might have some work to do
         match new_state {
             // Send out our preproposal if we entered PreProposal state
-            ConsensusState::PreProposal => self.send_preproposal().await,
+            ConsensusState::PreProposal => self.send_preproposal(),
             // Send out our Proposal if we're the leader and we entered Proposal state
             ConsensusState::Proposal => {
                 if self.roundstate.is_leader() {

@@ -1,4 +1,4 @@
-use std::{pin::Pin, task::Poll, time::Duration};
+use std::{pin::Pin, sync::Arc, task::Poll, time::Duration};
 
 use angstrom::cli::DefaultPoolHandle;
 use angstrom_eth::manager::EthEvent;
@@ -7,7 +7,7 @@ use angstrom_network::{
     NetworkOrderEvent, StromNetworkEvent, StromNetworkHandle
 };
 use futures::{future::poll_fn, Future, FutureExt};
-use order_pool::{OrderIndexer, PoolConfig};
+use order_pool::{order_storage::OrderStorage, OrderIndexer, PoolConfig};
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -39,7 +39,8 @@ impl TestnetOrderPool {
         let (tx, rx) = unbounded_channel();
         let rx = UnboundedReceiverStream::new(rx);
         let handle = PoolHandle { manager_tx: tx.clone() };
-        let inner = OrderIndexer::new(validator, config, block_number);
+        let order_storage = Arc::new(OrderStorage::new(&config));
+        let inner = OrderIndexer::new(validator, order_storage.clone(), block_number);
 
         Self {
             pool_manager: PoolManager::new(
@@ -49,7 +50,8 @@ impl TestnetOrderPool {
                 eth_network_events,
                 tx,
                 rx,
-                order_events
+                order_events,
+                order_storage
             ),
             pool_handle:  handle
         }

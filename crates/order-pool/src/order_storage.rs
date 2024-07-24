@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    fmt::Debug,
+    sync::{Arc, Mutex}
+};
 
 use alloy_primitives::FixedBytes;
 use angstrom_types::{
@@ -22,6 +25,13 @@ pub struct OrderStorage {
     pub limit_orders:                Arc<Mutex<LimitOrderPool>>,
     pub searcher_orders:             Arc<Mutex<SearcherPool>>,
     pub pending_finalization_orders: Arc<Mutex<FinalizationPool>>
+}
+
+impl Debug for OrderStorage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Simplified implementation for the moment
+        write!(f, "OrderStorage")
+    }
 }
 
 impl OrderStorage {

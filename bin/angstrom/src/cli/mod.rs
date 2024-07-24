@@ -6,6 +6,7 @@ use std::{
 
 use angstrom_network::manager::StromConsensusEvent;
 use matching_engine::MatchingManager;
+use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_node_builder::{FullNode, NodeHandle};
 use secp256k1::{PublicKey, Secp256k1};
 use tokio::sync::mpsc::{
@@ -188,12 +189,22 @@ pub fn initialize_strom_components<Node: FullNodeComponents>(
         eth_handle.subscribe_network_stream()
     );
 
-    let pool_handle = PoolManagerBuilder::new(
+    // Create our pool config
+    let pool_config = PoolConfig::default();
+
+    // Create order storage based on that config
+    let order_storage = Arc::new(OrderStorage::new(&pool_config));
+
+    // Build our PoolManager using the PoolConfig and OrderStorage we've already
+    // created
+    let _pool_handle = PoolManagerBuilder::new(
         validator.clone(),
+        Some(order_storage.clone()),
         network_handle.clone(),
         eth_handle.subscribe_network(),
         handles.pool_rx
     )
+    .with_config(pool_config)
     .build_with_channels(executor.clone(), handles.orderpool_tx, handles.orderpool_rx);
 
     let signer = Signer::default();
@@ -213,7 +224,7 @@ pub fn initialize_strom_components<Node: FullNodeComponents>(
             handles.consensus_rx
         ),
         signer,
-        pool_handle.clone(),
+        order_storage.clone(),
         matcher_handle.clone(),
         validator.clone()
     );
