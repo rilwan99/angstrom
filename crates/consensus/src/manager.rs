@@ -4,21 +4,27 @@ use std::{
 };
 
 use angstrom_network::{manager::StromConsensusEvent, StromMessage, StromNetworkHandle};
-use angstrom_types::consensus::PreProposal;
+use angstrom_types::{
+    consensus::{PreProposal, Proposal},
+    orders::PoolSolution
+};
 use futures::{FutureExt, Stream, StreamExt};
-use matching_engine::MatchingEngineHandle;
+use matching_engine::{MatchingEngineHandle, MatchingManager};
 use order_pool::order_storage::OrderStorage;
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_provider::{CanonStateNotification, CanonStateNotifications};
 use reth_tasks::TaskSpawner;
 use tokio::{
     select,
-    sync::mpsc::{channel, Receiver, Sender}
+    sync::mpsc::{channel, Receiver, Sender},
+    task::JoinSet
 };
 use tokio_stream::wrappers::{BroadcastStream, ReceiverStream};
+use tracing::{error, warn};
 use validation::BundleValidator;
 
 use crate::{
+    cache::ProposalCache,
     global::GlobalConsensusState,
     round::{Leader, RoundState, RoundStateTimings},
     round_robin_algo::RoundRobinAlgo,
@@ -26,17 +32,17 @@ use crate::{
     ConsensusListener, ConsensusMessage, ConsensusState, ConsensusUpdater
 };
 
-pub async fn manager_thread<Matcher, Validator>(
+enum ConsensusTaskResult {
+    BuiltProposal(Proposal),
+    ValidationSolutions { height: u64, solutions: Vec<PoolSolution> }
+}
+
+pub async fn manager_thread(
     globalstate: Arc<Mutex<GlobalConsensusState>>,
     netdeps: ManagerNetworkDeps,
     signer: Signer,
-    order_storage: Arc<OrderStorage>,
-    matcher: Matcher,
-    validator: Validator
-) where
-    Matcher: MatchingEngineHandle,
-    Validator: BundleValidator
-{
+    order_storage: Arc<OrderStorage>
+) {
     let ManagerNetworkDeps { network, canonical_block_stream, strom_consensus_event, rx, .. } =
         netdeps;
     let stream = ReceiverStream::new(rx);
@@ -49,10 +55,11 @@ pub async fn manager_thread<Matcher, Validator>(
     let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
     // Use our default round robin algo
     let (roundrobin, _cacheheight) = RoundRobinAlgo::new();
+    let tasks: JoinSet<ConsensusTaskResult> = JoinSet::new();
+    let cache = ProposalCache::new();
 
     let mut manager = ConsensusManager {
         strom_consensus_event,
-        validator,
         roundstate,
         globalstate,
         subscribers: Vec::new(),
@@ -61,13 +68,25 @@ pub async fn manager_thread<Matcher, Validator>(
         roundrobin,
         signer,
         order_storage,
-        matcher,
+        tasks,
+        cache,
         canonical_block_stream: wrapped_broadcast_stream
     };
 
     // Start message loop
     loop {
         select! {
+            Some(msg) = manager.tasks.join_next() => {
+                match msg {
+                    Ok(task_result) => manager.on_task_complete(task_result),
+                    Err(e) => {
+                        // Don't log an error if we cancelled the task, that error is expected
+                        if !e.is_cancelled() {
+                            tracing::error!("Task error: {}", e)
+                        }
+                    }
+                }
+            },
             Some(msg) = manager.command.next() => {
                 manager.on_command(msg);
             },
@@ -87,8 +106,15 @@ pub async fn manager_thread<Matcher, Validator>(
     }
 }
 
+pub async fn build_proposal_task(
+    preproposals: Vec<PreProposal>
+) -> Result<Vec<PoolSolution>, String> {
+    let matcher = MatchingManager {};
+    matcher.build_proposal(preproposals).await
+}
+
 #[allow(unused)]
-pub struct ConsensusManager<Matcher, Validator> {
+pub struct ConsensusManager {
     // core: ConsensusCore,
     /// keeps track of the current round state
     roundstate:             RoundState,
@@ -104,8 +130,8 @@ pub struct ConsensusManager<Matcher, Validator> {
     roundrobin:    RoundRobinAlgo,
     signer:        Signer,
     order_storage: Arc<OrderStorage>,
-    matcher:       Matcher,
-    validator:     Validator
+    cache:         ProposalCache,
+    tasks:         JoinSet<ConsensusTaskResult>
 }
 
 pub struct ManagerNetworkDeps {
@@ -128,23 +154,16 @@ impl ManagerNetworkDeps {
     }
 }
 
-impl<Matcher, Validator> ConsensusManager<Matcher, Validator>
-where
-    Matcher: MatchingEngineHandle,
-    Validator: BundleValidator
-{
+impl ConsensusManager {
     pub fn spawn<TP: TaskSpawner>(
         tp: TP,
         globalstate: Arc<Mutex<GlobalConsensusState>>,
         netdeps: ManagerNetworkDeps,
         signer: Signer,
-        order_storage: Arc<OrderStorage>,
-        matcher: Matcher,
-        validator: Validator
+        order_storage: Arc<OrderStorage>
     ) -> ConsensusHandle {
         let tx = netdeps.tx.clone();
-        let fut =
-            manager_thread(globalstate, netdeps, signer, order_storage, matcher, validator).boxed();
+        let fut = manager_thread(globalstate, netdeps, signer, order_storage).boxed();
 
         tp.spawn_critical("consensus", fut);
 
@@ -165,18 +184,42 @@ where
         self.broadcast(ConsensusMessage::PrePropose(preproposal));
     }
 
-    async fn send_proposal(&mut self) {
+    /// Start the Build Proposal job to produce a signed Proposal out of this
+    /// round's preproposals
+    fn start_build_proposal(&mut self) {
         let preproposals = self.roundstate.get_preproposals();
-        let solutions = self
-            .matcher
-            .solve_pools(preproposals.clone())
-            .await
-            .unwrap();
-        let proposal = self
-            .signer
-            .sign_proposal(self.roundstate.current_height(), preproposals, solutions)
-            .unwrap();
-        tracing::info!("Sending out proposal");
+        let signer = self.signer.clone();
+        let ethereum_block = self.roundstate.current_height();
+        let build_handle = self.tasks.spawn(async move {
+            let solutions = build_proposal_task(preproposals.clone()).await.unwrap();
+            let proposal = signer
+                .sign_proposal(ethereum_block, preproposals, solutions)
+                .unwrap();
+            ConsensusTaskResult::BuiltProposal(proposal)
+        });
+        self.roundstate.on_proposal(build_handle);
+    }
+
+    /// Start to verify our proposal.  This method will return `false` if the
+    /// proposal fails signature verification.  Presuming signature verification
+    /// is passed, this proposal will be stored in our Proposal Store and a task
+    /// will be launched to verify the solutions produced within the proposal
+    fn start_verify_proposal(&mut self, proposal: &Proposal) -> bool {
+        if proposal.validate() {
+            let preproposals = proposal.preproposals().clone();
+            let height = proposal.ethereum_height;
+            self.tasks.spawn(async move {
+                let solutions = build_proposal_task(preproposals).await.unwrap();
+                ConsensusTaskResult::ValidationSolutions { height, solutions }
+            });
+            // We've passed basic validation so we can return true here
+            return true;
+        }
+        false
+    }
+
+    /// Send a built proposal out over the network
+    fn broadcast_proposal(&mut self, proposal: Proposal) {
         self.network
             .broadcast_tx(StromMessage::Propose(proposal.clone()));
         self.broadcast(ConsensusMessage::Proposal(proposal));
@@ -185,6 +228,39 @@ where
     fn on_command(&mut self, command: ConsensusCommand) {
         match command {
             ConsensusCommand::Subscribe(sender) => self.subscribers.push(sender)
+        }
+    }
+
+    /// Respond to the messages our spawned tasks pass back when complete
+    fn on_task_complete(&mut self, task_result: ConsensusTaskResult) {
+        match task_result {
+            ConsensusTaskResult::ValidationSolutions { height, solutions } => {
+                warn!("Finished validation job");
+                // Get the proposal for that height
+                let Some(proposal) = self.cache.get(height) else {
+                    error!(
+                        "Built solutions for a proposal that we don't have in our cache: {}",
+                        height
+                    );
+                    return;
+                };
+
+                // Match the solutions
+                if proposal.solutions != solutions {
+                    warn!("Proposal for {} failed validation with non-matching signatures", height);
+                    return;
+                }
+                // Prepare our commit messge
+                let commit = self.signer.sign_commit(height, proposal).unwrap(); // I don't think this can actually fail, validate
+
+                // Then, broadcast our Commit message to all local subscribers and the network
+                self.network
+                    .broadcast_tx(StromMessage::Commit(Box::new(commit.clone())));
+                self.broadcast(ConsensusMessage::Commit(Box::new(commit)));
+            }
+            ConsensusTaskResult::BuiltProposal(p) => {
+                self.broadcast_proposal(p);
+            }
         }
     }
 
@@ -209,7 +285,7 @@ where
                     // Consensus Manager thread to be effectively blocked on awaiting this or do we
                     // want to spawn it and figure out how to sync it back up here presuming it
                     // completes in time?
-                    self.send_proposal().await
+                    self.start_build_proposal()
                 }
             }
             _ => ()
@@ -264,28 +340,13 @@ where
             // needed to validate the actions of the leader in a previous round.  We should
             // validate this information and send out a commit ASAP when we can.
             StromConsensusEvent::Propose(_peer, proposal) => {
-                // When I get a Proposal, I should send it off to the proposal validation
-                // pipeline
+                // Put the proposal in the cache
+                self.cache.set(proposal.ethereum_height, proposal.clone());
 
-                // Validate the proposal itself - not currently checked
-                proposal.validate();
-
-                // Given that the proposal has passed validation, prepare our commit message
-                let commit = self
-                    .signer
-                    .sign_commit(proposal.ethereum_height, &proposal)
-                    .unwrap(); // I don't think this can actually fail, validate
-
-                // Store the current proposal in our Round State as the Proposal for our round
-                // I probably don't have to do this in the future because Proposal validation is
-                // going to be backwards-looking
-                let _ = self.roundstate.on_proposal(proposal.clone());
-                // Update local subscribers to the fact that a proposal was received
-                self.broadcast(ConsensusMessage::Proposal(proposal));
-                // Then, broadcast our Commit message to all local subscribers and the network
-                self.network
-                    .broadcast_tx(StromMessage::Commit(Box::new(commit.clone())));
-                self.broadcast(ConsensusMessage::Commit(Box::new(commit)));
+                // Start a verification task
+                if !self.start_verify_proposal(&proposal) {
+                    warn!("Proposal failed verification with invalid signatures");
+                }
             }
             // A Commit message is the validation of a previous proposal by another host.  Right
             // now I'm not sure what we should do with this but overall SOMEONE has to collect

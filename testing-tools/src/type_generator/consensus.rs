@@ -55,9 +55,9 @@ pub fn generate_random_preposal(count: usize, block: u64) -> PreProposal {
     PreProposal::generate_pre_proposal(block, PeerId::random(), limit, vec![], &sk)
 }
 
-pub fn generate_random_proposal(validator_id: BLSValidatorID) -> Proposal {
+pub fn generate_random_proposal() -> Proposal {
     let mut rng = thread_rng();
-    let sk = SecretKey::new();
+    let sk = Secp256SecretKey::new(&mut rng);
 
     // let mut order_buf = Vec::new();
     // for _ in 0..rng.gen_range(5..10) {
@@ -71,5 +71,5 @@ pub fn generate_random_proposal(validator_id: BLSValidatorID) -> Proposal {
     //     })
     // }
 
-    Proposal::generate_proposal(rng.gen(), PeerId::default(), vec![], vec![], validator_id, &sk)
+    Proposal::generate_proposal(rng.gen(), PeerId::default(), vec![], vec![], &sk)
 }

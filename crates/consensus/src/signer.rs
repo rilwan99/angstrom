@@ -10,6 +10,7 @@ use secp256k1::SecretKey;
 
 /// The Signer deals with verifying external signatures as well as
 /// signing our payloads.  Pub fields for now.
+#[derive(Clone)]
 pub struct Signer {
     pub my_id:        PeerId,
     pub validator_id: BLSValidatorID,

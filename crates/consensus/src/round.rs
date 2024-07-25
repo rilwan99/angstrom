@@ -10,6 +10,8 @@ use alloy_primitives::FixedBytes;
 use angstrom_types::consensus::{Commit, PreProposal, Proposal};
 use futures::{ready, Future, FutureExt, Stream};
 use reth_primitives::B512;
+use tokio::task::AbortHandle;
+use tracing::warn;
 
 use crate::ConsensusState;
 
@@ -62,25 +64,35 @@ impl RoundStateTimings {
 /// is transient to the given ethereum block height
 pub struct RoundState {
     /// The current ethereum height
-    height:        u64,
+    height:         u64,
     /// Total number of nodes in the Angstrom network for this round
     #[allow(dead_code)]
-    node_count:    u64,
-    two_thirds:    usize,
+    node_count:     u64,
+    two_thirds:     usize,
     /// Who is the current leader
     #[allow(dead_code)]
-    leader:        Leader,
+    leader:         Leader,
     /// Round timing configuration
-    timings:       RoundStateTimings,
+    timings:        RoundStateTimings,
     /// the current action we should be taking at the moment of
     /// time for this height
-    current_state: RoundAction,
+    current_state:  RoundAction,
     /// Broadcast preproposals seen for this round
-    pre_proposals: HashMap<FixedBytes<64>, PreProposal>,
-    /// Proposal seen for this round
-    proposal:      Option<Proposal>,
+    pre_proposals:  HashMap<FixedBytes<64>, PreProposal>,
+    /// Proposal build task for this round - to be aborted if we start a new
+    /// round
+    proposal_build: Option<AbortHandle>,
     /// Broadcast commit messages seen for this round
-    commits:       HashMap<FixedBytes<64>, Commit>
+    commits:        HashMap<FixedBytes<64>, Commit>
+}
+
+impl Drop for RoundState {
+    fn drop(&mut self) {
+        // Abort any outstanding proposal build if we have one
+        if let Some(ref h) = self.proposal_build {
+            h.abort();
+        }
+    }
 }
 
 impl RoundState {
@@ -102,7 +114,7 @@ impl RoundState {
             two_thirds,
             current_state,
             pre_proposals: HashMap::new(),
-            proposal: None,
+            proposal_build: None,
             commits: HashMap::new()
         }
     }
@@ -129,12 +141,14 @@ impl RoundState {
         }
     }
 
-    pub fn on_proposal(&mut self, proposal: Proposal) -> Result<(), String> {
-        if self.proposal.is_some() {
-            return Err("Received second proposal".to_owned())
+    /// Used when we start building a proposal to register the proposal build
+    /// task and cancel any outstanding build task for this round (which
+    /// should never happen, but hey...)
+    pub fn on_proposal(&mut self, build_handle: AbortHandle) {
+        if let Some(h) = self.proposal_build.replace(build_handle) {
+            warn!("Second proposal build launched for eth height {}", self.height);
+            h.abort()
         }
-        self.proposal = Some(proposal);
-        Ok(())
     }
 
     pub fn on_pre_propose(

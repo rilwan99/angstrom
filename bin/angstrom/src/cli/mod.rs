@@ -5,7 +5,6 @@ use std::{
 };
 
 use angstrom_network::manager::StromConsensusEvent;
-use matching_engine::MatchingManager;
 use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_node_builder::{FullNode, NodeHandle};
 use secp256k1::{PublicKey, Secp256k1};
@@ -211,8 +210,6 @@ pub fn initialize_strom_components<Node: FullNodeComponents>(
 
     let global_consensus_state = Arc::new(Mutex::new(GlobalConsensusState::default()));
 
-    let matcher_handle = MatchingManager::spawn(executor.clone());
-
     let _consensus_handle = ConsensusManager::spawn(
         executor.clone(),
         global_consensus_state,
@@ -224,9 +221,7 @@ pub fn initialize_strom_components<Node: FullNodeComponents>(
             handles.consensus_rx
         ),
         signer,
-        order_storage.clone(),
-        matcher_handle.clone(),
-        validator.clone()
+        order_storage.clone()
     );
 }
 

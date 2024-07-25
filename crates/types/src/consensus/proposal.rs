@@ -13,7 +13,9 @@ pub struct Proposal {
     pub ethereum_height: u64,
     #[bincode(with_serde)]
     pub source:          PeerId,
+    /// PreProposals sorted by source
     pub preproposals:    Vec<PreProposal>,
+    /// PoolSolutions sorted by PoolId
     pub solutions:       Vec<PoolSolution>,
     /// This signature is over (etheruem_block | hash(vanilla_bundle) |
     /// hash(order_buffer) | hash(lower_bound))
@@ -25,9 +27,13 @@ impl Proposal {
         ethereum_height: u64,
         source: PeerId,
         preproposals: Vec<PreProposal>,
-        solutions: Vec<PoolSolution>,
+        mut solutions: Vec<PoolSolution>,
         sk: &SecretKey
     ) -> Self {
+        // Sort our solutions
+        solutions.sort_by_key(|sol| sol.id);
+
+        // Build our hash and sign
         let mut buf = Vec::new();
         let std = standard();
         buf.extend(encode_to_vec(ethereum_height, std).unwrap());
@@ -41,7 +47,16 @@ impl Proposal {
         Self { ethereum_height, source, preproposals, solutions, signature: Signature(sig) }
     }
 
+    pub fn preproposals(&self) -> &Vec<PreProposal> {
+        &self.preproposals
+    }
+
     pub fn validate(&self) -> bool {
+        // All our preproposals have to be valid
+        if !self.preproposals.iter().all(|i| i.validate()) {
+            return false;
+        }
+        // Then our own signature has to be valid
         let hash = keccak256(self.payload());
         let Ok(source) = self.signature.recover_signer_full_public_key(hash) else {
             return false;

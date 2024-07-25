@@ -1,3 +1,4 @@
+mod cache;
 mod evidence;
 mod global;
 mod manager;
