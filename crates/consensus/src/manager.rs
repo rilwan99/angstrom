@@ -20,7 +20,7 @@ use validation::BundleValidator;
 
 use crate::{
     global::GlobalConsensusState,
-    round::{Leader, RoundState},
+    round::{Leader, RoundState, RoundStateTimings},
     round_robin_algo::RoundRobinAlgo,
     signer::Signer,
     ConsensusListener, ConsensusMessage, ConsensusState, ConsensusUpdater
@@ -43,7 +43,8 @@ pub async fn manager_thread<Matcher, Validator>(
 
     // This is still a lot of stuff to track that we don't necessarily have to worry
     // about
-    let roundstate = RoundState::new(0, 1, Leader::default());
+    let timings = RoundStateTimings::new(6, 2, 6);
+    let roundstate = RoundState::new(0, 1, Leader::default(), Some(timings));
 
     let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
     // Use our default round robin algo
@@ -220,7 +221,8 @@ where
             // We should immediately start a new round and drop our current round
             let new_leader = self.roundrobin.on_new_block(&new_block.block);
             // TODO:  Figure out the best way to get our node count
-            let new_round_state = RoundState::new(new_block_height, 1, new_leader);
+            let new_round_state =
+                RoundState::new(new_block_height, 1, new_leader, Some(self.roundstate.timings()));
             // Update our round state to the new round state
             self.roundstate = new_round_state;
             // Update the global state to show that we're back in OrderAccumulation

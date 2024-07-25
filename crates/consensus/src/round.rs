@@ -40,6 +40,23 @@ impl Default for Leader {
     }
 }
 
+#[derive(Clone, Default)]
+pub struct RoundStateTimings {
+    pub accumulation: Duration,
+    pub preproposal:  Duration,
+    pub laggards:     Duration
+}
+
+impl RoundStateTimings {
+    pub fn new(acc_secs: u64, pp_secs: u64, lag_secs: u64) -> Self {
+        Self {
+            accumulation: Duration::from_secs(acc_secs),
+            preproposal:  Duration::from_secs(pp_secs),
+            laggards:     Duration::from_secs(lag_secs)
+        }
+    }
+}
+
 /// The current state and subsequent actions that should be taken
 /// for such state in a given round. All state that this contains
 /// is transient to the given ethereum block height
@@ -53,6 +70,8 @@ pub struct RoundState {
     /// Who is the current leader
     #[allow(dead_code)]
     leader:        Leader,
+    /// Round timing configuration
+    timings:       RoundStateTimings,
     /// the current action we should be taking at the moment of
     /// time for this height
     current_state: RoundAction,
@@ -65,15 +84,23 @@ pub struct RoundState {
 }
 
 impl RoundState {
-    pub fn new(height: u64, node_count: u64, leader: Leader) -> Self {
+    pub fn new(
+        height: u64,
+        node_count: u64,
+        leader: Leader,
+        timings: Option<RoundStateTimings>
+    ) -> Self {
         // Quick and dirty way for us to find our threshold, can be cleaned up later
         let two_thirds: usize = ((2 * node_count) / 3) as usize;
+        let timings = timings.unwrap_or_default();
+        let current_state = RoundAction::new(&timings);
         Self {
             leader,
+            timings,
             height,
             node_count,
             two_thirds,
-            current_state: RoundAction::new(),
+            current_state,
             pre_proposals: HashMap::new(),
             proposal: None,
             commits: HashMap::new()
@@ -86,6 +113,10 @@ impl RoundState {
 
     pub fn is_leader(&self) -> bool {
         matches!(self.leader, Leader::ThisNode(_))
+    }
+
+    pub fn timings(&self) -> RoundStateTimings {
+        self.timings.clone()
     }
 
     pub fn on_commit(&mut self, peer: FixedBytes<64>, commit: Commit) -> Result<(), String> {
@@ -127,7 +158,7 @@ impl RoundState {
         // Check if we have enough preproposals to trigger our state change
         if self.pre_proposals.len() >= self.two_thirds {
             self.current_state =
-                RoundAction::PreProposeLaggards(Timeout::new(Duration::from_secs(2)));
+                RoundAction::PreProposeLaggards(Timeout::new(self.timings.laggards));
         }
         Ok(())
     }
@@ -141,11 +172,11 @@ impl Stream for RoundState {
     type Item = ConsensusState;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<ConsensusState>> {
-        let newstate = ready!(Pin::new(&mut self.current_state).poll_timeout(
-            cx,
-            Duration::from_secs(6),
-            Duration::from_secs(6)
-        ));
+        let acc_timeout = self.timings.accumulation;
+        let pre_timeout = self.timings.preproposal;
+
+        let newstate =
+            ready!(Pin::new(&mut self.current_state).poll_timeout(cx, acc_timeout, pre_timeout));
 
         let new_global_state = newstate.to_global();
         self.current_state = newstate;
@@ -190,14 +221,28 @@ impl Timeout {
     }
 }
 
-/// Representation of a finite-state machine
+impl std::fmt::Debug for Timeout {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Timeout")
+    }
+}
+
+/// Enum describing the current state of our consensus round
+#[derive(Debug)]
 pub enum RoundAction {
-    /// The precommit state actions we
+    /// In OrderAccumulation state, orders for the current block are being
+    /// collected.  The timeout represents the amount of time before we
+    /// transition to PrePropose state.
     OrderAccumulation(Timeout),
-    /// Time window during which we expect to be receiving Prepropose messages
+    /// In PrePropose state, we assemble our accumulated orders and broadcast a
+    /// PreProposal.  All nodes then collect PreProposal messages.  The timeout
+    /// represents the amount of time that the leader node will wait to receive
+    /// PreProposal messages from 2/3rds of the nodes in the network
     PrePropose(Timeout),
-    /// We have received 2/3rds of all Prepropose messages and are waiting for
-    /// any extra messages that might arrive
+    /// Once the leader node has received PreProposals for 2/3rds of the nodes,
+    /// we will wait a little bit to see if additional PrePropose messages make
+    /// their way to us.  The timeout represents the amount of time the leader
+    /// will wait to receive these extra messages.
     PreProposeLaggards(Timeout),
     /// Trigger proposal generation for the leader, otherwise go right back to
     /// OrderAccumulation (for the next block tho?)
@@ -205,8 +250,8 @@ pub enum RoundAction {
 }
 
 impl RoundAction {
-    pub fn new() -> Self {
-        Self::OrderAccumulation(Timeout::new(Duration::from_secs(6)))
+    pub fn new(config: &RoundStateTimings) -> Self {
+        Self::OrderAccumulation(Timeout::new(config.accumulation))
     }
 
     pub fn to_global(&self) -> ConsensusState {
@@ -253,3 +298,84 @@ impl RoundAction {
 // Pin::new(p).should_transition(cx, global_state)         }
 //     }
 // }
+
+#[cfg(test)]
+mod tests {
+    use alloy_primitives::FixedBytes;
+    use testing_tools::type_generator::consensus::generate_random_preposal;
+    use tokio_stream::StreamExt;
+
+    use super::*;
+
+    #[test]
+    fn can_be_constructed() {
+        RoundState::new(100, 100, super::Leader::ThisNode(FixedBytes::random()), None);
+    }
+
+    #[tokio::test]
+    async fn states_progress_properly() {
+        let mut state =
+            RoundState::new(100, 100, super::Leader::ThisNode(FixedBytes::random()), None);
+        assert!(
+            matches!(state.current_state, RoundAction::OrderAccumulation(_)),
+            "Didn't start in OrderAccumulation state"
+        );
+
+        // Step to PreProposal state
+        let new_state = state.next().await;
+        assert!(
+            matches!(new_state, Some(ConsensusState::PreProposal)),
+            "Didn't emit global PreProposal state"
+        );
+        assert!(
+            matches!(state.current_state, RoundAction::PrePropose(_)),
+            "Didn't set to internal PreProposal state"
+        );
+
+        // Step to Proposal state - skip PreProposalLaggards
+        let new_state = state.next().await;
+        assert!(
+            matches!(new_state, Some(ConsensusState::Proposal)),
+            "Didn't emit global Proposal state"
+        );
+        assert!(
+            matches!(state.current_state, RoundAction::Propose),
+            "Didn't set to internal Proposal state"
+        );
+
+        // Back to OrderAccumulation
+        let new_state = state.next().await;
+        assert!(
+            matches!(new_state, Some(ConsensusState::OrderAccumulation)),
+            "Didn't emit global OrderAccumulation state"
+        );
+        assert!(
+            matches!(state.current_state, RoundAction::OrderAccumulation(_)),
+            "Didn't set to internal OrderAccumulation state"
+        );
+    }
+
+    #[test]
+    fn hits_preproposal_laggard_state() {
+        // Make our round state
+        let mut state =
+            RoundState::new(100, 3, super::Leader::ThisNode(FixedBytes::random()), None);
+        // Set it to PrePropose state
+        state.current_state = RoundAction::PrePropose(Timeout::new(Duration::default()));
+        // One preproposal is not enough
+        let pp1 = generate_random_preposal();
+        state.on_pre_propose(FixedBytes::random(), pp1).unwrap();
+        assert!(
+            matches!(state.current_state, RoundAction::PrePropose(_)),
+            "Not still in PrePropose state"
+        );
+        // But then two should cause us to have 2/3rds of the network so we should be
+        // good
+        let pp2 = generate_random_preposal();
+        state.on_pre_propose(FixedBytes::random(), pp2).unwrap();
+        assert!(
+            matches!(state.current_state, RoundAction::PreProposeLaggards(_)),
+            "Didn't jump to Laggards state"
+        );
+    }
+}
