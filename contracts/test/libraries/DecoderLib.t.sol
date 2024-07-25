@@ -95,6 +95,7 @@ contract DecoderLibTest is BaseTest {
             rng.next(),
             rng.next(),
             rng.next(),
+            rng.randbool(),
             AssetIndex.wrap(rng.randuint16()),
             AssetIndex.wrap(rng.randuint16()),
             rng.randuint64(),

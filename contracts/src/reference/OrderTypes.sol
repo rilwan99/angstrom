@@ -15,6 +15,7 @@ struct PartialStandingOrder {
     uint256 minAmountIn;
     uint256 maxAmountIn;
     uint256 minPrice;
+    bool useInternal;
     address assetIn;
     address assetOut;
     address recipient;
@@ -29,6 +30,7 @@ struct ExactStandingOrder {
     bool exactIn;
     uint256 amount;
     uint256 minPrice;
+    bool useInternal;
     address assetIn;
     address assetOut;
     address recipient;
@@ -42,6 +44,7 @@ struct PartialFlashOrder {
     uint256 minAmountIn;
     uint256 maxAmountIn;
     uint256 minPrice;
+    bool useInternal;
     address assetIn;
     address assetOut;
     address recipient;
@@ -55,6 +58,7 @@ struct ExactFlashOrder {
     bool exactIn;
     uint256 amount;
     uint256 minPrice;
+    bool useInternal;
     address assetIn;
     address assetOut;
     address recipient;
@@ -66,6 +70,7 @@ struct ExactFlashOrder {
 struct TopOfBlockOrder {
     uint256 amountIn;
     uint256 amountOut;
+    bool useInternal;
     address assetIn;
     address assetOut;
     address recipient;
@@ -90,6 +95,7 @@ library OrdersLib {
            "uint256 min_amount_in,"
            "uint256 max_amount_in,"
            "uint256 min_price,"
+           "bool use_internal,"
            "address asset_in,"
            "address asset_out,"
            "address recipient,"
@@ -105,6 +111,7 @@ library OrdersLib {
            "bool exact_in,"
            "uint256 amount,"
            "uint256 min_price,"
+           "bool use_internal,"
            "address asset_in,"
            "address asset_out,"
            "address recipient,"
@@ -120,6 +127,7 @@ library OrdersLib {
            "uint256 min_amount_in,"
            "uint256 max_amount_in,"
            "uint256 min_price,"
+           "bool use_internal,"
            "address asset_in,"
            "address asset_out,"
            "address recipient,"
@@ -134,6 +142,7 @@ library OrdersLib {
            "bool exact_in,"
            "uint256 amount,"
            "uint256 min_price,"
+           "bool use_internal,"
            "address asset_in,"
            "address asset_out,"
            "address recipient,"
@@ -147,6 +156,7 @@ library OrdersLib {
         "TopOfBlockOrder("
            "uint256 amount_in,"
            "uint256 amount_out,"
+           "bool use_internal,"
            "address asset_in,"
            "address asset_out,"
            "address recipient,"
@@ -162,6 +172,7 @@ library OrdersLib {
                 order.minAmountIn,
                 order.maxAmountIn,
                 order.minPrice,
+                order.useInternal,
                 order.assetIn,
                 order.assetOut,
                 order.recipient,
@@ -179,6 +190,7 @@ library OrdersLib {
                 order.exactIn,
                 order.amount,
                 order.minPrice,
+                order.useInternal,
                 order.assetIn,
                 order.assetOut,
                 order.recipient,
@@ -196,6 +208,7 @@ library OrdersLib {
                 order.minAmountIn,
                 order.maxAmountIn,
                 order.minPrice,
+                order.useInternal,
                 order.assetIn,
                 order.assetOut,
                 order.recipient,
@@ -212,6 +225,7 @@ library OrdersLib {
                 order.exactIn,
                 order.amount,
                 order.minPrice,
+                order.useInternal,
                 order.assetIn,
                 order.assetOut,
                 order.recipient,
@@ -227,6 +241,7 @@ library OrdersLib {
                 TOP_OF_BLOCK_ORDER_TYPEHASH,
                 order.amountIn,
                 order.amountOut,
+                order.useInternal,
                 order.assetIn,
                 order.assetOut,
                 order.recipient,
@@ -242,6 +257,7 @@ library OrdersLib {
         g.minAmountIn = o.minAmountIn;
         g.amountSpecified = o.maxAmountIn;
         g.minPrice = o.minPrice;
+        g.useInternal = o.useInternal;
         g.assetInIndex = _toAssetIndex(assets, o.assetIn);
         g.assetOutIndex = _toAssetIndex(assets, o.assetOut);
         g.nonce = o.nonce;
@@ -258,6 +274,7 @@ library OrdersLib {
         g.mode = o.exactIn ? OrderMode.ExactIn : OrderMode.ExactOut;
         g.amountSpecified = o.amount;
         g.minPrice = o.minPrice;
+        g.useInternal = o.useInternal;
         g.assetInIndex = _toAssetIndex(assets, o.assetIn);
         g.assetOutIndex = _toAssetIndex(assets, o.assetOut);
         g.nonce = o.nonce;
@@ -274,6 +291,7 @@ library OrdersLib {
         g.minAmountIn = o.minAmountIn;
         g.amountSpecified = o.maxAmountIn;
         g.minPrice = o.minPrice;
+        g.useInternal = o.useInternal;
         g.assetInIndex = _toAssetIndex(assets, o.assetIn);
         g.assetOutIndex = _toAssetIndex(assets, o.assetOut);
         g.recipient = o.recipient;
@@ -288,6 +306,7 @@ library OrdersLib {
         g.mode = o.exactIn ? OrderMode.ExactIn : OrderMode.ExactOut;
         g.amountSpecified = o.amount;
         g.minPrice = o.minPrice;
+        g.useInternal = o.useInternal;
         g.assetInIndex = _toAssetIndex(assets, o.assetIn);
         g.assetOutIndex = _toAssetIndex(assets, o.assetOut);
         g.recipient = o.recipient;
@@ -305,6 +324,8 @@ library OrdersLib {
             o.maxAmountIn.toStr(),
             ",\n  minPrice: ",
             o.minPrice.toStr(),
+            ",\n  useInternal: ",
+            o.useInternal.toStr(),
             ",\n  assetIn: ",
             o.assetIn.toStr(),
             ",\n  assetOut: ",
@@ -337,6 +358,8 @@ library OrdersLib {
             o.amount.toStr(),
             ",\n  minPrice: ",
             o.minPrice.toStr(),
+            ",\n  useInternal: ",
+            o.useInternal.toStr(),
             ",\n  assetIn: ",
             o.assetIn.toStr(),
             ",\n  assetOut: ",
@@ -367,6 +390,8 @@ library OrdersLib {
             o.maxAmountIn.toStr(),
             ",\n  minPrice: ",
             o.minPrice.toStr(),
+            ",\n  useInternal: ",
+            o.useInternal.toStr(),
             ",\n  assetIn: ",
             o.assetIn.toStr(),
             ",\n  assetOut: ",
@@ -397,6 +422,8 @@ library OrdersLib {
             o.amount.toStr(),
             ",\n  minPrice: ",
             o.minPrice.toStr(),
+            ",\n  useInternal: ",
+            o.useInternal.toStr(),
             ",\n  assetIn: ",
             o.assetIn.toStr(),
             ",\n  assetOut: "

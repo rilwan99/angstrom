@@ -15,6 +15,7 @@ import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {AssetIndex} from "../types/PriceGraph.sol";
 import {Globals} from "../types/Globals.sol";
 import {MixedSignLib} from "../libraries/MixedSignLib.sol";
+import {tuint256} from "transient-goodies/TransientPrimitives.sol";
 
 import {ConversionLib} from "../libraries/ConversionLib.sol";
 
@@ -67,15 +68,20 @@ abstract contract PoolRewardsManager is Donate, ILiqChangeHooks, UniConsumer {
         bytes calldata hookData
     ) external returns (bytes4, BalanceDelta) {}
 
-    function _rewardPools(Globals memory g, PoolRewardsUpdate[] calldata updates) internal returns (uint256 total) {
+    function _rewardPools(
+        Globals memory g,
+        PoolRewardsUpdate[] calldata updates,
+        mapping(address => tuint256) storage freeBalance
+    ) internal {
         for (uint256 i = 0; i < updates.length; i++) {
             PoolRewardsUpdate calldata update = updates[i];
             address asset0 = g.get(update.asset0);
             address asset1 = g.get(update.asset1);
             PoolId id = ConversionLib.toPoolKey(address(this), asset0, asset1).toId();
-            total = _donate(
+            uint256 total = _donate(
                 pools[id].rewards, id, update.startTick, update.startLiquidity, update.currentDonate, update.amounts
             );
+            freeBalance[asset0].dec(total);
         }
     }
 

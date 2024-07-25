@@ -25,6 +25,7 @@ struct GenericOrder {
     uint256 minAmountIn;
     uint256 amountSpecified;
     uint256 minPrice;
+    bool useInternal;
     AssetIndex assetInIndex;
     AssetIndex assetOutIndex;
     uint64 nonce;

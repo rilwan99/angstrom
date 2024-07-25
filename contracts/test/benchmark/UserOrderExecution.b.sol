@@ -140,7 +140,9 @@ contract UserOrderExecution is BaseTest, HookDeployer {
             vm.prank(trader.addr);
             angstrom.invalidateNonce(u64(trader.getFreshNonce()));
             for (uint256 j = 0; j < assets.length; j++) {
-                angstrom.__ilegalMint(trader.addr, assets[j], 1);
+                address asset = assets[j];
+                angstrom.__ilegalMint(trader.addr, asset, 1);
+                MockERC20(asset).mint(trader.addr, 1);
             }
         }
 
@@ -202,6 +204,7 @@ contract UserOrderExecution is BaseTest, HookDeployer {
                                 minAmountIn: v.minAmountIn,
                                 maxAmountIn: v.maxAmountIn,
                                 minPrice: v.minPrice,
+                                useInternal: rng.randbool(),
                                 assetIn: v.assetIn,
                                 assetOut: v.assetOut,
                                 recipient: v.trader.addr,
@@ -216,6 +219,7 @@ contract UserOrderExecution is BaseTest, HookDeployer {
                                 minAmountIn: v.minAmountIn,
                                 maxAmountIn: v.maxAmountIn,
                                 minPrice: v.minPrice,
+                                useInternal: rng.randbool(),
                                 assetIn: v.assetIn,
                                 assetOut: v.assetOut,
                                 recipient: v.trader.addr,
@@ -235,6 +239,7 @@ contract UserOrderExecution is BaseTest, HookDeployer {
                                 exactIn: exactIn,
                                 amount: exactIn ? v.amountIn : v.amountOut,
                                 minPrice: v.minPrice,
+                                useInternal: rng.randbool(),
                                 assetIn: v.assetIn,
                                 assetOut: v.assetOut,
                                 recipient: v.trader.addr,
@@ -248,6 +253,7 @@ contract UserOrderExecution is BaseTest, HookDeployer {
                                 exactIn: exactIn,
                                 amount: exactIn ? v.amountIn : v.amountOut,
                                 minPrice: v.minPrice,
+                                useInternal: rng.randbool(),
                                 assetIn: v.assetIn,
                                 assetOut: v.assetOut,
                                 recipient: v.trader.addr,
@@ -312,8 +318,13 @@ contract UserOrderExecution is BaseTest, HookDeployer {
 
         vm.resumeGasMetering();
 
+        uint256 before = gasleft();
         vm.prank(node);
         angstrom.execute(payload);
+
+        unchecked {
+            console.log("execution cost: %s", before - gasleft());
+        }
     }
 
     function _rng(bytes32 seed) internal pure returns (PRNG memory) {
