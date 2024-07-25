@@ -153,8 +153,12 @@ where
 
     fn send_preproposal(&mut self) {
         let orders = self.order_storage.get_all_orders();
-        let preproposal =
-            PreProposal::new(0, &self.signer.key, alloy_primitives::FixedBytes::default(), orders);
+        let preproposal = PreProposal::new(
+            self.roundstate.current_height(),
+            &self.signer.key,
+            alloy_primitives::FixedBytes::default(),
+            orders
+        );
         tracing::info!("Sending out preproposal");
         self.network
             .broadcast_tx(StromMessage::PrePropose(preproposal.clone()));

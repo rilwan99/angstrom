@@ -1,81 +1,132 @@
+use alloy_primitives::{Address, FixedBytes, Uint, U256};
 use angstrom_types::{
+    matching::Ray,
     orders::{OrderId, OrderPriorityData},
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
-        sol::FlashOrder
+        sol::{FlashOrder, StandingOrder}
     }
 };
 use rand::{rngs::ThreadRng, Rng};
+use rand_distr::{num_traits::ToPrimitive, Distribution, SkewNormal};
 
-// pub fn generate_random_valid_order() -> AllOrders {
-//     let mut rng = thread_rng();
-//     let sk = SecretKey::new(&mut rng);
-//     let mut baseline_order = generate_order(&mut rng);
-//
-//     let sign_hash = baseline_order.eip712_signing_hash(&ANGSTROM_DOMAIN);
-//
-//     let signature =
-//         reth_primitives::sign_message(alloy_primitives::FixedBytes(sk.
-// secret_bytes()), sign_hash)             .unwrap();
-//
-//     let our_sig = angstrom_types::primitive::Signature(signature);
-//     baseline_order.signature = Bytes::from_iter(our_sig.to_bytes());
-//     AllOrders::Partial(baseline_order)
-// }
-//
-// pub fn generate_rand_valid_limit_order() -> AllOrders {
-//     let mut rng = thread_rng();
-//     let sk = SecretKey::new(&mut rng);
-//     let mut baseline_order = generate_order(&mut rng);
-//
-//     let sign_hash = baseline_order.eip712_signing_hash(&ANGSTROM_DOMAIN);
-//
-//     let signature =
-//         reth_primitives::sign_message(alloy_primitives::FixedBytes(sk.
-// secret_bytes()), sign_hash)             .unwrap();
-//
-//     let our_sig = angstrom_types::primitive::Signature(signature);
-//     baseline_order.signature = Bytes::from_iter(our_sig.to_bytes());
-//
-//     AllOrders::Partial(baseline_order)
-// }
-//
-// pub fn generate_rand_valid_searcher_order() -> SignedSearcherOrder {
-//     let l = generate_rand_valid_limit_order();
-//     SignedSearcherOrder { hash: l.hash, order: l.order, signature:
-// l.signature } }
-//
-// fn generate_order(rng: &mut ThreadRng) -> Order {
-//     let timestamp = SystemTime::now()
-//         .duration_since(UNIX_EPOCH)
-//         .unwrap()
-//         .as_secs()
-//         + 30;
-//     Order {
-//         nonce:        U256::from(rng.gen_range(0..u64::MAX)),
-//         orderType:    angstrom_types::primitive::OrderType::Limit,
-//         currencyIn:   rng.gen(),
-//         preHook:      Bytes::new(),
-//         postHook:     Bytes::new(),
-//         amountIn:     rng.gen(),
-//         deadline:     U256::from(timestamp),
-//         currencyOut:  rng.gen(),
-//         amountOutMin: rng.gen()
-//     }
+// fn build_priority_data(order: &GroupedVanillaOrder) -> OrderPriorityData {
+//     OrderPriorityData { price: order.price().into(), volume: order.quantity() as u128, gas: 10 }
 // }
 
-fn generate_kof_order(rng: &mut ThreadRng) -> OrderWithStorageData<GroupedVanillaOrder> {
-    let order =
-        FlashOrder { max_amount_in_or_out: rng.gen(), min_price: rng.gen(), ..Default::default() };
+fn generate_order_id(pool_id: usize, hash: FixedBytes<32>) -> OrderId {
+    let address = Address::random();
+    OrderId { address, pool_id, hash, ..Default::default() }
+}
+
+pub fn generate_limit_order(
+    rng: &mut ThreadRng,
+    kof: bool,
+    is_bid: bool,
+    pool_id: Option<usize>,
+    valid_block: Option<u64>
+) -> OrderWithStorageData<GroupedVanillaOrder> {
+    let pool_id = pool_id.unwrap_or_default();
+    let valid_block = valid_block.unwrap_or_default();
+    // Could update this to be within a distribution
+    let price: u128 = rng.gen();
+    let volume: u128 = rng.gen();
+    let gas: u128 = rng.gen();
+    let order = build_limit_order(kof, valid_block, volume, price);
+
+    let priority_data = OrderPriorityData { price, volume, gas };
+    let order_id = generate_order_id(pool_id, order.hash());
     // Todo: Sign It, make this overall better
     OrderWithStorageData {
-        order:              GroupedVanillaOrder::KillOrFill(order),
-        priority_data:      OrderPriorityData::default(),
-        is_bid:             true,
+        order,
+        priority_data,
+        is_bid,
         is_currently_valid: true,
-        is_valid:           true,
-        order_id:           OrderId::default(),
-        pool_id:            0,
-        valid_block:        0
+        is_valid: true,
+        order_id,
+        pool_id,
+        valid_block
     }
+}
+
+pub fn build_limit_order(
+    kof: bool,
+    valid_block: u64,
+    volume: u128,
+    price: u128
+) -> GroupedVanillaOrder {
+    if kof {
+        GroupedVanillaOrder::KillOrFill(FlashOrder {
+            max_amount_in_or_out: Uint::from(volume),
+            min_price: Ray::from(Uint::from(price)).into(),
+            valid_for_block: valid_block,
+            ..Default::default()
+        })
+    } else {
+        GroupedVanillaOrder::Partial(StandingOrder {
+            max_amount_in_or_out: Uint::from(volume),
+            min_price: Ray::from(Uint::from(price)).into(),
+            ..Default::default()
+        })
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct DistributionParameters {
+    pub location: f64,
+    pub scale:    f64,
+    pub shape:    f64
+}
+
+impl DistributionParameters {
+    pub fn crossed_at(location: f64) -> (Self, Self) {
+        let bids = Self { location, scale: 100000.0, shape: -2.0 };
+        let asks = Self { location, scale: 100000.0, shape: 2.0 };
+
+        (bids, asks)
+    }
+}
+
+pub fn generate_order_distribution(
+    is_bid: bool,
+    number: usize,
+    priceparams: DistributionParameters,
+    quantityparams: DistributionParameters,
+    pool_id: usize,
+    valid_block: u64,
+) -> Result<Vec<OrderWithStorageData<GroupedVanillaOrder>>, String> {
+    let DistributionParameters { location: price_location, scale: price_scale, shape: price_shape } = priceparams;
+    let DistributionParameters { location: quantity_location, scale: quantity_scale, shape: quantity_shape } = quantityparams;
+    let mut rng = rand::thread_rng();
+    let mut rng2 = rand::thread_rng();
+    let price_gen = SkewNormal::new(price_location, price_scale, price_shape)
+        .map_err(|e| format!("Error creating price distribution: {}", e))?;
+    let volume_gen = SkewNormal::new(quantity_location, quantity_scale, quantity_shape)
+        .map_err(|e| format!("Error creating price distribution: {}", e))?;
+    Ok(price_gen
+        .sample_iter(&mut rng)
+        .zip(volume_gen.sample_iter(&mut rng2))
+        .map(|(p, v)| {
+            let price = p.to_u128().unwrap_or_default();
+            let volume = v.to_u128().unwrap_or_default();
+            let order = build_limit_order(true, 0, volume, price);
+            let order_id = generate_order_id(pool_id, order.hash());
+            
+            OrderWithStorageData {
+                order,
+                priority_data: OrderPriorityData {
+                    price,
+                    volume,
+                    gas:    10
+                },
+                is_bid,
+                is_valid: true,
+                is_currently_valid: true,
+                order_id,
+                pool_id,
+                valid_block
+            }
+        })
+        .take(number)
+        .collect())
 }

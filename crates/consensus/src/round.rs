@@ -363,7 +363,7 @@ mod tests {
         // Set it to PrePropose state
         state.current_state = RoundAction::PrePropose(Timeout::new(Duration::default()));
         // One preproposal is not enough
-        let pp1 = generate_random_preposal();
+        let pp1 = generate_random_preposal(20, 100);
         state.on_pre_propose(FixedBytes::random(), pp1).unwrap();
         assert!(
             matches!(state.current_state, RoundAction::PrePropose(_)),
@@ -371,7 +371,7 @@ mod tests {
         );
         // But then two should cause us to have 2/3rds of the network so we should be
         // good
-        let pp2 = generate_random_preposal();
+        let pp2 = generate_random_preposal(20, 100);
         state.on_pre_propose(FixedBytes::random(), pp2).unwrap();
         assert!(
             matches!(state.current_state, RoundAction::PreProposeLaggards(_)),
