@@ -42,8 +42,7 @@ impl Signer {
             self.my_id,
             preproposals,
             solutions,
-            self.validator_id,
-            &self.bls_key
+            &self.key
         ))
     }
 

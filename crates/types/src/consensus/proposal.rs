@@ -1,13 +1,11 @@
 use bincode::{config::standard, encode_to_vec, Decode, Encode};
-use blsful::{Bls12381G1Impl, PublicKey, SecretKey, SignatureSchemes};
 use bytes::Bytes;
 use reth_network_peers::PeerId;
+use reth_primitives::keccak256;
+use secp256k1::SecretKey;
 
 use super::PreProposal;
-use crate::{
-    orders::PoolSolution,
-    primitive::{BLSSignature, BLSValidatorID}
-};
+use crate::{orders::PoolSolution, primitive::Signature};
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct Proposal {
@@ -19,8 +17,7 @@ pub struct Proposal {
     pub solutions:       Vec<PoolSolution>,
     /// This signature is over (etheruem_block | hash(vanilla_bundle) |
     /// hash(order_buffer) | hash(lower_bound))
-    #[bincode(with_serde)]
-    pub signature:       BLSSignature
+    pub signature:       Signature
 }
 
 impl Proposal {
@@ -29,8 +26,7 @@ impl Proposal {
         source: PeerId,
         preproposals: Vec<PreProposal>,
         solutions: Vec<PoolSolution>,
-        validator_id: BLSValidatorID,
-        sk: &SecretKey<Bls12381G1Impl>
+        sk: &SecretKey
     ) -> Self {
         let mut buf = Vec::new();
         let std = standard();
@@ -39,31 +35,18 @@ impl Proposal {
         buf.extend(encode_to_vec(&preproposals, std).unwrap());
         buf.extend(encode_to_vec(&solutions, std).unwrap());
 
-        // This can only return an error and thusly a default (empty) signature if our
-        // signing key is zero.  Highly unlikely but we should probably make
-        // sure we think through this contingency
-        let signature = sk
-            .sign(SignatureSchemes::ProofOfPossession, &buf)
-            .unwrap_or_default();
-        let mut leader_signature = BLSSignature::default();
-        leader_signature.add_signature(validator_id, signature);
+        let hash = keccak256(buf);
+        let sig = reth_primitives::sign_message(sk.secret_bytes().into(), hash).unwrap();
 
-        Self { ethereum_height, source, preproposals, solutions, signature: leader_signature }
+        Self { ethereum_height, source, preproposals, solutions, signature: Signature(sig) }
     }
 
-    pub fn sign_proposal(
-        &mut self,
-        validator_id: BLSValidatorID,
-        sk: &SecretKey<Bls12381G1Impl>
-    ) -> bool {
-        let Ok(signature) = sk.sign(SignatureSchemes::ProofOfPossession, &self.payload()) else {
+    pub fn validate(&self) -> bool {
+        let hash = keccak256(self.payload());
+        let Ok(source) = self.signature.recover_signer_full_public_key(hash) else {
             return false;
         };
-        self.signature.add_signature(validator_id, signature)
-    }
-
-    pub fn validate(&self, public_key_library: &[PublicKey<Bls12381G1Impl>]) -> bool {
-        self.signature.validate(public_key_library, &self.payload())
+        source == self.source
     }
 
     fn payload(&self) -> Bytes {
@@ -81,6 +64,9 @@ impl Proposal {
 #[cfg(test)]
 mod tests {
     use alloy_primitives::FixedBytes;
+    use rand::thread_rng;
+    use reth_network_peers::pk2id;
+    use secp256k1::Secp256k1;
 
     use super::{Proposal, SecretKey};
 
@@ -90,15 +76,26 @@ mod tests {
         let source = FixedBytes::random();
         let preproposals = vec![];
         let solutions = vec![];
-        let validator_id = 100;
-        let sk = SecretKey::default();
-        Proposal::generate_proposal(
-            ethereum_height,
-            source,
-            preproposals,
-            solutions,
-            validator_id,
-            &sk
-        );
+        let mut rng = thread_rng();
+        let sk = SecretKey::new(&mut rng);
+        Proposal::generate_proposal(ethereum_height, source, preproposals, solutions, &sk);
+    }
+
+    #[test]
+    fn can_validate_self() {
+        let ethereum_height = 100;
+        let preproposals = vec![];
+        let solutions = vec![];
+        // Generate crypto stuff
+        let mut rng = thread_rng();
+        let sk = SecretKey::new(&mut rng);
+        let secp = Secp256k1::new();
+        let pk = sk.public_key(&secp);
+        // Grab the source ID from the secret/public keypair
+        let source = pk2id(&pk);
+        let proposal =
+            Proposal::generate_proposal(ethereum_height, source, preproposals, solutions, &sk);
+
+        assert!(proposal.validate(), "Unable to validate self");
     }
 }

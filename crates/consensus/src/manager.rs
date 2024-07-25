@@ -268,7 +268,7 @@ where
                 // pipeline
 
                 // Validate the proposal itself - not currently checked
-                proposal.validate(&[]);
+                proposal.validate();
 
                 // Given that the proposal has passed validation, prepare our commit message
                 let commit = self
