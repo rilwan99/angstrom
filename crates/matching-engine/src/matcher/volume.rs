@@ -425,7 +425,10 @@ impl<'a> VolumeFillMatcher<'a> {
         amm_order
     }
 
-    pub fn solution(&self, searcher: OrderWithStorageData<TopOfBlockOrder>) -> PoolSolution {
+    pub fn solution(
+        &self,
+        searcher: Option<OrderWithStorageData<TopOfBlockOrder>>
+    ) -> PoolSolution {
         let limit = self
             .bid_outcomes
             .iter()
@@ -435,15 +438,9 @@ impl<'a> VolumeFillMatcher<'a> {
                 self.ask_outcomes
                     .iter()
                     .enumerate()
-                    .map(|(idx, outcome)| (self.book.bids()[idx].order_id, outcome))
+                    .map(|(idx, outcome)| (self.book.asks()[idx].order_id, outcome))
             )
-            .filter_map(|(id, outcome)| match outcome {
-                OrderFillState::CompleteFill => Some(OrderOutcome { id, outcome: outcome.clone() }),
-                OrderFillState::PartialFill(_) => {
-                    Some(OrderOutcome { id, outcome: outcome.clone() })
-                }
-                _ => None
-            })
+            .map(|(id, outcome)| OrderOutcome { id, outcome: outcome.clone() })
             .collect();
         PoolSolution { id: self.book.id(), amm_quantity: self.amm_outcome.clone(), searcher, limit }
     }

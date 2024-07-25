@@ -13,7 +13,7 @@ pub mod order;
 pub mod sort;
 pub mod xpool;
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct OrderBook {
     id:   PoolId,
     amm:  Option<MarketSnapshot>,

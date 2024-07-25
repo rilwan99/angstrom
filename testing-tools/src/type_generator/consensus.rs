@@ -36,7 +36,7 @@ pub fn generate_limit_order_distribution(
 ) -> Vec<OrderWithStorageData<GroupedVanillaOrder>> {
     let mut res = Vec::with_capacity(count * 2);
     let (bidprice, askprice) = DistributionParameters::crossed_at(100_000_000.0);
-    let (bidquant, askquant) = DistributionParameters::crossed_at(100.0);
+    let (bidquant, askquant) = DistributionParameters::fixed_at(100.0);
     res.extend(
         generate_order_distribution(true, count, bidprice, bidquant, pool_id, block).unwrap()
     );

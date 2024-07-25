@@ -103,7 +103,7 @@ impl MatchingManager {
             .collect();
         let mut solution_set = JoinSet::new();
         books.into_iter().for_each(|b| {
-            let searcher = searcher_orders.get(&b.id()).unwrap().clone();
+            let searcher = searcher_orders.get(&b.id()).cloned();
             // Using spawn-blocking here is not BAD but it might be suboptimal as it allows
             // us to spawn many more tasks that the CPu has threads.  Better solution is a
             // dedicated threadpool and some suggest the `rayon` crate.  This is probably
@@ -133,5 +133,47 @@ pub async fn manager_thread(mut input: Receiver<MatcherCommand>) {
                 r.send(manager.build_proposal(p).await).unwrap();
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashSet;
+
+    use alloy_primitives::FixedBytes;
+    use angstrom_types::consensus::PreProposal;
+    use testing_tools::type_generator::consensus::generate_random_preposal;
+
+    use super::MatchingManager;
+
+    #[tokio::test]
+    async fn can_build_proposal() {
+        let manager = MatchingManager {};
+        let preproposals = vec![];
+        let _ = manager.build_proposal(preproposals).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn will_combine_preproposals() {
+        let manager = MatchingManager {};
+        let preproposals: Vec<PreProposal> =
+            (0..3).map(|_| generate_random_preposal(10, 100)).collect();
+        let existing_orders: HashSet<FixedBytes<32>> = preproposals
+            .iter()
+            .flat_map(|p| p.limit.iter().map(|o| o.order_id.hash))
+            .collect();
+        let res = manager.build_proposal(preproposals).await.unwrap();
+        let orders_in_solution: HashSet<FixedBytes<32>> = res
+            .iter()
+            .flat_map(|p| p.limit.iter().map(|o| o.id.hash))
+            .collect();
+        // Check to see if we have differences
+        let diff = existing_orders
+            .difference(&orders_in_solution)
+            .collect::<Vec<_>>();
+        if !diff.is_empty() {
+            println!("Diff is {}", diff.len())
+        }
+        assert!(existing_orders == orders_in_solution, "Some orders vanished!");
     }
 }

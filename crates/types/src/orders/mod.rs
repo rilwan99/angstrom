@@ -68,7 +68,7 @@ pub struct PoolSolution {
     /// Id of this pool
     pub id:           PoolId,
     /// Winning searcher order to be executed
-    pub searcher:     OrderWithStorageData<TopOfBlockOrder>,
+    pub searcher:     Option<OrderWithStorageData<TopOfBlockOrder>>,
     /// Quantity to be bought or sold from the amm
     pub amm_quantity: Option<NetAmmOrder>,
     /// IDs of limit orders to be executed - it might be easier to just use

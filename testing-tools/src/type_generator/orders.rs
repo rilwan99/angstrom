@@ -85,23 +85,30 @@ impl DistributionParameters {
 
         (bids, asks)
     }
+    
+    pub fn fixed_at(location: f64) -> (Self, Self) {
+        let bids = Self { location, scale: 1.0, shape: 0.0 };
+        let asks = Self { location, scale: 1.0, shape: 0.0 };
+
+        (bids, asks)
+    }
 }
 
 pub fn generate_order_distribution(
     is_bid: bool,
     number: usize,
     priceparams: DistributionParameters,
-    quantityparams: DistributionParameters,
+    volumeparams: DistributionParameters,
     pool_id: usize,
     valid_block: u64,
 ) -> Result<Vec<OrderWithStorageData<GroupedVanillaOrder>>, String> {
     let DistributionParameters { location: price_location, scale: price_scale, shape: price_shape } = priceparams;
-    let DistributionParameters { location: quantity_location, scale: quantity_scale, shape: quantity_shape } = quantityparams;
+    let DistributionParameters { location: v_location, scale: v_scale, shape: v_shape } = volumeparams;
     let mut rng = rand::thread_rng();
     let mut rng2 = rand::thread_rng();
     let price_gen = SkewNormal::new(price_location, price_scale, price_shape)
         .map_err(|e| format!("Error creating price distribution: {}", e))?;
-    let volume_gen = SkewNormal::new(quantity_location, quantity_scale, quantity_shape)
+    let volume_gen = SkewNormal::new(v_location, v_scale, v_shape)
         .map_err(|e| format!("Error creating price distribution: {}", e))?;
     Ok(price_gen
         .sample_iter(&mut rng)
@@ -109,7 +116,7 @@ pub fn generate_order_distribution(
         .map(|(p, v)| {
             let price = p.to_u128().unwrap_or_default();
             let volume = v.to_u128().unwrap_or_default();
-            let order = build_limit_order(true, 0, volume, price);
+            let order = build_limit_order(true, valid_block, volume, price);
             let order_id = generate_order_id(pool_id, order.hash());
             
             OrderWithStorageData {
