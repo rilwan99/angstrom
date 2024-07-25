@@ -29,7 +29,8 @@ import {IAngstromComposable} from "./interfaces/IAngstromComposable.sol";
 import {IUnlockCallback} from "v4-core/src/interfaces/callback/IUnlockCallback.sol";
 import {IPoolManager, IUniV4} from "./interfaces/IUniV4.sol";
 
-import {DiffMeter} from "super-sol/collections/GasMetering.sol";
+import {DiffMeter, AverageMeter} from "super-sol/collections/GasMetering.sol";
+import {safeconsole as console} from "forge-std/safeconsole.sol";
 
 /// @author philogy <https://github.com/philogy>
 contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, NodeManager, IUnlockCallback {
@@ -154,27 +155,46 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
                 ) revert InvalidHookReturn();
             }
 
-            _accountIn(order.from, assetIn, order.amountIn);
-            _accountOut(order.from, assetOut, order.amountOut);
+            _accountIn(order.from, assetIn, order.amountIn, false);
+            _accountOut(order.from, assetOut, order.amountOut, false);
         }
+    }
+
+    struct Meters {
+        AverageMeter start;
+        AverageMeter hashing;
+        AverageMeter sig;
+        AverageMeter settlement;
+        AverageMeter invalidation;
+        AverageMeter standing;
+        AverageMeter flash;
     }
 
     function _validateAndExecuteOrders(Globals memory g, GenericOrder[] calldata orders) internal {
         TypedDataHasher typedHasher = _erc712Hasher();
+        Meters memory meters;
         for (uint256 i = 0; i < orders.length; i++) {
             GenericOrder calldata order = orders[i];
+            meters.start = meters.start.startNext();
             uint256 priceOutVsIn = g.prices.get(order.assetOutIndex, order.assetInIndex);
             if (priceOutVsIn < order.minPrice) revert LimitViolated();
 
             address assetIn = g.get(order.assetInIndex);
             address assetOut = g.get(order.assetOutIndex);
             // The `.hash` method validates the `block.number` for flash orders.
-            bytes32 orderHash = typedHasher.hashTypedData(RefAdapaterLib.adaptHash(order, assetIn, assetOut));
+            meters.start = meters.start.end();
 
+            meters.hashing = meters.hashing.startNext();
+            bytes32 orderHash = typedHasher.hashTypedData(RefAdapaterLib.adaptHash(order, assetIn, assetOut));
+            meters.hashing = meters.hashing.end();
+
+            meters.sig = meters.sig.startNext();
             if (!SignatureCheckerLib.isValidSignatureNow(order.from, orderHash, order.signature)) {
                 revert InvalidSignature();
             }
+            meters.sig = meters.sig.end();
 
+            meters.invalidation = meters.invalidation.startNext();
             if (order.otype == OrderType.Standing) {
                 if (block.timestamp > order.deadline) revert Expired();
                 _useNonce(order.from, order.nonce);
@@ -183,7 +203,9 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
                 if (executed.get() != 0) revert OrderAlreadyExecuted();
                 executed.set(1);
             }
+            meters.invalidation = meters.invalidation.end();
 
+            meters.settlement = meters.settlement.startNext();
             if (order.hook != address(0)) {
                 if (
                     IAngstromComposable(order.hook).compose(order.from, order.hookPayload)
@@ -192,9 +214,28 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
             }
 
             (uint256 amountIn, uint256 amountOut) = _getAmounts(order, priceOutVsIn);
-            _accountIn(order.from, assetIn, amountIn);
-            _accountOut(order.from, assetOut, amountOut);
+            AverageMeter orderMeter = (order.otype == OrderType.Standing ? meters.standing : meters.flash).startNext();
+            _accountIn(order.from, assetIn, amountIn, order.otype == OrderType.Standing);
+            _accountOut(order.from, assetOut, amountOut, order.otype == OrderType.Standing);
+            orderMeter = orderMeter.end();
+            order.otype == OrderType.Standing ? (meters.standing = orderMeter) : (meters.flash = orderMeter);
+            meters.settlement = meters.settlement.end();
         }
+
+        console.log("section summary");
+        uint256 total = meters.start.average() + meters.hashing.average() + meters.sig.average()
+            + meters.invalidation.average() + meters.settlement.average();
+        _showMeter("  start (%s m%%): %s", meters.start, total);
+        _showMeter("  hashing (%s m%%): %s", meters.hashing, total);
+        _showMeter("  sig (%s m%%): %s", meters.sig, total);
+        _showMeter("  invalidation (%s m%%): %s", meters.invalidation, total);
+        _showMeter("  settlement (%s m%%): %s", meters.settlement, total);
+        console.log("    standing: %s", meters.standing.average() / 1e18);
+        console.log("    flash: %s", meters.flash.average() / 1e18);
+    }
+
+    function _showMeter(bytes32 message, AverageMeter meter, uint256 total) internal {
+        console.log(message, meter.average() * 1000 / total, meter.average() / 1e18);
     }
 
     function _getAmounts(GenericOrder calldata order, uint256 priceOutVsIn)

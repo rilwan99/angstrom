@@ -7,6 +7,11 @@ import {Angstrom} from "../../src/Angstrom.sol";
 contract ExtAngstrom is Angstrom {
     constructor(address uniV4PoolManager, address governance) Angstrom(uniV4PoolManager, governance) {}
 
+    // TODO: Remove
+    function __ilegalMint(address to, address asset, uint256 amount) external {
+        _aAssets[to][asset] += amount;
+    }
+
     function updateLastBlock() public {
         lastBlockUpdated = block.number;
     }

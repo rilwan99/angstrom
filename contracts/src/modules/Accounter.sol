@@ -34,6 +34,8 @@ abstract contract Accounter is UniConsumer {
     mapping(address => uint256) internal savedFees;
     mapping(address => tuint256) internal freeBalance;
 
+    mapping(address => mapping(address => uint256)) internal _aAssets;
+
     function _borrowAssets(Asset[] calldata assets) internal {
         for (uint256 i = 0; i < assets.length; i++) {
             Asset calldata asset = assets[i];
@@ -80,13 +82,15 @@ abstract contract Accounter is UniConsumer {
         }
     }
 
-    function _accountIn(address from, address asset, uint256 amount) internal {
+    function _accountIn(address from, address asset, uint256 amount, bool settleOutside) internal {
         freeBalance[asset].inc(amount);
-        asset.safeTransferFrom(from, address(this), amount);
+        if (settleOutside) asset.safeTransferFrom(from, address(this), amount);
+        else _aAssets[from][asset] -= amount;
     }
 
-    function _accountOut(address to, address asset, uint256 amount) internal {
+    function _accountOut(address to, address asset, uint256 amount, bool settleOutside) internal {
         freeBalance[asset].dec(amount);
-        asset.safeTransfer(to, amount);
+        if (settleOutside) asset.safeTransfer(to, amount);
+        else _aAssets[to][asset] += amount;
     }
 }

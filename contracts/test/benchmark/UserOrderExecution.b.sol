@@ -135,6 +135,15 @@ contract UserOrderExecution is BaseTest, HookDeployer {
         // Initialize trader actors.
         v.traders = makeTraders(TOTAL_ACTORS);
 
+        for (uint256 i = 0; i < v.traders.length; i++) {
+            Trader memory trader = v.traders[i];
+            vm.prank(trader.addr);
+            angstrom.invalidateNonce(u64(trader.getFreshNonce()));
+            for (uint256 j = 0; j < assets.length; j++) {
+                angstrom.__ilegalMint(trader.addr, assets[j], 1);
+            }
+        }
+
         v.prices = new Price[](v.pairIter.prices.length);
         v.hasher = TypedDataHasherLib.init(angstrom.DOMAIN_SEPARATOR());
         v.finalOrders = new GenericOrder[](v.orders.length);
@@ -264,7 +273,10 @@ contract UserOrderExecution is BaseTest, HookDeployer {
                 address asset = assets[j];
                 MockERC20 erc20 = MockERC20(asset);
                 erc20.approve(address(angstrom), type(uint256).max);
-                erc20.mint(trader, traderTotals[trader][asset]);
+                uint256 total = traderTotals[trader][asset];
+                erc20.mint(trader, total);
+                angstrom.__ilegalMint(trader, asset, total);
+                erc20.mint(address(angstrom), total);
             }
             vm.stopPrank();
         }

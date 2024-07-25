@@ -10,6 +10,10 @@ abstract contract UnorderedNonces {
     /// @dev `keccak256("angstrom-v1_0.unordered-nonces.slot")[0:4]`
     uint256 private constant UNORDERED_NONCES_SLOT = 0xdaa050e9;
 
+    function invalidateNonce(uint64 nonce) external {
+        _useNonce(msg.sender, nonce);
+    }
+
     function _useNonce(address owner, uint64 nonce) internal {
         pptr bitmap = _getBitmapPtr(owner, nonce);
         uint256 flag = 1 << uint256(nonce & 0xff);
