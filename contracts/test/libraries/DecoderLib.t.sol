@@ -73,6 +73,7 @@ contract DecoderLibTest is BaseTest {
         return TopOfBlockOrderEnvelope(
             rng.next(),
             rng.next(),
+            rng.randbool(),
             AssetIndex.wrap(rng.randuint16()),
             AssetIndex.wrap(rng.randuint16()),
             rng.randaddr(),

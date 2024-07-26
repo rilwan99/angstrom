@@ -43,6 +43,7 @@ using OrderLib for GenericOrder global;
 struct TopOfBlockOrderEnvelope {
     uint256 amountIn;
     uint256 amountOut;
+    bool useInternal;
     AssetIndex assetInIndex;
     AssetIndex assetOutIndex;
     address recipient;
@@ -62,15 +63,14 @@ library OrderLib {
     /// forgefmt: disable-next-item
     bytes32 internal constant TOP_OF_BLOCK_ORDER_TYPEHASH = keccak256(
         "TopOfBlockOrder("
-           "uint256 amountIn,"
-           "uint256 amountOut,"
-           "address assetIn,"
-           "uint8 assetInForm,"
-           "address assetOut,"
-           "uint8 assetOutForm,"
+           "uint256 amount_in,"
+           "uint256 amount_out,"
+           "bool use_internal,"
+           "address asset_in,"
+           "address asset_out,"
            "address recipient,"
            "bytes hookData,"
-           "uint256 validForBlock"
+           "uint256 valid_for_block"
         ")"
     );
 
@@ -84,6 +84,7 @@ library OrderLib {
                 TOP_OF_BLOCK_ORDER_TYPEHASH,
                 order.amountIn,
                 order.amountOut,
+                order.useInternal,
                 assetIn,
                 assetOut,
                 order.recipient,

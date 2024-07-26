@@ -146,8 +146,8 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
                 ) revert InvalidHookReturn();
             }
 
-            _accountIn(order.from, assetIn, order.amountIn, false);
-            _accountOut(order.from, assetOut, order.amountOut, false);
+            _accountIn(order.from, assetIn, order.amountIn, order.useInternal);
+            _accountOut(order.from, assetOut, order.amountOut, order.useInternal);
         }
     }
 
