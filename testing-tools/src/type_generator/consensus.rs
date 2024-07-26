@@ -1,12 +1,21 @@
+use std::collections::HashMap;
+
 use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
     primitive::{BLSValidatorID, Lvr},
-    sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
+    sol_bindings::{
+        grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
+        sol::TopOfBlockOrder
+    }
 };
 use blsful::SecretKey;
+use matching_engine::{
+    strategy::{MatchingStrategy, SimpleCheckpointStrategy},
+    MatchingManager
+};
 use rand::{rngs::ThreadRng, thread_rng, Rng};
-use reth_network_peers::PeerId;
-use secp256k1::SecretKey as Secp256SecretKey;
+use reth_network_peers::{pk2id, PeerId};
+use secp256k1::{Secp256k1, SecretKey as Secp256SecretKey};
 
 use super::orders::DistributionParameters;
 use crate::type_generator::orders::{generate_limit_order, generate_order_distribution};
@@ -49,27 +58,61 @@ pub fn generate_limit_order_distribution(
 pub fn generate_random_preposal(count: usize, block: u64) -> PreProposal {
     let mut rng = thread_rng();
     let sk = Secp256SecretKey::new(&mut rng);
-
+    let secp = Secp256k1::new();
+    let pk = sk.public_key(&secp);
+    // Grab the source ID from the secret/public keypair
+    let source = pk2id(&pk);
     let limit = generate_limit_order_distribution(count, 10, block);
 
-    PreProposal::generate_pre_proposal(block, PeerId::random(), limit, vec![], &sk)
+    PreProposal::generate_pre_proposal(block, source, limit, vec![], &sk)
 }
 
-pub fn generate_random_proposal() -> Proposal {
+pub fn generate_random_proposal(count: usize, block: u64) -> Proposal {
     let mut rng = thread_rng();
     let sk = Secp256SecretKey::new(&mut rng);
+    let secp = Secp256k1::new();
+    let pk = sk.public_key(&secp);
+    // Grab the source ID from the secret/public keypair
+    let source = pk2id(&pk);
 
-    // let mut order_buf = Vec::new();
-    // for _ in 0..rng.gen_range(5..10) {
-    //     order_buf.push(OrderBuffer {
-    //         excess_orders:  (0..rng.gen_range(3..10))
-    //             .map(|_| generate_rand_valid_limit_order())
-    //             .collect(),
-    //         reserve_orders: (0..rng.gen_range(3..10))
-    //             .map(|_| generate_rand_valid_limit_order())
-    //             .collect()
-    //     })
-    // }
+    let preproposals = (0..5)
+        .map(|_| generate_random_preposal(count, block))
+        .collect::<Vec<_>>();
+    let manager = MatchingManager {};
+    let books = manager.build_books(&preproposals);
+    let searcher_orders: HashMap<usize, OrderWithStorageData<TopOfBlockOrder>> = preproposals
+        .iter()
+        .flat_map(|p| p.searcher.iter())
+        .fold(HashMap::new(), |mut acc, order| {
+            acc.entry(order.pool_id).or_insert(order.clone());
+            acc
+        });
+    let solutions = books
+        .into_iter()
+        .map(|b| {
+            let searcher = searcher_orders.get(&b.id()).cloned();
+            SimpleCheckpointStrategy::run(&b)
+                .map(|s| s.solution(searcher))
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
 
-    Proposal::generate_proposal(rng.gen(), PeerId::default(), vec![], vec![], &sk)
+    Proposal::generate_proposal(rng.gen(), source, preproposals, solutions, &sk)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{generate_random_preposal, generate_random_proposal};
+
+    #[test]
+    fn random_preproposal_is_valid() {
+        let preproposal = generate_random_preposal(100, 10);
+        assert!(preproposal.validate(), "Preproposal cannot validate itself");
+    }
+
+    #[test]
+    fn random_proposal_is_valid() {
+        let proposal = generate_random_proposal(100, 10);
+        assert!(proposal.validate(), "Proposal cannot validate itself");
+    }
 }

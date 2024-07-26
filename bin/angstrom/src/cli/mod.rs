@@ -221,7 +221,8 @@ pub fn initialize_strom_components<Node: FullNodeComponents>(
             handles.consensus_rx
         ),
         signer,
-        order_storage.clone()
+        order_storage.clone(),
+        None
     );
 }
 

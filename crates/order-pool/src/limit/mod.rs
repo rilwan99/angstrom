@@ -15,6 +15,7 @@ mod parked;
 mod pending;
 mod standard;
 
+#[derive(Default)]
 pub struct LimitOrderPool {
     /// Sub-pool of all limit orders
     limit_orders:      LimitPool,

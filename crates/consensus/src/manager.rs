@@ -9,7 +9,7 @@ use angstrom_types::{
     orders::PoolSolution
 };
 use futures::{FutureExt, Stream, StreamExt};
-use matching_engine::{MatchingEngineHandle, MatchingManager};
+use matching_engine::MatchingManager;
 use order_pool::order_storage::OrderStorage;
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_provider::{CanonStateNotification, CanonStateNotifications};
@@ -21,7 +21,6 @@ use tokio::{
 };
 use tokio_stream::wrappers::{BroadcastStream, ReceiverStream};
 use tracing::{error, warn};
-use validation::BundleValidator;
 
 use crate::{
     cache::ProposalCache,
@@ -41,37 +40,10 @@ pub async fn manager_thread(
     globalstate: Arc<Mutex<GlobalConsensusState>>,
     netdeps: ManagerNetworkDeps,
     signer: Signer,
-    order_storage: Arc<OrderStorage>
+    order_storage: Arc<OrderStorage>,
+    timings: Option<RoundStateTimings>
 ) {
-    let ManagerNetworkDeps { network, canonical_block_stream, strom_consensus_event, rx, .. } =
-        netdeps;
-    let stream = ReceiverStream::new(rx);
-
-    // This is still a lot of stuff to track that we don't necessarily have to worry
-    // about
-    let timings = RoundStateTimings::new(6, 2, 6);
-    let roundstate = RoundState::new(0, 1, Leader::default(), Some(timings));
-
-    let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
-    // Use our default round robin algo
-    let (roundrobin, _cacheheight) = RoundRobinAlgo::new();
-    let tasks: JoinSet<ConsensusTaskResult> = JoinSet::new();
-    let cache = ProposalCache::new();
-
-    let mut manager = ConsensusManager {
-        strom_consensus_event,
-        roundstate,
-        globalstate,
-        subscribers: Vec::new(),
-        command: stream,
-        network,
-        roundrobin,
-        signer,
-        order_storage,
-        tasks,
-        cache,
-        canonical_block_stream: wrapped_broadcast_stream
-    };
+    let mut manager = ConsensusManager::new(globalstate, netdeps, signer, order_storage, timings);
 
     // Start message loop
     loop {
@@ -155,15 +127,51 @@ impl ManagerNetworkDeps {
 }
 
 impl ConsensusManager {
+    pub fn new(
+        globalstate: Arc<Mutex<GlobalConsensusState>>,
+        netdeps: ManagerNetworkDeps,
+        signer: Signer,
+        order_storage: Arc<OrderStorage>,
+        timings: Option<RoundStateTimings>
+    ) -> Self {
+        let ManagerNetworkDeps {
+            network, canonical_block_stream, strom_consensus_event, rx, ..
+        } = netdeps;
+        let stream = ReceiverStream::new(rx);
+
+        // This is still a lot of stuff to track that we don't necessarily have to worry
+        // about
+        let timings = timings.unwrap_or_else(|| RoundStateTimings::new(6, 2, 6));
+        let roundstate = RoundState::new(0, 1, Leader::default(), Some(timings));
+        let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
+        // Use our default round robin algo
+        let (roundrobin, _cacheheight) = RoundRobinAlgo::new();
+        Self {
+            strom_consensus_event,
+            roundstate,
+            globalstate,
+            subscribers: Vec::new(),
+            command: stream,
+            network,
+            roundrobin,
+            signer,
+            order_storage,
+            tasks: JoinSet::new(),
+            cache: ProposalCache::new(),
+            canonical_block_stream: wrapped_broadcast_stream
+        }
+    }
+
     pub fn spawn<TP: TaskSpawner>(
         tp: TP,
         globalstate: Arc<Mutex<GlobalConsensusState>>,
         netdeps: ManagerNetworkDeps,
         signer: Signer,
-        order_storage: Arc<OrderStorage>
+        order_storage: Arc<OrderStorage>,
+        timings: Option<RoundStateTimings>
     ) -> ConsensusHandle {
         let tx = netdeps.tx.clone();
-        let fut = manager_thread(globalstate, netdeps, signer, order_storage).boxed();
+        let fut = manager_thread(globalstate, netdeps, signer, order_storage, timings).boxed();
 
         tp.spawn_critical("consensus", fut);
 
@@ -235,7 +243,6 @@ impl ConsensusManager {
     fn on_task_complete(&mut self, task_result: ConsensusTaskResult) {
         match task_result {
             ConsensusTaskResult::ValidationSolutions { height, solutions } => {
-                warn!("Finished validation job");
                 // Get the proposal for that height
                 let Some(proposal) = self.cache.get(height) else {
                     error!(
@@ -401,5 +408,126 @@ impl ConsensusListener for ConsensusHandle {
         let _ = self.sender.try_send(ConsensusCommand::Subscribe(tx));
 
         Box::pin(ReceiverStream::new(rx))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use std::{
+        collections::HashSet,
+        sync::{Arc, Mutex}
+    };
+
+    use alloy_primitives::FixedBytes;
+    use angstrom_types::{consensus::Proposal, sol_bindings::grouped_orders::GroupedUserOrder};
+    use order_pool::{order_storage::OrderStorage, PoolConfig};
+    use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
+    use testing_tools::{
+        mocks::network_events::MockNetworkHandle,
+        type_generator::consensus::{generate_limit_order_distribution, generate_random_proposal}
+    };
+    use tokio::sync::mpsc::{channel, unbounded_channel};
+    use tokio_stream::StreamExt;
+
+    use crate::{
+        manager::ConsensusTaskResult, manager_thread, round::RoundStateTimings, ConsensusManager,
+        ConsensusMessage, ConsensusState, GlobalConsensusState, ManagerNetworkDeps, Signer
+    };
+
+    fn mock_net_deps() -> ManagerNetworkDeps {
+        let (a, network, c, d) = MockNetworkHandle::new();
+        let (strom_consensus_sender, strom_consensus_receiver) = unbounded_channel();
+        let strom_consensus_event =
+            UnboundedMeteredReceiver::new(strom_consensus_receiver, "mock strom handle");
+        let (tx, rx) = channel(100);
+        let (canon_state_tx, canon_state_rx) = tokio::sync::broadcast::channel(100);
+        ManagerNetworkDeps::new(network, canon_state_rx, strom_consensus_event, tx, rx)
+    }
+
+    #[tokio::test]
+    async fn can_be_spawned() {
+        let globalstate = Arc::new(Mutex::new(GlobalConsensusState::default()));
+        let netdeps = mock_net_deps();
+        let order_storage = Arc::new(OrderStorage::default());
+        let thread = tokio::spawn(manager_thread(
+            globalstate,
+            netdeps,
+            Signer::default(),
+            order_storage,
+            None
+        ));
+        thread.abort();
+    }
+
+    #[tokio::test]
+    async fn builds_preproposal() {
+        let globalstate = Arc::new(Mutex::new(GlobalConsensusState::default()));
+        let netdeps = mock_net_deps();
+        let poolconfig = PoolConfig { ids: vec![10], ..Default::default() };
+        let order_storage = Arc::new(OrderStorage::new(&poolconfig));
+        // Let's make some orders to go in our order storage
+        let orders = generate_limit_order_distribution(100, 10, 0);
+        let in_ord: HashSet<FixedBytes<32>> = orders.iter().map(|i| i.hash()).collect();
+        for o in orders {
+            let lim = o
+                .try_map_inner(|inner| Ok(GroupedUserOrder::Vanilla(inner)))
+                .unwrap();
+            order_storage.add_new_limit_order(lim).unwrap();
+        }
+        let timings = RoundStateTimings::default();
+        let mut manager = ConsensusManager::new(
+            globalstate,
+            netdeps,
+            Signer::default(),
+            order_storage,
+            Some(timings)
+        );
+        let (tx, mut rx) = channel(100);
+        manager.on_command(crate::ConsensusCommand::Subscribe(tx));
+        let new_state = manager.roundstate.next().await.unwrap();
+        // We shift to PreProposal state and should have sent out a PreProposal
+        assert!(matches!(new_state, ConsensusState::PreProposal));
+        manager.on_new_globalstate(new_state).await;
+        let preproposal = rx.recv().await.unwrap();
+        let ConsensusMessage::PrePropose(p) = preproposal else {
+            panic!("Didn't get preproposal message");
+        };
+        let out_ord: HashSet<FixedBytes<32>> = p.limit.iter().map(|i| i.hash()).collect();
+        assert!(in_ord == out_ord, "Orders missing from preproposal");
+    }
+
+    #[tokio::test]
+    async fn verifies_proposal() {
+        let globalstate = Arc::new(Mutex::new(GlobalConsensusState::default()));
+        let netdeps = mock_net_deps();
+        let poolconfig = PoolConfig { ids: vec![10], ..Default::default() };
+        let order_storage = Arc::new(OrderStorage::new(&poolconfig));
+        let timings = RoundStateTimings::default();
+        let mut manager = ConsensusManager::new(
+            globalstate,
+            netdeps,
+            Signer::default(),
+            order_storage,
+            Some(timings)
+        );
+        let (tx, mut rx) = channel(100);
+        manager.on_command(crate::ConsensusCommand::Subscribe(tx));
+        let proposal: Proposal = generate_random_proposal(100, 10);
+        manager
+            .cache
+            .set(proposal.ethereum_height, proposal.clone());
+        manager.start_verify_proposal(&proposal);
+        assert!(!manager.tasks.is_empty(), "Verify proposal task not started!");
+        let res = manager.tasks.join_next().await.unwrap().unwrap();
+        let ConsensusTaskResult::ValidationSolutions { ref height, ref solutions } = res else {
+            panic!("Got some other task result");
+        };
+        assert!(*solutions == proposal.solutions, "Solutions don't match!");
+        manager.on_task_complete(res);
+        let commit = rx.recv().await.unwrap();
+        let ConsensusMessage::Commit(c) = commit else {
+            panic!("Didn't get commit message");
+        };
     }
 }

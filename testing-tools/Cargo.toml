@@ -19,6 +19,7 @@ angstrom-rpc.workspace = true
 angstrom.workspace = true
 order-pool.workspace = true
 validation.workspace = true
+matching-engine.workspace = true
 
 reth-network-api.workspace = true
 reth-codecs.workspace = true

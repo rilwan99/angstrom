@@ -7,6 +7,7 @@ use angstrom_types::{
 
 use super::{pending::PendingPool, LimitPoolError};
 
+#[derive(Default)]
 pub struct ComposableLimitPool(HashMap<PoolId, PendingPool<GroupedComposableOrder>>);
 
 impl ComposableLimitPool {

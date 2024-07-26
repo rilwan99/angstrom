@@ -8,6 +8,7 @@ use angstrom_types::{
 use super::{parked::ParkedPool, pending::PendingPool};
 use crate::limit::LimitPoolError;
 
+#[derive(Default)]
 pub struct LimitPool {
     pending_orders: HashMap<PoolId, PendingPool<GroupedVanillaOrder>>,
     parked_orders:  HashMap<PoolId, ParkedPool>

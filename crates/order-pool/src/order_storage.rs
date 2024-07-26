@@ -20,7 +20,7 @@ use crate::{
 };
 
 /// The Storage of all verified orders.
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct OrderStorage {
     pub limit_orders:                Arc<Mutex<LimitOrderPool>>,
     pub searcher_orders:             Arc<Mutex<SearcherPool>>,

@@ -70,10 +70,7 @@ impl MatchingManager {
         MatcherHandle { sender: tx }
     }
 
-    pub async fn build_proposal(
-        &self,
-        preproposals: Vec<PreProposal>
-    ) -> Result<Vec<PoolSolution>, String> {
+    pub fn build_books(&self, preproposals: &[PreProposal]) -> Vec<OrderBook> {
         // Pull all the orders out of all the preproposals and build OrderPools out of
         // them.  This is ugly and inefficient right now
         let book_sources: HashMap<usize, HashSet<OrderWithStorageData<GroupedVanillaOrder>>> =
@@ -86,6 +83,23 @@ impl MatchingManager {
                     acc
                 });
 
+        book_sources
+            .into_iter()
+            .map(|(id, orders)| {
+                let amm = None;
+                build_book(id, amm, orders)
+            })
+            .collect()
+    }
+
+    pub async fn build_proposal(
+        &self,
+        preproposals: Vec<PreProposal>
+    ) -> Result<Vec<PoolSolution>, String> {
+        // Pull all the orders out of all the preproposals and build OrderPools out of
+        // them.  This is ugly and inefficient right now
+        let books = self.build_books(&preproposals);
+
         let searcher_orders: HashMap<usize, OrderWithStorageData<TopOfBlockOrder>> = preproposals
             .iter()
             .flat_map(|p| p.searcher.iter())
@@ -94,13 +108,6 @@ impl MatchingManager {
                 acc
             });
 
-        let books: Vec<OrderBook> = book_sources
-            .into_iter()
-            .map(|(id, orders)| {
-                let amm = None;
-                build_book(id, amm, orders)
-            })
-            .collect();
         let mut solution_set = JoinSet::new();
         books.into_iter().for_each(|b| {
             let searcher = searcher_orders.get(&b.id()).cloned();

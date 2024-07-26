@@ -13,6 +13,7 @@ mod pending;
 
 pub const SEARCHER_POOL_MAX_SIZE: usize = 15;
 
+#[derive(Default)]
 pub struct SearcherPool {
     /// Holds all non composable searcher order pools
     searcher_orders: HashMap<PoolId, PendingPool>,

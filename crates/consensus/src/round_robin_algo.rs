@@ -31,7 +31,7 @@ impl RoundRobinAlgo {
 
     #[allow(dead_code)]
     fn load_cache() -> Option<Self> {
-        todo!()
+        None
     }
 
     #[allow(dead_code)]

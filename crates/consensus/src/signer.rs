@@ -6,7 +6,7 @@ use angstrom_types::{
 };
 use blsful::{Bls12381G1Impl, SecretKey as BlsSecretKey};
 use reth_rpc_types::PeerId;
-use secp256k1::SecretKey;
+use secp256k1::{rand::thread_rng, SecretKey};
 
 /// The Signer deals with verifying external signatures as well as
 /// signing our payloads.  Pub fields for now.
@@ -20,12 +20,13 @@ pub struct Signer {
 
 impl Default for Signer {
     fn default() -> Self {
+        let rng = thread_rng();
         let key = SecretKey::new(&mut secp256k1::rand::thread_rng());
         Signer {
             my_id: FixedBytes::random(),
             validator_id: BLSValidatorID::default(),
             key,
-            bls_key: BlsSecretKey::default()
+            bls_key: BlsSecretKey::random(rng)
         }
     }
 }
