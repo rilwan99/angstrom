@@ -35,7 +35,7 @@ we're allowed to actually interact with Uniswap at all).
 
 ### Bundle contents
 
-**Top-level Payload Contents**
+#### Top-level Payload Contents
 
 The `data` payload consists of an ♻️ ABI-encoded (encoding soon to change) tuple of structs:
 
@@ -50,7 +50,7 @@ The `data` payload consists of an ♻️ ABI-encoded (encoding soon to change) t
 );
 ```
 
-**`Asset[] assets`**
+#### `Asset[] assets`
 
 ```solidity
 struct Asset {
@@ -72,7 +72,7 @@ The elements **must be** sorted in ascending order according the value of `.addr
 |`uint256 settle`|Final amount that needs to be repayed to Uniswap post-bundle execution .|`.addr` base unit|
 
 
-**`Price[] initialPrices`**
+#### `Price[] initialPrices`
 
 ```solidity
 struct Price {
