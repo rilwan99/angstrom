@@ -436,12 +436,12 @@ mod tests {
     };
 
     fn mock_net_deps() -> ManagerNetworkDeps {
-        let (a, network, c, d) = MockNetworkHandle::new();
-        let (strom_consensus_sender, strom_consensus_receiver) = unbounded_channel();
+        let (_, network, ..) = MockNetworkHandle::new();
+        let (_, strom_consensus_receiver) = unbounded_channel();
         let strom_consensus_event =
             UnboundedMeteredReceiver::new(strom_consensus_receiver, "mock strom handle");
         let (tx, rx) = channel(100);
-        let (canon_state_tx, canon_state_rx) = tokio::sync::broadcast::channel(100);
+        let (_, canon_state_rx) = tokio::sync::broadcast::channel(100);
         ManagerNetworkDeps::new(network, canon_state_rx, strom_consensus_event, tx, rx)
     }
 
@@ -520,13 +520,13 @@ mod tests {
         manager.start_verify_proposal(&proposal);
         assert!(!manager.tasks.is_empty(), "Verify proposal task not started!");
         let res = manager.tasks.join_next().await.unwrap().unwrap();
-        let ConsensusTaskResult::ValidationSolutions { ref height, ref solutions } = res else {
+        let ConsensusTaskResult::ValidationSolutions { ref solutions, .. } = res else {
             panic!("Got some other task result");
         };
         assert!(*solutions == proposal.solutions, "Solutions don't match!");
         manager.on_task_complete(res);
         let commit = rx.recv().await.unwrap();
-        let ConsensusMessage::Commit(c) = commit else {
+        let ConsensusMessage::Commit(_) = commit else {
             panic!("Didn't get commit message");
         };
     }

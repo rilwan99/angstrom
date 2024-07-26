@@ -1,4 +1,4 @@
-use alloy_primitives::{Address, FixedBytes, Uint, U256};
+use alloy_primitives::{Address, FixedBytes, Uint};
 use angstrom_types::{
     matching::Ray,
     orders::{OrderId, OrderPriorityData},

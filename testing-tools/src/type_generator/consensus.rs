@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
-    primitive::{BLSValidatorID, Lvr},
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
         sol::TopOfBlockOrder
@@ -14,7 +13,7 @@ use matching_engine::{
     MatchingManager
 };
 use rand::{rngs::ThreadRng, thread_rng, Rng};
-use reth_network_peers::{pk2id, PeerId};
+use reth_network_peers::pk2id;
 use secp256k1::{Secp256k1, SecretKey as Secp256SecretKey};
 
 use super::orders::DistributionParameters;

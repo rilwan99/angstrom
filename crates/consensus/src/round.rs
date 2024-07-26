@@ -7,7 +7,7 @@ use std::{
 };
 
 use alloy_primitives::FixedBytes;
-use angstrom_types::consensus::{Commit, PreProposal, Proposal};
+use angstrom_types::consensus::{Commit, PreProposal};
 use futures::{ready, Future, FutureExt, Stream};
 use reth_primitives::B512;
 use tokio::task::AbortHandle;

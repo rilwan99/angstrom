@@ -5,6 +5,7 @@ pub struct SizeTracker {
 }
 
 impl SizeTracker {
+    #[allow(dead_code)]
     pub fn new(max: Option<usize>) -> Self {
         Self { max, current: 0 }
     }
