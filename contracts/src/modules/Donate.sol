@@ -41,7 +41,7 @@ abstract contract Donate {
         uint128 currentLiquidity = _getCurrentLiquidity(id);
         if (endLiquidity != currentLiquidity) revert WrongEndLiquidity(endLiquidity, currentLiquidity);
         total += currentDonate;
-        rewards.globalGrowth += cumulativeGrowth + currentDonate.divWad(currentLiquidity);
+        rewards.globalGrowth += cumulativeGrowth + flatDivWad(currentDonate, currentLiquidity);
     }
 
     function _donateBelow(
@@ -72,6 +72,9 @@ abstract contract Donate {
             }
 
             (initialized, tick) = _findNextTickUp(id, tick);
+
+            // Break condition is the current tick bound to account for situations where the
+            // "current tick" is uninitialized.
         } while (tick <= currentTick);
 
         return (total, cumulativeGrowth, liquidity);
@@ -106,6 +109,9 @@ abstract contract Donate {
             }
 
             (initialized, tick) = _findNextTickDown(id, tick);
+
+            // Break condition is the current tick bound to account for situations where the
+            // "current tick" is uninitialized.
         } while (currentTick < tick);
 
         return (total, cumulativeGrowth, liquidity);
