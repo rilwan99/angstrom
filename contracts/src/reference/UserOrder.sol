@@ -9,8 +9,8 @@ import {
     OrderMeta,
     OrdersLib
 } from "./OrderTypes.sol";
-import {GenericOrder} from "../types/OrderTypes.sol";
-import {TypedDataHasher} from "../types/TypedDataHasher.sol";
+import {GenericOrder} from "./GenericOrder.sol";
+import {TypedDataHasher} from "src/types/TypedDataHasher.sol";
 
 type UserOrder is uint256;
 

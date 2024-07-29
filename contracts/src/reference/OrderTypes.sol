@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {AssetIndex} from "../types/PriceGraph.sol";
-import {GenericOrder, OrderMode, OrderType} from "../types/OrderTypes.sol";
+import {GenericOrder, OrderMode, OrderType} from "./GenericOrder.sol";
 
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 

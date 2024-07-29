@@ -12,12 +12,14 @@ import {Globals} from "./types/Globals.sol";
 import {Asset} from "./types/Asset.sol";
 import {tuint256} from "transient-goodies/TransientPrimitives.sol";
 import {PriceGraphLib, PriceGraph, AssetIndex, Price} from "./types/PriceGraph.sol";
-import {GenericOrder, TopOfBlockOrderEnvelope, OrderType, OrderMode} from "./types/OrderTypes.sol";
+import {GenericOrder} from "./reference/GenericOrder.sol";
+import {TopOfBlockOrderEnvelope} from "./types/TopOfBlockEnvelope.sol";
 import {TypedDataHasher} from "./types/TypedDataHasher.sol";
-import {RefAdapaterLib} from "./types/RefAdapaterLib.sol";
+import {OrderBuffer, MaybeHook, OrderBufferLib} from "./types/OrderBuffer.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {SET_POOL_FEE, TICK_SPACING} from "./Constants.sol";
+import {CalldataReader, CalldataReaderLib} from "super-sol/collections/CalldataReader.sol";
 
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 import {DecoderLib} from "./libraries/DecoderLib.sol";
@@ -45,7 +47,6 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
 
     error LimitViolated();
     error Expired();
-    error InvalidHookReturn();
     error OrderAlreadyExecuted();
 
     error FillingTooLittle();
@@ -64,7 +65,7 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
         _checkHookPermissions(Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_INITIALIZE_FLAG);
     }
 
-    function beforeInitialize(address, PoolKey calldata poolKey, uint160) external onlyUniV4 returns (bytes4) {
+    function beforeInitialize(address, PoolKey calldata poolKey, uint160) external view onlyUniV4 returns (bytes4) {
         if (poolKey.tickSpacing != TICK_SPACING || poolKey.fee != SET_POOL_FEE) revert InvalidPoolKey();
         return this.beforeInitialize.selector;
     }
@@ -89,7 +90,11 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
         _execPoolSwaps(g, swaps);
         _validateAndExecuteToB(g, topOfBlockOrders);
         _rewardPools(g, poolRewardsUpdates, freeBalance);
-        _validateAndExecuteOrders(g, orders);
+        bytes calldata encodedOrders;
+        assembly {
+            encodedOrders.length := 0
+        }
+        _validateAndExecuteOrders(g, encodedOrders);
         _saveAndSettle(assets);
 
         return new bytes(0);
@@ -139,80 +144,177 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
                 revert InvalidSignature();
             }
 
-            if (order.hook != address(0)) {
-                if (
-                    IAngstromComposable(order.hook).compose(order.from, order.hookPayload)
-                        != ~uint32(IAngstromComposable.compose.selector)
-                ) revert InvalidHookReturn();
-            }
+            // TODO: Hook for ToB
+            // if (order.hook != address(0)) {
+            //     if (
+            //         IAngstromComposable(order.hook).compose(order.from, order.hookPayload)
+            //             != ~uint32(IAngstromComposable.compose.selector)
+            //     ) revert InvalidHookReturn();
+            // }
 
             _accountIn(order.from, assetIn, order.amountIn, order.useInternal);
             _accountOut(order.from, assetOut, order.amountOut, order.useInternal);
         }
     }
 
-    function _validateAndExecuteOrders(Globals memory g, GenericOrder[] calldata orders) internal {
+    function _validateAndExecuteOrders(Globals memory g, bytes calldata encodedOrders) internal {
         TypedDataHasher typedHasher = _erc712Hasher();
-        for (uint256 i = 0; i < orders.length; i++) {
-            GenericOrder calldata order = orders[i];
+        CalldataReader reader = CalldataReaderLib.from(encodedOrders);
+        OrderBuffer orderBuffer = OrderBufferLib.initBuffer();
 
-            uint256 priceOutVsIn = g.prices.get(order.assetOutIndex, order.assetInIndex);
-            if (priceOutVsIn < order.minPrice) revert LimitViolated();
+        while (reader.notAtEnd(encodedOrders)) {
+            // Load 3-bit variant
+            uint256 variant = reader.readU8();
+            reader = reader.shifted(1);
 
-            address assetIn = g.get(order.assetInIndex);
-            address assetOut = g.get(order.assetOutIndex);
-            // The `.hash` method validates the `block.number` for flash orders.
+            orderBuffer.clear();
+            orderBuffer.setTypeHash(variant);
 
-            bytes32 orderHash = typedHasher.hashTypedData(RefAdapaterLib.adaptHash(order, assetIn, assetOut));
-
-            if (!SignatureCheckerLib.isValidSignatureNow(order.from, orderHash, order.signature)) {
-                revert InvalidSignature();
+            // Load and lookup asset in/out and dependent values.
+            uint256 priceOutVsIn;
+            address assetIn;
+            address assetOut;
+            {
+                AssetIndex assetInIndex = AssetIndex.wrap(reader.readU16());
+                reader = reader.shifted(2);
+                AssetIndex assetOutIndex = AssetIndex.wrap(reader.readU16());
+                reader = reader.shifted(2);
+                priceOutVsIn = g.prices.get(assetOutIndex, assetInIndex);
+                assetIn = g.get(assetInIndex);
+                assetOut = g.get(assetOutIndex);
             }
 
-            if (order.otype == OrderType.Standing) {
-                if (block.timestamp > order.deadline) revert Expired();
-                _useNonce(order.from, order.nonce);
-            } else {
+            // Load & validate price.
+            {
+                uint256 minPrice = reader.readU256();
+                reader = reader.shifted(32);
+                if (priceOutVsIn < minPrice) revert LimitViolated();
+                orderBuffer.setMinPrice(minPrice);
+            }
+
+            MaybeHook hook;
+            (reader, hook) = orderBuffer.readAndHashHook(reader, variant);
+            // Adds current block number for flash orders.
+            reader = orderBuffer.readOrderValidation(reader, variant);
+            uint256 amountIn;
+            uint256 amountOut;
+            (reader, amountIn, amountOut) = _loadAndComputeQuantity(orderBuffer, reader, variant, priceOutVsIn);
+
+            bool useInternal = variant & OrderBufferLib.VARIANT_USE_INTERNAL_BIT != 0;
+            orderBuffer.setUseInternal(useInternal);
+
+            address recipient;
+            if (variant & OrderBufferLib.VARIANT_HAS_RECIPIENT != 0) {
+                recipient = reader.readAddr();
+                reader = reader.shifted(20);
+            }
+            orderBuffer.setRecipient(recipient);
+
+            bytes32 orderHash = typedHasher.hashTypedData(orderBuffer.hash(variant));
+
+            address from;
+            (reader, from) = _authenticate(reader, orderHash, variant);
+
+            if (variant & OrderBufferLib.VARIANT_IS_FLASH_BIT != 0) {
                 tuint256 storage executed = alreadyExecuted[orderHash];
                 if (executed.get() != 0) revert OrderAlreadyExecuted();
                 executed.set(1);
+            } else {
+                if (block.timestamp > orderBuffer.deadline()) revert Expired();
+                _useNonce(from, orderBuffer.nonce());
             }
 
-            if (order.hook != address(0)) {
-                if (
-                    IAngstromComposable(order.hook).compose(order.from, order.hookPayload)
-                        != ~uint32(IAngstromComposable.compose.selector)
-                ) revert InvalidHookReturn();
-            }
+            recipient = recipient == address(0) ? from : recipient;
 
-            (uint256 amountIn, uint256 amountOut) = _getAmounts(order, priceOutVsIn);
-            _accountIn(order.from, assetIn, amountIn, !order.useInternal);
-            _accountOut(order.from, assetOut, amountOut, !order.useInternal);
+            hook.triggerIfSome(from);
+
+            // if (order.hook != address(0)) {
+            //     if (
+            //         IAngstromComposable(order.hook).compose(order.from, order.hookPayload)
+            //             != ~uint32(IAngstromComposable.compose.selector)
+            //     ) revert InvalidHookReturn();
+            // }
+
+            // (uint256 amountIn, uint256 amountOut) = _getAmounts(order, priceOutVsIn);
+            // _accountIn(order.from, assetIn, amountIn, !order.useInternal);
+            // _accountOut(order.from, assetOut, amountOut, !order.useInternal);
         }
     }
 
-    function _getAmounts(GenericOrder calldata order, uint256 priceOutVsIn)
+    function _loadAndComputeQuantity(OrderBuffer buffer, CalldataReader reader, uint256 variant, uint256 priceOutVsIn)
         internal
         view
-        returns (uint256 amountIn, uint256 amountOut)
+        returns (CalldataReader, uint256 quantityIn, uint256 quantityOut)
     {
-        uint256 feeRay = halfSpreadRay;
-        if (order.mode == OrderMode.ExactIn) {
-            amountIn = order.amountSpecified;
-            amountOut = amountIn.mulRay(priceOutVsIn);
-            amountOut -= amountOut.mulRay(feeRay);
-        } else if (order.mode == OrderMode.ExactOut) {
-            amountOut = order.amountSpecified;
-            amountIn = amountOut.divRay(priceOutVsIn);
-            amountIn += amountIn.mulRay(feeRay);
-        } else if (order.mode == OrderMode.Partial) {
-            amountIn = order.amountFilled;
-            if (amountIn < order.minAmountIn) revert FillingTooLittle();
-            if (amountIn > order.amountSpecified) revert FillingTooMuch();
-            amountOut = amountIn.mulRay(priceOutVsIn);
-            amountOut -= amountOut.mulRay(feeRay);
+        uint256 quantity;
+        if (variant & OrderBufferLib.VARIANT_IS_EXACT_BIT != 0) {
+            quantity = reader.readU128();
+            reader = reader.shifted(16);
+            buffer.setQuantityExact(variant, quantity);
         } else {
-            assert(false);
+            uint256 minQuantityIn = reader.readU128();
+            reader = reader.shifted(16);
+            uint256 maxQuantityIn = reader.readU128();
+            reader = reader.shifted(16);
+            quantity = reader.readU128();
+            reader = reader.shifted(16);
+            buffer.setQuantityPartialMinMax(minQuantityIn, maxQuantityIn);
+
+            if (quantity < minQuantityIn) revert FillingTooLittle();
+            if (quantity > maxQuantityIn) revert FillingTooMuch();
         }
+
+        uint256 feeRay = halfSpreadRay;
+        if (variant & OrderBufferLib.VARIANT_IS_OUT_BIT != 0) {
+            quantityIn = quantity;
+            quantityOut = quantityIn.mulRay(priceOutVsIn);
+            quantityOut -= quantityOut.mulRay(feeRay);
+        } else {
+            quantityOut = quantity;
+            quantityIn = quantityOut.divRay(priceOutVsIn);
+            quantityIn += quantityIn.mulRay(feeRay);
+        }
+
+        return (reader, quantityIn, quantityOut);
+    }
+
+    function _authenticate(CalldataReader reader, bytes32 orderHash, uint256 variant)
+        internal
+        view
+        returns (CalldataReader, address from)
+    {
+        if (variant & OrderBufferLib.VARIANT_ECDSA_SIG != 0) {
+            assembly ("memory-safe") {
+                let free := mload(0x40)
+                mstore(free, orderHash)
+                // Ensure next word is clear
+                mstore(add(free, 0x20), 0)
+                // Read signature.
+                calldatacopy(add(free, 0x1f), reader, 65)
+                reader := add(reader, 65)
+                // Call ec-Recover pre-compile (addr: 0x01).
+                // Credit to Vectorized's ECDSA in Solady: https://github.com/Vectorized/solady/blob/a95f6714868cfe5d590145f936d0661bddff40d2/src/utils/ECDSA.sol#L108-L123
+                from := mload(staticcall(gas(), 0x01, free, 0x80, 0x01, 0x20))
+                if iszero(returndatasize()) {
+                    mstore(0x00, 0x8baa579f /* InvalidSignature() */ )
+                    revert(0x1c, 0x04)
+                }
+            }
+        } else {
+            from = reader.readAddr();
+            reader = reader.shifted(20);
+            bytes calldata signature;
+            assembly ("memory-safe") {
+                signature.length := shr(232, calldataload(reader))
+                reader := add(reader, 3)
+                signature.offset := reader
+                reader := add(reader, signature.length)
+            }
+            if (!SignatureCheckerLib.isValidERC1271SignatureNowCalldata(from, orderHash, signature)) {
+                revert InvalidSignature();
+            }
+        }
+
+        return (reader, from);
     }
 }

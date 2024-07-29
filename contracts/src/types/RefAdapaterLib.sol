@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {GenericOrder, OrderMode, OrderType} from "./OrderTypes.sol";
+import {GenericOrder, OrderType, OrderMode} from "src/reference/GenericOrder.sol";
 import {
     PartialStandingOrder,
     ExactStandingOrder,

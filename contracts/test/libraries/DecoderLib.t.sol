@@ -10,7 +10,8 @@ import {PoolRewardsUpdate} from "src/modules/PoolRewardsManager.sol";
 
 import {Asset} from "src/types/Asset.sol";
 import {Price, AssetIndex} from "src/types/PriceGraph.sol";
-import {GenericOrder, TopOfBlockOrderEnvelope, OrderType, OrderMode} from "src/types/OrderTypes.sol";
+import {GenericOrder, OrderType, OrderMode} from "src/reference/GenericOrder.sol";
+import {TopOfBlockOrderEnvelope} from "../../src/types/TopOfBlockEnvelope.sol";
 
 /// @author philogy <https://github.com/philogy>
 contract DecoderLibTest is BaseTest {

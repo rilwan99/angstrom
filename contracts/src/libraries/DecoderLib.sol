@@ -6,7 +6,8 @@ import {PoolRewardsUpdate} from "../modules/PoolRewardsManager.sol";
 
 import {Asset} from "../types/Asset.sol";
 import {Price} from "../types/PriceGraph.sol";
-import {GenericOrder, TopOfBlockOrderEnvelope} from "../types/OrderTypes.sol";
+import {GenericOrder} from "../reference/GenericOrder.sol";
+import {TopOfBlockOrderEnvelope} from "../types/TopOfBlockEnvelope.sol";
 
 /// @author philogy <https://github.com/philogy>
 library DecoderLib {

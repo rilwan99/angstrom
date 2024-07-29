@@ -7,3 +7,6 @@ struct Asset {
     uint256 save;
     uint256 settle;
 }
+
+// TODO: Add test for magic offset
+uint256 constant ASSET_ENCODED_BYTES = 128;
