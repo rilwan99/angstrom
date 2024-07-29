@@ -96,7 +96,7 @@ impl DistributionParameters {
 
 pub fn generate_order_distribution(
     is_bid: bool,
-    number: usize,
+    order_count: usize,
     priceparams: DistributionParameters,
     volumeparams: DistributionParameters,
     pool_id: usize,
@@ -134,6 +134,6 @@ pub fn generate_order_distribution(
                 valid_block
             }
         })
-        .take(number)
+        .take(order_count)
         .collect())
 }
