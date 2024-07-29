@@ -513,7 +513,7 @@ mod tests {
         );
         let (tx, mut rx) = channel(100);
         manager.on_command(crate::ConsensusCommand::Subscribe(tx));
-        let proposal: Proposal = generate_random_proposal(100, 10);
+        let proposal: Proposal = generate_random_proposal(100, 1, 10);
         manager
             .cache
             .set(proposal.ethereum_height, proposal.clone());

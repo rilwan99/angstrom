@@ -24,7 +24,7 @@ type Tick = i32;
 /// ticks.  The range can be described as `[lower_tick, upper_tick)`.  The range
 /// must start and end on a tick bound, but may include an arbitrary number of
 /// ticks.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PoolRange {
     /// Lower tick for this range
     lower_tick: Tick,
@@ -57,7 +57,7 @@ impl PoolRange {
 /// a Token0 and a Token1 which represent the two quantities that are being
 /// exchanged.  This snapshot contains the current price and liquidity
 /// information representing the state of a Uniswap contract at a point in time.
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MarketSnapshot {
     /// Known tick ranges and liquidity positions gleaned from the market
     /// snapshot

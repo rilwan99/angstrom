@@ -149,7 +149,7 @@ mod tests {
 
     use alloy_primitives::FixedBytes;
     use angstrom_types::consensus::PreProposal;
-    use testing_tools::type_generator::consensus::generate_random_preposal;
+    use testing_tools::type_generator::consensus::generate_random_preproposal;
 
     use super::MatchingManager;
 
@@ -163,8 +163,9 @@ mod tests {
     #[tokio::test]
     async fn will_combine_preproposals() {
         let manager = MatchingManager {};
-        let preproposals: Vec<PreProposal> =
-            (0..3).map(|_| generate_random_preposal(10, 100)).collect();
+        let preproposals: Vec<PreProposal> = (0..3)
+            .map(|_| generate_random_preproposal(10, 1, 100))
+            .collect();
         let existing_orders: HashSet<FixedBytes<32>> = preproposals
             .iter()
             .flat_map(|p| p.limit.iter().map(|o| o.order_id.hash))

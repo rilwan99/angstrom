@@ -1,0 +1,92 @@
+use angstrom_types::{
+    primitive::PoolId,
+    sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
+};
+use matching_engine::{
+    book::{sort::SortStrategy, OrderBook},
+    cfmm::uniswap::MarketSnapshot
+};
+
+use super::orders::{generate_order_distribution, DistributionParameters};
+
+// What are the parameters of an order builder?  A set of orders can be from
+#[derive(Default)]
+pub struct BookBuilder {
+    _poolid: Option<PoolId>,
+    _amm:    Option<MarketSnapshot>,
+    _bids:   Option<Vec<OrderWithStorageData<GroupedVanillaOrder>>>,
+    _asks:   Option<Vec<OrderWithStorageData<GroupedVanillaOrder>>>,
+    _sort:   Option<SortStrategy>
+}
+
+impl BookBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn build(self) -> OrderBook {
+        let id = self._poolid.unwrap_or_default();
+        let amm = self._amm;
+        let bids = self._bids.unwrap_or_default();
+        let asks = self._asks.unwrap_or_default();
+        let sort = self._sort;
+        OrderBook::new(id, amm, bids, asks, sort)
+    }
+
+    pub fn poolid(mut self, poolid: PoolId) -> Self {
+        self._poolid = Some(poolid);
+        self
+    }
+
+    pub fn amm(mut self, amm: Option<MarketSnapshot>) -> Self {
+        self._amm = amm;
+        self
+    }
+
+    pub fn bids(mut self, bids: Vec<OrderWithStorageData<GroupedVanillaOrder>>) -> Self {
+        self._bids = Some(bids);
+        self
+    }
+
+    pub fn asks(mut self, asks: Vec<OrderWithStorageData<GroupedVanillaOrder>>) -> Self {
+        self._asks = Some(asks);
+        self
+    }
+
+    pub fn sort(mut self, sort: Option<SortStrategy>) -> Self {
+        self._sort = sort;
+        self
+    }
+}
+
+pub fn generate_simple_cross_book(pool_id: PoolId, price: f64) -> OrderBook {
+    let block = 10;
+    let (bidprice, askprice) = DistributionParameters::crossed_at(price);
+    let (bidquant, askquant) = DistributionParameters::fixed_at(100.0);
+    let bids = generate_order_distribution(true, 50, bidprice, bidquant, pool_id, block).unwrap();
+    let asks = generate_order_distribution(false, 50, askprice, askquant, pool_id, block).unwrap();
+    BookBuilder::new()
+        .poolid(pool_id)
+        .bids(bids)
+        .asks(asks)
+        .build()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BookBuilder;
+    use crate::type_generator::amm::generate_amm_market;
+
+    #[test]
+    fn can_be_constructed() {
+        BookBuilder::new();
+    }
+
+    #[test]
+    fn adds_amm_to_book() {
+        let snapshot = generate_amm_market(100);
+        let book = BookBuilder::new().amm(Some(snapshot.clone())).build();
+        assert!(book.amm().is_some(), "No AMM in book");
+        assert!(*book.amm().unwrap() == snapshot, "AMM in book isn't equal to what was provided");
+    }
+}
