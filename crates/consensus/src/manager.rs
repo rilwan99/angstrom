@@ -200,9 +200,7 @@ impl ConsensusManager {
         let ethereum_block = self.roundstate.current_height();
         let build_handle = self.tasks.spawn(async move {
             let solutions = build_proposal_task(preproposals.clone()).await.unwrap();
-            let proposal = signer
-                .sign_proposal(ethereum_block, preproposals, solutions)
-                .unwrap();
+            let proposal = signer.sign_proposal(ethereum_block, preproposals, solutions);
             ConsensusTaskResult::BuiltProposal(proposal)
         });
         self.roundstate.on_proposal(build_handle);
@@ -258,7 +256,7 @@ impl ConsensusManager {
                     return;
                 }
                 // Prepare our commit messge
-                let commit = self.signer.sign_commit(height, proposal).unwrap(); // I don't think this can actually fail, validate
+                let commit = self.signer.sign_commit(proposal);
 
                 // Then, broadcast our Commit message to all local subscribers and the network
                 self.network
@@ -526,8 +524,12 @@ mod tests {
         assert!(*solutions == proposal.solutions, "Solutions don't match!");
         manager.on_task_complete(res);
         let commit = rx.recv().await.unwrap();
-        let ConsensusMessage::Commit(_) = commit else {
+        let ConsensusMessage::Commit(c) = commit else {
             panic!("Didn't get commit message");
         };
+        assert!(
+            c.validate(&[manager.signer.bls_key.public_key()]),
+            "Unable to validate generated commit"
+        );
     }
 }

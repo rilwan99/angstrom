@@ -32,25 +32,17 @@ impl Default for Signer {
 }
 
 impl Signer {
-    #[allow(dead_code)]
     pub fn sign_proposal(
         &self,
         ethereum_block: u64,
         preproposals: Vec<PreProposal>,
         solutions: Vec<PoolSolution>
-    ) -> eyre::Result<Proposal> {
-        Ok(Proposal::generate_proposal(
-            ethereum_block,
-            self.my_id,
-            preproposals,
-            solutions,
-            &self.key
-        ))
+    ) -> Proposal {
+        Proposal::generate_proposal(ethereum_block, self.my_id, preproposals, solutions, &self.key)
     }
 
-    #[allow(dead_code)]
-    pub fn sign_commit(&self, _ethereum_block: u64, proposal: &Proposal) -> eyre::Result<Commit> {
-        Ok(Commit::from_proposal(proposal, &self.bls_key))
+    pub fn sign_commit(&self, proposal: &Proposal) -> Commit {
+        Commit::from_proposal(proposal, &self.bls_key)
     }
 
     // #[allow(dead_code)]

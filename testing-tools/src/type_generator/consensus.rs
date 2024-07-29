@@ -119,6 +119,7 @@ mod tests {
 
     #[test]
     fn random_commit_is_valid() {
+        // We generate our secret key first 
         let sk = blsful::SecretKey::random(&mut thread_rng());
         let commit = generate_random_commit(&sk);
         assert!(commit.validate(&[sk.public_key()]));

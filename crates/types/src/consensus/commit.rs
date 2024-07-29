@@ -1,7 +1,8 @@
 use alloy_primitives::{FixedBytes, Keccak256, B256};
-use bincode::{Decode, Encode};
+use bincode::{config::standard, encode_to_vec, Decode, Encode};
 use bitmaps::Bitmap;
 use blsful::{Bls12381G1Impl, PublicKey, SecretKey};
+use reth_primitives::keccak256;
 use serde::{Deserialize, Serialize};
 
 use super::Proposal;
@@ -12,55 +13,45 @@ pub struct Commit {
     pub block_height: u64,
 
     #[bincode(with_serde)]
-    pub vanilla_bundle_hash: B256,
+    pub preproposal_hash: B256,
     #[bincode(with_serde)]
-    pub lower_bound_hash:    B256,
-    #[bincode(with_serde)]
-    pub order_buffer_hash:   B256,
+    pub solution_hash:    B256,
     /// This signature is (block_height | vanilla_bundle_hash |
     /// lower_bound_hash | order_buffer_hash)
     #[bincode(with_serde)]
-    pub message_sig:         BLSSignature,
+    pub message_sig:      BLSSignature,
     /// is default if none. We have to due this due to the rlp requirements
     #[bincode(with_serde)]
-    pub vanilla_bundle_sig:  BLSSignature,
+    pub preproposal_sig:  BLSSignature,
     /// is default if none. We have to due this due to the rlp requirements
     #[bincode(with_serde)]
-    pub lower_bound_sig:     BLSSignature,
-    /// is default if none. We have to due this due to the rlp requirements
-    #[bincode(with_serde)]
-    pub order_buffer_sig:    BLSSignature
+    pub solution_sig:     BLSSignature
 }
 
 impl Commit {
     pub fn generate_commit_all(
         block_height: u64,
-        vanilla_bundle_hash: B256,
-        lower_bound_hash: B256,
-        order_buffer_hash: B256,
+        preproposal_hash: B256,
+        solution_hash: B256,
         sk: &SecretKey<Bls12381G1Impl>
     ) -> Self {
-        let mut hasher = Keccak256::new();
+        let mut hasher: Keccak256 = Keccak256::new();
         hasher.update(block_height.to_be_bytes());
-        hasher.update(vanilla_bundle_hash);
-        hasher.update(lower_bound_hash);
-        hasher.update(order_buffer_hash);
+        hasher.update(preproposal_hash);
+        hasher.update(solution_hash);
         let message = hasher.finalize();
 
         let message_sig = BLSSignature::sign(0, sk, message.as_slice());
-        let vanilla_bundle_sig = BLSSignature::sign(0, sk, vanilla_bundle_hash.as_slice());
-        let lower_bound_sig = BLSSignature::sign(0, sk, lower_bound_hash.as_slice());
-        let order_buffer_sig = BLSSignature::sign(0, sk, order_buffer_hash.as_slice());
+        let preproposal_sig = BLSSignature::sign(0, sk, preproposal_hash.as_slice());
+        let solution_sig = BLSSignature::sign(0, sk, solution_hash.as_slice());
 
         Self {
-            order_buffer_hash,
-            lower_bound_hash,
-            vanilla_bundle_hash,
+            block_height,
+            preproposal_hash,
+            solution_hash,
             message_sig,
-            order_buffer_sig,
-            lower_bound_sig,
-            vanilla_bundle_sig,
-            block_height
+            preproposal_sig,
+            solution_sig
         }
     }
 
@@ -79,9 +70,8 @@ impl Commit {
     fn hash_message(&self) -> FixedBytes<32> {
         let mut hasher = Keccak256::new();
         hasher.update(self.block_height.to_be_bytes());
-        hasher.update(self.vanilla_bundle_hash);
-        hasher.update(self.lower_bound_hash);
-        hasher.update(self.order_buffer_hash);
+        hasher.update(self.preproposal_hash);
+        hasher.update(self.solution_hash);
         hasher.finalize()
     }
 
@@ -94,26 +84,21 @@ impl Commit {
         // need to return early
         self.message_sig
             .sign_into(validator_id, sk, self.hash_message().as_slice());
-        self.vanilla_bundle_sig
-            .sign_into(validator_id, sk, self.vanilla_bundle_hash.as_slice());
-        self.lower_bound_sig
-            .sign_into(validator_id, sk, self.lower_bound_hash.as_slice());
-        self.order_buffer_sig
-            .sign_into(validator_id, sk, self.order_buffer_hash.as_slice())
+        self.preproposal_sig
+            .sign_into(validator_id, sk, self.preproposal_hash.as_slice());
+        self.solution_sig
+            .sign_into(validator_id, sk, self.solution_hash.as_slice())
     }
 
     pub fn validate(&self, public_key_library: &[PublicKey<Bls12381G1Impl>]) -> bool {
         self.message_sig
             .validate(public_key_library, self.hash_message().as_slice())
             && self
-                .vanilla_bundle_sig
-                .validate(public_key_library, self.vanilla_bundle_hash.as_slice())
+                .preproposal_sig
+                .validate(public_key_library, self.preproposal_hash.as_slice())
             && self
-                .lower_bound_sig
-                .validate(public_key_library, self.lower_bound_hash.as_slice())
-            && self
-                .order_buffer_sig
-                .validate(public_key_library, self.order_buffer_hash.as_slice())
+                .solution_sig
+                .validate(public_key_library, self.solution_hash.as_slice())
     }
 
     /// Validate that this commit message is associated with a specific Proposal
@@ -128,23 +113,20 @@ impl Commit {
     /// sure to do that as well!
     pub fn signed_by(&self, validator_id: BLSValidatorID) -> bool {
         self.message_sig.signed_by(validator_id)
-            && self.vanilla_bundle_sig.signed_by(validator_id)
-            && self.lower_bound_sig.signed_by(validator_id)
-            && self.order_buffer_sig.signed_by(validator_id)
+            && self.preproposal_sig.signed_by(validator_id)
+            && self.solution_sig.signed_by(validator_id)
     }
 
     pub fn from_proposal(proposal: &Proposal, sk: &SecretKey<Bls12381G1Impl>) -> Self {
         let block_height = proposal.ethereum_height;
-        let vanilla_bundle_hash = B256::random();
-        let lower_bound_hash = B256::random();
-        let order_buffer_hash = B256::random();
+        let mut buf = Vec::new();
+        let std = standard();
+        buf.extend(encode_to_vec(&proposal.preproposals, std).unwrap());
+        let preproposal_hash = keccak256(buf);
+        let mut buf = Vec::new();
+        buf.extend(encode_to_vec(&proposal.solutions, std).unwrap());
+        let solution_hash = keccak256(buf);
 
-        Self::generate_commit_all(
-            block_height,
-            vanilla_bundle_hash,
-            lower_bound_hash,
-            order_buffer_hash,
-            sk
-        )
+        Self::generate_commit_all(block_height, preproposal_hash, solution_hash, sk)
     }
 }
