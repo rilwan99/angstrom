@@ -111,7 +111,7 @@ contract PoolGate is IUnlockCallback {
         if (amount > 0) {
             if (needsSync) UNI_V4.sync(asset.intoC());
             MockERC20(asset).mint(address(UNI_V4), amount);
-            UNI_V4.settle(asset.intoC());
+            uint256 settled = UNI_V4.settle();
         }
     }
 }

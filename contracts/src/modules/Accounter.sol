@@ -77,7 +77,7 @@ abstract contract Accounter is UniConsumer {
             if (settle > 0) {
                 UNI_V4.sync(addr.intoC());
                 addr.safeTransfer(address(UNI_V4), settle);
-                UNI_V4.settle(addr.intoC());
+                UNI_V4.settle();
             }
         }
     }
