@@ -32,6 +32,14 @@ impl Default for Signer {
 }
 
 impl Signer {
+    pub fn new(secret_key: SecretKey) -> Self {
+        // Our BLS key will be derived from our public key, I don't know if that's cool
+        // or good but it should at least keep the key constant for the moment
+        // and ensure that we only have to manage a single secret
+        let bls_key = BlsSecretKey::from_hash(secret_key.secret_bytes());
+        Self { key: secret_key, bls_key, ..Default::default() }
+    }
+
     pub fn sign_proposal(
         &self,
         ethereum_block: u64,

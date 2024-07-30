@@ -7,7 +7,7 @@ use std::{
 use angstrom_network::manager::StromConsensusEvent;
 use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_node_builder::{FullNode, NodeHandle};
-use secp256k1::{PublicKey, Secp256k1};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use tokio::sync::mpsc::{
     channel, unbounded_channel, Receiver, Sender, UnboundedReceiver, UnboundedSender
 };
@@ -51,7 +51,9 @@ pub fn run() -> eyre::Result<()> {
     Cli::<AngstromConfig>::parse().run(|builder, args| async move {
         let executor = builder.task_executor().clone();
 
-        let mut network = init_network_builder(&args)?;
+        let secret_key = get_secret_key(&args.secret_key_location)?;
+
+        let mut network = init_network_builder(secret_key)?;
         let protocol_handle = network.build_protocol_handler();
         let channels = initialize_strom_handles();
 
@@ -86,14 +88,13 @@ pub fn run() -> eyre::Result<()> {
             .launch()
             .await?;
 
-        initialize_strom_components(args, channels, network, node, &executor);
+        initialize_strom_components(args, secret_key, channels, network, node, &executor);
 
         node_exit_future.await
     })
 }
 
-pub fn init_network_builder(config: &AngstromConfig) -> eyre::Result<StromNetworkBuilder> {
-    let secret_key = get_secret_key(&config.secret_key_location)?;
+pub fn init_network_builder(secret_key: SecretKey) -> eyre::Result<StromNetworkBuilder> {
     let public_key = PublicKey::from_secret_key(&Secp256k1::new(), &secret_key);
 
     let state = StatusState {
@@ -163,6 +164,7 @@ pub fn initialize_strom_handles() -> StromHandles {
 
 pub fn initialize_strom_components<Node: FullNodeComponents>(
     config: AngstromConfig,
+    secret_key: SecretKey,
     handles: StromHandles,
     network_builder: StromNetworkBuilder,
     node: FullNode<Node>,
@@ -206,7 +208,7 @@ pub fn initialize_strom_components<Node: FullNodeComponents>(
     .with_config(pool_config)
     .build_with_channels(executor.clone(), handles.orderpool_tx, handles.orderpool_rx);
 
-    let signer = Signer::default();
+    let signer = Signer::new(secret_key);
 
     let global_consensus_state = Arc::new(Mutex::new(GlobalConsensusState::default()));
 
