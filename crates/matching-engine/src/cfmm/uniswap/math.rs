@@ -3,11 +3,12 @@
 /// stop needing to do all this at some point in the future but this keeps us
 /// from having to do a ton of complicated casting in our code between very
 /// similar Uint types
-use alloy_primitives::U256;
+use alloy_primitives::{I256, U256};
 use uniswap_v3_math::{
     sqrt_price_math::{
         _get_amount_0_delta, get_next_sqrt_price_from_input, get_next_sqrt_price_from_output
     },
+    swap_math::compute_swap_step,
     tick_math::{get_sqrt_ratio_at_tick, get_tick_at_sqrt_ratio},
     utils::{ruint_to_u256, u256_to_ruint}
 };
@@ -83,4 +84,25 @@ pub fn new_sqrt_price_from_input(
     get_next_sqrt_price_from_input(sqrt_price, liquidity, amount_out, zero_for_one)
         .map(|x| SqrtPriceX96::from(u256_to_ruint(x)))
         .map_err(|_| MathError)
+}
+
+pub fn swap_step(
+    current_price: SqrtPriceX96,
+    target_price: SqrtPriceX96,
+    liquidity: u128,
+    amount_remaining: I256,
+    fee_pips: u32
+) -> Result<(U256, U256, U256, U256), MathError> {
+    let sqrt_ratio_current_x_96 = ruint_to_u256(current_price.into());
+    let sqrt_ratio_target_x_96 = ruint_to_u256(target_price.into());
+    let amount_remaining = amount_remaining.into();
+    let (a, b, c, d) = compute_swap_step(
+        sqrt_ratio_current_x_96,
+        sqrt_ratio_target_x_96,
+        liquidity,
+        amount_remaining,
+        fee_pips
+    )
+    .map_err(|_| MathError)?;
+    Ok((u256_to_ruint(a), u256_to_ruint(b), u256_to_ruint(c), u256_to_ruint(d)))
 }

@@ -1,4 +1,7 @@
-use std::cmp::{max, min};
+use std::{
+    cmp::{max, min},
+    collections::HashMap
+};
 
 // uint 160 for represending SqrtPriceX96
 use alloy_primitives::aliases::U256;
@@ -14,6 +17,7 @@ use self::math::{
 };
 
 pub mod math;
+pub mod tob;
 /// A Tick is represented as an i32 as its value range is from around
 /// -900000..900000
 const MIN_TICK: i32 = -887272;
@@ -162,6 +166,18 @@ impl<'a> MarketPrice<'a> {
     /// currently on the edge of one.
     pub fn buy_to_next_bound(&self) -> Option<PriceRange<'a>> {
         self.order_to_target(None, true)
+    }
+
+    /// Buy from the AMM with a quantity of the input token that exceeds the
+    /// amount required to purchase the requested quantity of the output token.
+    /// The excess quantity is distributed as our "bribe" to the LPs present in
+    /// each tick based on our ToB distribution algorithm.
+    pub fn buy_and_bribe(
+        &self,
+        input: U256,
+        output: U256
+    ) -> Result<(Self, HashMap<Tick, U256>), String> {
+        Ok((self.clone(), HashMap::new()))
     }
 
     pub fn sell_to_price(&self, target_price: SqrtPriceX96) -> Option<PriceRange<'a>> {
