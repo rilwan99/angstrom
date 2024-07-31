@@ -331,15 +331,22 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
         console.log("totalOrders: %s\n", v.finalOrders.length);
         console.log("calldata cost: %s (%s, %s)", zeros * 4 + nonZeros * 16, zeros, nonZeros);
 
+        console.log("rng.__state: %x", rng.__state);
+
         vm.resumeGasMetering();
 
+        uint256 cost = this.__doExecute(payload);
+        console.log("execution cost: %s", cost);
+    }
+
+    /// @dev Isolate execution in its own call-context to avoid confounding gas cost factors like
+    /// memory allocation.
+    function __doExecute(bytes calldata payload) external returns (uint256 cost) {
         uint256 before = gasleft();
         vm.prank(node);
         angstrom.execute(payload);
-
         unchecked {
-            uint256 cost = before - gasleft();
-            console.log("execution cost: %s", cost);
+            cost = before - gasleft();
         }
     }
 
