@@ -10,14 +10,13 @@ import {PoolRewardsUpdate} from "src/modules/PoolRewardsManager.sol";
 
 import {Asset} from "src/types/Asset.sol";
 import {Price, AssetIndex} from "src/types/PriceGraph.sol";
-import {GenericOrder, OrderType, OrderMode} from "src/reference/GenericOrder.sol";
 import {TopOfBlockOrderEnvelope} from "../../src/types/TopOfBlockEnvelope.sol";
 
 /// @author philogy <https://github.com/philogy>
 contract DecoderLibTest is BaseTest {
     uint256 constant MAX_RAND_LEN = 5;
 
-    function test_fuzzing_unpacks(uint256 seed) public {
+    function test_fuzzing_unpacks(uint256 seed) public view {
         PRNG memory rng = PRNG(seed);
 
         Asset[] memory assets = new Asset[](rng.randuint(MAX_RAND_LEN));
@@ -36,10 +35,7 @@ contract DecoderLibTest is BaseTest {
         for (uint256 i = 0; i < swaps.length; i++) {
             swaps[i] = _randSwap(rng);
         }
-        GenericOrder[] memory orders = new GenericOrder[](rng.randuint(MAX_RAND_LEN));
-        for (uint256 i = 0; i < orders.length; i++) {
-            orders[i] = _randOrder(rng);
-        }
+        bytes memory encodedOrders = rng.randBytes(100, 4000);
         PoolRewardsUpdate[] memory poolRewardsUpdates = new PoolRewardsUpdate[](rng.randuint(MAX_RAND_LEN));
         for (uint256 i = 0; i < poolRewardsUpdates.length; i++) {
             poolRewardsUpdates[i] = _randUpdate(rng);
@@ -50,15 +46,15 @@ contract DecoderLibTest is BaseTest {
             Price[] memory initialPricesOut,
             TopOfBlockOrderEnvelope[] memory topOfBlockOrdersOut,
             PoolSwap[] memory swapsOut,
-            GenericOrder[] memory ordersOut,
+            bytes memory encodedOrdersOut,
             PoolRewardsUpdate[] memory poolRewardsUpdatesOut
-        ) = this.unpack(abi.encode(assets, initialPrices, topOfBlockOrders, swaps, orders, poolRewardsUpdates));
+        ) = this.unpack(abi.encode(assets, initialPrices, topOfBlockOrders, swaps, encodedOrders, poolRewardsUpdates));
 
         assertEq(abi.encode(assets), abi.encode(assetsOut));
         assertEq(abi.encode(initialPrices), abi.encode(initialPricesOut));
         assertEq(abi.encode(topOfBlockOrders), abi.encode(topOfBlockOrdersOut));
         assertEq(abi.encode(swaps), abi.encode(swapsOut));
-        assertEq(abi.encode(orders), abi.encode(ordersOut));
+        assertEq(encodedOrders, encodedOrdersOut);
         assertEq(abi.encode(poolRewardsUpdates), abi.encode(poolRewardsUpdatesOut));
     }
 
@@ -90,27 +86,6 @@ contract DecoderLibTest is BaseTest {
             PoolSwap(AssetIndex.wrap(rng.randuint16()), AssetIndex.wrap(rng.randuint16()), rng.randbool(), rng.next());
     }
 
-    function _randOrder(PRNG memory rng) internal pure returns (GenericOrder memory) {
-        return GenericOrder(
-            OrderType(rng.randuint8(2)),
-            OrderMode(rng.randuint(3)),
-            rng.next(),
-            rng.next(),
-            rng.next(),
-            rng.randbool(),
-            AssetIndex.wrap(rng.randuint16()),
-            AssetIndex.wrap(rng.randuint16()),
-            rng.randuint64(),
-            u40(rng.next()),
-            rng.randaddr(),
-            rng.randaddr(),
-            rng.randBytes(0, 200),
-            rng.next(),
-            rng.randaddr(),
-            rng.randBytes(0, 200)
-        );
-    }
-
     function _randUpdate(PRNG memory rng) internal pure returns (PoolRewardsUpdate memory) {
         uint256[] memory amounts = new uint256[](rng.randuint(6));
         for (uint256 i = 0; i < amounts.length; i++) {
@@ -134,7 +109,7 @@ contract DecoderLibTest is BaseTest {
             Price[] calldata,
             TopOfBlockOrderEnvelope[] calldata,
             PoolSwap[] calldata,
-            GenericOrder[] calldata,
+            bytes calldata,
             PoolRewardsUpdate[] calldata
         )
     {

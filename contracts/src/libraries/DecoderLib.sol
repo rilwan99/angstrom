@@ -6,7 +6,6 @@ import {PoolRewardsUpdate} from "../modules/PoolRewardsManager.sol";
 
 import {Asset} from "../types/Asset.sol";
 import {Price} from "../types/PriceGraph.sol";
-import {GenericOrder} from "../reference/GenericOrder.sol";
 import {TopOfBlockOrderEnvelope} from "../types/TopOfBlockEnvelope.sol";
 
 /// @author philogy <https://github.com/philogy>
@@ -19,7 +18,7 @@ library DecoderLib {
             Price[] calldata initialPrices,
             TopOfBlockOrderEnvelope[] calldata topOfBlockOrders,
             PoolSwap[] calldata swaps,
-            GenericOrder[] calldata orders,
+            bytes calldata encodedOrders,
             PoolRewardsUpdate[] calldata poolRewardsUpdates
         )
     {
@@ -44,8 +43,8 @@ library DecoderLib {
             swaps.offset := add(objOffset, 0x20)
 
             objOffset := add(offset, calldataload(add(offset, 0x80)))
-            orders.length := calldataload(objOffset)
-            orders.offset := add(objOffset, 0x20)
+            encodedOrders.length := calldataload(objOffset)
+            encodedOrders.offset := add(objOffset, 0x20)
 
             objOffset := add(offset, calldataload(add(offset, 0xa0)))
             poolRewardsUpdates.length := calldataload(objOffset)

@@ -33,8 +33,12 @@ library TraderLib {
     function sign(Trader memory self, UserOrder order, TypedDataHasher typedHasher) internal pure {
         bytes32 hash = order.hash712(typedHasher);
         (bytes32 r, bytes32 s, uint8 v) = self.sign(hash);
-        bytes memory sig = abi.encodePacked(r, s, v);
-        order.setMeta(OrderMeta({from: self.addr, signature: sig}));
+        console.log("v: %x (%s)", v, v);
+        console.log("r: %x", uint256(r));
+        console.log("s: %x", uint256(s));
+        bytes memory sig = abi.encodePacked(v, r, s);
+        order.setMeta(OrderMeta({isEcdsa: true, from: self.addr, signature: sig}));
+        console.log(order.toStr());
     }
 
     function getFreshNonce(Trader memory self) internal pure returns (uint256 nonce) {

@@ -4,6 +4,9 @@ pragma solidity ^0.8.13;
 import {Asset, ASSET_ENCODED_BYTES} from "./Asset.sol";
 import {CalldataReader} from "super-sol/collections/CalldataReader.sol";
 
+import {safeconsole as console} from "forge-std/safeconsole.sol";
+import {mem as memc} from "test/_helpers/mem.sol";
+
 type OrderBuffer is uint256;
 
 type MaybeHook is uint256;
@@ -107,11 +110,22 @@ library OrderBufferLib {
         }
     }
 
+    function log(OrderBuffer self, uint256 variant) internal pure {
+        uint256 length;
+        assembly {
+            let flashLength := sub(ORDER_BUFFER_BYTES, 32)
+            let extraWord := iszero(and(variant, VARIANT_IS_FLASH_BIT))
+            length := add(flashLength, shl(5, extraWord))
+        }
+        memc.logMemory(OrderBuffer.unwrap(self), length);
+    }
+
     function hash(OrderBuffer self, uint256 variant) internal pure returns (bytes32 hashed) {
         assembly ("memory-safe") {
             let flashLength := sub(ORDER_BUFFER_BYTES, 32)
             let extraWord := iszero(and(variant, VARIANT_IS_FLASH_BIT))
-            hashed := keccak256(self, add(flashLength, shl(5, extraWord)))
+            let length := add(flashLength, shl(5, extraWord))
+            hashed := keccak256(self, length)
         }
     }
 
@@ -168,8 +182,9 @@ library OrderBufferLib {
         } else {
             assembly ("memory-safe") {
                 calldatacopy(add(self, add(0x120, sub(0x20, 8))), reader, 8)
+                reader := add(reader, 8)
                 calldatacopy(add(self, add(0x140, sub(0x20, 5))), reader, 5)
-                reader := add(reader, 13)
+                reader := add(reader, 5)
             }
         }
         return reader;
@@ -249,7 +264,9 @@ library OrderBufferLib {
                     revert(0x1c, 0x04)
                 }
 
-                // Free if no new allocation was made (should be the case).
+                // What allocator? I am the allocator.
+                // (checks if end of hook memory allocation is free so we can move down the free
+                // pointer, effectively freeing the memory.)
                 if eq(mload(0x40), add(mem, length)) { mstore(0x40, mem) }
             }
         }

@@ -82,15 +82,15 @@ abstract contract Accounter is UniConsumer {
         }
     }
 
-    function _accountIn(address from, address asset, uint256 amount, bool settleOutside) internal {
+    function _accountIn(address from, address asset, uint256 amount, bool useInternal) internal {
         freeBalance[asset].inc(amount);
-        if (settleOutside) asset.safeTransferFrom(from, address(this), amount);
-        else _aAssets[from][asset] -= amount;
+        if (useInternal) _aAssets[from][asset] -= amount;
+        else asset.safeTransferFrom(from, address(this), amount);
     }
 
-    function _accountOut(address to, address asset, uint256 amount, bool settleOutside) internal {
+    function _accountOut(address to, address asset, uint256 amount, bool useInternal) internal {
         freeBalance[asset].dec(amount);
-        if (settleOutside) asset.safeTransfer(to, amount);
-        else _aAssets[to][asset] += amount;
+        if (useInternal) _aAssets[to][asset] += amount;
+        else asset.safeTransfer(to, amount);
     }
 }

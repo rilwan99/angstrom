@@ -9,7 +9,6 @@ import {
     OrderMeta,
     OrdersLib
 } from "./OrderTypes.sol";
-import {GenericOrder} from "./GenericOrder.sol";
 import {TypedDataHasher} from "src/types/TypedDataHasher.sol";
 
 type UserOrder is uint256;
@@ -96,16 +95,16 @@ library UserOrderLib {
         }
     }
 
-    function into(UserOrder order, address[] memory assets) internal pure returns (GenericOrder memory g) {
+    function encode(UserOrder order, address[] memory assets) internal pure returns (bytes memory) {
         OrderVariant variant = order.getVariant();
         if (variant == OrderVariant.PartialStandingOrder) {
-            _toPartialStandingFn(_toMemPtr)(order).setGeneric(g, assets);
+            return _toPartialStandingFn(_toMemPtr)(order).encode(assets);
         } else if (variant == OrderVariant.ExactStandingOrder) {
-            _toExactStandingFn(_toMemPtr)(order).setGeneric(g, assets);
+            return _toExactStandingFn(_toMemPtr)(order).encode(assets);
         } else if (variant == OrderVariant.PartialFlashOrder) {
-            _toPartialFlashFn(_toMemPtr)(order).setGeneric(g, assets);
+            return _toPartialFlashFn(_toMemPtr)(order).encode(assets);
         } else if (variant == OrderVariant.ExactFlashOrder) {
-            _toExactFlashFn(_toMemPtr)(order).setGeneric(g, assets);
+            return _toExactFlashFn(_toMemPtr)(order).encode(assets);
         } else {
             revert("Unimplemented variant");
         }

@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {BaseTest} from "../_helpers/BaseTest.sol";
+import {GasSnapshot} from "forge-gas-snapshot/GasSnapshot.sol";
 
 import {ConversionLib} from "../../src/libraries/ConversionLib.sol";
 import {UserOrder, UserOrderLib} from "../../src/reference/UserOrder.sol";
@@ -13,7 +14,7 @@ import {
     OrderMeta
 } from "../../src/reference/OrderTypes.sol";
 import {ExtAngstrom} from "../_view-ext/ExtAngstrom.sol";
-import {TopOfBlockOrderEnvelope, PoolSwap, GenericOrder, PoolRewardsUpdate} from "src/Angstrom.sol";
+import {TopOfBlockOrderEnvelope, PoolSwap, PoolRewardsUpdate} from "src/Angstrom.sol";
 
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {UniV4Inspector} from "../_view-ext/UniV4Inspector.sol";
@@ -34,7 +35,7 @@ import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 import {console2 as console} from "forge-std/console2.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract UserOrderExecution is BaseTest, HookDeployer {
+contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
     using FormatLib for *;
     using FixedPointMathLib for *;
     using RayMathLib for uint256;
@@ -115,7 +116,7 @@ contract UserOrderExecution is BaseTest, HookDeployer {
         uint256 minAmountIn;
         uint256 maxAmountIn;
         uint256 deadline;
-        GenericOrder[] finalOrders;
+        bytes[] finalOrders;
     }
 
     function test_gas_execute_limit_1() public {
@@ -146,9 +147,11 @@ contract UserOrderExecution is BaseTest, HookDeployer {
             }
         }
 
+        uint256 x = 0;
+
         v.prices = new Price[](v.pairIter.prices.length);
         v.hasher = TypedDataHasherLib.init(angstrom.DOMAIN_SEPARATOR());
-        v.finalOrders = new GenericOrder[](v.orders.length);
+        v.finalOrders = new bytes[](v.orders.length);
 
         for (uint256 j = 0; j < v.pairIter.prices.length; j++) {
             Price memory price = v.prices[j];
@@ -208,7 +211,8 @@ contract UserOrderExecution is BaseTest, HookDeployer {
                                 assetIn: v.assetIn,
                                 assetOut: v.assetOut,
                                 recipient: v.trader.addr,
-                                hookData: new bytes(0),
+                                hook: address(0),
+                                hookPayload: new bytes(0),
                                 validForBlock: u64(block.number),
                                 amountFilled: v.amountIn,
                                 meta: v.empty
@@ -223,7 +227,8 @@ contract UserOrderExecution is BaseTest, HookDeployer {
                                 assetIn: v.assetIn,
                                 assetOut: v.assetOut,
                                 recipient: v.trader.addr,
-                                hookData: new bytes(0),
+                                hook: address(0),
+                                hookPayload: new bytes(0),
                                 nonce: u64(v.trader.getFreshNonce()),
                                 deadline: u40(v.deadline),
                                 amountFilled: v.amountIn,
@@ -243,7 +248,8 @@ contract UserOrderExecution is BaseTest, HookDeployer {
                                 assetIn: v.assetIn,
                                 assetOut: v.assetOut,
                                 recipient: v.trader.addr,
-                                hookData: new bytes(0),
+                                hook: address(0),
+                                hookPayload: new bytes(0),
                                 validForBlock: u64(block.number),
                                 meta: v.empty
                             })
@@ -257,15 +263,18 @@ contract UserOrderExecution is BaseTest, HookDeployer {
                                 assetIn: v.assetIn,
                                 assetOut: v.assetOut,
                                 recipient: v.trader.addr,
-                                hookData: new bytes(0),
+                                hook: address(0),
+                                hookPayload: new bytes(0),
                                 nonce: u64(v.trader.getFreshNonce()),
                                 deadline: u40(v.deadline),
                                 meta: v.empty
                             })
                         );
                 }
+
+                console.log("[%s]", x++);
                 v.trader.sign(v.orders[oi], v.hasher);
-                v.finalOrders[oi] = v.orders[oi].into(assets);
+                v.finalOrders[oi] = v.orders[oi].encode(assets);
             }
             totalOuts[v.pair.asset0] += v.amount0Cleared;
             totalOuts[v.pair.asset1] += v.amount1Cleared;
@@ -283,6 +292,7 @@ contract UserOrderExecution is BaseTest, HookDeployer {
                 erc20.mint(trader, total);
                 angstrom.__ilegalMint(trader, asset, total);
                 erc20.mint(address(angstrom), total);
+                console.log("u: %s   a: %s = %s", trader, asset, total);
             }
             vm.stopPrank();
         }
@@ -298,12 +308,17 @@ contract UserOrderExecution is BaseTest, HookDeployer {
             gate.mint(addr, totalOuts[addr]);
         }
 
+        bytes memory encodedOrders;
+        for (uint256 i = 0; i < v.finalOrders.length; i++) {
+            encodedOrders = bytes.concat(encodedOrders, v.finalOrders[i]);
+        }
+
         bytes memory payload = abi.encode(
             v.assets,
             v.prices,
             new TopOfBlockOrderEnvelope[](0),
             new PoolSwap[](0),
-            v.finalOrders,
+            encodedOrders,
             new PoolRewardsUpdate[](0)
         );
 
@@ -313,7 +328,7 @@ contract UserOrderExecution is BaseTest, HookDeployer {
             payload[i] == 0x00 ? zeros++ : nonZeros++;
         }
 
-        console.log("totalOrders: %s\n", v.finalOrders.length);
+        // console.log("totalOrders: %s\n", v.finalOrders.length);
         console.log("calldata cost: %s (%s, %s)", zeros * 4 + nonZeros * 16, zeros, nonZeros);
 
         vm.resumeGasMetering();
@@ -323,7 +338,8 @@ contract UserOrderExecution is BaseTest, HookDeployer {
         angstrom.execute(payload);
 
         unchecked {
-            console.log("execution cost: %s", before - gasleft());
+            uint256 cost = before - gasleft();
+            console.log("execution cost: %s", cost);
         }
     }
 

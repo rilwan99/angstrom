@@ -12,7 +12,6 @@ import {Globals} from "./types/Globals.sol";
 import {Asset} from "./types/Asset.sol";
 import {tuint256} from "transient-goodies/TransientPrimitives.sol";
 import {PriceGraphLib, PriceGraph, AssetIndex, Price} from "./types/PriceGraph.sol";
-import {GenericOrder} from "./reference/GenericOrder.sol";
 import {TopOfBlockOrderEnvelope} from "./types/TopOfBlockEnvelope.sol";
 import {TypedDataHasher} from "./types/TypedDataHasher.sol";
 import {OrderBuffer, MaybeHook, OrderBufferLib} from "./types/OrderBuffer.sol";
@@ -30,8 +29,6 @@ import {RayMathLib} from "./libraries/RayMathLib.sol";
 import {IAngstromComposable} from "./interfaces/IAngstromComposable.sol";
 import {IUnlockCallback} from "v4-core/src/interfaces/callback/IUnlockCallback.sol";
 import {IPoolManager, IUniV4} from "./interfaces/IUniV4.sol";
-
-import {console2 as console} from "forge-std/console2.sol";
 
 /// @author philogy <https://github.com/philogy>
 contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, NodeManager, IUnlockCallback {
@@ -53,6 +50,8 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
     error FillingTooMuch();
     error InvalidSignature();
     error Unresolved();
+
+    uint256 internal constant ECRECOVER_ADDR = 1;
 
     // persistent storage
     uint256 public lastBlockUpdated;
@@ -80,7 +79,7 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
             Price[] calldata initialPrices,
             TopOfBlockOrderEnvelope[] calldata topOfBlockOrders,
             PoolSwap[] calldata swaps,
-            GenericOrder[] calldata orders,
+            bytes calldata encodedOrders,
             PoolRewardsUpdate[] calldata poolRewardsUpdates
         ) = DecoderLib.unpack(data);
 
@@ -90,10 +89,6 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
         _execPoolSwaps(g, swaps);
         _validateAndExecuteToB(g, topOfBlockOrders);
         _rewardPools(g, poolRewardsUpdates, freeBalance);
-        bytes calldata encodedOrders;
-        assembly {
-            encodedOrders.length := 0
-        }
         _validateAndExecuteOrders(g, encodedOrders);
         _saveAndSettle(assets);
 
@@ -162,6 +157,8 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
         CalldataReader reader = CalldataReaderLib.from(encodedOrders);
         OrderBuffer orderBuffer = OrderBufferLib.initBuffer();
 
+        uint256 i = 0;
+
         while (reader.notAtEnd(encodedOrders)) {
             // Load 3-bit variant
             uint256 variant = reader.readU8();
@@ -181,7 +178,9 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
                 reader = reader.shifted(2);
                 priceOutVsIn = g.prices.get(assetOutIndex, assetInIndex);
                 assetIn = g.get(assetInIndex);
+                orderBuffer.setAssetIn(assetIn);
                 assetOut = g.get(assetOutIndex);
+                orderBuffer.setAssetOut(assetOut);
             }
 
             // Load & validate price.
@@ -215,29 +214,24 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
             address from;
             (reader, from) = _authenticate(reader, orderHash, variant);
 
+            recipient = recipient == address(0) ? from : recipient;
+
             if (variant & OrderBufferLib.VARIANT_IS_FLASH_BIT != 0) {
                 tuint256 storage executed = alreadyExecuted[orderHash];
                 if (executed.get() != 0) revert OrderAlreadyExecuted();
                 executed.set(1);
             } else {
-                if (block.timestamp > orderBuffer.deadline()) revert Expired();
+                {
+                    uint256 dead = orderBuffer.deadline();
+                    if (block.timestamp > dead) revert Expired();
+                }
                 _useNonce(from, orderBuffer.nonce());
             }
 
-            recipient = recipient == address(0) ? from : recipient;
-
             hook.triggerIfSome(from);
 
-            // if (order.hook != address(0)) {
-            //     if (
-            //         IAngstromComposable(order.hook).compose(order.from, order.hookPayload)
-            //             != ~uint32(IAngstromComposable.compose.selector)
-            //     ) revert InvalidHookReturn();
-            // }
-
-            // (uint256 amountIn, uint256 amountOut) = _getAmounts(order, priceOutVsIn);
-            // _accountIn(order.from, assetIn, amountIn, !order.useInternal);
-            // _accountOut(order.from, assetOut, amountOut, !order.useInternal);
+            _accountIn(from, assetIn, amountIn, useInternal);
+            _accountOut(recipient, assetOut, amountOut, useInternal);
         }
     }
 
@@ -266,13 +260,13 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
 
         uint256 feeRay = halfSpreadRay;
         if (variant & OrderBufferLib.VARIANT_IS_OUT_BIT != 0) {
-            quantityIn = quantity;
-            quantityOut = quantityIn.mulRay(priceOutVsIn);
-            quantityOut -= quantityOut.mulRay(feeRay);
-        } else {
             quantityOut = quantity;
             quantityIn = quantityOut.divRay(priceOutVsIn);
             quantityIn += quantityIn.mulRay(feeRay);
+        } else {
+            quantityIn = quantity;
+            quantityOut = quantityIn.mulRay(priceOutVsIn);
+            quantityOut -= quantityOut.mulRay(feeRay);
         }
 
         return (reader, quantityIn, quantityOut);
@@ -290,11 +284,11 @@ contract Angstrom is ERC712, Accounter, UnorderedNonces, PoolRewardsManager, Nod
                 // Ensure next word is clear
                 mstore(add(free, 0x20), 0)
                 // Read signature.
-                calldatacopy(add(free, 0x1f), reader, 65)
+                calldatacopy(add(free, 0x3f), reader, 65)
                 reader := add(reader, 65)
                 // Call ec-Recover pre-compile (addr: 0x01).
                 // Credit to Vectorized's ECDSA in Solady: https://github.com/Vectorized/solady/blob/a95f6714868cfe5d590145f936d0661bddff40d2/src/utils/ECDSA.sol#L108-L123
-                from := mload(staticcall(gas(), 0x01, free, 0x80, 0x01, 0x20))
+                from := mload(staticcall(gas(), ECRECOVER_ADDR, free, 0x80, 0x01, 0x20))
                 if iszero(returndatasize()) {
                     mstore(0x00, 0x8baa579f /* InvalidSignature() */ )
                     revert(0x1c, 0x04)

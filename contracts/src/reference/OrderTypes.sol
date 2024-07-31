@@ -2,11 +2,15 @@
 pragma solidity ^0.8.24;
 
 import {AssetIndex} from "../types/PriceGraph.sol";
-import {GenericOrder, OrderMode, OrderType} from "./GenericOrder.sol";
+import {OrderBufferLib} from "../types/OrderBuffer.sol";
+import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
+import {console} from "forge-std/console.sol";
+
 struct OrderMeta {
+    bool isEcdsa;
     address from;
     bytes signature;
 }
@@ -19,7 +23,8 @@ struct PartialStandingOrder {
     address assetIn;
     address assetOut;
     address recipient;
-    bytes hookData;
+    address hook;
+    bytes hookPayload;
     uint64 nonce;
     uint40 deadline;
     uint256 amountFilled;
@@ -34,7 +39,8 @@ struct ExactStandingOrder {
     address assetIn;
     address assetOut;
     address recipient;
-    bytes hookData;
+    address hook;
+    bytes hookPayload;
     uint64 nonce;
     uint40 deadline;
     OrderMeta meta;
@@ -48,7 +54,8 @@ struct PartialFlashOrder {
     address assetIn;
     address assetOut;
     address recipient;
-    bytes hookData;
+    address hook;
+    bytes hookPayload;
     uint64 validForBlock;
     uint256 amountFilled;
     OrderMeta meta;
@@ -62,7 +69,8 @@ struct ExactFlashOrder {
     address assetIn;
     address assetOut;
     address recipient;
-    bytes hookData;
+    address hook;
+    bytes hookPayload;
     uint64 validForBlock;
     OrderMeta meta;
 }
@@ -74,7 +82,8 @@ struct TopOfBlockOrder {
     address assetIn;
     address assetOut;
     address recipient;
-    bytes hookData;
+    address hook;
+    bytes hookPayload;
     uint64 validForBlock;
     OrderMeta meta;
 }
@@ -88,6 +97,7 @@ using OrdersLib for TopOfBlockOrder global;
 
 library OrdersLib {
     using FormatLib for *;
+    using SafeCastLib for *;
 
     /// forgefmt: disable-next-item
     bytes32 internal constant PARTIAL_STANDING_ORDER_TYPEHASH = keccak256(
@@ -167,72 +177,85 @@ library OrdersLib {
 
     function hash(PartialStandingOrder memory order) internal pure returns (bytes32) {
         return keccak256(
-            abi.encode(
-                PARTIAL_STANDING_ORDER_TYPEHASH,
-                order.minAmountIn,
-                order.maxAmountIn,
-                order.minPrice,
-                order.useInternal,
-                order.assetIn,
-                order.assetOut,
-                order.recipient,
-                keccak256(order.hookData),
-                order.nonce,
-                order.deadline
+            _logB(
+                abi.encode(
+                    PARTIAL_STANDING_ORDER_TYPEHASH,
+                    order.minAmountIn,
+                    order.maxAmountIn,
+                    order.minPrice,
+                    order.useInternal,
+                    order.assetIn,
+                    order.assetOut,
+                    order.recipient,
+                    keccak256(_toHookData(order.hook, order.hookPayload)),
+                    order.nonce,
+                    order.deadline
+                )
             )
         );
     }
 
     function hash(ExactStandingOrder memory order) internal pure returns (bytes32) {
         return keccak256(
-            abi.encode(
-                EXACT_STANDING_ORDER_TYPEHASH,
-                order.exactIn,
-                order.amount,
-                order.minPrice,
-                order.useInternal,
-                order.assetIn,
-                order.assetOut,
-                order.recipient,
-                keccak256(order.hookData),
-                order.nonce,
-                order.deadline
+            _logB(
+                abi.encode(
+                    EXACT_STANDING_ORDER_TYPEHASH,
+                    order.exactIn,
+                    order.amount,
+                    order.minPrice,
+                    order.useInternal,
+                    order.assetIn,
+                    order.assetOut,
+                    order.recipient,
+                    keccak256(_toHookData(order.hook, order.hookPayload)),
+                    order.nonce,
+                    order.deadline
+                )
             )
         );
     }
 
     function hash(PartialFlashOrder memory order) internal pure returns (bytes32) {
         return keccak256(
-            abi.encode(
-                PARTIAL_FLASH_ORDER_TYPEHASH,
-                order.minAmountIn,
-                order.maxAmountIn,
-                order.minPrice,
-                order.useInternal,
-                order.assetIn,
-                order.assetOut,
-                order.recipient,
-                keccak256(order.hookData),
-                order.validForBlock
+            _logB(
+                abi.encode(
+                    PARTIAL_FLASH_ORDER_TYPEHASH,
+                    order.minAmountIn,
+                    order.maxAmountIn,
+                    order.minPrice,
+                    order.useInternal,
+                    order.assetIn,
+                    order.assetOut,
+                    order.recipient,
+                    keccak256(_toHookData(order.hook, order.hookPayload)),
+                    order.validForBlock
+                )
             )
         );
     }
 
     function hash(ExactFlashOrder memory order) internal pure returns (bytes32) {
         return keccak256(
-            abi.encode(
-                EXACT_FLASH_ORDER_TYPEHASH,
-                order.exactIn,
-                order.amount,
-                order.minPrice,
-                order.useInternal,
-                order.assetIn,
-                order.assetOut,
-                order.recipient,
-                keccak256(order.hookData),
-                order.validForBlock
+            _logB(
+                abi.encode(
+                    EXACT_FLASH_ORDER_TYPEHASH,
+                    order.exactIn,
+                    order.amount,
+                    order.minPrice,
+                    order.useInternal,
+                    order.assetIn,
+                    order.assetOut,
+                    order.recipient,
+                    keccak256(_toHookData(order.hook, order.hookPayload)),
+                    order.validForBlock
+                )
             )
         );
+    }
+
+    function _logB(bytes memory b) internal pure returns (bytes memory) {
+        console.logBytes(b);
+        return b;
     }
 
     function hash(TopOfBlockOrder memory order) internal pure returns (bytes32) {
@@ -245,74 +268,121 @@ library OrdersLib {
                 order.assetIn,
                 order.assetOut,
                 order.recipient,
-                keccak256(order.hookData),
+                keccak256(_toHookData(order.hook, order.hookPayload)),
                 order.validForBlock
             )
         );
     }
 
-    function setGeneric(PartialStandingOrder memory o, GenericOrder memory g, address[] memory assets) internal pure {
-        g.otype = OrderType.Standing;
-        g.mode = OrderMode.Partial;
-        g.minAmountIn = o.minAmountIn;
-        g.amountSpecified = o.maxAmountIn;
-        g.minPrice = o.minPrice;
-        g.useInternal = o.useInternal;
-        g.assetInIndex = _toAssetIndex(assets, o.assetIn);
-        g.assetOutIndex = _toAssetIndex(assets, o.assetOut);
-        g.nonce = o.nonce;
-        g.deadline = o.deadline;
-        g.recipient = o.recipient;
-        _decodeHookData(g, o.hookData);
-        g.amountFilled = o.amountFilled;
-        g.from = o.meta.from;
-        g.signature = o.meta.signature;
+    function encode(PartialStandingOrder memory order, address[] memory assets) internal pure returns (bytes memory) {
+        // forgefmt: disable-next-item
+        uint256 variantMap =
+            OrderBufferLib.VARIANT_IS_EXACT_BIT * 0 |
+            OrderBufferLib.VARIANT_IS_FLASH_BIT * 0 |
+            OrderBufferLib.VARIANT_IS_OUT_BIT * 0 |
+            OrderBufferLib.VARIANT_NO_HOOK_BIT * (order.hook == address(0) ? 1 : 0) |
+            OrderBufferLib.VARIANT_USE_INTERNAL_BIT * (order.useInternal ? 1 : 0) |
+            OrderBufferLib.VARIANT_HAS_RECIPIENT * (order.recipient != address(0) ? 1 : 0) |
+            OrderBufferLib.VARIANT_ECDSA_SIG * (order.meta.isEcdsa ? 1 : 0);
+        AssetIndex assetInIndex = _toAssetIndex(assets, order.assetIn);
+        AssetIndex assetOutIndex = _toAssetIndex(assets, order.assetOut);
+
+        return bytes.concat(
+            // Stack too deep
+            bytes.concat(
+                bytes1(uint8(variantMap)),
+                bytes2(AssetIndex.unwrap(assetInIndex)),
+                bytes2(AssetIndex.unwrap(assetOutIndex)),
+                bytes32(order.minPrice),
+                _encodeHookData(order.hook, order.hookPayload),
+                bytes8(order.nonce)
+            ),
+            bytes5(order.deadline),
+            bytes16(order.minAmountIn.toUint128()),
+            bytes16(order.maxAmountIn.toUint128()),
+            bytes16(order.amountFilled.toUint128()),
+            order.recipient == address(0) ? new bytes(0) : bytes.concat(bytes20(order.recipient)),
+            _encodeSig(order.meta)
+        );
     }
 
-    function setGeneric(ExactStandingOrder memory o, GenericOrder memory g, address[] memory assets) internal pure {
-        g.otype = OrderType.Standing;
-        g.mode = o.exactIn ? OrderMode.ExactIn : OrderMode.ExactOut;
-        g.amountSpecified = o.amount;
-        g.minPrice = o.minPrice;
-        g.useInternal = o.useInternal;
-        g.assetInIndex = _toAssetIndex(assets, o.assetIn);
-        g.assetOutIndex = _toAssetIndex(assets, o.assetOut);
-        g.nonce = o.nonce;
-        g.deadline = o.deadline;
-        g.recipient = o.recipient;
-        _decodeHookData(g, o.hookData);
-        g.from = o.meta.from;
-        g.signature = o.meta.signature;
+    function encode(ExactStandingOrder memory order, address[] memory assets) internal pure returns (bytes memory) {
+        // forgefmt: disable-next-item
+        uint256 variantMap =
+            OrderBufferLib.VARIANT_IS_EXACT_BIT * 1 |
+            OrderBufferLib.VARIANT_IS_FLASH_BIT * 0 |
+            OrderBufferLib.VARIANT_IS_OUT_BIT * (!order.exactIn ? 1 : 0) |
+            OrderBufferLib.VARIANT_NO_HOOK_BIT * (order.hook == address(0) ? 1 : 0) |
+            OrderBufferLib.VARIANT_USE_INTERNAL_BIT * (order.useInternal ? 1 : 0) |
+            OrderBufferLib.VARIANT_HAS_RECIPIENT * (order.recipient != address(0) ? 1 : 0) |
+            OrderBufferLib.VARIANT_ECDSA_SIG * (order.meta.isEcdsa ? 1 : 0);
+        AssetIndex assetInIndex = _toAssetIndex(assets, order.assetIn);
+        AssetIndex assetOutIndex = _toAssetIndex(assets, order.assetOut);
+
+        return bytes.concat(
+            bytes1(uint8(variantMap)),
+            bytes2(AssetIndex.unwrap(assetInIndex)),
+            bytes2(AssetIndex.unwrap(assetOutIndex)),
+            bytes32(order.minPrice),
+            _encodeHookData(order.hook, order.hookPayload),
+            bytes8(order.nonce),
+            bytes5(order.deadline),
+            bytes16(order.amount.toUint128()),
+            order.recipient == address(0) ? new bytes(0) : bytes.concat(bytes20(order.recipient)),
+            _encodeSig(order.meta)
+        );
     }
 
-    function setGeneric(PartialFlashOrder memory o, GenericOrder memory g, address[] memory assets) internal pure {
-        g.otype = OrderType.Flash;
-        g.mode = OrderMode.Partial;
-        g.minAmountIn = o.minAmountIn;
-        g.amountSpecified = o.maxAmountIn;
-        g.minPrice = o.minPrice;
-        g.useInternal = o.useInternal;
-        g.assetInIndex = _toAssetIndex(assets, o.assetIn);
-        g.assetOutIndex = _toAssetIndex(assets, o.assetOut);
-        g.recipient = o.recipient;
-        _decodeHookData(g, o.hookData);
-        g.amountFilled = o.amountFilled;
-        g.from = o.meta.from;
-        g.signature = o.meta.signature;
+    function encode(PartialFlashOrder memory order, address[] memory assets) internal pure returns (bytes memory) {
+        // forgefmt: disable-next-item
+        uint256 variantMap =
+            OrderBufferLib.VARIANT_IS_EXACT_BIT * 0 |
+            OrderBufferLib.VARIANT_IS_FLASH_BIT * 1 |
+            OrderBufferLib.VARIANT_IS_OUT_BIT * 0 |
+            OrderBufferLib.VARIANT_NO_HOOK_BIT * (order.hook == address(0) ? 1 : 0) |
+            OrderBufferLib.VARIANT_USE_INTERNAL_BIT * (order.useInternal ? 1 : 0) |
+            OrderBufferLib.VARIANT_HAS_RECIPIENT * (order.recipient != address(0) ? 1 : 0) |
+            OrderBufferLib.VARIANT_ECDSA_SIG * (order.meta.isEcdsa ? 1 : 0);
+        AssetIndex assetInIndex = _toAssetIndex(assets, order.assetIn);
+        AssetIndex assetOutIndex = _toAssetIndex(assets, order.assetOut);
+
+        return bytes.concat(
+            bytes1(uint8(variantMap)),
+            bytes2(AssetIndex.unwrap(assetInIndex)),
+            bytes2(AssetIndex.unwrap(assetOutIndex)),
+            bytes32(order.minPrice),
+            _encodeHookData(order.hook, order.hookPayload),
+            bytes16(order.minAmountIn.toUint128()),
+            bytes16(order.maxAmountIn.toUint128()),
+            bytes16(order.amountFilled.toUint128()),
+            order.recipient == address(0) ? new bytes(0) : bytes.concat(bytes20(order.recipient)),
+            _encodeSig(order.meta)
+        );
     }
 
-    function setGeneric(ExactFlashOrder memory o, GenericOrder memory g, address[] memory assets) internal pure {
-        g.otype = OrderType.Flash;
-        g.mode = o.exactIn ? OrderMode.ExactIn : OrderMode.ExactOut;
-        g.amountSpecified = o.amount;
-        g.minPrice = o.minPrice;
-        g.useInternal = o.useInternal;
-        g.assetInIndex = _toAssetIndex(assets, o.assetIn);
-        g.assetOutIndex = _toAssetIndex(assets, o.assetOut);
-        g.recipient = o.recipient;
-        _decodeHookData(g, o.hookData);
-        g.from = o.meta.from;
-        g.signature = o.meta.signature;
+    function encode(ExactFlashOrder memory order, address[] memory assets) internal pure returns (bytes memory) {
+        // forgefmt: disable-next-item
+        uint256 variantMap =
+            OrderBufferLib.VARIANT_IS_EXACT_BIT * 1 |
+            OrderBufferLib.VARIANT_IS_FLASH_BIT * 1 |
+            OrderBufferLib.VARIANT_IS_OUT_BIT * (!order.exactIn ? 1 : 0) |
+            OrderBufferLib.VARIANT_NO_HOOK_BIT * (order.hook == address(0) ? 1 : 0) |
+            OrderBufferLib.VARIANT_USE_INTERNAL_BIT * (order.useInternal ? 1 : 0) |
+            OrderBufferLib.VARIANT_HAS_RECIPIENT * (order.recipient != address(0) ? 1 : 0) |
+            OrderBufferLib.VARIANT_ECDSA_SIG * (order.meta.isEcdsa ? 1 : 0);
+        AssetIndex assetInIndex = _toAssetIndex(assets, order.assetIn);
+        AssetIndex assetOutIndex = _toAssetIndex(assets, order.assetOut);
+
+        return bytes.concat(
+            bytes1(uint8(variantMap)),
+            bytes2(AssetIndex.unwrap(assetInIndex)),
+            bytes2(AssetIndex.unwrap(assetOutIndex)),
+            bytes32(order.minPrice),
+            _encodeHookData(order.hook, order.hookPayload),
+            bytes16(order.amount.toUint128()),
+            order.recipient == address(0) ? new bytes(0) : bytes.concat(bytes20(order.recipient)),
+            _encodeSig(order.meta)
+        );
     }
 
     function toStr(PartialStandingOrder memory o) internal pure returns (string memory str) {
@@ -335,8 +405,10 @@ library OrdersLib {
         str = string.concat(
             str,
             o.recipient.toStr(),
-            ",\n  hookData: ",
-            o.hookData.toStr(),
+            ",\n  hook: ",
+            o.hook.toStr(),
+            ",\n  hookPayload: ",
+            o.hookPayload.toStr(),
             ",\n  nonce: ",
             o.nonce.toStr(),
             ",\n  deadline: ",
@@ -369,8 +441,10 @@ library OrdersLib {
             str,
             ",\n  recipient: ",
             o.recipient.toStr(),
-            ",\n  hookData: ",
-            o.hookData.toStr(),
+            ",\n  hook: ",
+            o.hook.toStr(),
+            ",\n  hookPayload: ",
+            o.hookPayload.toStr(),
             ",\n  nonce: ",
             o.nonce.toStr(),
             ",\n  deadline: ",
@@ -401,8 +475,10 @@ library OrdersLib {
             str,
             ",\n  recipient: ",
             o.recipient.toStr(),
-            ",\n  hookData: ",
-            o.hookData.toStr(),
+            ",\n  hook: ",
+            o.hook.toStr(),
+            ",\n  hookPayload: ",
+            o.hookPayload.toStr(),
             ",\n  validForBlock: ",
             o.validForBlock.toStr(),
             ",\n  amountFilled: ",
@@ -433,8 +509,10 @@ library OrdersLib {
             o.assetOut.toStr(),
             ",\n  recipient: ",
             o.recipient.toStr(),
-            ",\n  hookData: ",
-            o.hookData.toStr(),
+            ",\n  hook: ",
+            o.hook.toStr(),
+            ",\n  hookPayload: ",
+            o.hookPayload.toStr(),
             ",\n  validForBlock: ",
             o.validForBlock.toStr(),
             ",\n  meta: ",
@@ -444,28 +522,37 @@ library OrdersLib {
     }
 
     function toStr(OrderMeta memory meta) internal pure returns (string memory) {
-        return string.concat("OrderMeta {", " from: ", meta.from.toStr(), ", signature: ", meta.signature.toStr(), " }");
+        return string.concat(
+            "OrderMeta { isEcdsa: ",
+            meta.isEcdsa.toStr(),
+            ", from: ",
+            meta.from.toStr(),
+            ", signature: ",
+            meta.signature.toStr(),
+            " }"
+        );
     }
 
-    function _decodeHookData(GenericOrder memory g, bytes memory data) internal pure {
-        uint256 dataLength = data.length;
-        if (dataLength != 0) {
-            require(dataLength >= 20, "Invalid hookData length");
-            address hook;
-            bytes memory hookPayload;
-            assembly ("memory-safe") {
-                hook := mload(add(data, 20))
-                let len := sub(mload(data), 20)
+    function _encodeHookData(address hook, bytes memory hookPayload) internal pure returns (bytes memory) {
+        if (hook == address(0)) {
+            return new bytes(0);
+        }
+        return bytes.concat(bytes20(hook), bytes3(hookPayload.length.toUint24()), hookPayload);
+    }
 
-                hookPayload := mload(0x40)
-                let offset := add(hookPayload, 0x20)
-                mstore(0x40, add(offset, len))
+    function _toHookData(address hook, bytes memory hookPayload) internal pure returns (bytes memory) {
+        if (hook == address(0)) {
+            return new bytes(0);
+        }
+        return bytes.concat(bytes20(hook), hookPayload);
+    }
 
-                mstore(hookPayload, len)
-                mcopy(offset, add(data, 52), len)
-            }
-            g.hook = hook;
-            g.hookPayload = hookPayload;
+    function _encodeSig(OrderMeta memory meta) internal pure returns (bytes memory) {
+        if (meta.isEcdsa) {
+            return meta.signature;
+        } else {
+            // ERC1271
+            return bytes.concat(bytes20(meta.from), bytes3(meta.signature.length.toUint24()), meta.signature);
         }
     }
 
@@ -476,3 +563,31 @@ library OrdersLib {
         revert("Asset not found");
     }
 }
+
+/*
+0x
+5b9d49cfed48f8c9d1a863f61c2479c579fa299c25a33211fc857390cecce6d4
+0000000000000000000000000000000000000000000000000000000000000001
+00000000000000000000000000000000000000000000000052c6824e16328345
+0000000000000000000000000000000000000000006c2d47d8d2a960edd79e55
+0000000000000000000000000000000000000000000000000000000000000001
+0000000000000000000000005615deb798bb3e4dfa0139dfa1b3d433cc23b72f
+0000000000000000000000002e234dae75c793f67a35089c9d99245e1c58470b
+000000000000000000000000ad6c344738890956752bdc5f934619771a38ae63
+c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+0000000000000000000000000000000000000000000000000000000000000002
+
+
+
+0x
+5b9d49cfed48f8c9d1a863f61c2479c579fa299c25a33211fc857390cecce6d4
+0000000000000000000000000000000000000000000000000000000000000001
+00000000000000000000000000000000000000000000000052c6824e16328345
+0000000000000000000000000000000000000000006c2d47d8d2a960edd79e55
+0000000000000000000000000000000000000000000000000000000000000001
+0000000000000000000000005615deb798bb3e4dfa0139dfa1b3d433cc23b72f
+0000000000000000000000002e234dae75c793f67a35089c9d99245e1c58470b
+000000000000000000000000ad6c344738890956752bdc5f934619771a38ae63
+c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470
+0000000000000000000000000000000000000000000000000000000000000002
+*/
