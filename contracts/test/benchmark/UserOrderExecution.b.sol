@@ -328,7 +328,7 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
             payload[i] == 0x00 ? zeros++ : nonZeros++;
         }
 
-        // console.log("totalOrders: %s\n", v.finalOrders.length);
+        console.log("totalOrders: %s\n", v.finalOrders.length);
         console.log("calldata cost: %s (%s, %s)", zeros * 4 + nonZeros * 16, zeros, nonZeros);
 
         vm.resumeGasMetering();
