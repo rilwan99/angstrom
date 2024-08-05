@@ -67,15 +67,10 @@ contract Angstrom is
         blockWideNonReentrant
         returns (bytes memory)
     {
-        console.log("data:");
-        console.logBytes(data[:700]);
-
         CalldataReader reader = CalldataReaderLib.from(data);
 
-        console.log("assets");
         Assets assets;
         (reader, assets) = AssetsLib.readFromAndValidate(reader);
-        console.log("pairs");
         Pairs pairs;
         (reader, pairs) = PairLib.readFromAndValidate(reader);
 
@@ -153,8 +148,6 @@ contract Angstrom is
         return reader;
     }
 
-    tuint256 x;
-
     function _validateAndExecuteOrders(CalldataReader reader, Assets assets, Pairs pairs)
         internal
         returns (CalldataReader)
@@ -165,27 +158,12 @@ contract Angstrom is
         CalldataReader end;
         (reader, end) = reader.readU24End();
 
-        console.log("reader.ptr(): %s", reader.offset());
-        console.log("end.ptr(): %s", end.offset());
-
-        x.set(0);
-
         // Purposefully devolve into an endless loop if the specified length isn't exactly used s.t.
         // `reader == end` at some point.
         while (reader != end) {
-            console.log("[%s]", x.get());
-            x.inc(uint256(1));
-
-            console.log("  start: %s", reader.offset());
-
             // Load variant.
             OrderVariant variant;
             (reader, variant) = reader.readVariant();
-
-            console.log("  variant: %s", reader.offset());
-            console.log("    variant.isFlash(): %s", variant.isFlash().toStr());
-            console.log("    variant.isExact(): %s", variant.isExact().toStr());
-            console.log("    variant.useInternal(): %s", variant.useInternal().toStr());
 
             buffer.setTypeHash(variant);
 
@@ -200,8 +178,6 @@ contract Angstrom is
                 price = PriceOutVsIn.wrap(priceOutVsIn);
             }
 
-            console.log("  pair: %s", reader.offset());
-
             // Load & validate price.
             {
                 uint256 minPrice;
@@ -210,8 +186,6 @@ contract Angstrom is
                 buffer.minPrice = minPrice;
             }
 
-            console.log("  minPrice: %s", reader.offset());
-
             HookBuffer hook;
             {
                 bytes32 hookDataHash;
@@ -219,29 +193,18 @@ contract Angstrom is
                 buffer.hookDataHash = hookDataHash;
             }
 
-            console.log("  hook: %s", reader.offset());
-
             // Adds current block number for flash orders.
             reader = buffer.readOrderValidation(reader, variant);
-
-            console.log("  validation: %s", reader.offset());
 
             AmountIn amountIn;
             AmountOut amountOut;
             (reader, amountIn, amountOut) = _loadAndComputeQuantity(reader, buffer, variant, price);
 
-            console.log("  quantity: %s", reader.offset());
-
             buffer.useInternal = variant.useInternal();
 
             (reader, buffer.recipient) = variant.hasRecipient() ? reader.readAddr() : (reader, address(0));
 
-            console.log("  recipient: %s", reader.offset());
-
-            buffer.logBytes(variant);
-
             bytes32 orderHash = typedHasher.hashTypedData(buffer.hash(variant));
-            console.log("  -> orderHash: %x", uint256(orderHash));
 
             address from;
             (reader, from) = variant.isEcdsa()

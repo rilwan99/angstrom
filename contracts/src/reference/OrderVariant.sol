@@ -28,10 +28,11 @@ library OrderVariantLib {
                 (variant.isExact ? VariantLib.VARIANT_IS_EXACT_BIT : 0)
                     .bitOverlay(variant.isFlash ? VariantLib.VARIANT_IS_FLASH_BIT : 0)
                     .bitOverlay(variant.isOut ? VariantLib.VARIANT_IS_OUT_BIT : 0)
-                    .bitOverlay( variant.noHook ? VariantLib.VARIANT_NO_HOOK_BIT : 0)
+                    .bitOverlay(variant.noHook ? VariantLib.VARIANT_NO_HOOK_BIT : 0)
                     .bitOverlay(variant.useInternal ? VariantLib.VARIANT_USE_INTERNAL_BIT : 0)
-                    .bitOverlay( variant.hasRecipient ? VariantLib.VARIANT_HAS_RECIPIENT : 0)
+                    .bitOverlay(variant.hasRecipient ? VariantLib.VARIANT_HAS_RECIPIENT : 0)
                     .bitOverlay(variant.isEcdsa ? VariantLib.VARIANT_IS_ECDSA_BIT : 0)
+                    .bitOverlay(variant.aToB ? VariantLib.VARIANT_A_TO_B_BIT : 0)
             )
         );
     }

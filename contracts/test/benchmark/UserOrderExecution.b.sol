@@ -194,15 +194,14 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
 
             for (uint256 i = 0; i < v.pairOrderCounts[j]; i++) {
                 uint256 oi = v.orderIndexOffset[j] + i;
-                console.log("[%s]", oi);
                 assertFalse(usedIndices[oi]);
                 usedIndices[oi] = true;
 
                 bool isLast = i == v.pairOrderCounts[j] - 1;
                 v.aToB = isLast ? v.totalBOut < pair.priceAB.convert(v.totalAOut) : rng.randbool();
 
-                v.assetIn = v.aToB ? pair.assetA : pair.assetB;
                 v.assetOut = v.aToB ? pair.assetB : pair.assetA;
+                v.assetIn = v.aToB ? pair.assetA : pair.assetB;
                 v.priceOutVsIn = PriceOutVsIn.wrap(v.aToB ? pair.priceAB.into().invRay() : pair.priceAB.into());
 
                 v.amountOut = AmountOut.wrap(
@@ -226,13 +225,13 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
                 v.minPrice = v.priceOutVsIn.mulRayScalar(rng.randuint(0.89e18, 1.0e18));
                 v.trader = v.traders[rng.randuint(v.traders.length)];
                 v.deadline = block.timestamp + 240 + rng.randuint(0, 3600);
-                bool useInternal = rng.randbool();
-                traderTotalIn[v.trader.addr][useInternal][v.assetIn] += v.amountIn.into();
+                bool useInternal;
 
                 v.p = rng.randuint(1e18);
                 if (v.p <= 0.4e18) {
                     v.minAmountIn = v.amountIn.into().mulWad(rng.randuint(0.2e18, 1.0e18)).toUint128();
                     v.maxAmountIn = v.amountIn.into().mulWad(rng.randuint(1.0e18, 10.0e18)).toUint128();
+                    useInternal = rng.randbool();
                     // Partial order
                     v.b.userOrders[oi] = v.isFlash
                         ? UserOrderLib.from(
@@ -270,6 +269,7 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
                         );
                 } else {
                     bool exactIn = v.p <= 0.7e18;
+                    useInternal = rng.randbool();
                     // Exact in/out order
                     v.b.userOrders[oi] = v.isFlash
                         ? UserOrderLib.from(
@@ -305,6 +305,7 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
                         );
                 }
 
+                traderTotalIn[v.trader.addr][useInternal][v.assetIn] += v.amountIn.into();
                 v.trader.sign(v.b.userOrders[oi], v.hasher);
             }
             totalOuts[pair.assetA] += v.totalAOut.into();

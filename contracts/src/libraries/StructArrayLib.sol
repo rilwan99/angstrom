@@ -3,8 +3,6 @@ pragma solidity ^0.8.13;
 
 import {CalldataReader} from "../types/CalldataReader.sol";
 
-import {console} from "forge-std/console.sol";
-
 /// @author philogy <https://github.com/philogy>
 library StructArrayLib {
     using StructArrayLib for uint256;
@@ -24,8 +22,6 @@ library StructArrayLib {
 
         // TODO: Full bytes could've not been used.
         uint256 length = (end.offset() - reader.offset()) / size;
-
-        console.log("length: %s", length);
 
         // For the offset to be more than 4 bytes we'd need at least 4 GB of calldata.
         packed = (length << LENGTH_OFFSET) | reader.offset();

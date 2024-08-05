@@ -81,7 +81,6 @@ library UserOrderLib {
     }
 
     function hash712(UserOrder order, TypedDataHasher hasher) internal pure returns (bytes32) {
-        console.log("hashing");
         return hasher.hashTypedData(order.hash());
     }
 
@@ -102,7 +101,6 @@ library UserOrderLib {
 
     function encode(UserOrder[] memory orders, Pair[] memory pairs) internal pure returns (bytes memory b) {
         for (uint256 i = 0; i < orders.length; i++) {
-            console.log("[%s]", i);
             b = bytes.concat(b, _logB(orders[i].encode(pairs)));
         }
         b = bytes.concat(bytes3(b.length.toUint24()), b);
@@ -110,7 +108,6 @@ library UserOrderLib {
 
     function encode(UserOrder order, Pair[] memory pairs) internal pure returns (bytes memory) {
         UserOrderVariant variant = order.getVariant();
-        console.log("encoding: %s", order.toStr());
         if (variant == UserOrderVariant.PartialStandingOrder) {
             return _toPartialStandingFn(_toMemPtr)(order).encode(pairs);
         } else if (variant == UserOrderVariant.ExactStandingOrder) {
@@ -186,7 +183,6 @@ library UserOrderLib {
     }
 
     function _logB(bytes memory b) internal pure returns (bytes memory) {
-        console.logBytes(b);
         return b;
     }
 

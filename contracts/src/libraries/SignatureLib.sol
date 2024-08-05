@@ -4,8 +4,6 @@ pragma solidity ^0.8.0;
 import {CalldataReader} from "../types/CalldataReader.sol";
 import {SignatureCheckerLib} from "solady/src/utils/SignatureCheckerLib.sol";
 
-import {console} from "forge-std/console.sol";
-
 /// @author philogy <https://github.com/philogy>
 library SignatureLib {
     error InvalidSignature();
@@ -17,8 +15,6 @@ library SignatureLib {
         view
         returns (CalldataReader, address from)
     {
-        console.log("sig:");
-        reader.logNext(65);
         assembly ("memory-safe") {
             let free := mload(0x40)
             mstore(free, hash)

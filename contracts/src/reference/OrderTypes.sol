@@ -259,7 +259,6 @@ library OrdersLib {
     }
 
     function _logB(bytes memory b) internal pure returns (bytes memory) {
-        console.logBytes(b);
         return b;
     }
 

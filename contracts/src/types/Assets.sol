@@ -4,8 +4,6 @@ pragma solidity ^0.8.13;
 import {CalldataReader} from "./CalldataReader.sol";
 import {StructArrayLib} from "../libraries/StructArrayLib.sol";
 
-import {console} from "forge-std/console.sol";
-
 type Asset is uint256;
 
 type Assets is uint256;
@@ -45,9 +43,7 @@ library AssetsLib {
         uint256 length = self.len();
         address lastAddr = address(0);
         for (uint256 i = 0; i < length; i++) {
-            console.log("[%s]", i);
             address newAddr = self.get(i).addr();
-            console.log("  addr: %s", newAddr);
             if (newAddr <= lastAddr) revert AssetsOutOfOrderOrNotUnique();
             lastAddr = newAddr;
         }
