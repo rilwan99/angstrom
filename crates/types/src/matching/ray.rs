@@ -1,4 +1,4 @@
-use std::ops::Deref;
+use std::ops::{Add, Deref, Sub};
 
 use alloy_primitives::{aliases::U320, Uint, U256};
 use malachite::{
@@ -6,6 +6,7 @@ use malachite::{
         arithmetic::traits::{DivRound, Pow},
         conversion::traits::RoundingInto
     },
+    rounding_modes::RoundingMode,
     Natural, Rational
 };
 
@@ -19,6 +20,22 @@ impl Deref for Ray {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl Sub for Ray {
+    type Output = Ray;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self(self.0 - rhs.0)
+    }
+}
+
+impl Add for Ray {
+    type Output = Ray;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.0 + rhs.0)
     }
 }
 
@@ -88,13 +105,23 @@ impl Ray {
         self.into()
     }
 
-    // pub fn from_sqrtx96(other: &SqrtPriceX96) -> Self {
-    //     let bignum = U512::from_limbs(other.as_limbs());
-    // }
+    pub fn calc_price(t0: U256, t1: U256) -> Self {
+        let numerator = Natural::from_limbs_asc(t0.as_limbs()) * const_1e27();
+        let denominator = Natural::from_limbs_asc(t1.as_limbs());
+        let output = Rational::from_naturals(numerator, denominator);
+        let (natout, _): (Natural, _) = output.rounding_into(RoundingMode::Floor);
+        let limbs = natout.limbs().collect::<Vec<_>>();
+        let inner = U256::from_limbs_slice(&limbs);
+        Self(inner)
+    }
 
-    // pub fn to_sqrtx96(&self) -> U256 {
-    //     let bignum = U512::from(self.0);
-    // }
+    pub fn mul_quantity(&self, q: U256) -> U256 {
+        let numerator = Natural::from_limbs_asc((self.0 * q).as_limbs());
+        let (res, _) =
+            numerator.div_round(const_1e27(), malachite::rounding_modes::RoundingMode::Floor);
+        let reslimbs = res.into_limbs_asc();
+        Uint::from_limbs_slice(&reslimbs)
+    }
 }
 
 #[cfg(test)]

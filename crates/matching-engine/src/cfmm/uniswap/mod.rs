@@ -132,6 +132,10 @@ impl MarketSnapshot {
             price:     self.sqrt_price_x96
         }
     }
+
+    pub fn liquidity_at_tick(&self, tick: Tick) -> Option<u128> {
+        self.get_range_for_tick(tick).map(|range| range.1.liquidity)
+    }
 }
 
 /// A MarketPrice represents a price based on the market state preserved in a
