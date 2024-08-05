@@ -19,13 +19,10 @@ library TickRewardsLib {
         uint256 lowerGrowth = self.tickGrowthOutside[lower];
         uint256 upperGrowth = self.tickGrowthOutside[upper];
         if (current < lower) {
-            console.log("=> lo - hi");
             return lowerGrowth - upperGrowth;
         } else if (current >= upper) {
-            console.log("=> hi - lo");
             return upperGrowth - lowerGrowth;
         } else {
-            console.log("=> g - lo - hi");
             return self.globalGrowth - lowerGrowth - upperGrowth;
         }
     }

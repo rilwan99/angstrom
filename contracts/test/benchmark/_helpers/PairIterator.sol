@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {console2 as console} from "forge-std/console2.sol";
 
-struct Pair {
+struct PairItem {
     address asset0;
     address asset1;
     uint256 price;
@@ -62,7 +62,7 @@ library PairIteratorLib {
         }
     }
 
-    function next(PairIterator memory self) internal pure returns (Pair memory pair) {
+    function next(PairIterator memory self) internal pure returns (PairItem memory pair) {
         require(!self.done(), "Iterator done");
         pair.asset0 = self.assets[self.asset0Index];
         pair.asset1 = self.assets[self.asset1Index];

@@ -5,23 +5,23 @@ import {Donate} from "./Donate.sol";
 import {UniConsumer} from "./UniConsumer.sol";
 import {ILiqChangeHooks} from "../interfaces/ILiqChangeHooks.sol";
 
+import {tuint256} from "transient-goodies/TransientPrimitives.sol";
 import {TickRewards} from "../types/TickRewards.sol";
+import {Assets} from "../types/Assets.sol";
+
 import {IUniV4} from "../interfaces/IUniV4.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {IPoolManager} from "../interfaces/IUniV4.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
-import {AssetIndex} from "../types/PriceGraph.sol";
-import {Globals} from "../types/Globals.sol";
 import {MixedSignLib} from "../libraries/MixedSignLib.sol";
-import {tuint256} from "transient-goodies/TransientPrimitives.sol";
 
 import {ConversionLib} from "../libraries/ConversionLib.sol";
 
 struct PoolRewardsUpdate {
-    AssetIndex asset0;
-    AssetIndex asset1;
+    uint16 asset0Index;
+    uint16 asset1Index;
     int24 startTick;
     uint128 startLiquidity;
     uint256 currentDonate;
@@ -49,34 +49,55 @@ abstract contract PoolRewardsManager is Donate, ILiqChangeHooks, UniConsumer {
         _checkHookPermissions(Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG);
     }
 
-    function beforeAddLiquidity(
-        address sender,
-        PoolKey calldata key,
-        IPoolManager.ModifyLiquidityParams calldata params,
-        bytes calldata hookData
-    ) external override onlyUniV4 returns (bytes4) {
-        PoolId id = key.toId();
-        Position storage position = pools[id].positions[sender][params.tickLower][params.tickUpper];
+    // function beforeAddLiquidity(
+    //     address sender,
+    //     PoolKey calldata key,
+    //     IPoolManager.ModifyLiquidityParams calldata params,
+    //     bytes calldata hookData
+    // ) external override onlyUniV4 returns (bytes4) {
+    //     assert(false); // TODO
+    //     PoolId id = key.toId();
+    //     Position storage position = pools[id].positions[sender][params.tickLower][params.tickUpper];
+    //     return this.beforeAddLiquidity.selector;
+    // }
+    function beforeAddLiquidity(address, PoolKey calldata, IPoolManager.ModifyLiquidityParams calldata, bytes calldata)
+        external
+        view
+        override
+        onlyUniV4
+        returns (bytes4)
+    {
         return this.beforeAddLiquidity.selector;
     }
 
+    // function afterRemoveLiquidity(
+    //     address sender,
+    //     PoolKey calldata key,
+    //     IPoolManager.ModifyLiquidityParams calldata params,
+    //     BalanceDelta delta,
+    //     bytes calldata hookData
+    // ) external returns (bytes4, BalanceDelta) {
+    //     assert(false); // TODO
+    // }
     function afterRemoveLiquidity(
-        address sender,
-        PoolKey calldata key,
-        IPoolManager.ModifyLiquidityParams calldata params,
-        BalanceDelta delta,
-        bytes calldata hookData
-    ) external returns (bytes4, BalanceDelta) {}
+        address,
+        PoolKey calldata,
+        IPoolManager.ModifyLiquidityParams calldata,
+        BalanceDelta,
+        bytes calldata
+    ) external pure returns (bytes4, BalanceDelta) {
+        return (bytes4(0), BalanceDelta.wrap(0));
+    }
 
     function _rewardPools(
-        Globals memory g,
+        Assets assets,
         PoolRewardsUpdate[] calldata updates,
         mapping(address => tuint256) storage freeBalance
     ) internal {
         for (uint256 i = 0; i < updates.length; i++) {
             PoolRewardsUpdate calldata update = updates[i];
-            address asset0 = g.get(update.asset0);
-            address asset1 = g.get(update.asset1);
+            address asset0 = assets.get(update.asset0Index).addr();
+            address asset1 = assets.get(update.asset1Index).addr();
             PoolId id = ConversionLib.toPoolKey(address(this), asset0, asset1).toId();
             uint256 total = _donate(
                 pools[id].rewards, id, update.startTick, update.startLiquidity, update.currentDonate, update.amounts

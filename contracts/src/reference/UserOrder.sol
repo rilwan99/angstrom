@@ -10,10 +10,14 @@ import {
     OrdersLib
 } from "./OrderTypes.sol";
 import {TypedDataHasher} from "src/types/TypedDataHasher.sol";
+import {Pair} from "./Pair.sol";
+import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
+
+import {console} from "forge-std/console.sol";
 
 type UserOrder is uint256;
 
-enum OrderVariant {
+enum UserOrderVariant {
     PartialStandingOrder,
     ExactStandingOrder,
     PartialFlashOrder,
@@ -21,55 +25,55 @@ enum OrderVariant {
 }
 
 using UserOrderLib for UserOrder global;
-using UserOrderLib for OrderVariant global;
+using UserOrderLib for UserOrderVariant global;
 
 /// @author philogy <https://github.com/philogy>
 library UserOrderLib {
-    using UserOrderLib for function(UserOrder) internal pure returns (PartialFlashOrder memory);
+    using SafeCastLib for *;
 
     function from(PartialStandingOrder memory spOrder) internal pure returns (UserOrder order) {
-        OrderVariant variant = OrderVariant.PartialStandingOrder;
+        UserOrderVariant variant = UserOrderVariant.PartialStandingOrder;
         assembly ("memory-safe") {
             order := or(shl(8, spOrder), variant)
         }
     }
 
     function from(ExactStandingOrder memory spOrder) internal pure returns (UserOrder order) {
-        OrderVariant variant = OrderVariant.ExactStandingOrder;
+        UserOrderVariant variant = UserOrderVariant.ExactStandingOrder;
         assembly ("memory-safe") {
             order := or(shl(8, spOrder), variant)
         }
     }
 
     function from(PartialFlashOrder memory spOrder) internal pure returns (UserOrder order) {
-        OrderVariant variant = OrderVariant.PartialFlashOrder;
+        UserOrderVariant variant = UserOrderVariant.PartialFlashOrder;
         assembly ("memory-safe") {
             order := or(shl(8, spOrder), variant)
         }
     }
 
     function from(ExactFlashOrder memory spOrder) internal pure returns (UserOrder order) {
-        OrderVariant variant = OrderVariant.ExactFlashOrder;
+        UserOrderVariant variant = UserOrderVariant.ExactFlashOrder;
         assembly ("memory-safe") {
             order := or(shl(8, spOrder), variant)
         }
     }
 
-    function getVariant(UserOrder order) internal pure returns (OrderVariant variant) {
+    function getVariant(UserOrder order) internal pure returns (UserOrderVariant variant) {
         assembly {
             variant := and(order, 0xff)
         }
     }
 
     function setMeta(UserOrder order, OrderMeta memory meta) internal pure {
-        OrderVariant variant = order.getVariant();
-        if (variant == OrderVariant.PartialStandingOrder) {
+        UserOrderVariant variant = order.getVariant();
+        if (variant == UserOrderVariant.PartialStandingOrder) {
             _toPartialStandingFn(_toMemPtr)(order).meta = meta;
-        } else if (variant == OrderVariant.ExactStandingOrder) {
+        } else if (variant == UserOrderVariant.ExactStandingOrder) {
             _toExactStandingFn(_toMemPtr)(order).meta = meta;
-        } else if (variant == OrderVariant.PartialFlashOrder) {
+        } else if (variant == UserOrderVariant.PartialFlashOrder) {
             _toPartialFlashFn(_toMemPtr)(order).meta = meta;
-        } else if (variant == OrderVariant.ExactFlashOrder) {
+        } else if (variant == UserOrderVariant.ExactFlashOrder) {
             _toExactFlashFn(_toMemPtr)(order).meta = meta;
         } else {
             revert("Unimplemented variant");
@@ -77,48 +81,58 @@ library UserOrderLib {
     }
 
     function hash712(UserOrder order, TypedDataHasher hasher) internal pure returns (bytes32) {
+        console.log("hashing");
         return hasher.hashTypedData(order.hash());
     }
 
     function hash(UserOrder order) internal pure returns (bytes32) {
-        OrderVariant variant = order.getVariant();
-        if (variant == OrderVariant.PartialStandingOrder) {
+        UserOrderVariant variant = order.getVariant();
+        if (variant == UserOrderVariant.PartialStandingOrder) {
             return _toPartialStandingFn(_toMemPtr)(order).hash();
-        } else if (variant == OrderVariant.ExactStandingOrder) {
+        } else if (variant == UserOrderVariant.ExactStandingOrder) {
             return _toExactStandingFn(_toMemPtr)(order).hash();
-        } else if (variant == OrderVariant.PartialFlashOrder) {
+        } else if (variant == UserOrderVariant.PartialFlashOrder) {
             return _toPartialFlashFn(_toMemPtr)(order).hash();
-        } else if (variant == OrderVariant.ExactFlashOrder) {
+        } else if (variant == UserOrderVariant.ExactFlashOrder) {
             return _toExactFlashFn(_toMemPtr)(order).hash();
         } else {
             revert("Unimplemented variant");
         }
     }
 
-    function encode(UserOrder order, address[] memory assets) internal pure returns (bytes memory) {
-        OrderVariant variant = order.getVariant();
-        if (variant == OrderVariant.PartialStandingOrder) {
-            return _toPartialStandingFn(_toMemPtr)(order).encode(assets);
-        } else if (variant == OrderVariant.ExactStandingOrder) {
-            return _toExactStandingFn(_toMemPtr)(order).encode(assets);
-        } else if (variant == OrderVariant.PartialFlashOrder) {
-            return _toPartialFlashFn(_toMemPtr)(order).encode(assets);
-        } else if (variant == OrderVariant.ExactFlashOrder) {
-            return _toExactFlashFn(_toMemPtr)(order).encode(assets);
+    function encode(UserOrder[] memory orders, Pair[] memory pairs) internal pure returns (bytes memory b) {
+        for (uint256 i = 0; i < orders.length; i++) {
+            console.log("[%s]", i);
+            b = bytes.concat(b, _logB(orders[i].encode(pairs)));
+        }
+        b = bytes.concat(bytes3(b.length.toUint24()), b);
+    }
+
+    function encode(UserOrder order, Pair[] memory pairs) internal pure returns (bytes memory) {
+        UserOrderVariant variant = order.getVariant();
+        console.log("encoding: %s", order.toStr());
+        if (variant == UserOrderVariant.PartialStandingOrder) {
+            return _toPartialStandingFn(_toMemPtr)(order).encode(pairs);
+        } else if (variant == UserOrderVariant.ExactStandingOrder) {
+            return _toExactStandingFn(_toMemPtr)(order).encode(pairs);
+        } else if (variant == UserOrderVariant.PartialFlashOrder) {
+            return _toPartialFlashFn(_toMemPtr)(order).encode(pairs);
+        } else if (variant == UserOrderVariant.ExactFlashOrder) {
+            return _toExactFlashFn(_toMemPtr)(order).encode(pairs);
         } else {
             revert("Unimplemented variant");
         }
     }
 
     function toStr(UserOrder order) internal pure returns (string memory) {
-        OrderVariant variant = order.getVariant();
-        if (variant == OrderVariant.PartialStandingOrder) {
+        UserOrderVariant variant = order.getVariant();
+        if (variant == UserOrderVariant.PartialStandingOrder) {
             return _toPartialStandingFn(_toMemPtr)(order).toStr();
-        } else if (variant == OrderVariant.ExactStandingOrder) {
+        } else if (variant == UserOrderVariant.ExactStandingOrder) {
             return _toExactStandingFn(_toMemPtr)(order).toStr();
-        } else if (variant == OrderVariant.PartialFlashOrder) {
+        } else if (variant == UserOrderVariant.PartialFlashOrder) {
             return _toPartialFlashFn(_toMemPtr)(order).toStr();
-        } else if (variant == OrderVariant.ExactFlashOrder) {
+        } else if (variant == UserOrderVariant.ExactFlashOrder) {
             return _toExactFlashFn(_toMemPtr)(order).toStr();
         } else {
             revert("Unimplemented variant");
@@ -171,15 +185,20 @@ library UserOrderLib {
         }
     }
 
-    function toStr(OrderVariant variant) internal pure returns (string memory) {
-        if (variant == OrderVariant.PartialStandingOrder) {
-            return "OrderVariant::PartialStandingOrder";
-        } else if (variant == OrderVariant.ExactStandingOrder) {
-            return "OrderVariant::ExactStandingOrder";
-        } else if (variant == OrderVariant.PartialFlashOrder) {
-            return "OrderVariant::PartialFlashOrder";
-        } else if (variant == OrderVariant.ExactFlashOrder) {
-            return "OrderVariant::ExactFlashOrder";
+    function _logB(bytes memory b) internal pure returns (bytes memory) {
+        console.logBytes(b);
+        return b;
+    }
+
+    function toStr(UserOrderVariant variant) internal pure returns (string memory) {
+        if (variant == UserOrderVariant.PartialStandingOrder) {
+            return "UserOrderVariant::PartialStandingOrder";
+        } else if (variant == UserOrderVariant.ExactStandingOrder) {
+            return "UserOrderVariant::ExactStandingOrder";
+        } else if (variant == UserOrderVariant.PartialFlashOrder) {
+            return "UserOrderVariant::PartialFlashOrder";
+        } else if (variant == UserOrderVariant.ExactFlashOrder) {
+            return "UserOrderVariant::ExactFlashOrder";
         } else {
             revert("Unimplemented variant");
         }

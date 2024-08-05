@@ -14,31 +14,48 @@ import {
     OrderMeta
 } from "../../src/reference/OrderTypes.sol";
 import {ExtAngstrom} from "../_view-ext/ExtAngstrom.sol";
-import {TopOfBlockOrderEnvelope, PoolSwap, PoolRewardsUpdate} from "src/Angstrom.sol";
+import {PoolSwap, PoolRewardsUpdate} from "src/Angstrom.sol";
 
+import {ArrayLib} from "super-sol/libraries/ArrayLib.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {UniV4Inspector} from "../_view-ext/UniV4Inspector.sol";
 import {MockERC20} from "super-sol/mocks/MockERC20.sol";
 import {HookDeployer} from "../_helpers/HookDeployer.sol";
 import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
 import {RayMathLib} from "../../src/libraries/RayMathLib.sol";
-import {PairIterator, Pair, PairIteratorLib} from "./_helpers/PairIterator.sol";
+import {PairIterator, PairItem, PairIteratorLib} from "./_helpers/PairIterator.sol";
 import {TypedDataHasher, TypedDataHasherLib} from "src/types/TypedDataHasher.sol";
-import {Asset} from "src/types/Asset.sol";
-import {Price, AssetIndex} from "src/types/PriceGraph.sol";
+import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
+import {Bundle} from "src/reference/Bundle.sol";
+import {Asset, AssetLib} from "src/reference/Asset.sol";
+import {Pair, PairLib} from "src/reference/Pair.sol";
+import {
+    PriceAB,
+    PriceAB,
+    AmountA,
+    AmountB,
+    PriceAB as PriceOutVsIn,
+    AmountA as AmountOut,
+    AmountB as AmountIn
+} from "src/types/Price.sol";
 
 import {PoolGate} from "../_helpers/PoolGate.sol";
 import {Trader} from "../_helpers/types/Trader.sol";
 import {PRNG} from "super-sol/collections/PRNG.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
-import {console2 as console} from "forge-std/console2.sol";
+import {console} from "forge-std/console.sol";
 
 /// @author philogy <https://github.com/philogy>
 contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
+    using AssetLib for *;
+    using PairLib for *;
+
+    using ArrayLib for *;
     using FormatLib for *;
     using FixedPointMathLib for *;
     using RayMathLib for uint256;
+    using SafeCastLib for *;
 
     address gov = makeAddr("gov");
     address owner = makeAddr("owner");
@@ -55,6 +72,11 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
     uint256 constant TOTAL_ACTORS = 1_000;
 
     function setUp() public {
+        uint256 expectedTotalPairs = 0;
+        for (uint256 i = 0; i < TOTAL_ASSETS; i++) {
+            expectedTotalPairs += i;
+        }
+        assertEq(TOTAL_PAIRS, expectedTotalPairs);
         for (uint256 i = 0; i < TOTAL_ASSETS; i++) {
             address newToken = address(new MockERC20());
             assets.push(newToken);
@@ -88,40 +110,35 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
     }
 
     mapping(uint256 => bool) usedIndices;
-    mapping(address trader => mapping(address asset => uint256)) traderTotals;
+    mapping(address trader => mapping(bool isInternal => mapping(address asset => uint256))) traderTotalIn;
 
     mapping(address => uint256) totalOuts;
 
     struct test_gas1Vars {
-        PairIterator pairIter;
         Trader[] traders;
-        UserOrder[] orders;
+        Bundle b;
+        uint256[] pairOrderCounts;
+        uint256[] orderIndexOffset;
         OrderMeta empty;
-        Asset[] assets;
-        Price[] prices;
-        Pair pair;
         TypedDataHasher hasher;
-        uint256 amount0Cleared;
-        uint256 amount1Cleared;
-        bool zeroToOne;
-        uint256 refPrice;
-        uint256 amountOut;
-        uint256 amountIn;
+        AmountA totalAOut;
+        AmountB totalBOut;
+        bool aToB;
+        PriceOutVsIn priceOutVsIn;
+        PriceOutVsIn minPrice;
+        AmountOut amountOut;
+        AmountIn amountIn;
         address assetIn;
         address assetOut;
         bool isFlash;
-        uint256 minPrice;
         Trader trader;
         uint256 p;
-        uint256 minAmountIn;
-        uint256 maxAmountIn;
+        uint128 minAmountIn;
+        uint128 maxAmountIn;
         uint256 deadline;
-        bytes[] finalOrders;
     }
 
     function test_gas_execute_limit_1() public {
-        vm.pauseGasMetering();
-
         angstrom.updateLastBlock();
         vm.roll(block.number + 1);
 
@@ -129,9 +146,29 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
         PRNG memory rng = _rng("exec_1");
 
         // Initialize random pairs with order counts.
-        v.pairIter =
-            PairIteratorLib.init(assets, _randPrices(rng, TOTAL_PAIRS), _randOrderCounts(rng, TOTAL_PAIRS, 12, 32));
-        v.orders = new UserOrder[](v.pairIter.totalOrders());
+        v.b.pairs = new Pair[](TOTAL_PAIRS);
+        {
+            PriceAB[] memory prices = _randPrices(rng, TOTAL_PAIRS);
+            v.pairOrderCounts = _randOrderCounts(rng, TOTAL_PAIRS, 12, 32);
+            uint256 pairIndex = 0;
+            for (uint256 i = 0; i < TOTAL_ASSETS; i++) {
+                for (uint256 j = i + 1; j < TOTAL_ASSETS; j++) {
+                    Pair memory pair = v.b.pairs[pairIndex];
+                    pair.priceAB = prices[pairIndex];
+                    pair.assetA = assets[i];
+                    pair.assetB = assets[j];
+                    pairIndex++;
+                    pair._checkOrdered();
+                }
+            }
+            uint256 cumulativeOffset = 0;
+            v.orderIndexOffset = new uint256[](TOTAL_PAIRS);
+            for (uint256 i = 0; i < TOTAL_PAIRS; i++) {
+                v.orderIndexOffset[i] = cumulativeOffset;
+                cumulativeOffset += v.pairOrderCounts[i];
+            }
+            v.b.userOrders = new UserOrder[](v.pairOrderCounts.sum());
+        }
 
         // Initialize trader actors.
         v.traders = makeTraders(TOTAL_ACTORS);
@@ -147,74 +184,70 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
             }
         }
 
-        uint256 x = 0;
-
-        v.prices = new Price[](v.pairIter.prices.length);
         v.hasher = TypedDataHasherLib.init(angstrom.DOMAIN_SEPARATOR());
-        v.finalOrders = new bytes[](v.orders.length);
 
-        for (uint256 j = 0; j < v.pairIter.prices.length; j++) {
-            Price memory price = v.prices[j];
-            price.outIndex = AssetIndex.wrap(u16(v.pairIter.asset1Index));
-            price.inIndex = AssetIndex.wrap(u16(v.pairIter.asset0Index));
-            v.pair = v.pairIter.next(); // price = amount1 / amount0
-            price.price = v.pair.price;
+        for (uint256 j = 0; j < TOTAL_PAIRS; j++) {
+            Pair memory pair = v.b.pairs[j];
 
-            v.amount0Cleared = 0;
-            v.amount1Cleared = 0;
+            v.totalAOut = AmountA.wrap(0);
+            v.totalBOut = AmountB.wrap(0);
 
-            for (uint256 i = 0; i < v.pair.orderCount; i++) {
-                uint256 oi = v.pair.orderOffset + i;
+            for (uint256 i = 0; i < v.pairOrderCounts[j]; i++) {
+                uint256 oi = v.orderIndexOffset[j] + i;
+                console.log("[%s]", oi);
                 assertFalse(usedIndices[oi]);
                 usedIndices[oi] = true;
 
-                bool isLast = i == v.pair.orderCount - 1;
-                v.zeroToOne = isLast ? v.amount1Cleared < v.amount0Cleared.mulRay(v.pair.price) : rng.randbool();
+                bool isLast = i == v.pairOrderCounts[j] - 1;
+                v.aToB = isLast ? v.totalBOut < pair.priceAB.convert(v.totalAOut) : rng.randbool();
 
-                v.refPrice = v.zeroToOne ? v.pair.price : v.pair.price.invRay(); // out / in
-                v.amountOut = isLast
-                    ? (
-                        v.zeroToOne
-                            ? v.amount0Cleared.mulRay(v.pair.price) - v.amount1Cleared
-                            : v.amount1Cleared.divRay(v.pair.price) - v.amount0Cleared
-                    )
-                    : rng.randuint((v.refPrice / 10).rayToWad(), (v.refPrice * 10).rayToWad());
-                v.amountIn = v.amountOut.divRay(v.refPrice);
+                v.assetIn = v.aToB ? pair.assetA : pair.assetB;
+                v.assetOut = v.aToB ? pair.assetB : pair.assetA;
+                v.priceOutVsIn = PriceOutVsIn.wrap(v.aToB ? pair.priceAB.into().invRay() : pair.priceAB.into());
 
-                if (v.zeroToOne) {
-                    v.amount1Cleared += v.amountOut;
+                v.amountOut = AmountOut.wrap(
+                    isLast
+                        ? (
+                            v.aToB
+                                ? (pair.priceAB.convert(v.totalAOut) - v.totalBOut).into()
+                                : (pair.priceAB.convert(v.totalBOut) - v.totalAOut).into()
+                        )
+                        : rng.randmag((v.priceOutVsIn.into() / 10).rayToWad(), (v.priceOutVsIn.into() * 10).rayToWad())
+                );
+                v.amountIn = v.priceOutVsIn.convert(v.amountOut);
+
+                if (v.aToB) {
+                    v.totalBOut = v.totalBOut + AmountB.wrap(v.amountOut.into());
                 } else {
-                    v.amount0Cleared += v.amountOut;
+                    v.totalAOut = v.totalAOut + AmountA.wrap(v.amountOut.into());
                 }
 
-                v.assetIn = v.zeroToOne ? v.pair.asset0 : v.pair.asset1;
-                v.assetOut = v.zeroToOne ? v.pair.asset1 : v.pair.asset0;
-
                 v.isFlash = rng.randbool();
-                v.minPrice = v.refPrice.mulWad(rng.randuint(0.89e18, 1.0e18));
+                v.minPrice = v.priceOutVsIn.mulRayScalar(rng.randuint(0.89e18, 1.0e18));
                 v.trader = v.traders[rng.randuint(v.traders.length)];
                 v.deadline = block.timestamp + 240 + rng.randuint(0, 3600);
-                traderTotals[v.trader.addr][v.assetIn] += v.amountIn;
+                bool useInternal = rng.randbool();
+                traderTotalIn[v.trader.addr][useInternal][v.assetIn] += v.amountIn.into();
 
                 v.p = rng.randuint(1e18);
                 if (v.p <= 0.4e18) {
-                    v.minAmountIn = v.amountIn.mulWad(rng.randuint(0.2e18, 1.0e18));
-                    v.maxAmountIn = v.amountIn.mulWad(rng.randuint(1.0e18, 10.0e18));
+                    v.minAmountIn = v.amountIn.into().mulWad(rng.randuint(0.2e18, 1.0e18)).toUint128();
+                    v.maxAmountIn = v.amountIn.into().mulWad(rng.randuint(1.0e18, 10.0e18)).toUint128();
                     // Partial order
-                    v.orders[oi] = v.isFlash
+                    v.b.userOrders[oi] = v.isFlash
                         ? UserOrderLib.from(
                             PartialFlashOrder({
-                                minAmountIn: v.minAmountIn,
-                                maxAmountIn: v.maxAmountIn,
-                                minPrice: v.minPrice,
-                                useInternal: rng.randbool(),
+                                minAmountIn: v.minAmountIn.toUint128(),
+                                maxAmountIn: v.maxAmountIn.toUint128(),
+                                minPrice: v.minPrice.into(),
+                                useInternal: useInternal,
                                 assetIn: v.assetIn,
                                 assetOut: v.assetOut,
                                 recipient: v.trader.addr,
                                 hook: address(0),
                                 hookPayload: new bytes(0),
                                 validForBlock: u64(block.number),
-                                amountFilled: v.amountIn,
+                                amountFilled: v.amountIn.into().toUint128(),
                                 meta: v.empty
                             })
                         )
@@ -222,8 +255,8 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
                             PartialStandingOrder({
                                 minAmountIn: v.minAmountIn,
                                 maxAmountIn: v.maxAmountIn,
-                                minPrice: v.minPrice,
-                                useInternal: rng.randbool(),
+                                minPrice: v.minPrice.into(),
+                                useInternal: useInternal,
                                 assetIn: v.assetIn,
                                 assetOut: v.assetOut,
                                 recipient: v.trader.addr,
@@ -231,20 +264,20 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
                                 hookPayload: new bytes(0),
                                 nonce: u64(v.trader.getFreshNonce()),
                                 deadline: u40(v.deadline),
-                                amountFilled: v.amountIn,
+                                amountFilled: v.amountIn.into().toUint128(),
                                 meta: v.empty
                             })
                         );
                 } else {
                     bool exactIn = v.p <= 0.7e18;
                     // Exact in/out order
-                    v.orders[oi] = v.isFlash
+                    v.b.userOrders[oi] = v.isFlash
                         ? UserOrderLib.from(
                             ExactFlashOrder({
                                 exactIn: exactIn,
-                                amount: exactIn ? v.amountIn : v.amountOut,
-                                minPrice: v.minPrice,
-                                useInternal: rng.randbool(),
+                                amount: (exactIn ? v.amountIn.into() : v.amountOut.into()).toUint128(),
+                                minPrice: v.minPrice.into(),
+                                useInternal: useInternal,
                                 assetIn: v.assetIn,
                                 assetOut: v.assetOut,
                                 recipient: v.trader.addr,
@@ -257,9 +290,9 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
                         : UserOrderLib.from(
                             ExactStandingOrder({
                                 exactIn: exactIn,
-                                amount: exactIn ? v.amountIn : v.amountOut,
-                                minPrice: v.minPrice,
-                                useInternal: rng.randbool(),
+                                amount: (exactIn ? v.amountIn.into() : v.amountOut.into()).toUint128(),
+                                minPrice: v.minPrice.into(),
+                                useInternal: useInternal,
                                 assetIn: v.assetIn,
                                 assetOut: v.assetOut,
                                 recipient: v.trader.addr,
@@ -272,14 +305,11 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
                         );
                 }
 
-                console.log("[%s]", x++);
-                v.trader.sign(v.orders[oi], v.hasher);
-                v.finalOrders[oi] = v.orders[oi].encode(assets);
+                v.trader.sign(v.b.userOrders[oi], v.hasher);
             }
-            totalOuts[v.pair.asset0] += v.amount0Cleared;
-            totalOuts[v.pair.asset1] += v.amount1Cleared;
+            totalOuts[pair.assetA] += v.totalAOut.into();
+            totalOuts[pair.assetB] += v.totalBOut.into();
         }
-        assertTrue(v.pairIter.done());
 
         for (uint256 i = 0; i < v.traders.length; i++) {
             address trader = v.traders[i].addr;
@@ -287,40 +317,35 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
             for (uint256 j = 0; j < assets.length; j++) {
                 address asset = assets[j];
                 MockERC20 erc20 = MockERC20(asset);
-                erc20.approve(address(angstrom), type(uint256).max);
-                uint256 total = traderTotals[trader][asset];
-                erc20.mint(trader, total);
-                angstrom.__ilegalMint(trader, asset, total);
-                erc20.mint(address(angstrom), total);
-                console.log("u: %s   a: %s = %s", trader, asset, total);
+                {
+                    uint256 internalTotal = traderTotalIn[trader][true][asset];
+                    angstrom.__ilegalMint(trader, asset, internalTotal);
+                    erc20.mint(address(angstrom), internalTotal);
+                }
+                {
+                    erc20.approve(address(angstrom), type(uint256).max);
+                    uint256 externalTotal = traderTotalIn[trader][false][asset];
+                    erc20.mint(trader, externalTotal);
+                }
             }
             vm.stopPrank();
         }
 
-        v.assets = new Asset[](assets.length);
+        v.b.assets = new Asset[](assets.length);
         for (uint256 i = 0; i < assets.length; i++) {
             address addr = assets[i];
-            Asset memory asset = v.assets[i];
+            Asset memory asset = v.b.assets[i];
             asset.addr = addr;
-            asset.borrow = totalOuts[addr];
+            asset.borrow = totalOuts[addr].toUint128();
             asset.save = 0;
-            asset.settle = totalOuts[addr];
+            asset.settle = totalOuts[addr].toUint128();
             gate.mint(addr, totalOuts[addr]);
         }
 
-        bytes memory encodedOrders;
-        for (uint256 i = 0; i < v.finalOrders.length; i++) {
-            encodedOrders = bytes.concat(encodedOrders, v.finalOrders[i]);
-        }
+        v.b.assets.sort();
+        v.b.pairs.sort();
 
-        bytes memory payload = abi.encode(
-            v.assets,
-            v.prices,
-            new TopOfBlockOrderEnvelope[](0),
-            new PoolSwap[](0),
-            encodedOrders,
-            new PoolRewardsUpdate[](0)
-        );
+        bytes memory payload = v.b.encode();
 
         uint256 zeros;
         uint256 nonZeros;
@@ -328,15 +353,13 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
             payload[i] == 0x00 ? zeros++ : nonZeros++;
         }
 
-        console.log("totalOrders: %s\n", v.finalOrders.length);
-        console.log("calldata cost: %s (%s, %s)", zeros * 4 + nonZeros * 16, zeros, nonZeros);
-
+        console.log("total orders: %s\n", v.b.userOrders.length);
+        uint256 cdCost = zeros * 4 + nonZeros * 16;
         console.log("rng.__state: %x", rng.__state);
-
-        vm.resumeGasMetering();
 
         uint256 cost = this.__doExecute(payload);
         console.log("execution cost: %s", cost);
+        console.log("total: %s", cost + cdCost);
     }
 
     /// @dev Isolate execution in its own call-context to avoid confounding gas cost factors like
@@ -354,12 +377,10 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
         return PRNG(uint256(seed));
     }
 
-    function _randPrices(PRNG memory rng, uint256 n) internal pure returns (uint256[] memory prices) {
-        prices = new uint256[](n);
+    function _randPrices(PRNG memory rng, uint256 n) internal pure returns (PriceAB[] memory prices) {
+        prices = new PriceAB[](n);
         for (uint256 i = 0; i < n; i++) {
-            uint256 mag = uint256(int256(10e18).powWad(int256(rng.randuint(4e18))));
-
-            prices[i] = mag.wadToRay().mulRay(0.01e27);
+            prices[i] = PriceAB.wrap(rng.randmag(0.01e27, 100.0e27));
         }
     }
 

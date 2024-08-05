@@ -1,28 +1,29 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.0;
 
-import {UniConsumer} from "./UniConsumer.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
-import {Asset} from "../types/Asset.sol";
-import {Globals} from "../types/Globals.sol";
-import {AssetIndex} from "../types/PriceGraph.sol";
 import {tuint256} from "transient-goodies/TransientPrimitives.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
+import {Assets, Asset} from "../types/Assets.sol";
+import {UniConsumer} from "./UniConsumer.sol";
 
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {ConversionLib} from "src/libraries/ConversionLib.sol";
 
 import {console2 as console} from "forge-std/console2.sol";
+import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 struct PoolSwap {
-    AssetIndex asset0Index;
-    AssetIndex asset1Index;
+    uint16 asset0Index;
+    uint16 asset1Index;
     bool zeroForOne;
     uint256 amountIn;
 }
 
 /// @author philogy <https://github.com/philogy>
 abstract contract Accounter is UniConsumer {
+    using FormatLib for *;
+
     using SafeTransferLib for address;
     using ConversionLib for *;
 
@@ -36,21 +37,22 @@ abstract contract Accounter is UniConsumer {
 
     mapping(address => mapping(address => uint256)) internal _aAssets;
 
-    function _borrowAssets(Asset[] calldata assets) internal {
-        for (uint256 i = 0; i < assets.length; i++) {
-            Asset calldata asset = assets[i];
-            uint256 amount = asset.borrow;
-            address addr = asset.addr;
+    function _borrowAssets(Assets assets) internal {
+        uint256 length = assets.len();
+        for (uint256 i = 0; i < length; i++) {
+            Asset asset = assets.get(i);
+            uint256 amount = asset.borrow();
+            address addr = asset.addr();
             UNI_V4.take(addr.intoC(), address(this), amount);
             freeBalance[addr].inc(amount);
         }
     }
 
-    function _execPoolSwaps(Globals memory g, PoolSwap[] calldata swaps) internal {
+    function _execPoolSwaps(Assets assets, PoolSwap[] calldata swaps) internal {
         for (uint256 i = 0; i < swaps.length; i++) {
             PoolSwap calldata swap = swaps[i];
-            address asset0 = g.get(swap.asset0Index);
-            address asset1 = g.get(swap.asset1Index);
+            address asset0 = assets.get(swap.asset0Index).addr();
+            address asset1 = assets.get(swap.asset1Index).addr();
             BalanceDelta delta = UNI_V4.swap(
                 address(this).toPoolKey(asset0, asset1),
                 IPoolManager.SwapParams({
@@ -65,12 +67,13 @@ abstract contract Accounter is UniConsumer {
         }
     }
 
-    function _saveAndSettle(Asset[] calldata assets) internal {
-        for (uint256 i = 0; i < assets.length; i++) {
-            Asset calldata asset = assets[i];
-            address addr = asset.addr;
-            uint256 saving = asset.save;
-            uint256 settle = asset.settle;
+    function _saveAndSettle(Assets assets) internal {
+        uint256 length = assets.len();
+        for (uint256 i = 0; i < length; i++) {
+            Asset asset = assets.get(i);
+            address addr = asset.addr();
+            uint256 saving = asset.save();
+            uint256 settle = asset.settle();
 
             freeBalance[addr].dec(saving + settle);
             savedFees[addr] += saving;
