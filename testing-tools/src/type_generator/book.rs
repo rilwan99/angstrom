@@ -5,8 +5,9 @@ use angstrom_types::{
 };
 use matching_engine::{
     book::{sort::SortStrategy, OrderBook},
-    cfmm::uniswap::{math::tick_at_sqrt_price, MarketSnapshot}
+    cfmm::uniswap::MarketSnapshot
 };
+use uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio;
 
 use super::{
     amm::generate_single_position_amm_at_tick,
@@ -73,7 +74,7 @@ pub fn generate_simple_cross_book(pool_id: PoolId, order_count: usize, price: f6
     let asks =
         generate_order_distribution(false, order_count, askprice, askquant, pool_id, valid_block)
             .unwrap();
-    let amm_tick = tick_at_sqrt_price(SqrtPriceX96::from_float_price(price)).unwrap();
+    let amm_tick = get_tick_at_sqrt_ratio(SqrtPriceX96::from_float_price(price).into()).unwrap();
     let amm = generate_single_position_amm_at_tick(amm_tick, 10000, 2e18 as u128);
     BookBuilder::new()
         .poolid(pool_id)
@@ -104,7 +105,7 @@ pub fn generate_one_sided_book(
         generate_order_distribution(false, order_count, askprice, askquant, pool_id, valid_block)
             .unwrap()
     };
-    let amm_tick = tick_at_sqrt_price(SqrtPriceX96::from_float_price(price)).unwrap();
+    let amm_tick = get_tick_at_sqrt_ratio(SqrtPriceX96::from_float_price(price).into()).unwrap();
     let amm = generate_single_position_amm_at_tick(amm_tick, 10000, 2e18 as u128);
     BookBuilder::new()
         .poolid(pool_id)

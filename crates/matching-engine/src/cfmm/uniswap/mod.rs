@@ -10,13 +10,13 @@ use angstrom_types::{
     matching::{Ray, SqrtPriceX96},
     orders::OrderPrice
 };
-
-use self::math::{
-    new_sqrt_price_from_input, new_sqrt_price_from_output, sqrt_price_at_tick, tick_at_sqrt_price,
-    token_0_delta
+use uniswap_v3_math::{
+    sqrt_price_math::{
+        _get_amount_0_delta, get_next_sqrt_price_from_input, get_next_sqrt_price_from_output
+    },
+    tick_math::{get_sqrt_ratio_at_tick, get_tick_at_sqrt_ratio}
 };
 
-pub mod math;
 pub mod tob;
 /// A Tick is represented as an i32 as its value range is from around
 /// -900000..900000
@@ -91,7 +91,7 @@ impl MarketSnapshot {
         }
 
         // Get our current tick from our current price
-        let current_tick = tick_at_sqrt_price(sqrt_price_x96).map_err(|_| {
+        let current_tick = get_tick_at_sqrt_ratio(sqrt_price_x96.into()).map_err(|_| {
             format!("Unable to get a tick from our current price '{:?}'", sqrt_price_x96)
         })?;
 
@@ -225,11 +225,15 @@ impl<'a> MarketPrice<'a> {
         let mut new_range_idx = self.range_idx;
         let mut pool = self.state.get_range(new_range_idx)?;
         let (mut tick_bound_price, next_tick) = if buy {
-            let upper_tick_price = sqrt_price_at_tick(pool.upper_tick).ok()?;
+            let upper_tick_price = get_sqrt_ratio_at_tick(pool.upper_tick)
+                .ok()
+                .map(SqrtPriceX96::from)?;
             let next_tick = self.range_idx.checked_sub(1);
             (upper_tick_price, next_tick)
         } else {
-            let lower_tick_price = sqrt_price_at_tick(pool.lower_tick).ok()?;
+            let lower_tick_price = get_sqrt_ratio_at_tick(pool.lower_tick)
+                .ok()
+                .map(SqrtPriceX96::from)?;
             let next_tick = self.range_idx.checked_add(1);
             (lower_tick_price, next_tick)
         };
@@ -238,9 +242,13 @@ impl<'a> MarketPrice<'a> {
             new_range_idx = next_tick?;
             pool = self.state.get_range(new_range_idx)?;
             tick_bound_price = if buy {
-                sqrt_price_at_tick(pool.upper_tick).ok()?
+                get_sqrt_ratio_at_tick(pool.upper_tick)
+                    .ok()
+                    .map(SqrtPriceX96::from)?
             } else {
-                sqrt_price_at_tick(pool.lower_tick).ok()?
+                get_sqrt_ratio_at_tick(pool.lower_tick)
+                    .ok()
+                    .map(SqrtPriceX96::from)?
             };
         }
         let closest_price = if let Some(p) = target_price {
@@ -252,12 +260,14 @@ impl<'a> MarketPrice<'a> {
         } else {
             tick_bound_price
         };
-        let quantity = token_0_delta(self.price, closest_price, pool.liquidity, false)?;
+        let quantity =
+            _get_amount_0_delta(self.price.into(), closest_price.into(), pool.liquidity, false)
+                .ok()?;
         let end_bound = Self {
             state:     self.state,
             price:     closest_price,
             range_idx: new_range_idx,
-            tick:      tick_at_sqrt_price(closest_price).ok()?
+            tick:      get_tick_at_sqrt_ratio(closest_price.into()).ok()?
         };
         Some(PriceRange { start_bound: self.clone(), end_bound, quantity })
     }
@@ -298,8 +308,13 @@ impl<'a> PriceRange<'a> {
         }
 
         // Otherwise we have to calculate the precise quantity we have to sell
-        token_0_delta(self.start_bound.price, t, self.start_bound.liquidity(), false)
-            .unwrap_or(Uint::from(0))
+        _get_amount_0_delta(
+            self.start_bound.price.into(),
+            t.into(),
+            self.start_bound.liquidity(),
+            false
+        )
+        .unwrap_or(Uint::from(0))
     }
 
     // Maybe it's OK that I don't check the price again here because in the matching
@@ -308,9 +323,18 @@ impl<'a> PriceRange<'a> {
     pub fn fill(&self, quantity: U256) -> Self {
         let liquidity = self.start_bound.liquidity();
         let end_sqrt_price = if self.end_bound.price > self.start_bound.price {
-            new_sqrt_price_from_output(self.start_bound.price, liquidity, quantity, true).unwrap()
+            get_next_sqrt_price_from_output(
+                self.start_bound.price.into(),
+                liquidity,
+                quantity,
+                true
+            )
+            .map(SqrtPriceX96::from)
+            .unwrap()
         } else {
-            new_sqrt_price_from_input(self.start_bound.price, liquidity, quantity, true).unwrap()
+            get_next_sqrt_price_from_input(self.start_bound.price.into(), liquidity, quantity, true)
+                .map(SqrtPriceX96::from)
+                .unwrap()
         };
         let mut end_bound = self.start_bound.clone();
         end_bound.price = end_sqrt_price;
@@ -343,7 +367,7 @@ mod tests {
             PoolRange::new(2400, 2500, 10000000).unwrap(),
         ];
 
-        let valid_price = sqrt_price_at_tick(2325).unwrap();
+        let valid_price = SqrtPriceX96::from(get_sqrt_ratio_at_tick(2325).unwrap());
 
         // Good ranges, good price, should be fine
         MarketSnapshot::new(good_ranges.clone(), valid_price).unwrap();
