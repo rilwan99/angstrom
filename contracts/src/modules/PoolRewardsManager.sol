@@ -7,7 +7,7 @@ import {ILiqChangeHooks} from "../interfaces/ILiqChangeHooks.sol";
 
 import {tuint256} from "transient-goodies/TransientPrimitives.sol";
 import {TickRewards} from "../types/TickRewards.sol";
-import {Assets} from "../types/Assets.sol";
+import {Assets} from "../types/Asset.sol";
 
 import {IUniV4} from "../interfaces/IUniV4.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {AssetsLib as ActualAssetsLib} from "../types/Assets.sol";
+import {AssetLib as ActualAssetLib} from "../types/Asset.sol";
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 
 struct Asset {
@@ -20,7 +20,7 @@ library AssetLib {
 
     function encode(Asset memory asset) internal pure returns (bytes memory b) {
         b = abi.encodePacked(asset.addr, asset.borrow, asset.save, asset.settle);
-        require(b.length == ActualAssetsLib.ASSET_BYTES, "Assets unexpected length");
+        require(b.length == ActualAssetLib.ASSET_BYTES, "Assets unexpected length");
     }
 
     function encode(Asset[] memory assets) internal pure returns (bytes memory b) {

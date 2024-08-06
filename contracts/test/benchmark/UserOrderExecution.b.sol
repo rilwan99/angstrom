@@ -366,9 +366,18 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
     /// @dev Isolate execution in its own call-context to avoid confounding gas cost factors like
     /// memory allocation.
     function __doExecute(bytes calldata payload) external returns (uint256 cost) {
-        uint256 before = gasleft();
         vm.prank(node);
-        angstrom.execute(payload);
+        bytes memory execPayload = abi.encodeCall(angstrom.execute, (payload));
+        address angstromAddr = address(angstrom);
+        uint256 before = gasleft();
+        assembly {
+            let success := call(gas(), angstromAddr, 0, add(execPayload, 0x20), mload(execPayload), 0, 0)
+            if iszero(success) {
+                let free := mload(0x40)
+                returndatacopy(free, 0, returndatasize())
+                revert(free, returndatasize())
+            }
+        }
         unchecked {
             cost = before - gasleft();
         }

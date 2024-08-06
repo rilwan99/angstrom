@@ -4,6 +4,8 @@ pragma solidity ^0.8.13;
 import {OrdersLib} from "../reference/OrderTypes.sol";
 import {CalldataReader} from "./CalldataReader.sol";
 import {OrderVariant} from "./OrderVariant.sol";
+import {TypedDataHasher} from "./TypedDataHasher.sol";
+import {PriceAB as PriceOutVsIn, AmountA as AmountOut, AmountB as AmountIn} from "./Price.sol";
 
 import {safeconsole as console} from "forge-std/safeconsole.sol";
 
@@ -25,6 +27,9 @@ using UserOrderBufferLib for UserOrderBuffer global;
 
 /// @author philogy <https://github.com/philogy>
 library UserOrderBufferLib {
+    error FillingTooLittle();
+    error FillingTooMuch();
+
     // TODO: Make test that ensures that buffer space is always enough.
     uint256 internal constant STANDING_ORDER_BYTES = 352;
     uint256 internal constant FLASH_ORDER_BYTES = 320;
@@ -48,11 +53,19 @@ library UserOrderBufferLib {
         }
     }
 
-    function hash(UserOrderBuffer memory self, OrderVariant variant) internal pure returns (bytes32 hashed) {
+    function _hash(UserOrderBuffer memory self, OrderVariant variant) internal pure returns (bytes32 hashed) {
         uint256 structLength = variant.isFlash() ? FLASH_ORDER_BYTES : STANDING_ORDER_BYTES;
         assembly ("memory-safe") {
             hashed := keccak256(self, structLength)
         }
+    }
+
+    function hash712(UserOrderBuffer memory self, OrderVariant variant, TypedDataHasher typedHasher)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return typedHasher.hashTypedData(self._hash(variant));
     }
 
     function logBytes(UserOrderBuffer memory self, OrderVariant variant) internal pure {
@@ -65,9 +78,43 @@ library UserOrderBufferLib {
         console.logMemory(offset, structLength);
     }
 
-    function setQuantityExact(UserOrderBuffer memory self, OrderVariant variant, uint256 quantity) internal pure {
-        self.exactIn_or_minQuantityIn = variant.isExactOut() ? 0 : 1;
-        self.quantity_or_maxQuantityIn = quantity;
+    function loadAndComputeQuantity(
+        UserOrderBuffer memory self,
+        CalldataReader reader,
+        OrderVariant variant,
+        PriceOutVsIn price,
+        uint256 feeRay
+    ) internal pure returns (CalldataReader, AmountIn quantityIn, AmountOut quantityOut) {
+        uint256 quantity;
+        if (variant.isExact()) {
+            (reader, quantity) = reader.readU128();
+            self.exactIn_or_minQuantityIn = variant.isExactOut() ? 0 : 1;
+            self.quantity_or_maxQuantityIn = quantity;
+        } else {
+            // Partial order.
+            uint256 minQuantityIn;
+            uint256 maxQuantityIn;
+            (reader, minQuantityIn) = reader.readU128();
+            (reader, maxQuantityIn) = reader.readU128();
+            (reader, quantity) = reader.readU128();
+            self.exactIn_or_minQuantityIn = minQuantityIn;
+            self.quantity_or_maxQuantityIn = maxQuantityIn;
+
+            if (quantity < minQuantityIn) revert FillingTooLittle();
+            if (quantity > maxQuantityIn) revert FillingTooMuch();
+        }
+
+        if (variant.isExactOut()) {
+            quantityOut = AmountOut.wrap(quantity);
+            quantityIn = price.convert(quantityOut);
+            quantityIn = quantityIn + quantityIn.mulRayScalar(feeRay);
+        } else {
+            quantityIn = AmountIn.wrap(quantity);
+            quantityOut = price.convert(quantityIn);
+            quantityOut = quantityOut - quantityOut.mulRayScalar(feeRay);
+        }
+
+        return (reader, quantityIn, quantityOut);
     }
 
     function readOrderValidation(UserOrderBuffer memory self, CalldataReader reader, OrderVariant variant)
@@ -79,7 +126,7 @@ library UserOrderBufferLib {
             self.nonce_or_validForBlock = uint64(block.number);
             // Nothing loaded from calldata, reader stays unmodified.
         } else {
-            // Copy slice directly from calldata into memory.
+            // Copy slices directly from calldata into memory.
             assembly ("memory-safe") {
                 calldatacopy(add(self, add(0x120, sub(0x20, 8))), reader, 8)
                 reader := add(reader, 8)

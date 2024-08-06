@@ -4,8 +4,9 @@ pragma solidity ^0.8.0;
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {tuint256} from "transient-goodies/TransientPrimitives.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
-import {Assets, Asset} from "../types/Assets.sol";
+import {Assets, Asset} from "../types/Asset.sol";
 import {UniConsumer} from "./UniConsumer.sol";
+import {PriceAB as PriceOutVsIn, AmountA as AmountOut, AmountB as AmountIn} from "../types/Price.sol";
 
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {ConversionLib} from "src/libraries/ConversionLib.sol";
@@ -85,13 +86,15 @@ abstract contract Accounter is UniConsumer {
         }
     }
 
-    function _accountIn(address from, address asset, uint256 amount, bool useInternal) internal {
+    function _accountIn(address from, address asset, AmountIn amountIn, bool useInternal) internal {
+        uint256 amount = amountIn.into();
         freeBalance[asset].inc(amount);
         if (useInternal) _angstromReserves[from][asset] -= amount;
         else asset.safeTransferFrom(from, address(this), amount);
     }
 
-    function _accountOut(address to, address asset, uint256 amount, bool useInternal) internal {
+    function _accountOut(address to, address asset, AmountOut amountOut, bool useInternal) internal {
+        uint256 amount = amountOut.into();
         freeBalance[asset].dec(amount);
         if (useInternal) _angstromReserves[to][asset] += amount;
         else asset.safeTransfer(to, amount);

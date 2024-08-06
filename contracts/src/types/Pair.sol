@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {CalldataReader} from "./CalldataReader.sol";
 import {StructArrayLib} from "../libraries/StructArrayLib.sol";
-import {Assets} from "./Assets.sol";
+import {Assets} from "./Asset.sol";
 import {RayMathLib} from "../libraries/RayMathLib.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
@@ -77,18 +77,23 @@ library PairLib {
         priceAB_ = self.into().readU256MemberFromPtr(PRICE_AB_OFFSET);
     }
 
-    function decodePair(Pairs self, uint256 pairIndex, Assets assets, bool aToB)
+    function decodeAndLookupPair(Pairs self, CalldataReader reader, Assets assets, bool aToB)
         internal
         pure
-        returns (address assetIn, address assetOut, uint256 priceOutVsIn)
+        returns (CalldataReader, address assetIn, address assetOut, uint256 priceOutVsIn)
     {
+        uint256 pairIndex;
+        (reader, pairIndex) = reader.readU16();
         Pair pair = self.get(pairIndex);
+        uint256 pAB = pair.priceAB();
+
         uint24 packedIndices = pair.indices();
         address assetA = assets.get(packedIndices.indexA()).addr();
         address assetB = assets.get(packedIndices.indexB()).addr();
-        uint256 pAB = pair.priceAB();
 
         (assetIn, assetOut, priceOutVsIn) = aToB ? (assetA, assetB, pAB.invRay()) : (assetB, assetA, pAB);
+
+        return (reader, assetIn, assetOut, priceOutVsIn);
     }
 
     function indexA(uint24 packedIndices) internal pure returns (uint16 index) {

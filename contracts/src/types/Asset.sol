@@ -8,11 +8,11 @@ type Asset is uint256;
 
 type Assets is uint256;
 
-using AssetsLib for Asset global;
-using AssetsLib for Assets global;
+using AssetLib for Asset global;
+using AssetLib for Assets global;
 
 /// @author philogy <https://github.com/philogy>
-library AssetsLib {
+library AssetLib {
     using StructArrayLib for uint256;
 
     error AssetsOutOfOrderOrNotUnique();
@@ -48,6 +48,17 @@ library AssetsLib {
             lastAddr = newAddr;
         }
         return self;
+    }
+
+    function readAssetAddrFrom(Assets self, CalldataReader reader)
+        internal
+        pure
+        returns (CalldataReader, address asset)
+    {
+        uint256 assetIndex;
+        (reader, assetIndex) = reader.readU8();
+        asset = self.get(assetIndex).addr();
+        return (reader, asset);
     }
 
     function into(Assets self) internal pure returns (uint256) {

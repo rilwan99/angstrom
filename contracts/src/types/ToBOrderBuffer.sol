@@ -2,6 +2,10 @@
 pragma solidity ^0.8.13;
 
 import {OrdersLib} from "../reference/OrderTypes.sol";
+import {AmountA as AmountOut, AmountB as AmountIn} from "./Price.sol";
+
+import {console} from "forge-std/console.sol";
+import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 struct ToBOrderBuffer {
     bytes32 typeHash;
@@ -19,6 +23,8 @@ using ToBOrderBufferLib for ToBOrderBuffer global;
 
 /// @author philogy <https://github.com/philogy>
 library ToBOrderBufferLib {
+    using FormatLib for *;
+
     // TODO: TEST
     uint256 internal constant BUFFER_BYTES = 288;
 
@@ -30,14 +36,6 @@ library ToBOrderBufferLib {
         self.validForBlock = uint64(block.number);
         assembly ("memory-safe") {
             orderHash := keccak256(self, BUFFER_BYTES)
-        }
-    }
-
-    /// @dev WARNING: Using the associated `ToBOrderBuffer` buffer after an attempted free is
-    /// **unsafe**.
-    function tryFree(ToBOrderBuffer memory self) internal pure {
-        assembly ("memory-safe") {
-            if eq(mload(0x40), add(self, BUFFER_BYTES)) { mstore(0x40, self) }
         }
     }
 }

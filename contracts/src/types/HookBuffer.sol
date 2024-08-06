@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import {EXPECTED_HOOK_RETURN_MAGIC} from "../interfaces/IAngstromComposable.sol";
-import {OrderVariant} from "./OrderVariant.sol";
 import {CalldataReader} from "./CalldataReader.sol";
 
 /// @dev 0 or packed (u64 memory pointer ++ u160 hook address ++ u32 calldata length)
@@ -26,12 +25,11 @@ library HookBufferLib {
     uint256 internal constant HOOK_SELECTOR_LEFT_ALIGNED =
         0x7407905c00000000000000000000000000000000000000000000000000000000;
 
-    function readFrom(CalldataReader reader, OrderVariant variant)
+    function readFrom(CalldataReader reader, bool noHookToRead)
         internal
         pure
         returns (CalldataReader, HookBuffer hook, bytes32 hash)
     {
-        bool noHookToRead = variant.noHook();
         assembly ("memory-safe") {
             hook := 0
             hash := EMPTY_BYTES_HASH
@@ -68,9 +66,7 @@ library HookBufferLib {
         return (reader, hook, hash);
     }
 
-    /// @dev WARNING: Attempts to free the allocated memory after triggering the hook, use after a
-    /// call to this method is *unsafe*.
-    function tryTriggerAndFree(HookBuffer self, address from) internal {
+    function tryTrigger(HookBuffer self, address from) internal {
         assembly ("memory-safe") {
             if self {
                 // Unpack hook.
@@ -89,11 +85,6 @@ library HookBufferLib {
                     mstore(0x00, 0xf959fdae /* InvalidHookReturn() */ )
                     revert(0x1c, 0x04)
                 }
-
-                // - "What allocator? I am the allocator."
-                // Checks if end of hook memory allocation is free so we can move down the free
-                // pointer, effectively freeing the memory.
-                if eq(mload(0x40), add(memPtr, calldataLength)) { mstore(0x40, memPtr) }
             }
         }
     }
