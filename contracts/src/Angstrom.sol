@@ -14,7 +14,7 @@ import {TypedDataHasher} from "./types/TypedDataHasher.sol";
 import {Assets, AssetsLib} from "./types/Assets.sol";
 import {Pairs, Pair, PairLib} from "./types/Pair.sol";
 import {ToBOrderBuffer} from "./types/ToBOrderBuffer.sol";
-import {OrderBuffer} from "./types/OrderBuffer.sol";
+import {UserOrderBuffer} from "./types/UserOrderBuffer.sol";
 import {OrderVariant} from "./types/OrderVariant.sol";
 import {HookBuffer, HookBufferLib} from "./types/HookBuffer.sol";
 import {CalldataReader, CalldataReaderLib} from "./types/CalldataReader.sol";
@@ -153,7 +153,7 @@ contract Angstrom is
         returns (CalldataReader)
     {
         TypedDataHasher typedHasher = _erc712Hasher();
-        OrderBuffer memory buffer;
+        UserOrderBuffer memory buffer;
 
         CalldataReader end;
         (reader, end) = reader.readU24End();
@@ -231,7 +231,7 @@ contract Angstrom is
 
     function _loadAndComputeQuantity(
         CalldataReader reader,
-        OrderBuffer memory buffer,
+        UserOrderBuffer memory buffer,
         OrderVariant variant,
         PriceOutVsIn price
     ) internal view returns (CalldataReader, AmountIn quantityIn, AmountOut quantityOut) {

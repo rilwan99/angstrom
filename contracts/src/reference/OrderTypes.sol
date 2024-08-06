@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {OrderVariant} from "../types/OrderVariant.sol";
 import {OrderVariant as RefOrderVariant} from "../reference/OrderVariant.sol";
-import {OrderBufferLib} from "../types/OrderBuffer.sol";
+import {UserOrderBufferLib} from "../types/UserOrderBuffer.sol";
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 import {Pair, PairLib} from "./Pair.sol";
 import {Asset, AssetLib} from "./Asset.sol";

@@ -17,7 +17,7 @@ struct PoolSwap {
     uint16 asset0Index;
     uint16 asset1Index;
     bool zeroForOne;
-    uint256 amountIn;
+    uint128 amountIn;
 }
 
 /// @author philogy <https://github.com/philogy>
@@ -35,7 +35,7 @@ abstract contract Accounter is UniConsumer {
     mapping(address => uint256) internal savedFees;
     mapping(address => tuint256) internal freeBalance;
 
-    mapping(address => mapping(address => uint256)) internal _aAssets;
+    mapping(address => mapping(address => uint256)) internal _angstromReserves;
 
     function _borrowAssets(Assets assets) internal {
         uint256 length = assets.len();
@@ -87,13 +87,13 @@ abstract contract Accounter is UniConsumer {
 
     function _accountIn(address from, address asset, uint256 amount, bool useInternal) internal {
         freeBalance[asset].inc(amount);
-        if (useInternal) _aAssets[from][asset] -= amount;
+        if (useInternal) _angstromReserves[from][asset] -= amount;
         else asset.safeTransferFrom(from, address(this), amount);
     }
 
     function _accountOut(address to, address asset, uint256 amount, bool useInternal) internal {
         freeBalance[asset].dec(amount);
-        if (useInternal) _aAssets[to][asset] += amount;
+        if (useInternal) _angstromReserves[to][asset] += amount;
         else asset.safeTransfer(to, amount);
     }
 }

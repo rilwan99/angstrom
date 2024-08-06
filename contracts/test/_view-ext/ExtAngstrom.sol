@@ -9,7 +9,7 @@ contract ExtAngstrom is Angstrom {
 
     // TODO: Remove
     function __ilegalMint(address to, address asset, uint256 amount) external {
-        _aAssets[to][asset] += amount;
+        _angstromReserves[to][asset] += amount;
     }
 
     function updateLastBlock() public {

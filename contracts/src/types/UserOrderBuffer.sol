@@ -7,7 +7,7 @@ import {OrderVariant} from "./OrderVariant.sol";
 
 import {safeconsole as console} from "forge-std/safeconsole.sol";
 
-struct OrderBuffer {
+struct UserOrderBuffer {
     bytes32 typeHash;
     uint256 exactIn_or_minQuantityIn;
     uint256 quantity_or_maxQuantityIn;
@@ -21,15 +21,15 @@ struct OrderBuffer {
     uint40 deadline_or_empty;
 }
 
-using OrderBufferLib for OrderBuffer global;
+using UserOrderBufferLib for UserOrderBuffer global;
 
 /// @author philogy <https://github.com/philogy>
-library OrderBufferLib {
+library UserOrderBufferLib {
     // TODO: Make test that ensures that buffer space is always enough.
     uint256 internal constant STANDING_ORDER_BYTES = 352;
     uint256 internal constant FLASH_ORDER_BYTES = 320;
 
-    function setTypeHash(OrderBuffer memory self, OrderVariant variant) internal pure {
+    function setTypeHash(UserOrderBuffer memory self, OrderVariant variant) internal pure {
         if (variant.isExact()) {
             if (variant.isFlash()) {
                 self.typeHash = OrdersLib.EXACT_FLASH_ORDER_TYPEHASH;
@@ -48,14 +48,14 @@ library OrderBufferLib {
         }
     }
 
-    function hash(OrderBuffer memory self, OrderVariant variant) internal pure returns (bytes32 hashed) {
+    function hash(UserOrderBuffer memory self, OrderVariant variant) internal pure returns (bytes32 hashed) {
         uint256 structLength = variant.isFlash() ? FLASH_ORDER_BYTES : STANDING_ORDER_BYTES;
         assembly ("memory-safe") {
             hashed := keccak256(self, structLength)
         }
     }
 
-    function logBytes(OrderBuffer memory self, OrderVariant variant) internal pure {
+    function logBytes(UserOrderBuffer memory self, OrderVariant variant) internal pure {
         uint256 structLength = variant.isFlash() ? FLASH_ORDER_BYTES : STANDING_ORDER_BYTES;
         uint256 offset;
         assembly ("memory-safe") {
@@ -65,12 +65,12 @@ library OrderBufferLib {
         console.logMemory(offset, structLength);
     }
 
-    function setQuantityExact(OrderBuffer memory self, OrderVariant variant, uint256 quantity) internal pure {
+    function setQuantityExact(UserOrderBuffer memory self, OrderVariant variant, uint256 quantity) internal pure {
         self.exactIn_or_minQuantityIn = variant.isExactOut() ? 0 : 1;
         self.quantity_or_maxQuantityIn = quantity;
     }
 
-    function readOrderValidation(OrderBuffer memory self, CalldataReader reader, OrderVariant variant)
+    function readOrderValidation(UserOrderBuffer memory self, CalldataReader reader, OrderVariant variant)
         internal
         view
         returns (CalldataReader)
