@@ -11,6 +11,7 @@ use crate::common::SizeTracker;
 
 mod pending;
 
+#[allow(dead_code)]
 pub const SEARCHER_POOL_MAX_SIZE: usize = 15;
 
 pub struct SearcherPool {
