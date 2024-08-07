@@ -69,7 +69,7 @@ contract Angstrom is
         (reader, pairs) = PairLib.readFromAndValidate(reader);
 
         _borrowAssets(assets);
-        // _execPoolSwaps(swaps);
+        reader = _execPoolSwaps(reader, assets);
         reader = _validateAndExecuteToB(reader, assets);
         // _rewardPools(poolRewardsUpdates, freeBalance);
         reader = _validateAndExecuteOrders(reader, assets, pairs);

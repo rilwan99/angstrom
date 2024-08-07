@@ -4,22 +4,17 @@ pragma solidity ^0.8.0;
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {tuint256} from "transient-goodies/TransientPrimitives.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
+import {PoolSwap, PoolSwapLib} from "../types/PoolSwap.sol";
 import {AssetArray, Asset} from "../types/Asset.sol";
 import {UniConsumer} from "./UniConsumer.sol";
 import {PriceAB as PriceOutVsIn, AmountA as AmountOut, AmountB as AmountIn} from "../types/Price.sol";
+import {CalldataReader} from "../types/CalldataReader.sol";
 
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {ConversionLib} from "src/libraries/ConversionLib.sol";
 
 import {console2 as console} from "forge-std/console2.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
-
-struct PoolSwap {
-    uint16 asset0Index;
-    uint16 asset1Index;
-    bool zeroForOne;
-    uint128 amountIn;
-}
 
 /// @author philogy <https://github.com/philogy>
 abstract contract Accounter is UniConsumer {
@@ -49,23 +44,28 @@ abstract contract Accounter is UniConsumer {
         }
     }
 
-    function _execPoolSwaps(Assets assets, PoolSwap[] calldata swaps) internal {
-        for (uint256 i = 0; i < swaps.length; i++) {
-            PoolSwap calldata swap = swaps[i];
-            address asset0 = assets.get(swap.asset0Index).addr();
-            address asset1 = assets.get(swap.asset1Index).addr();
+    function _execPoolSwaps(CalldataReader reader, AssetArray assets) internal returns (CalldataReader) {
+        CalldataReader end;
+        (reader, end) = reader.readU16End();
+
+        while (reader != end) {
+            PoolSwap swap;
+            (reader, swap) = PoolSwapLib.readNextFrom(reader);
+            (address asset0, address asset1, bool zeroForOne) = swap.getSwapAssets(assets);
             BalanceDelta delta = UNI_V4.swap(
                 address(this).toPoolKey(asset0, asset1),
                 IPoolManager.SwapParams({
-                    zeroForOne: swap.zeroForOne,
-                    amountSpecified: swap.amountIn.neg(),
-                    sqrtPriceLimitX96: swap.zeroForOne ? MIN_SQRT_RATIO : MAX_SQRT_RATIO
+                    zeroForOne: zeroForOne,
+                    amountSpecified: swap.amountIn().neg(),
+                    sqrtPriceLimitX96: zeroForOne ? MIN_SQRT_RATIO : MAX_SQRT_RATIO
                 }),
                 ""
             );
             freeBalance[asset0].dec(delta.amount0());
             freeBalance[asset1].dec(delta.amount1());
         }
+
+        return reader;
     }
 
     function _saveAndSettle(AssetArray assets) internal {
