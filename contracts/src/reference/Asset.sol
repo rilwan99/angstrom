@@ -3,6 +3,8 @@ pragma solidity ^0.8.0;
 
 import {AssetLib as ActualAssetLib} from "../types/Asset.sol";
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
+import {AssetIndexPair, AssetIndexPairLib} from "../types/AssetIndexPair.sol";
+import {BitPackLib} from "./BitPackLib.sol";
 
 struct Asset {
     address addr;
@@ -17,6 +19,21 @@ using AssetLib for Asset global;
 library AssetLib {
     using SafeCastLib for *;
     using AssetLib for *;
+    using BitPackLib for uint256;
+
+    function getIndexPair(Asset[] memory assets, address assetA, address assetB)
+        internal
+        pure
+        returns (AssetIndexPair)
+    {
+        // forgefmt: disable-next-item
+        return AssetIndexPair.wrap(
+            uint24(
+                (AssetIndexPairLib._index(assets.getIndex(assetA)) << AssetIndexPairLib.INDEX_A_OFFSET)
+                    .bitOverlay(AssetIndexPairLib._index(assets.getIndex(assetB)))
+            )
+        );
+    }
 
     function encode(Asset memory asset) internal pure returns (bytes memory b) {
         b = abi.encodePacked(asset.addr, asset.borrow, asset.save, asset.settle);
@@ -39,8 +56,8 @@ library AssetLib {
         }
     }
 
-    function getIndex(Asset[] memory assets, address asset) internal pure returns (uint8) {
-        for (uint8 i = 0; i < assets.length; i++) {
+    function getIndex(Asset[] memory assets, address asset) internal pure returns (uint256) {
+        for (uint256 i = 0; i < assets.length; i++) {
             if (asset == assets[i].addr) return i;
         }
         revert("Asset not found");

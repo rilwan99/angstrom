@@ -11,8 +11,8 @@ import {UniConsumer} from "./modules/UniConsumer.sol";
 
 import {TypedDataHasher} from "./types/TypedDataHasher.sol";
 
-import {Assets, AssetLib} from "./types/Asset.sol";
-import {Pairs, Pair, PairLib} from "./types/Pair.sol";
+import {AssetArray, AssetLib} from "./types/Asset.sol";
+import {PairArray, Pair, PairLib} from "./types/Pair.sol";
 import {ToBOrderBuffer} from "./types/ToBOrderBuffer.sol";
 import {UserOrderBuffer} from "./types/UserOrderBuffer.sol";
 import {OrderVariant} from "./types/OrderVariant.sol";
@@ -63,9 +63,9 @@ contract Angstrom is
     {
         CalldataReader reader = CalldataReaderLib.from(data);
 
-        Assets assets;
+        AssetArray assets;
         (reader, assets) = AssetLib.readFromAndValidate(reader);
-        Pairs pairs;
+        PairArray pairs;
         (reader, pairs) = PairLib.readFromAndValidate(reader);
 
         _borrowAssets(assets);
@@ -80,7 +80,7 @@ contract Angstrom is
         return new bytes(0);
     }
 
-    function _validateAndExecuteToB(CalldataReader reader, Assets assets) internal returns (CalldataReader) {
+    function _validateAndExecuteToB(CalldataReader reader, AssetArray assets) internal returns (CalldataReader) {
         CalldataReader end;
         (reader, end) = reader.readU24End();
 
@@ -125,7 +125,7 @@ contract Angstrom is
         return reader;
     }
 
-    function _validateAndExecuteOrders(CalldataReader reader, Assets assets, Pairs pairs)
+    function _validateAndExecuteOrders(CalldataReader reader, AssetArray assets, PairArray pairs)
         internal
         returns (CalldataReader)
     {

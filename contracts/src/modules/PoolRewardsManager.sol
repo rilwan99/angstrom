@@ -7,7 +7,7 @@ import {ILiqChangeHooks} from "../interfaces/ILiqChangeHooks.sol";
 
 import {tuint256} from "transient-goodies/TransientPrimitives.sol";
 import {TickRewards} from "../types/TickRewards.sol";
-import {Assets} from "../types/Asset.sol";
+import {AssetArray} from "../types/Asset.sol";
 
 import {IUniV4} from "../interfaces/IUniV4.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
@@ -90,7 +90,7 @@ abstract contract PoolRewardsManager is Donate, ILiqChangeHooks, UniConsumer {
     }
 
     function _rewardPools(
-        Assets assets,
+        AssetArray assets,
         PoolRewardsUpdate[] calldata updates,
         mapping(address => tuint256) storage freeBalance
     ) internal {

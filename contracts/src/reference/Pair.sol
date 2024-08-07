@@ -5,8 +5,8 @@ import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 import {Asset, AssetLib} from "./Asset.sol";
 import {RayMathLib} from "../libraries/RayMathLib.sol";
 import {PairLib as ActualPairLib} from "../types/Pair.sol";
-import {BitPackLib} from "./BitPackLib.sol";
 import {PriceAB} from "../types/Price.sol";
+import {AssetIndexPair} from "../types/AssetIndexPair.sol";
 
 import {console} from "forge-std/console.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
@@ -21,7 +21,6 @@ using PairLib for Pair global;
 
 /// @author philogy <https://github.com/philogy>
 library PairLib {
-    using BitPackLib for uint256;
     using FormatLib for *;
     using AssetLib for *;
     using SafeCastLib for *;
@@ -36,12 +35,8 @@ library PairLib {
         return x;
     }
 
-    function getPackedIndices(Pair memory pair, Asset[] memory assets) internal pure returns (uint24) {
-        return uint24(
-            (u12(assets.getIndex(pair.assetA)) << ActualPairLib.INDEX_A_OFFSET).bitOverlay(
-                u12(assets.getIndex(pair.assetB)) & ActualPairLib.INDEX_B_MASK
-            )
-        );
+    function getPackedIndices(Pair memory pair, Asset[] memory assets) internal pure returns (AssetIndexPair) {
+        return assets.getIndexPair(pair.assetA, pair.assetB);
     }
 
     function _checkOrdered(Pair memory pair) internal pure {
@@ -50,7 +45,7 @@ library PairLib {
 
     function encode(Pair memory pair, Asset[] memory assets) internal pure returns (bytes memory) {
         pair._checkOrdered();
-        return bytes.concat(bytes3(pair.getPackedIndices(assets)), bytes32(pair.priceAB.into()));
+        return bytes.concat(bytes3(pair.getPackedIndices(assets).into()), bytes32(pair.priceAB.into()));
     }
 
     function encode(Pair[] memory pairs, Asset[] memory assets) internal pure returns (bytes memory b) {

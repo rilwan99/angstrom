@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {tuint256} from "transient-goodies/TransientPrimitives.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
-import {Assets, Asset} from "../types/Asset.sol";
+import {AssetArray, Asset} from "../types/Asset.sol";
 import {UniConsumer} from "./UniConsumer.sol";
 import {PriceAB as PriceOutVsIn, AmountA as AmountOut, AmountB as AmountIn} from "../types/Price.sol";
 
@@ -38,7 +38,7 @@ abstract contract Accounter is UniConsumer {
 
     mapping(address => mapping(address => uint256)) internal _angstromReserves;
 
-    function _borrowAssets(Assets assets) internal {
+    function _borrowAssets(AssetArray assets) internal {
         uint256 length = assets.len();
         for (uint256 i = 0; i < length; i++) {
             Asset asset = assets.get(i);
@@ -68,7 +68,7 @@ abstract contract Accounter is UniConsumer {
         }
     }
 
-    function _saveAndSettle(Assets assets) internal {
+    function _saveAndSettle(AssetArray assets) internal {
         uint256 length = assets.len();
         for (uint256 i = 0; i < length; i++) {
             Asset asset = assets.get(i);

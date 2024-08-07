@@ -6,10 +6,10 @@ import {StructArrayLib} from "../libraries/StructArrayLib.sol";
 
 type Asset is uint256;
 
-type Assets is uint256;
+type AssetArray is uint256;
 
 using AssetLib for Asset global;
-using AssetLib for Assets global;
+using AssetLib for AssetArray global;
 
 /// @author philogy <https://github.com/philogy>
 library AssetLib {
@@ -25,21 +25,21 @@ library AssetLib {
     uint256 internal constant SAVE_OFFSET = 36;
     uint256 internal constant SETTLE_OFFSET = 52;
 
-    function readFromAndValidate(CalldataReader reader) internal pure returns (CalldataReader, Assets) {
+    function readFromAndValidate(CalldataReader reader) internal pure returns (CalldataReader, AssetArray) {
         uint256 packed;
         (reader, packed) = StructArrayLib.readPackedFrom(reader, ASSET_BYTES);
-        return (reader, Assets.wrap(packed)._validated());
+        return (reader, AssetArray.wrap(packed)._validated());
     }
 
-    function len(Assets assets) internal pure returns (uint256) {
+    function len(AssetArray assets) internal pure returns (uint256) {
         return assets.into().len();
     }
 
-    function ptr(Assets assets) internal pure returns (uint256) {
+    function ptr(AssetArray assets) internal pure returns (uint256) {
         return assets.into().ptr();
     }
 
-    function _validated(Assets self) internal pure returns (Assets) {
+    function _validated(AssetArray self) internal pure returns (AssetArray) {
         uint256 length = self.len();
         address lastAddr = address(0);
         for (uint256 i = 0; i < length; i++) {
@@ -50,7 +50,7 @@ library AssetLib {
         return self;
     }
 
-    function readAssetAddrFrom(Assets self, CalldataReader reader)
+    function readAssetAddrFrom(AssetArray self, CalldataReader reader)
         internal
         pure
         returns (CalldataReader, address asset)
@@ -61,15 +61,15 @@ library AssetLib {
         return (reader, asset);
     }
 
-    function into(Assets self) internal pure returns (uint256) {
-        return Assets.unwrap(self);
+    function into(AssetArray self) internal pure returns (uint256) {
+        return AssetArray.unwrap(self);
     }
 
     function into(Asset self) internal pure returns (uint256) {
         return Asset.unwrap(self);
     }
 
-    function get(Assets self, uint256 index) internal pure returns (Asset asset) {
+    function get(AssetArray self, uint256 index) internal pure returns (Asset asset) {
         self.into()._checkBounds(index);
         return Asset.wrap(self.into().ptr() + index * ASSET_BYTES);
     }
