@@ -10,12 +10,19 @@ use uniswap_v3_math::{swap_math::compute_swap_step, tick_math::get_sqrt_ratio_at
 
 use super::{MarketSnapshot, Tick};
 
+#[derive(Debug)]
+pub struct ToBOutcome {
+    pub tribute:        U256,
+    pub tick_donations: HashMap<Tick, U256>
+}
+
 pub fn calculate_reward(
     tob: OrderWithStorageData<TopOfBlockOrder>,
     amm: MarketSnapshot
-) -> eyre::Result<HashMap<Tick, U256>> {
-    // Determine whether we're buying from or selling to the AMM - is this
-    // necessary?
+) -> eyre::Result<ToBOutcome> {
+    // This implies that a bid will be purchasing T0 out of the pool, therefore
+    // increasing the price while an ask will be selling T0 to the pool, decreasing
+    // the price
     let tick_motion = if tob.is_bid { 1 } else { -1 };
 
     // We start out at the tick and price that the AMM begins at
@@ -85,12 +92,17 @@ pub fn calculate_reward(
 
     // Determine how much extra amountIn we have that will be used as tribute to the
     // LPs
-    let tribute = tob.amountIn.checked_sub(total_cost).ok_or_else(|| {
+    let bribe = tob.amountIn.checked_sub(total_cost).ok_or_else(|| {
         eyre!("Total cost ({}) greater than ammount offered ({})", total_cost, tob.amountIn)
     })?;
 
-    let mut rem_tribute = tribute;
-    let mut cur_q = U256::ZERO;
+    if stakes.is_empty() {
+        // TODO: Maybe this should just be a big donation to the current tick?
+        return Err(eyre!("No actual purchases could be made with this TOB order"));
+    }
+
+    let mut rem_bribe = bribe;
+    let mut cur_q = stakes[0].2;
     let mut filled_price = stakes[0].0;
     for window in stakes.windows(2) {
         // Price difference between the average price for the current tick and the
@@ -98,39 +110,29 @@ pub fn calculate_reward(
         let d_price = window[1].0 - window[0].0;
         // Total cost to move this tick and all previous ticks to the average price of
         // the next tick
-        println!("Quantity for step: {}", cur_q + window[0].2);
-        println!("Average price for window: {:?} - Diff from window2: {:?}", window[0].0, d_price);
         let step_cost = d_price.mul_quantity(cur_q + window[0].2);
-        if rem_tribute >= step_cost {
+        if rem_bribe >= step_cost {
             // We have enough tribute to do this move, update our final clearing
             // price and continue iterating
-            println!("We have enough to complete a step - {}", step_cost);
             cur_q += window[0].2;
             filled_price = window[1].0;
-            rem_tribute -= step_cost;
+            rem_bribe -= step_cost;
         } else {
             // We do not have enough tribute to do this move, figure out what our final
             // clearing price is and break out of this loop
-            println!(
-                "We don't have enough to complete a step - {} needed {} available",
-                step_cost, rem_tribute
-            );
-            let partial_dprice = Ray::calc_price(rem_tribute, cur_q + window[0].2);
+            let partial_dprice = Ray::calc_price(rem_bribe, cur_q + window[0].2);
             filled_price += partial_dprice;
-            rem_tribute = U256::ZERO;
+            rem_bribe = U256::ZERO;
             break;
         }
     }
-    // If we have any remaining tribute, up our overall filled price
-    if rem_tribute > U256::ZERO {
-        println!("Extra tribute, and I'm gonna use it: {:?}", rem_tribute);
-        let final_dprice = Ray::calc_price(rem_tribute, cur_q);
-        filled_price += final_dprice;
-    }
+
+    // Any bribe we have left over after all this is taken as tribute
+    let tribute = rem_bribe;
 
     // We've now found our filled price, we can allocate our reward to each tick
     // based on how much it costs to bring them up to that price.
-    let result = stakes
+    let tick_donations: HashMap<Tick, U256> = stakes
         .iter()
         .enumerate()
         .map(|(i, stake)| {
@@ -140,7 +142,8 @@ pub fn calculate_reward(
             (tick_num, total_reward)
         })
         .collect();
-    Ok(result)
+
+    Ok(ToBOutcome { tribute, tick_donations })
 }
 
 #[cfg(test)]
@@ -168,6 +171,34 @@ mod test {
         let mut rng = thread_rng();
         let amm = generate_amm_market(100000);
         let mut order = generate_top_of_block_order(&mut rng, true, None, None);
+        order.order.amountIn = Uint::from(1_000_000_000_000_0_u128);
+        order.order.amountOut = Uint::from(100000000);
+        let result = calculate_reward(order, amm);
+        println!("Result: {:?}", result);
+
+        panic!("Butts!");
+    }
+
+    #[test]
+    fn handles_bid_order() {
+        let mut rng = thread_rng();
+        let amm = generate_amm_market(100000);
+        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
+        order.is_bid = true;
+        order.order.amountIn = Uint::from(1_000_000_000_000_0_u128);
+        order.order.amountOut = Uint::from(100000000);
+        let result = calculate_reward(order, amm);
+        println!("Result: {:?}", result);
+
+        panic!("Butts!");
+    }
+
+    #[test]
+    fn handles_ask_order() {
+        let mut rng = thread_rng();
+        let amm = generate_amm_market(100000);
+        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
+        order.is_bid = false;
         order.order.amountIn = Uint::from(1_000_000_000_000_0_u128);
         order.order.amountOut = Uint::from(100000000);
         let result = calculate_reward(order, amm);
