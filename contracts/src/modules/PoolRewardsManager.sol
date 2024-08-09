@@ -1,35 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {Donate} from "./Donate.sol";
+import {RewardsUpdater} from "./RewardsUpdater.sol";
 import {UniConsumer} from "./UniConsumer.sol";
 import {ILiqChangeHooks} from "../interfaces/ILiqChangeHooks.sol";
 
 import {tuint256} from "transient-goodies/TransientPrimitives.sol";
-import {TickRewards} from "../types/TickRewards.sol";
 import {AssetArray} from "../types/Asset.sol";
+import {CalldataReader} from "../types/CalldataReader.sol";
+import {AssetIndexPair} from "../types/AssetIndexPair.sol";
+import {PoolRewards} from "../types/PoolRewards.sol";
 
 import {IUniV4} from "../interfaces/IUniV4.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
+import {ConversionLib} from "../libraries/ConversionLib.sol";
 import {IPoolManager} from "../interfaces/IUniV4.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {MixedSignLib} from "../libraries/MixedSignLib.sol";
 
-import {ConversionLib} from "../libraries/ConversionLib.sol";
-
-struct PoolRewardsUpdate {
-    uint16 asset0Index;
-    uint16 asset1Index;
-    int24 startTick;
-    uint128 startLiquidity;
-    uint256 currentDonate;
-    uint256[] amounts;
-}
-
 /// @author philogy <https://github.com/philogy>
-abstract contract PoolRewardsManager is Donate, ILiqChangeHooks, UniConsumer {
+abstract contract PoolRewardsManager is RewardsUpdater, ILiqChangeHooks, UniConsumer {
     using PoolIdLibrary for PoolKey;
     using IUniV4 for IPoolManager;
     using MixedSignLib for uint128;
@@ -38,12 +30,9 @@ abstract contract PoolRewardsManager is Donate, ILiqChangeHooks, UniConsumer {
         uint256 rewardDebt;
     }
 
-    struct Pool {
-        TickRewards rewards;
-        mapping(address owner => mapping(int24 tickLower => mapping(int24 tickUpper => Position))) positions;
-    }
-
-    mapping(PoolId id => Pool pool) internal pools;
+    mapping(PoolId id => mapping(address owner => mapping(int24 tickLower => mapping(int24 tickUpper => Position))))
+        positions;
+    mapping(PoolId id => PoolRewards) internal poolsRewards;
 
     constructor() {
         _checkHookPermissions(Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG);
@@ -89,21 +78,37 @@ abstract contract PoolRewardsManager is Donate, ILiqChangeHooks, UniConsumer {
         return (bytes4(0), BalanceDelta.wrap(0));
     }
 
-    function _rewardPools(
-        AssetArray assets,
-        PoolRewardsUpdate[] calldata updates,
-        mapping(address => tuint256) storage freeBalance
-    ) internal {
-        for (uint256 i = 0; i < updates.length; i++) {
-            PoolRewardsUpdate calldata update = updates[i];
-            address asset0 = assets.get(update.asset0Index).addr();
-            address asset1 = assets.get(update.asset1Index).addr();
-            PoolId id = ConversionLib.toPoolKey(address(this), asset0, asset1).toId();
-            uint256 total = _donate(
-                pools[id].rewards, id, update.startTick, update.startLiquidity, update.currentDonate, update.amounts
-            );
-            freeBalance[asset0].dec(total);
+    function _rewardPools(CalldataReader reader, AssetArray assets, mapping(address => tuint256) storage freeBalance)
+        internal
+        returns (CalldataReader)
+    {
+        CalldataReader end;
+        (reader, end) = reader.readU24End();
+        while (reader != end) {
+            address asset;
+            uint256 total;
+            (reader, asset, total) = _rewardPool(reader, assets);
+            freeBalance[asset].dec(total);
         }
+
+        return reader;
+    }
+
+    function _rewardPool(CalldataReader reader, AssetArray assets)
+        internal
+        returns (CalldataReader, address, uint256 total)
+    {
+        address asset0;
+        PoolId id;
+        uint24 data;
+        (reader, data) = reader.readU24();
+        AssetIndexPair indices = AssetIndexPair.wrap(data);
+        asset0 = assets.get(indices.indexA()).addr();
+        id = ConversionLib.toPoolKey(address(this), asset0, assets.get(indices.indexB()).addr()).toId();
+
+        (reader, total) = _decodeAndReward(poolsRewards[id], id, reader);
+
+        return (reader, asset0, total);
     }
 
     function _getPoolBitmapInfo(PoolId id, int16 wordPos) internal view override returns (uint256) {

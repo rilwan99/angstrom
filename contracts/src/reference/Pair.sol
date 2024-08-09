@@ -35,17 +35,14 @@ library PairLib {
         return x;
     }
 
-    function getPackedIndices(Pair memory pair, Asset[] memory assets) internal pure returns (AssetIndexPair) {
-        return assets.getIndexPair(pair.assetA, pair.assetB);
-    }
-
     function _checkOrdered(Pair memory pair) internal pure {
         if (pair.assetB <= pair.assetA) revert PairAssetsWrong(pair);
     }
 
-    function encode(Pair memory pair, Asset[] memory assets) internal pure returns (bytes memory) {
-        pair._checkOrdered();
-        return bytes.concat(bytes3(pair.getPackedIndices(assets).into()), bytes32(pair.priceAB.into()));
+    function encode(Pair memory self, Asset[] memory assets) internal pure returns (bytes memory) {
+        self._checkOrdered();
+        AssetIndexPair indices = assets.getIndexPair(self.assetA, self.assetB);
+        return bytes.concat(bytes3(indices.into()), bytes32(self.priceAB.into()));
     }
 
     function encode(Pair[] memory pairs, Asset[] memory assets) internal pure returns (bytes memory b) {

@@ -19,7 +19,7 @@ library PoolSwapLib {
     uint256 internal constant INDICES_OFFSET = 0;
     uint256 internal constant AMOUNT_IN_OFFSET = 3;
 
-    function readFrom(CalldataReader reader) internal pure returns (CalldataReader, PoolSwap swap) {
+    function readNextFrom(CalldataReader reader) internal pure returns (CalldataReader, PoolSwap swap) {
         assembly {
             swap := reader
             reader := add(reader, SWAP_BYTES)

@@ -4,7 +4,7 @@ pragma solidity 0.8.26;
 import {ERC712} from "./modules/ERC712.sol";
 import {NodeManager} from "./modules/NodeManager.sol";
 import {Accounter, PoolSwap} from "./modules/Accounter.sol";
-import {PoolRewardsManager, PoolRewardsUpdate} from "./modules/PoolRewardsManager.sol";
+import {PoolRewardsManager} from "./modules/PoolRewardsManager.sol";
 import {InvalidationManager} from "./modules/InvalidationManager.sol";
 import {HookManager} from "./modules/HookManager.sol";
 import {UniConsumer} from "./modules/UniConsumer.sol";
@@ -71,11 +71,11 @@ contract Angstrom is
         _borrowAssets(assets);
         reader = _execPoolSwaps(reader, assets);
         reader = _validateAndExecuteToB(reader, assets);
-        // _rewardPools(poolRewardsUpdates, freeBalance);
         reader = _validateAndExecuteOrders(reader, assets, pairs);
+        reader = _rewardPools(reader, assets, freeBalance);
         _saveAndSettle(assets);
 
-        reader.requireInBoundsOf(data);
+        reader.requireAtEndOf(data);
 
         return new bytes(0);
     }

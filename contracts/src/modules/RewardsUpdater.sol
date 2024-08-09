@@ -1,120 +1,132 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import {PoolId} from "v4-core/src/types/PoolId.sol";
-import {TickRewards} from "../types/TickRewards.sol";
+import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {AssetArray} from "../types/Asset.sol";
+import {PoolRewards} from "../types/PoolRewards.sol";
+import {CalldataReader} from "../types/CalldataReader.sol";
+
 import {TickLib} from "../libraries/TickLib.sol";
 import {MixedSignLib} from "../libraries/MixedSignLib.sol";
 import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
 
 /// @author philogy <https://github.com/philogy>
-abstract contract Donate {
+abstract contract RewardsUpdater {
+    using PoolIdLibrary for PoolKey;
     using FixedPointMathLib for uint256;
     using TickLib for uint256;
-    using MixedSignLib for uint128;
 
     error WrongEndLiquidity(uint128, uint128);
 
-    /**
-     * @dev Entry point to multi-tick donate logic, *cannot* donate to current tick.
-     * @param rewards The rewards struct to update
-     * @param id The pool id to use to retrieve pool data
-     * @param tick The start tick from which to donate
-     * @param startLiquidity The assumed startLiquidity
-     * @param currentDonate Amount to donate to the current tick
-     * @param amounts The amounts to donate across the ticks
-     */
-    function _donate(
-        TickRewards storage rewards,
-        PoolId id,
-        int24 tick,
-        uint128 startLiquidity,
-        uint256 currentDonate,
-        uint256[] memory amounts
-    ) internal returns (uint256 total) {
-        int24 currentTick = _getCurrentTick(id);
+    function _decodeAndReward(PoolRewards storage poolRewards, PoolId id, CalldataReader reader)
+        internal
+        returns (CalldataReader, uint256 total)
+    {
         uint256 cumulativeGrowth;
         uint128 endLiquidity;
-        (total, cumulativeGrowth, endLiquidity) = tick <= currentTick
-            ? _donateBelow(rewards, id, tick, currentTick, startLiquidity, amounts)
-            : _donateAbove(rewards, id, tick, currentTick, startLiquidity, amounts);
+        {
+            int24 startTick;
+            (reader, startTick) = reader.readI24();
+            int24 currentTick = _getCurrentTick(id);
+            uint128 liquidity;
+            (reader, liquidity) = reader.readU128();
+            CalldataReader amountsEnd;
+            (reader, amountsEnd) = reader.readU16End();
+            (reader, total, cumulativeGrowth, endLiquidity) = startTick <= currentTick
+                ? _rewardBelow(poolRewards.growthOutsideTick, currentTick, reader, startTick, id, liquidity, amountsEnd)
+                : _rewardAbove(poolRewards.growthOutsideTick, currentTick, reader, startTick, id, liquidity, amountsEnd);
+        }
+
         uint128 currentLiquidity = _getCurrentLiquidity(id);
         if (endLiquidity != currentLiquidity) revert WrongEndLiquidity(endLiquidity, currentLiquidity);
-        total += currentDonate;
-        rewards.globalGrowth += cumulativeGrowth + flatDivWad(currentDonate, currentLiquidity);
+
+        uint256 currentTickReward;
+        (reader, currentTickReward) = reader.readU128();
+        total += currentTickReward;
+        poolRewards.globalGrowth += cumulativeGrowth + flatDivWad(currentTickReward, currentLiquidity);
+
+        return (reader, total);
     }
 
-    function _donateBelow(
-        TickRewards storage rewards,
-        PoolId id,
+    function _rewardBelow(
+        mapping(int24 => uint256) storage tickGrowthOutside,
+        int24 endTick,
+        CalldataReader reader,
         int24 tick,
-        int24 currentTick,
+        PoolId id,
         uint128 liquidity,
-        uint256[] memory amounts
-    ) internal returns (uint256, uint256, uint128) {
+        CalldataReader amountsEnd
+    ) internal returns (CalldataReader, uint256, uint256, uint128) {
         // To not waste a loop iteration we assume the given tick is a valid initialized tick.
         // TODO(security): Check that this doesn't allow breaking invariants if invoked with an
         // unitialized tick.
         bool initialized = true;
-        uint256 amountIndex = 0;
-        uint256 total;
-        uint256 cumulativeGrowth;
+        uint256 total = 0;
+        uint256 cumulativeGrowth = 0;
 
         do {
             if (initialized) {
-                uint256 amount = amounts[amountIndex++];
+                // Amounts beyond the end of the sequence default to 0.
+                uint256 amount = 0;
+                if (reader != amountsEnd) (reader, amount) = reader.readU128();
                 total += amount;
 
                 cumulativeGrowth += flatDivWad(amount, liquidity);
-                rewards.tickGrowthOutside[tick] += cumulativeGrowth;
+                tickGrowthOutside[tick] += cumulativeGrowth;
 
-                liquidity = liquidity.add(_getNetTickLiquidity(id, tick));
+                liquidity = MixedSignLib.add(liquidity, _getNetTickLiquidity(id, tick));
             }
 
             (initialized, tick) = _findNextTickUp(id, tick);
 
             // Break condition is the current tick bound to account for situations where the
             // "current tick" is uninitialized.
-        } while (tick <= currentTick);
+        } while (tick <= endTick);
 
-        return (total, cumulativeGrowth, liquidity);
+        reader.requireAtEndOf(amountsEnd);
+
+        return (reader, total, cumulativeGrowth, liquidity);
     }
 
-    function _donateAbove(
-        TickRewards storage rewards,
-        PoolId id,
+    function _rewardAbove(
+        mapping(int24 => uint256) storage tickGrowthOutside,
+        int24 endTick,
+        CalldataReader reader,
         int24 tick,
-        int24 currentTick,
+        PoolId id,
         uint128 liquidity,
-        uint256[] memory amounts
-    ) internal returns (uint256, uint256, uint128) {
+        CalldataReader amountsEnd
+    ) internal returns (CalldataReader, uint256, uint256, uint128) {
         // To not waste a loop iteration we assume the given tick is a valid initialized tick.
         // TODO(security): Check that this doesn't allow breaking invariants if invoked with an
         // unitialized tick.
         bool initialized = true;
-        uint256 amountIndex = 0;
-        uint256 total;
-        uint256 cumulativeGrowth;
+        uint256 total = 0;
+        uint256 cumulativeGrowth = 0;
 
         do {
             if (initialized) {
-                uint256 amount = amounts[amountIndex++];
+                // Amounts beyond the end of the sequence default to 0.
+                uint256 amount = 0;
+                if (reader != amountsEnd) (reader, amount) = reader.readU128();
                 total += amount;
 
                 cumulativeGrowth += flatDivWad(amount, liquidity);
-                rewards.tickGrowthOutside[tick] += cumulativeGrowth;
+                tickGrowthOutside[tick] += cumulativeGrowth;
 
-                int128 netLiquidity = _getNetTickLiquidity(id, tick);
-                liquidity = liquidity.sub(netLiquidity);
+                liquidity = MixedSignLib.sub(liquidity, _getNetTickLiquidity(id, tick));
             }
 
             (initialized, tick) = _findNextTickDown(id, tick);
 
             // Break condition is the current tick bound to account for situations where the
             // "current tick" is uninitialized.
-        } while (currentTick < tick);
+        } while (endTick < tick);
 
-        return (total, cumulativeGrowth, liquidity);
+        reader.requireAtEndOf(amountsEnd);
+
+        return (reader, total, cumulativeGrowth, liquidity);
     }
 
     function _findNextTickUp(PoolId id, int24 tick) internal view returns (bool initialized, int24 newTick) {

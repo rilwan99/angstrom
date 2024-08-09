@@ -14,7 +14,6 @@ import {
     OrderMeta
 } from "../../src/reference/OrderTypes.sol";
 import {ExtAngstrom} from "../_view-ext/ExtAngstrom.sol";
-import {PoolSwap, PoolRewardsUpdate} from "src/Angstrom.sol";
 
 import {ArrayLib} from "super-sol/libraries/ArrayLib.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";

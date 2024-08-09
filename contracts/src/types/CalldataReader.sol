@@ -36,7 +36,7 @@ function le(CalldataReader a, CalldataReader b) pure returns (bool) {
 
 /// @author philogy <https://github.com/philogy>
 library CalldataReaderLib {
-    error ReaderOutOfBounds();
+    error ReaderNotAtEnd();
 
     function from(bytes calldata data) internal pure returns (CalldataReader reader) {
         assembly {
@@ -44,14 +44,18 @@ library CalldataReaderLib {
         }
     }
 
-    function requireInBoundsOf(CalldataReader self, bytes calldata data) internal pure {
+    function requireAtEndOf(CalldataReader self, bytes calldata data) internal pure {
         assembly {
             let end := add(data.offset, data.length)
-            if gt(self, end) {
-                mstore(0x00, 0x353a325a /* ReaderOutOfBounds() */ )
+            if iszero(eq(self, end)) {
+                mstore(0x00, 0x01842f8c /* ReaderNotAtEnd() */ )
                 revert(0x1c, 0x04)
             }
         }
+    }
+
+    function requireAtEndOf(CalldataReader self, CalldataReader end) internal pure {
+        if (self != end) revert ReaderNotAtEnd();
     }
 
     function offset(CalldataReader self) internal pure returns (uint256) {
@@ -77,6 +81,14 @@ library CalldataReaderLib {
     function readU24(CalldataReader self) internal pure returns (CalldataReader, uint24 value) {
         assembly {
             value := shr(232, calldataload(self))
+            self := add(self, 3)
+        }
+        return (self, value);
+    }
+
+    function readI24(CalldataReader self) internal pure returns (CalldataReader, int24 value) {
+        assembly {
+            value := sar(232, calldataload(self))
             self := add(self, 3)
         }
         return (self, value);

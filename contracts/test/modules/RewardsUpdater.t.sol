@@ -2,11 +2,14 @@
 pragma solidity ^0.8.0;
 
 import {BaseTest} from "../_helpers/BaseTest.sol";
-import {Donate} from "../../src/modules/Donate.sol";
-import {TickRewards} from "../../src/types/TickRewards.sol";
+import {RewardsUpdater, PoolRewards} from "../../src/modules/RewardsUpdater.sol";
+import {PoolRewards} from "../../src/types/PoolRewards.sol";
 import {ConversionLib} from "../../src/libraries/ConversionLib.sol";
+import {CalldataReader, CalldataReaderLib} from "src/types/CalldataReader.sol";
+import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
+import {RewardsUpdate} from "../../src/reference/PoolRewardsUpdate.sol";
 import {TICK_SPACING} from "../../src/Constants.sol";
 import {UniV4Inspector} from "../_view-ext/UniV4Inspector.sol";
 import {MockERC20} from "super-sol/mocks/MockERC20.sol";
@@ -15,17 +18,19 @@ import {TickRangeMap} from "../_helpers/TickRangeMap.sol";
 
 import {PoolGate} from "../_helpers/PoolGate.sol";
 import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
+import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 
 import {PRNG} from "super-sol/collections/PRNG.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 import {console2 as console} from "forge-std/console2.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract DonateTest is BaseTest, Donate {
+contract RewardsUpdaterTest is BaseTest, RewardsUpdater {
     using TickMath for int24;
 
     using FormatLib for *;
     using FixedPointMathLib for *;
+    using SafeCastLib for *;
 
     uint160 constant ONE_SQRTX96 = 1 << 96;
 
@@ -35,7 +40,7 @@ contract DonateTest is BaseTest, Donate {
     address asset0 = address(new MockERC20());
     address asset1 = address(new MockERC20());
 
-    TickRewards rewards;
+    PoolRewards mainRewards;
     PoolId mainId;
 
     function setUp() public {
@@ -65,13 +70,13 @@ contract DonateTest is BaseTest, Donate {
         bool[] inits;
         // Donate params
         uint256 donateTicks;
-        uint256[] amounts;
+        uint128[] amounts;
         // Donate verification parameters.
         uint256 total;
         uint256 realTotal;
     }
 
-    function test_donate(int256 input_startCompressedTick, uint256 seed) public {
+    function test_reward(int256 input_startCompressedTick, uint256 seed) public {
         Vars memory v;
         PRNG memory rng = PRNG(seed);
 
@@ -115,9 +120,9 @@ contract DonateTest is BaseTest, Donate {
 
         // Generate random amounts to be donated.
         v.donateTicks = rng.randuint(1, v.map.size);
-        v.amounts = new uint256[](v.donateTicks);
+        v.amounts = new uint128[](v.donateTicks);
         for (uint256 i = 0; i < v.amounts.length; i++) {
-            v.amounts[i] = rng.randchoice(0.2e18, 0, rng.randuint(10.0e18));
+            v.amounts[i] = rng.randchoice(0.2e18, 0, rng.randuint(10.0e18)).toUint128();
         }
 
         // Perform donate
@@ -129,7 +134,14 @@ contract DonateTest is BaseTest, Donate {
             // Tick from which to start updating total growth outside.
             int24 startTick = v.map.brangeToTick(v.donateTicks - 1);
 
-            v.total = _donate(rewards, mainId, startTick, startLiquidity, 0, v.amounts);
+            v.total = this.__reward(
+                RewardsUpdate({
+                    startTick: startTick,
+                    startLiquidity: startLiquidity,
+                    amounts: v.amounts,
+                    currentTickReward: 0
+                }).encode()
+            );
         } else {
             // Donating above.
 
@@ -137,7 +149,14 @@ contract DonateTest is BaseTest, Donate {
             uint128 startLiquidity = u128(v.totalLiqAtIndex[v.map.rangeToIndex(v.donateTicks - 1)]);
             int24 startTick = v.map.rangeToTick(v.donateTicks - 1);
 
-            v.total = _donate(rewards, mainId, startTick, startLiquidity, 0, v.amounts);
+            v.total = this.__reward(
+                RewardsUpdate({
+                    startTick: startTick,
+                    startLiquidity: startLiquidity,
+                    amounts: v.amounts,
+                    currentTickReward: 0
+                }).encode()
+            );
         }
 
         v.realTotal = 0;
@@ -157,9 +176,15 @@ contract DonateTest is BaseTest, Donate {
                     expectedEarnings += amount * pos.liq / v.totalLiqAtIndex[index];
                 }
             }
-            uint256 growth = rewards.getGrowthInside(v.poolTick, pos.lowerTick, pos.upperTick).mulWad(pos.liq);
+            uint256 growth = mainRewards.getGrowthInside(v.poolTick, pos.lowerTick, pos.upperTick).mulWad(pos.liq);
             assertApproxEqRel(expectedEarnings, growth, 1e8, "unexpected earnings");
         }
+    }
+
+    function __reward(bytes calldata encodedRewardUpdate) external returns (uint256 total) {
+        CalldataReader reader = CalldataReaderLib.from(encodedRewardUpdate);
+        (reader, total) = _decodeAndReward(mainRewards, mainId, reader);
+        reader.requireAtEndOf(encodedRewardUpdate);
     }
 
     function _getPoolBitmapInfo(PoolId id, int16 wordPos) internal view override returns (uint256) {
