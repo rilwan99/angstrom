@@ -5,6 +5,7 @@ use angstrom_types::{
     matching::{Ray, SqrtPriceX96},
     sol_bindings::{grouped_orders::OrderWithStorageData, sol::TopOfBlockOrder}
 };
+use eyre::{eyre, Context, OptionExt};
 use uniswap_v3_math::{swap_math::compute_swap_step, tick_math::get_sqrt_ratio_at_tick};
 
 use super::{MarketSnapshot, Tick};
@@ -12,7 +13,7 @@ use super::{MarketSnapshot, Tick};
 pub fn calculate_reward(
     tob: OrderWithStorageData<TopOfBlockOrder>,
     amm: MarketSnapshot
-) -> HashMap<Tick, U256> {
+) -> eyre::Result<HashMap<Tick, U256>> {
     // Determine whether we're buying from or selling to the AMM - is this
     // necessary?
     let tick_motion = if tob.is_bid { 1 } else { -1 };
@@ -25,18 +26,26 @@ pub fn calculate_reward(
 
     // Turn our output into a negative number so compute_swap_step knows we're
     // looking to get an exact amount out
-    let mut expected_out = I256::try_from(tob.order.amountOut).unwrap() * I256::MINUS_ONE;
+    let mut expected_out = I256::try_from(tob.order.amountOut).wrap_err_with(|| {
+        format!(
+            "Expected ToB order output too large to convert U256 -> I256: {}",
+            tob.order.amountOut
+        )
+    })? * I256::MINUS_ONE;
 
     // Initialize some things we're going to do to track
     let mut total_cost = U256::ZERO;
     let mut stakes = Vec::new();
 
     while expected_out < I256::ZERO {
-        let next_price =
-            SqrtPriceX96::from(get_sqrt_ratio_at_tick(current_tick + tick_motion).unwrap());
+        let next_tick = current_tick + tick_motion;
+        let next_price = SqrtPriceX96::from(
+            get_sqrt_ratio_at_tick(next_tick)
+                .wrap_err_with(|| format!("Unable to get SqrtPrice at tick {}", next_tick))?
+        );
         let liquidity = amm
             .liquidity_at_tick(current_tick)
-            .expect("Unable to find market range for the current tick");
+            .ok_or_else(|| eyre!("Unable to find liquidity for tick {}", current_tick))?;
         let (fin_price, amount_in, amount_out, amount_fee) = compute_swap_step(
             current_price.into(),
             next_price.into(),
@@ -44,28 +53,30 @@ pub fn calculate_reward(
             expected_out,
             fee_pips
         )
-        .unwrap();
+        .wrap_err_with(|| {
+            format!("Unable to compute swap step from tick {} to {}", current_tick, next_tick)
+        })?;
 
         // See how much output we have yet to go
-        let signed_out = I256::try_from(amount_out).unwrap();
-        expected_out = expected_out.checked_add(signed_out).unwrap();
+        let signed_out = I256::try_from(amount_out)
+            .wrap_err("Output of step too large to convert U256 -> I256")?;
+        expected_out = expected_out
+            .checked_add(signed_out)
+            .ok_or_eyre("Unable to add signed_out to expected_out")?;
 
         // Add the amount in and our total fee to our cost
         total_cost += amount_in;
-        // We are going to totally neglect fee for now to see if we can just get this
-        // working cost += amount_fee;
+        total_cost += amount_fee;
 
         // How much should this have cost if it was done by the raw price
         let end_price = Ray::from(SqrtPriceX96::from(fin_price));
 
         // This seems to work properly, so let's run with it
-        let calced_price = Ray::calc_price(amount_in, amount_out);
+        let avg_price = Ray::calc_price(amount_in, amount_out);
 
         // See if we have enough bribe left over to cover the total amount so far (can
         // we do this)?
-        stakes.push((calced_price, end_price, amount_out));
-
-        println!("Amount out for step: {} - Amount in for step: {}", amount_out, amount_in);
+        stakes.push((avg_price, end_price, amount_out));
 
         // Iterate!
         current_tick += tick_motion;
@@ -74,11 +85,9 @@ pub fn calculate_reward(
 
     // Determine how much extra amountIn we have that will be used as tribute to the
     // LPs
-    let tribute = tob
-        .amountIn
-        .checked_sub(total_cost)
-        .expect("What the heck, not enough input for my bribearino!");
-    println!("Tribute: {}", tribute);
+    let tribute = tob.amountIn.checked_sub(total_cost).ok_or_else(|| {
+        eyre!("Total cost ({}) greater than ammount offered ({})", total_cost, tob.amountIn)
+    })?;
 
     let mut rem_tribute = tribute;
     let mut cur_q = U256::ZERO;
@@ -106,8 +115,8 @@ pub fn calculate_reward(
                 "We don't have enough to complete a step - {} needed {} available",
                 step_cost, rem_tribute
             );
-            let partial_dprice = Ray::calc_price(rem_tribute, (cur_q + window[0].2));
-            filled_price = filled_price + partial_dprice;
+            let partial_dprice = Ray::calc_price(rem_tribute, cur_q + window[0].2);
+            filled_price += partial_dprice;
             rem_tribute = U256::ZERO;
             break;
         }
@@ -116,7 +125,7 @@ pub fn calculate_reward(
     if rem_tribute > U256::ZERO {
         println!("Extra tribute, and I'm gonna use it: {:?}", rem_tribute);
         let final_dprice = Ray::calc_price(rem_tribute, cur_q);
-        filled_price = filled_price + final_dprice;
+        filled_price += final_dprice;
     }
 
     // We've now found our filled price, we can allocate our reward to each tick
@@ -131,7 +140,7 @@ pub fn calculate_reward(
             (tick_num, total_reward)
         })
         .collect();
-    result
+    Ok(result)
 }
 
 #[cfg(test)]

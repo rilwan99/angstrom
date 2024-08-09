@@ -1,4 +1,4 @@
-use std::ops::{Add, Deref, Sub};
+use std::ops::{Add, AddAssign, Deref, Sub, SubAssign};
 
 use alloy_primitives::{aliases::U320, Uint, U256};
 use malachite::{
@@ -31,11 +31,23 @@ impl Sub for Ray {
     }
 }
 
+impl SubAssign for Ray {
+    fn sub_assign(&mut self, rhs: Self) {
+        *self = Self(self.0 - rhs.0)
+    }
+}
+
 impl Add for Ray {
     type Output = Ray;
 
     fn add(self, rhs: Self) -> Self::Output {
         Self(self.0 + rhs.0)
+    }
+}
+
+impl AddAssign for Ray {
+    fn add_assign(&mut self, rhs: Self) {
+        *self = Self(self.0 + rhs.0);
     }
 }
 

@@ -16,6 +16,7 @@ divan = "0.1.14"
 angstrom-types.workspace = true
 angstrom-utils.workspace = true
 alloy-primitives.workspace = true
+eyre.workspace = true
 futures-util.workspace = true
 uniswap_v3_math.workspace = true
 malachite = "0.4.0"
