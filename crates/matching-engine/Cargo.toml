@@ -15,14 +15,27 @@ divan = "0.1.14"
 angstrom-types.workspace = true
 angstrom-utils.workspace = true
 alloy-primitives.workspace = true
+tokio.workspace = true
 uniswap_v3_math.workspace = true
 malachite = "0.4.0"
 malachite-q = "0.4.0"
 rand.workspace = true
 rand_distr.workspace = true
 criterion.workspace = true
+
+alloy = { version = "0.2", features = [
+    "contract",
+    "network",
+    "provider-ws",
+    "rpc-types-eth",
+    "signer-local",
+] }
+eyre = "0.6"
+
 # Using clap for our bookgen command-line tool
-clap = "4.5.4"
+clap = { version = "4.5.4", features = ["derive"] }
+amms = { git = "https://github.com/darkforestry/amms-rs.git", rev ="643b049"}
+serde_json = "1.0.122"
 
 [[bench]]
 name = "volume_solver"

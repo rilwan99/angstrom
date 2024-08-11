@@ -1,6 +1,6 @@
 use std::{
     cmp::{max, min},
-    ops::Deref
+    ops::Deref,
 };
 
 // uint 160 for represending SqrtPriceX96
@@ -12,10 +12,13 @@ use malachite::{num::conversion::traits::RoundingInto, Natural, Rational};
 
 use self::math::{
     new_sqrt_price_from_input, new_sqrt_price_from_output, sqrt_price_at_tick, tick_at_sqrt_price,
-    token_0_delta
+    token_0_delta,
 };
 
 pub mod math;
+pub mod pool;
+mod loader;
+
 /// A Tick is represented as an i32 as its value range is from around
 /// -900000..900000
 const MIN_TICK: i32 = -887272;
@@ -82,7 +85,7 @@ pub struct PoolRange {
     /// Upper tick for this range
     upper_tick: Tick,
     /// Total liquidity within this range
-    liquidity:  u128
+    liquidity: u128,
 }
 
 impl PoolRange {
@@ -112,16 +115,16 @@ impl PoolRange {
 pub struct MarketSnapshot {
     /// Known tick ranges and liquidity positions gleaned from the market
     /// snapshot
-    ranges:         Vec<PoolRange>,
+    ranges: Vec<PoolRange>,
     /// The current SqrtPriceX96 for this pairing as of this snapshot
     /// (𝛥Token1/𝛥Token0)
     sqrt_price_x96: SqrtPriceX96,
     /// The current tick our price lives in - price might not be precisely on a
     /// tick bound, this is the LOWER of the possible ticks
-    current_tick:   Tick,
+    current_tick: Tick,
     /// Index into the 'ranges' vector for the PoolRange that includes the tick
     /// our current price lives at/in
-    cur_tick_idx:   usize
+    cur_tick_idx: usize,
 }
 
 impl MarketSnapshot {
@@ -173,10 +176,10 @@ impl MarketSnapshot {
 
     pub fn current_position(&self) -> MarketPrice {
         MarketPrice {
-            state:     self,
+            state: self,
             range_idx: self.cur_tick_idx,
-            tick:      self.current_tick,
-            price:     self.sqrt_price_x96
+            tick: self.current_tick,
+            price: self.sqrt_price_x96,
         }
     }
 }
@@ -191,13 +194,13 @@ impl MarketSnapshot {
 #[derive(Clone, Debug)]
 pub struct MarketPrice<'a> {
     /// Reference to the Market State we're using as the basis for computation
-    state:     &'a MarketSnapshot,
+    state: &'a MarketSnapshot,
     /// Index of the current PoolRange our price lies within
     range_idx: usize,
     /// Tick number within the current PoolRange that we're working with
-    tick:      Tick,
+    tick: Tick,
     /// The ratio between Token0 and Token1
-    price:     SqrtPriceX96
+    price: SqrtPriceX96,
 }
 
 impl<'a> MarketPrice<'a> {
@@ -240,7 +243,7 @@ impl<'a> MarketPrice<'a> {
     pub fn order_to_target(
         &self,
         target_price: Option<SqrtPriceX96>,
-        buy: bool
+        buy: bool,
     ) -> Option<PriceRange<'a>> {
         // Bounds check our target price if provided
         if let Some(p) = target_price {
@@ -289,10 +292,10 @@ impl<'a> MarketPrice<'a> {
         };
         let quantity = token_0_delta(self.price, closest_price, pool.liquidity, false)?;
         let end_bound = Self {
-            state:     self.state,
-            price:     closest_price,
+            state: self.state,
+            price: closest_price,
             range_idx: new_range_idx,
-            tick:      tick_at_sqrt_price(closest_price).ok()?
+            tick: tick_at_sqrt_price(closest_price).ok()?,
         };
         Some(PriceRange { start_bound: self.clone(), end_bound, quantity })
     }
@@ -311,8 +314,8 @@ impl<'a> MarketPrice<'a> {
 #[derive(Clone, Debug)]
 pub struct PriceRange<'a> {
     pub start_bound: MarketPrice<'a>,
-    pub end_bound:   MarketPrice<'a>,
-    pub quantity:    U256
+    pub end_bound: MarketPrice<'a>,
+    pub quantity: U256,
 }
 
 impl<'a> PriceRange<'a> {
@@ -354,7 +357,6 @@ impl<'a> PriceRange<'a> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
 
     #[test]

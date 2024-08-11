@@ -1,4 +1,6 @@
-use alloy_primitives::{Address, B256, U256};
+use alloy_primitives::B256;
+#[cfg(feature = "testnet")]
+use alloy_primitives::{Address, U256};
 use alloy_sol_types::SolStruct;
 #[cfg(feature = "testnet")]
 use rand::{rngs::ThreadRng, Rng};
