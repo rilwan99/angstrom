@@ -11,86 +11,21 @@ use amms::{
         uniswap_v3::{
             Info, UniswapV3Pool,
         },
-        AutomatedMarketMaker,
     },
 };
 use std::collections::HashMap;
 use std::ops::Add;
 use std::sync::Arc;
-use alloy::rpc::types::Log;
 use alloy::sol_types::private::U256;
 use alloy_primitives::B256;
-use amms::amm::{AMM};
-use amms::errors::{ArithmeticError, EventLogError, SwapSimulationError};
-use amms::state_space::error::StateSpaceError;
-use amms::state_space::StateSpaceManager;
-use tokio::sync::mpsc::Receiver;
-use tokio::task::JoinHandle;
-
-pub struct PoolManager<T, N, P>
-where
-    T: Transport + Clone,
-    N: Network,
-    P: Provider<T, N> + 'static,
-{
-    pool: EnhancedUniswapV3Pool,
-    provider: Arc<P>,
-    state_space_manager: StateSpaceManager<T, N, P>,
-}
-
-impl<T, N, P> PoolManager<T, N, P>
-where
-    T: Transport + Clone,
-    N: Network,
-    P: Provider<T, N> + 'static,
-{
-    pub fn new(
-        pool: EnhancedUniswapV3Pool,
-        latest_synced_block: u64,
-        stream_buffer: usize,
-        state_change_buffer: usize,
-        provider: Arc<P>,
-    ) -> Self {
-        // TODO: fix
-        let amm = AMM::UniswapV3Pool(pool.pool.clone());
-        let state_space_manager = StateSpaceManager::new(
-            // TODO: fix
-            vec![amm],
-            latest_synced_block,
-            stream_buffer,
-            state_change_buffer,
-            provider.clone(),
-        );
-
-        Self {
-            pool,
-            provider,
-            state_space_manager,
-        }
-    }
-
-    pub async fn initialize(&mut self, block_number: Option<u64>) -> Result<(), AMMError> {
-        self.pool.initialize(block_number, self.provider.clone()).await
-    }
-
-    pub async fn sync_ticks(&mut self, block_number: Option<u64>) -> Result<(), AMMError> {
-        self.pool.sync_ticks(block_number, self.provider.clone()).await
-    }
-
-    pub async fn watch_state_changes(&self) -> Result<Vec<JoinHandle<Result<(), StateSpaceError>>>, StateSpaceError> {
-        self.state_space_manager.watch_state_changes().await
-    }
-
-    pub async fn subscribe_state_changes(&self) -> Result<(Receiver<Vec<Address>>, Vec<JoinHandle<Result<(), StateSpaceError>>>), StateSpaceError> {
-        self.state_space_manager.subscribe_state_changes().await
-    }
-}
+use alloy_primitives::private::serde::{Deserialize, Serialize};
+use amms::amm::AutomatedMarketMaker;
 
 // at around 190 is when "max code size exceeded" comes up
 const MAX_TICKS_PER_REQUEST: u16 = 150;
+#[derive(Debug, Clone)]
 pub struct EnhancedUniswapV3Pool {
     pub pool: UniswapV3Pool,
-    // state_space_manager: StateSpaceManager<>
     initial_ticks_per_side: u16,
 }
 
@@ -206,9 +141,6 @@ impl EnhancedUniswapV3Pool {
     }
 }
 
-// TODO: impl
-// impl AutomatedMarketMaker for EnhancedUniswapV3Pool {}
-
 impl std::ops::Deref for EnhancedUniswapV3Pool {
     type Target = UniswapV3Pool;
 
@@ -239,7 +171,6 @@ mod test {
         },
     };
     use alloy_primitives::{BlockHash, LogData, TxHash, B256};
-    use eyre::Context;
     use serde_json;
 
     use super::*;

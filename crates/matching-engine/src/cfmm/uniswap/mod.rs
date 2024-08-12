@@ -18,6 +18,7 @@ use self::math::{
 pub mod math;
 pub mod pool;
 mod loader;
+pub mod pool_manager;
 
 /// A Tick is represented as an i32 as its value range is from around
 /// -900000..900000
