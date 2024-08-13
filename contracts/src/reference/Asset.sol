@@ -26,13 +26,11 @@ library AssetLib {
         pure
         returns (AssetIndexPair)
     {
-        // forgefmt: disable-next-item
-        return AssetIndexPair.wrap(
-            uint24(
-                (AssetIndexPairLib._index(assets.getIndex(assetA)) << AssetIndexPairLib.INDEX_A_OFFSET)
-                    .bitOverlay(AssetIndexPairLib._index(assets.getIndex(assetB)))
-            )
-        );
+        require(assetA < assetB, "assetA < assetB in index pair");
+        uint256 indexAssetA = AssetIndexPairLib._index(assets.getIndex(assetA));
+        uint256 indexAssetB = AssetIndexPairLib._index(assets.getIndex(assetB));
+        require(indexAssetA < indexAssetB, "indexAssetA < indexAssetB in index pair");
+        return AssetIndexPair.wrap(uint24((indexAssetA << AssetIndexPairLib.INDEX_A_OFFSET).bitOverlay(indexAssetB)));
     }
 
     function encode(Asset memory asset) internal pure returns (bytes memory b) {

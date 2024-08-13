@@ -48,16 +48,24 @@ library HookBufferLib {
                 hash := keccak256(contentOffset, hookDatalength)
                 reader := add(reader, hookDatalength)
 
-                // Load hook address from memory..
+                // Load hook address from memory.
+                // If `hookDataLength` < 20 dirty lower bytes will become part of the hook address.
+                // This could lead to an unexpected hook address being called on behalf of the
+                // signer, however this can only occur if: 1. Said signer signs a malformed order
+                // struct (hook data length < 20) and 2. The submitting node decides to maliciously
+                // include the order despite it violating the encoding specification.
                 let hookAddr := mload(add(memPtr, 0x44))
 
                 // Setup memory for full call.
                 mstore(memPtr, HOOK_SELECTOR_LEFT_ALIGNED) // 0x00:0x04 selector
                 mstore(add(memPtr, 0x24), 0x40) // 0x24:0x44 calldata offset
+                // Can underflow, which would result in an insanely high length being written to memory.
                 let payloadLength := sub(hookDatalength, 20)
                 mstore(add(memPtr, 0x44), payloadLength) // 0x44:0x64 payload length
 
                 // Build packed hook pointer.
+                // `payloadLength` bounded to [-20; 2^24-21], + 0x64 => [+80, 2^24+79] (cannot
+                // overflow its aloted 32 bits in the packed hook pointer).
                 hook :=
                     or(shl(HOOK_MEM_PTR_OFFSET, memPtr), or(shl(HOOK_ADDR_OFFSET, hookAddr), add(payloadLength, 0x64)))
             }
@@ -77,6 +85,8 @@ library HookBufferLib {
                 // Call hook. The upper bytes of `hookAddr` will be dirty from the memory pointer
                 // but the EVM discards upper bytes for calls. https://ethereum.github.io/execution-specs/src/ethereum/cancun/vm/instructions/system.py.html#ethereum.cancun.vm.instructions.system.call:0
                 let hookAddr := shr(HOOK_ADDR_OFFSET, self)
+                // In the case where `hookDataLength` < 20 the calldata will not represent a valid
+                // ABI encoded call because the calldata length (0x44:0x64) will be truncated.
                 let success := call(gas(), hookAddr, 0, memPtr, calldataLength, 0x00, 0x20)
 
                 // Check that the call was successful, sufficient data was returned and the expected

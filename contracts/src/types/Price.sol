@@ -5,8 +5,6 @@ import {RayMathLib} from "../libraries/RayMathLib.sol";
 
 type PriceAB is uint256;
 
-// type PriceBA is uint256;
-
 type AmountA is uint256;
 
 type AmountB is uint256;
@@ -57,10 +55,6 @@ library PriceLib {
         return PriceAB.unwrap(price);
     }
 
-    // function into(PriceBA price) internal pure returns (uint256) {
-    //     return PriceBA.unwrap(price);
-    // }
-
     function into(AmountA amount) internal pure returns (uint256) {
         return AmountA.unwrap(amount);
     }
@@ -69,14 +63,6 @@ library PriceLib {
         return AmountB.unwrap(amount);
     }
 
-    // function inv(PriceAB priceAB) internal pure returns (PriceBA) {
-    //     return PriceBA.wrap(priceAB.into().invRay());
-    // }
-
-    // function inv(PriceBA priceBA) internal pure returns (PriceAB) {
-    //     return PriceAB.wrap(priceBA.into().invRay());
-    // }
-
     function convert(PriceAB priceAB, AmountA amountA) internal pure returns (AmountB) {
         return AmountB.wrap(amountA.into().divRay(priceAB.into()));
     }
@@ -84,14 +70,6 @@ library PriceLib {
     function convert(PriceAB priceAB, AmountB amountB) internal pure returns (AmountA) {
         return AmountA.wrap(amountB.into().mulRay(priceAB.into()));
     }
-
-    // function convert(PriceBA priceBA, AmountA amountA) internal pure returns (AmountB) {
-    //     return AmountB.wrap(amountA.into().mulRay(priceBA.into()));
-    // }
-
-    // function convert(PriceBA priceBA, AmountB amountB) internal pure returns (AmountA) {
-    //     return AmountA.wrap(amountB.into().divRay(priceBA.into()));
-    // }
 
     function mulRayScalar(AmountA x, uint256 ray) internal pure returns (AmountA) {
         return AmountA.wrap(x.into().mulRay(ray));

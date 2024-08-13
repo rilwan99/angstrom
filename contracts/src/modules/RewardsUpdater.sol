@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
-import {PoolKey} from "v4-core/src/types/PoolKey.sol";
-import {AssetArray} from "../types/Asset.sol";
+import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {PoolRewards} from "../types/PoolRewards.sol";
 import {CalldataReader} from "../types/CalldataReader.sol";
 
@@ -13,7 +11,6 @@ import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
 
 /// @author philogy <https://github.com/philogy>
 abstract contract RewardsUpdater {
-    using PoolIdLibrary for PoolKey;
     using FixedPointMathLib for uint256;
     using TickLib for uint256;
 
