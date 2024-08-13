@@ -1,6 +1,6 @@
 use std::ops::{Add, AddAssign, Deref, Sub, SubAssign};
 
-use alloy_primitives::{aliases::U320, Uint, U256};
+use alloy_primitives::{aliases::U320, Uint, U256, U512};
 use malachite::{
     num::{
         arithmetic::traits::{DivRound, Pow},
@@ -12,7 +12,7 @@ use malachite::{
 
 use super::{const_2_192, SqrtPriceX96};
 use crate::matching::const_1e27;
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Ray(U256);
 
 impl Deref for Ray {
@@ -117,20 +117,24 @@ impl Ray {
         self.into()
     }
 
+    /// Calculates a price ratio t0/t1
     pub fn calc_price(t0: U256, t1: U256) -> Self {
         let numerator = Natural::from_limbs_asc(t0.as_limbs()) * const_1e27();
         let denominator = Natural::from_limbs_asc(t1.as_limbs());
         let output = Rational::from_naturals(numerator, denominator);
-        let (natout, _): (Natural, _) = output.rounding_into(RoundingMode::Floor);
+        let (natout, _): (Natural, _) = output.rounding_into(RoundingMode::Ceiling);
         let limbs = natout.limbs().collect::<Vec<_>>();
         let inner = U256::from_limbs_slice(&limbs);
         Self(inner)
     }
 
+    /// Given a price ratio t0/t1 calculates how much t0 would be needed to
+    /// output the provided amount of t1 (q)
     pub fn mul_quantity(&self, q: U256) -> U256 {
-        let numerator = Natural::from_limbs_asc((self.0 * q).as_limbs());
+        let p: U512 = self.0.widening_mul(q);
+        let numerator = Natural::from_limbs_asc(p.as_limbs());
         let (res, _) =
-            numerator.div_round(const_1e27(), malachite::rounding_modes::RoundingMode::Floor);
+            numerator.div_round(const_1e27(), malachite::rounding_modes::RoundingMode::Ceiling);
         let reslimbs = res.into_limbs_asc();
         Uint::from_limbs_slice(&reslimbs)
     }

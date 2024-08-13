@@ -13,6 +13,7 @@ use super::{MarketSnapshot, Tick};
 #[derive(Debug)]
 pub struct ToBOutcome {
     pub tribute:        U256,
+    pub total_cost:     U256,
     pub tick_donations: HashMap<Tick, U256>
 }
 
@@ -44,6 +45,11 @@ pub fn calculate_reward(
     let mut total_cost = U256::ZERO;
     let mut stakes = Vec::new();
 
+    // The bid/ask direction determines what we're trading.  In all cases, our
+    // amountIn is what we have to give and our amountOut is what we expect to get.
+    // So our bribe is always housed in amountIn no matter what the directionality
+    // of the order is, and we always want to count down our amountOut to find out
+    // where we stop selling to the AMM and start taking a bribe
     while expected_out < I256::ZERO {
         let next_tick = current_tick + tick_motion;
         let next_price = SqrtPriceX96::from(
@@ -93,7 +99,7 @@ pub fn calculate_reward(
     // Determine how much extra amountIn we have that will be used as tribute to the
     // LPs
     let bribe = tob.amountIn.checked_sub(total_cost).ok_or_else(|| {
-        eyre!("Total cost ({}) greater than ammount offered ({})", total_cost, tob.amountIn)
+        eyre!("Total cost greater than amount offered: {} > {}", total_cost, tob.amountIn)
     })?;
 
     if stakes.is_empty() {
@@ -102,7 +108,7 @@ pub fn calculate_reward(
     }
 
     let mut rem_bribe = bribe;
-    let mut cur_q = stakes[0].2;
+    let mut cur_q = U256::ZERO;
     let mut filled_price = stakes[0].0;
     for window in stakes.windows(2) {
         // Price difference between the average price for the current tick and the
@@ -122,34 +128,44 @@ pub fn calculate_reward(
             // clearing price is and break out of this loop
             let partial_dprice = Ray::calc_price(rem_bribe, cur_q + window[0].2);
             filled_price += partial_dprice;
-            rem_bribe = U256::ZERO;
             break;
         }
     }
 
+    // Do we want to then step all the way to the final price?  This should be
+    // stored in `current_price`
+
     // Any bribe we have left over after all this is taken as tribute
-    let tribute = rem_bribe;
+    // let tribute = rem_bribe;
 
     // We've now found our filled price, we can allocate our reward to each tick
     // based on how much it costs to bring them up to that price.
+    let mut reward_t = U256::ZERO;
     let tick_donations: HashMap<Tick, U256> = stakes
         .iter()
         .enumerate()
         .map(|(i, stake)| {
-            let tick_num = amm.current_tick + i as i32;
-            let total_dprice = filled_price - stake.0;
-            let total_reward = total_dprice.mul_quantity(stake.2);
+            let tick_num = amm.current_tick + (i as i32 * tick_motion);
+            let total_reward = if filled_price <= stake.0 {
+                U256::ZERO
+            } else {
+                let total_dprice = filled_price - stake.0;
+                total_dprice.mul_quantity(stake.2)
+            };
+            reward_t += total_reward;
             (tick_num, total_reward)
         })
         .collect();
-
-    Ok(ToBOutcome { tribute, tick_donations })
+    let tribute = bribe - reward_t;
+    // Both our tribute and our tick_donations are done in the same currency as
+    // amountIn
+    Ok(ToBOutcome { tribute, total_cost, tick_donations })
 }
 
 #[cfg(test)]
 mod test {
 
-    use alloy_primitives::Uint;
+    use alloy_primitives::{Uint, U256};
     use angstrom_types::matching::SqrtPriceX96;
     use rand::thread_rng;
     use testing_tools::type_generator::orders::generate_top_of_block_order;
@@ -171,12 +187,35 @@ mod test {
         let mut rng = thread_rng();
         let amm = generate_amm_market(100000);
         let mut order = generate_top_of_block_order(&mut rng, true, None, None);
-        order.order.amountIn = Uint::from(1_000_000_000_000_0_u128);
+        let total_payment = Uint::from(10_000_000_000_000_u128);
+        order.order.amountIn = total_payment;
         order.order.amountOut = Uint::from(100000000);
-        let result = calculate_reward(order, amm);
-        println!("Result: {:?}", result);
+        let result = calculate_reward(order, amm).expect("Error calculating tick donations");
+        println!("{:?}", result);
+        let total_donations = result
+            .tick_donations
+            .iter()
+            .fold(U256::ZERO, |acc, (_tick, donation)| acc + donation);
+        assert_eq!(
+            total_donations + result.total_cost + result.tribute,
+            total_payment,
+            "Total allocations do not add up to input payment"
+        );
+    }
 
-        panic!("Butts!");
+    #[test]
+    fn handles_insufficient_funds() {
+        let mut rng = thread_rng();
+        let amm = generate_amm_market(-100000);
+        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
+        order.is_bid = true;
+        order.order.amountOut = Uint::from(1_000_000_000_000_0_u128);
+        order.order.amountIn = Uint::from(100000000);
+        let result = calculate_reward(order, amm);
+        assert!(result.is_err_and(|e| {
+            e.to_string()
+                .starts_with("Total cost greater than amount offered")
+        }))
     }
 
     #[test]
@@ -188,9 +227,7 @@ mod test {
         order.order.amountIn = Uint::from(1_000_000_000_000_0_u128);
         order.order.amountOut = Uint::from(100000000);
         let result = calculate_reward(order, amm);
-        println!("Result: {:?}", result);
-
-        panic!("Butts!");
+        assert!(result.is_ok());
     }
 
     #[test]
@@ -199,11 +236,9 @@ mod test {
         let amm = generate_amm_market(100000);
         let mut order = generate_top_of_block_order(&mut rng, true, None, None);
         order.is_bid = false;
-        order.order.amountIn = Uint::from(1_000_000_000_000_0_u128);
-        order.order.amountOut = Uint::from(100000000);
+        order.order.amountOut = Uint::from(1_000_000_000_000_0_u128);
+        order.order.amountIn = Uint::from(800000000);
         let result = calculate_reward(order, amm);
-        println!("Result: {:?}", result);
-
-        panic!("Butts!");
+        assert!(result.is_ok());
     }
 }
