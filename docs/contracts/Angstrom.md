@@ -35,59 +35,113 @@ we're allowed to actually interact with Uniswap at all).
 
 ### Bundle contents
 
+The bundle is a struct encoded using the [PADE format](./Encoding.md). The string of bytes is the
+value that the `execute` method is called with (not that the call itself is still ABI encoded, just
+the contents of the single `bytes` parameter itself is PADE).
+
 #### Top-level Payload Contents
 
-The `data` payload consists of an ♻️ ABI-encoded (encoding soon to change) tuple of structs:
+The `data` payload is the PADE encoding of the following struct:
 
-```solidity
-(
-    Asset[] assets,
-    Price[] initialPrices,
-    TopOfBlockOrderEnvelope[] topOfBlockOrders,
-    PoolSwap[] swaps,
-    GenericOrder[] orders,
-    PoolRewardsUpdate[] poolRewardsUpdates
-);
+```rust
+struct Bundle {
+    assets: Sequence<2, Asset>,
+    pairs: Sequence<2, Pair>,
+    swaps: Sequence<2, PoolSwap>,
+    toBOrders: Sequence<3, TopOfBlockOrder>,
+    userOrders: Sequence<3, UserOrder>,
+    poolRewardsUpdates: Sequence<3, PoolRewardsUpdate>
+}
 ```
 
-#### `Asset[] assets`
+#### `Asset`
 
-```solidity
+Solidity: [decoding implementation (`src/types/Asset.sol`)](../../contracts/src/types/Asset.sol) | [reference
+encoding (`src/reference/Asset.sol`)](../../contracts/src/reference/Asset.sol)
+
+```rust
 struct Asset {
-    address addr;
-    uint256 borrow;
-    uint256 save;
-    uint256 settle;
+    addr: address,
+    borrow: u128,
+    save: u128,
+    settle: u128
 }
 ```
 
 The array of assets specifies what assets are going to be traded or settled in the submitted bundle.
 The elements **must be** sorted in ascending order according the value of `.addr`.
 
-|Field|Description|Unit|
-|-----|-----------|----|
-|`address addr`|Contract address of ERC20 token of the asset, must be ordered relative to neighbors.|N/A|
-|`uint256 borrow`|Amount of the asset to flash borrow.| `.addr` base unit|
-|`uint256 save`|Amount of the asset to save as the network fee |`.addr` base unit|
-|`uint256 settle`|Final amount that needs to be repayed to Uniswap post-bundle execution .|`.addr` base unit|
+|Field|Description|
+|-----|-----------|
+|`addr: address`|Contract address of ERC20 token of the asset. |
+|`borrow: uint128`|Amount of the asset to flash borrow. (`.addr` base unit)|
+|`save: uint128`|Amount of the asset to save as the network fee (`.addr` base unit)|
+|`settle: uint128`|Final amount to be repayed to Uniswap post-bundle execution. (`.addr` base unit)|
+
+#### `Pair`
+
+Solidity: [decoding implementation (`src/types/Pair.sol`)](../../contracts/src/types/Pair.sol) | [reference
+encoding (`src/reference/Pair.sol`)](../../contracts/src/reference/Pair.sol)
+
+```rust
+struct Pair {
+    asset_indices: AssetIndexPair,
+    price_ray_assetAOverB: u256
+}
+
+```
+
+This list of pairs defines the unique uniform clearing prices for the different pairs in the bundle.
+The elements **must be** sorted in ascending order according the value of `.asset_indices`.
+
+|Field|Description|
+|-----|-----------|
+|`assets: AssetIndexPair`|Pair's assets as indices into the asset array. `asset_indices.index_a() < asset_indices.index_b()` **must** hold.|
+|`price_AOverB: u256`|Unform clearing price of pair in asset A **over** asset B base units in Ray e.g. `13.2e27` represents 13.2 base units of A for every base unit of A.|
 
 
-#### `Price[] initialPrices`
 
-```solidity
-struct Price {
-    AssetIndex outIndex;
-    AssetIndex inIndex;
-    uint256 price;
+#### `PoolSwap`
+
+Solidity: [decoding implementation (`src/types/PoolSwap.sol`)](../../contracts/src/types/PoolSwap.sol) | [reference
+encoding (`src/reference/PoolSwap.sol`)](../../contracts/src/reference/PoolSwap.sol)
+
+
+```rust
+struct PoolSwap {
+    assets_in_out: AssetIndexPair,
+    quantity_in: u128
 }
 ```
 
-This list defines the uniform clearing prices for the different pairs in the bundle, if an order
-references a missing pair the bundle will revert.
+The array of `PoolSwap`s represents the netted out swaps to execute against the underlying Uniswap
+pool (where Angstrom is its hook). The contract does not enforce swap uniqueness, it is recommended
+to net out multiple swaps against the same pool into one to save on gas.
 
-|Field|Description|Unit|
-|-----|-----------|----|
-|`AssetIndex outIndex`|Index of price out asset|max. 16-bit index into the `asset` list|
-|`AssetIndex inIndex`|Index of price in asset|max. 16-bit index into the `asset` list|
-|`uint256 price`|Price of pair|Price of $\frac{\text{out}}{\text{in}}$ asset scaled by $10^{27}$ (aka "RAY")|
+|Field|Description|
+|-----|-----------|
+|`assets: AssetIndexPair`|Swap's input & output assets as indices into the asset array. Asset A is the input asset, asset B the output asset.|
+|`quantity_in: u128`|The swap input quantity in the input asset's base units.|
 
+#### `TopOfBlockOrder`
+
+Solidity: [decoding implementation (`src/Angstrom.sol:Angstrom._validateAndExecuteToB`)](../../contracts/src/Angstrom.sol) | [reference encoding (`src/reference/OrderTypes.sol`)](../../contracts/src/reference/OrderTypes.sol).
+
+```rust
+struct TopOfBlockOrder {
+    use_internal: bool,
+    quantity_in: u128,
+    quantity_out: u128,
+    assets_in_out: AssetIndexPair,
+    recipient: Recipient,
+    hookData: Option<Sequence<3, bytes1>>,
+    signature: Signature
+}
+```
+
+|Field|Description|
+|-----|-----------|
+|`use_internal: bool`|Whether to use angstrom internal balance (`true`) or actual ERC20 balance (`false`) to settle|
+|`quantity_in: u128`|The order offered input quanity in the input asset's base units.|
+|`quantity_out: u128`|The order expected output quantity in the output asset's base units.|
+|`assets_in_out: AssetIndexPair`|Swap's input & output assets as indices into the asset array. Asset A is the input asset, asset B the output asset.|
