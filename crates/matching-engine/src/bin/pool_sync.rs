@@ -81,9 +81,6 @@ async fn main() -> eyre::Result<()> {
                     let pool_guard = state_space_manager.pool().await;
                     let res = pool_guard.deref();
                     let changes_block_number = changes.1;
-                    // Load a fresh pool from the chain at the current block number
-                    // let current_block_number = ws_provider.get_block_by_number(BlockNumberOrTag::Number(changes.1)).await?;
-                    // tracing::info!("Loading fresh pool at block number: {}", changes_block_number);
                     let mut fresh_pool = EnhancedUniswapV3Pool::new(address, ticks_per_side);
                     fresh_pool.initialize(Some(changes_block_number), ws_provider.clone()).await?;
                     fresh_pool.sync_ticks(Some(changes_block_number), ws_provider.clone()).await?;

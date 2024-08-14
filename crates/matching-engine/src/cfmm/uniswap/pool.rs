@@ -375,6 +375,47 @@ mod test {
     }
 
     #[tokio::test]
+    async fn test_multiple_swaps() {
+        let block_number = 20522215;
+        let ticks_per_side = 200;
+        let provider = setup_provider().await;
+        let mut pool = setup_pool(provider.clone(), block_number, ticks_per_side).await;
+        pool.sync_ticks(Some(block_number), provider.clone()).await.expect("failed to sync ticks");
+
+        // Initial state check
+        assert_eq!(pool.sqrt_price, U256::from_str_radix("1522541228652157746214186795710203", 10).unwrap());
+        assert_eq!(pool.liquidity, 14623537689052122812u128);
+        assert_eq!(pool.tick, 197281);
+
+        // First swap
+        let token_in = pool.token_b;
+        let amount_in = U256::from_str_radix("300532960990132029", 10).unwrap();
+        let amount_out = pool.simulate_swap_mut(token_in, amount_in).expect("First swap simulation failed");
+        assert_eq!(amount_out, U256::from_str_radix("813383744", 10).unwrap());
+        assert_eq!(pool.sqrt_price, U256::from_str_radix("1522542856081131714601312592562953", 10).unwrap());
+        assert_eq!(pool.liquidity, 14623537689052122812u128);
+        assert_eq!(pool.tick, 197281);
+
+        // Second swap
+        let token_in = pool.token_b;
+        let amount_in = U256::from_str_radix("36948528148148111", 10).unwrap();
+        let amount_out = pool.simulate_swap_mut(token_in, amount_in).expect("Second swap simulation failed");
+        assert_eq!(amount_out, U256::from_str_radix("100000000", 10).unwrap());
+        assert_eq!(pool.sqrt_price, U256::from_str_radix("1522543056162696996744021728687215", 10).unwrap());
+        assert_eq!(pool.liquidity, 14623537689052122812u128);
+        assert_eq!(pool.tick, 197281);
+
+        // Third swap
+        let token_in = pool.token_b;
+        let amount_in = U256::from_str_radix("41238263733788147", 10).unwrap();
+        let amount_out = pool.simulate_swap_mut(token_in, amount_in).expect("Third swap simulation failed");
+        assert_eq!(amount_out, U256::from_str_radix("111610000", 10).unwrap());
+        assert_eq!(pool.sqrt_price, U256::from_str_radix("1522543279473794107054723771988160", 10).unwrap());
+        assert_eq!(pool.liquidity, 14623537689052122812u128);
+        assert_eq!(pool.tick, 197281);
+    }
+
+    #[tokio::test]
     #[ignore]
     async fn test_pool_manager() {
         let block_number = 20498069;
