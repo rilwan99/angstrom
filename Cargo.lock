@@ -175,6 +175,7 @@ dependencies = [
  "alloy-core",
  "alloy-eips 0.2.1",
  "alloy-genesis 0.2.1",
+ "alloy-json-rpc 0.2.1",
  "alloy-network 0.2.1",
  "alloy-provider 0.2.1",
  "alloy-pubsub 0.2.1",
@@ -5993,6 +5994,7 @@ dependencies = [
  "serde_json",
  "tokio",
  "tracing",
+ "tracing-subscriber",
  "uniswap_v3_math 0.4.1",
 ]
 

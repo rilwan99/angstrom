@@ -1,6 +1,7 @@
 
+use alloy_primitives::{BlockNumber, I256, U256};
 use amms::{
-    errors::EventLogError,
+    amm::uniswap_v3::IUniswapV3Pool, errors::EventLogError
 };
 use alloy::{
     network::Network,
@@ -18,8 +19,10 @@ use std::{
     sync::Arc,
 };
 use std::ops::Deref;
+use alloy::sol_types::SolEvent;
 use amms::amm::AutomatedMarketMaker;
 use amms::amm::uniswap_v3::UniswapV3Pool;
+use amms::state_space::error::StateSpaceError::{StateChangeError as StateChangeErrorEnum};
 use tokio::{
     sync::{
         mpsc::{Receiver, Sender},
@@ -27,6 +30,7 @@ use tokio::{
     },
     task::JoinHandle,
 };
+use crate::cfmm::uniswap::mock_block_stream::MockBlockStream;
 
 pub type StateChangeCache = ArrayDeque<StateChange, 150>;
 
@@ -40,6 +44,7 @@ pub struct UniswapPoolManager<T, N, P> {
     provider: Arc<P>,
     transport: PhantomData<T>,
     network: PhantomData<N>,
+    mock_block_stream: Arc<Option<MockBlockStream<T, N, P>>>,
 }
 
 impl<T, N, P> UniswapPoolManager<T, N, P>
@@ -54,6 +59,7 @@ where
         stream_buffer: usize,
         state_change_buffer: usize,
         provider: Arc<P>,
+        mock_block_stream: Option<MockBlockStream<T, N, P>>
     ) -> Self {
         Self {
             pool: Arc::new(RwLock::new(pool)),
@@ -64,8 +70,10 @@ where
             provider,
             transport: PhantomData,
             network: PhantomData,
+            mock_block_stream: Arc::new(mock_block_stream),
         }
     }
+
     pub async fn pool(&self) -> tokio::sync::RwLockReadGuard<UniswapV3Pool> {
         self.pool.read().await
     }
@@ -83,7 +91,7 @@ where
         &self,
     ) -> Result<
         (
-            Receiver<Option<Address>>,
+            Receiver<(Option<Address>,BlockNumber)>,
             Vec<JoinHandle<Result<(), StateSpaceError>>>,
         ),
         StateSpaceError,
@@ -94,13 +102,23 @@ where
             tokio::sync::mpsc::channel(self.stream_buffer);
 
         let provider = self.provider.clone();
+        let mock_block_stream = self.mock_block_stream.clone();
         let stream_handle = tokio::spawn(async move {
-            let subscription = provider.subscribe_blocks().await?;
-            let mut block_stream = subscription.into_stream();
-            while let Some(block) = block_stream.next().await {
-                stream_tx.send(block).await?;
-            }
-
+             match mock_block_stream.as_ref() {
+                Some(provider) => {
+                    let mut block_stream = provider.subscribe_blocks().await.expect("the stream");
+                    while let Some(block) = block_stream.next().await {
+                        stream_tx.send(block).await?;
+                    }
+                },
+                None => {
+                    let subscription =  provider.subscribe_blocks().await?;
+                    let mut block_stream = subscription.into_stream();
+                    while let Some(block) = block_stream.next().await {
+                        stream_tx.send(block).await?;
+                    }
+                }
+            };
             Ok::<(), StateSpaceError>(())
         });
 
@@ -160,7 +178,7 @@ where
                             )
                                 .await?;
 
-                            if let Err(e) = pool_updated_tx.send(pool_updated).await {
+                            if let Err(e) = pool_updated_tx.send((pool_updated, chain_head_block_number as BlockNumber)).await {
                                 tracing::error!("Failed to send pool update: {}", e);
                             }
                         }
@@ -344,6 +362,7 @@ pub async fn handle_state_changes_from_logs(
 
         // check if the log is for our pool
         if log.address() == pool.read().await.address() {
+            tracing::debug!(block_number=log_block_number, pool_address=?log.address(), "Log change");
             if !pool_updated {
                 pool_updated = true;
                 pool_address = Some(log.address());
@@ -351,7 +370,35 @@ pub async fn handle_state_changes_from_logs(
 
             let mut pool = pool.write().await;
             let pool_clone = pool.clone();
-            pool.sync_from_log(log)?;
+
+            // ==== CHANGES ==== //
+            // pool.sync_from_log(log)?;
+            let event_signature = log.topics()[0];
+
+            if event_signature == IUniswapV3Pool::Burn::SIGNATURE_HASH {
+                pool.sync_from_burn_log(log).expect("applying the burn");
+            } else if event_signature == IUniswapV3Pool::Mint::SIGNATURE_HASH {
+                pool.sync_from_mint_log(log).expect("applying the mint");
+            } else if event_signature == IUniswapV3Pool::Swap::SIGNATURE_HASH {
+                // Parse the swap event and call simulate_swap_mut
+                let swap_event = IUniswapV3Pool::Swap::decode_log(&log.inner, true).expect("decoding the log");
+                let token_in = if swap_event.amount0 > I256::ZERO {
+                    pool.token_a
+                } else {
+                    pool.token_b
+                };
+                let amount_in = if swap_event.amount0 < I256::ZERO {
+                    U256::try_from(swap_event.amount1).map_err(|e| StateChangeError::CapacityError)?
+                } else {
+                    U256::try_from(swap_event.amount0).map_err(|e| StateChangeError::CapacityError)?
+                };
+                 tracing::debug!(?swap_event, address = ?pool.address, sqrt_price = ?pool.sqrt_price, liquidity = ?pool.liquidity, tick = ?pool.tick, "UniswapV3 swap event");
+                let amount = pool.simulate_swap_mut(token_in, amount_in).expect("applying the simulate");
+                // pool.sync_from_swap_log(log).map_err(StateChangeError)?;
+            } else {
+                Err(EventLogError::InvalidEventSignature)?
+            }
+            // ==== CHANGES ==== //
 
             // Commit state changes if the block has changed since last log
             if log_block_number != last_log_block_number {

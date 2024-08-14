@@ -19,6 +19,7 @@ pub mod math;
 pub mod pool;
 mod loader;
 pub mod pool_manager;
+pub mod mock_block_stream;
 
 /// A Tick is represented as an i32 as its value range is from around
 /// -900000..900000
