@@ -9,7 +9,7 @@ struct RewardsUpdate {
     int24 startTick;
     uint128 startLiquidity;
     uint128 currentTickReward;
-    uint128[] amounts;
+    uint128[] quantities;
 }
 
 struct PoolRewardsUpdate {
@@ -27,16 +27,16 @@ library PoolRewardsUpdateLib {
     using AssetLib for Asset[];
 
     function encode(RewardsUpdate memory self) internal pure returns (bytes memory) {
-        bytes memory encodedAmounts;
-        for (uint256 i = 0; i < self.amounts.length; i++) {
-            encodedAmounts = bytes.concat(encodedAmounts, bytes16(self.amounts[i]));
+        bytes memory encodedQuantities;
+        for (uint256 i = 0; i < self.quantities.length; i++) {
+            encodedQuantities = bytes.concat(encodedQuantities, bytes16(self.quantities[i]));
         }
-        encodedAmounts = bytes.concat(bytes2(encodedAmounts.length.toUint16()), encodedAmounts);
+        encodedQuantities = bytes.concat(bytes2(encodedQuantities.length.toUint16()), encodedQuantities);
 
         return bytes.concat(
             bytes3(uint24(self.startTick)),
             bytes16(self.startLiquidity),
-            encodedAmounts,
+            encodedQuantities,
             bytes16(self.currentTickReward)
         );
     }

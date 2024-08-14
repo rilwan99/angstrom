@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 struct PoolRewards {
-    mapping(int24 => uint256) growthOutsideTick;
+    mapping(int24 => uint256) rewardGrowthOutside;
     uint256 globalGrowth;
 }
 
@@ -15,8 +15,8 @@ library PoolRewardsLib {
         view
         returns (uint256)
     {
-        uint256 lowerGrowth = self.growthOutsideTick[lower];
-        uint256 upperGrowth = self.growthOutsideTick[upper];
+        uint256 lowerGrowth = self.rewardGrowthOutside[lower];
+        uint256 upperGrowth = self.rewardGrowthOutside[upper];
         if (current < lower) {
             return lowerGrowth - upperGrowth;
         } else if (current >= upper) {

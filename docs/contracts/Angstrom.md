@@ -123,7 +123,7 @@ to net out multiple swaps against the same pool into one to save on gas.
 |`assets: AssetIndexPair`|Swap's input & output assets as indices into the asset array. Asset A is the input asset, asset B the output asset.|
 |`quantity_in: u128`|The swap input quantity in the input asset's base units.|
 
-#### `TopOfBlockOrder`
+#### 🚧 `TopOfBlockOrder`
 
 Solidity: [decoding implementation (`src/Angstrom.sol:Angstrom._validateAndExecuteToB`)](../../contracts/src/Angstrom.sol) | [reference encoding (`src/reference/OrderTypes.sol`)](../../contracts/src/reference/OrderTypes.sol).
 
@@ -145,3 +145,89 @@ struct TopOfBlockOrder {
 |`quantity_in: u128`|The order offered input quanity in the input asset's base units.|
 |`quantity_out: u128`|The order expected output quantity in the output asset's base units.|
 |`assets_in_out: AssetIndexPair`|Swap's input & output assets as indices into the asset array. Asset A is the input asset, asset B the output asset.|
+
+#### `PoolRewardsUpdate`
+
+
+```rust
+struct PoolRewardsUpdate {
+    assets: AssetIndexPair,
+    update: RewardsUpdate
+}
+```
+
+The `PoolRewardsUpdate` struct and its parameters instruct the contract how to account and
+distribute rewards to different ticks. Similar to Uniswap pool rewards are accounted by tick by
+tracking the "cumulative growth outside".
+
+|Field|Description|
+|-----|-----------|
+|`assets: AssetIndexPair`|Asset 0 & 1 of the pool to reward as indices into the assets array.|
+|`update: RewardsUpdate`|The reward update data for the select pool (more below).|
+
+**Rewards Update**
+
+```rust
+
+struct RewardsUpdate {
+    start_tick: i24,
+    start_liquidity: u128,
+    quantities: Sequence<2, u128>
+}
+```
+
+To gain a better intuition over how parameters need to be set it's good to have an understanding how
+the meaning of a tick's `reward_growth_outside` changes _relative to the current tick_:
+
+![](./assets/fee-growth-outside-meaning.png)
+
+For ticks that are **below or at** the current tick their `reward_growth_outside` value represents the sum
+of all accrued rewards in the ticks below **excluding the tick's own rewards**.
+
+Conversely for ticks that are above the current tick their `reward_growth_outside` value represents
+the sum of all accrued rewards in the ticks above **including its own**.
+
+Generally the logic for updating pool rewards looks as follows:
+
+```python
+class Pool:
+    def update_rewards(
+        self,
+        start_tick: Tick,
+        reward_to_current: int,
+        quantities: list[int],
+        liquidity: int,
+        below: bool
+    ):
+        cumulative_reward_growth: float = 0
+
+        end_tick: Tick = get_current_tick()
+        ticks: list[Tick] = initialized_tick_range(start_tick, end_tick, include_end=below)
+        # Missing quantities interpreted as zeros
+        padded_quantities: list[int] = quantities + [0] * max(0, len(ticks) - len(quantities))
+
+        for tick, quantity in zip(ticks, padded_quantities):
+            cumulative_reward_growth += quantity / liquidity
+            tick.reward_growth_outside += cumulative_reward_growth
+
+            if below:
+                liquidity += tick.net_liquidity
+            else:
+                liquidity -= tick.net_liquidity
+
+        # Last quantity assumed to be reward for current tick.
+        if len(quantities) > len(ticks):
+            current_tick_reward: int = quantities[len(ticks)]
+            cumulative_reward_growth += current_tick_reward / liquidity
+
+        self.global_reward_growth += sum(quantities)
+
+        assert len(quantities) <= len(ticks) + 1, 'Unused quantities'
+        assert liquidity = get_current_liquidity(), 'Invalid set start liquidity'
+```
+
+|Field|Description |
+|-----|-----------|
+|`start_tick: i24`| When rewarding below the current tick: the first tick **above** the first tick to donate to. <br> When rewarding above: just the first tick actually being donated to. |
+|`start_liquidity: u128`|The current liquidity if `start_tick` were the current tick.|
+|`quantities: Sequence<2, u128>`|The reward for each initialized tick. Zeros at the end of the array can be left out. To donate to the current tick append a quantity.|

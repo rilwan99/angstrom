@@ -31,23 +31,20 @@ abstract contract RewardsUpdater {
             CalldataReader amountsEnd;
             (reader, amountsEnd) = reader.readU16End();
             (reader, total, cumulativeGrowth, endLiquidity) = startTick <= currentTick
-                ? _rewardBelow(poolRewards.growthOutsideTick, currentTick, reader, startTick, id, liquidity, amountsEnd)
-                : _rewardAbove(poolRewards.growthOutsideTick, currentTick, reader, startTick, id, liquidity, amountsEnd);
+                ? _rewardBelow(poolRewards.rewardGrowthOutside, currentTick, reader, startTick, id, liquidity, amountsEnd)
+                : _rewardAbove(poolRewards.rewardGrowthOutside, currentTick, reader, startTick, id, liquidity, amountsEnd);
         }
 
         uint128 currentLiquidity = _getCurrentLiquidity(id);
         if (endLiquidity != currentLiquidity) revert WrongEndLiquidity(endLiquidity, currentLiquidity);
 
-        uint256 currentTickReward;
-        (reader, currentTickReward) = reader.readU128();
-        total += currentTickReward;
-        poolRewards.globalGrowth += cumulativeGrowth + flatDivWad(currentTickReward, currentLiquidity);
+        poolRewards.globalGrowth += cumulativeGrowth;
 
         return (reader, total);
     }
 
     function _rewardBelow(
-        mapping(int24 => uint256) storage tickGrowthOutside,
+        mapping(int24 => uint256) storage rewardGrowthOutside,
         int24 endTick,
         CalldataReader reader,
         int24 tick,
@@ -70,7 +67,7 @@ abstract contract RewardsUpdater {
                 total += amount;
 
                 cumulativeGrowth += flatDivWad(amount, liquidity);
-                tickGrowthOutside[tick] += cumulativeGrowth;
+                rewardGrowthOutside[tick] += cumulativeGrowth;
 
                 liquidity = MixedSignLib.add(liquidity, _getNetTickLiquidity(id, tick));
             }
@@ -81,13 +78,20 @@ abstract contract RewardsUpdater {
             // "current tick" is uninitialized.
         } while (tick <= endTick);
 
+        if (reader != amountsEnd) {
+            uint256 currentTickReward;
+            (reader, currentTickReward) = reader.readU128();
+            total += currentTickReward;
+            cumulativeGrowth += flatDivWad(currentTickReward, liquidity);
+        }
+
         reader.requireAtEndOf(amountsEnd);
 
         return (reader, total, cumulativeGrowth, liquidity);
     }
 
     function _rewardAbove(
-        mapping(int24 => uint256) storage tickGrowthOutside,
+        mapping(int24 => uint256) storage rewardGrowthOutside,
         int24 endTick,
         CalldataReader reader,
         int24 tick,
@@ -110,7 +114,7 @@ abstract contract RewardsUpdater {
                 total += amount;
 
                 cumulativeGrowth += flatDivWad(amount, liquidity);
-                tickGrowthOutside[tick] += cumulativeGrowth;
+                rewardGrowthOutside[tick] += cumulativeGrowth;
 
                 liquidity = MixedSignLib.sub(liquidity, _getNetTickLiquidity(id, tick));
             }
@@ -120,6 +124,13 @@ abstract contract RewardsUpdater {
             // Break condition is the current tick bound to account for situations where the
             // "current tick" is uninitialized.
         } while (endTick < tick);
+
+        if (reader != amountsEnd) {
+            uint256 currentTickReward;
+            (reader, currentTickReward) = reader.readU128();
+            total += currentTickReward;
+            cumulativeGrowth += flatDivWad(currentTickReward, liquidity);
+        }
 
         reader.requireAtEndOf(amountsEnd);
 
