@@ -407,6 +407,7 @@ mod test {
         assert_eq!(pool.liquidity, 14623537689052122812u128);
         assert_eq!(pool.tick, 197281);
 
+        // First swap
         let token_in = pool.token_b;
         let amount_in = U256::from_str_radix("300532960990132029", 10).unwrap();
         let amount_out = pool.simulate_swap_mut(token_in, amount_in).expect("First swap simulation failed");
