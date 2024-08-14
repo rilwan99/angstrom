@@ -11,11 +11,13 @@ blsful.workspace = true
 bytes = "1.4"
 tracing.workspace = true
 thiserror.workspace = true
+itertools.workspace = true
 serde_json.workspace = true
 reth-primitives.workspace = true
 revm.workspace = true
 reth-codecs.workspace = true
 secp256k1.workspace = true
+malachite = "0.4.0"
 open-fastrlp = "0.1.4"
 hex-literal = "0.4.1"
 anyhow.workspace = true
@@ -27,6 +29,7 @@ alloy-rlp.workspace = true
 alloy-rlp-derive.workspace = true
 derive_more = "0.99.17"
 eyre.workspace = true
+bincode = { workspace = true, features = ["derive", "serde"] }
 
 alloy-contract = "0.1.3"
 serde = { workspace = true, optional = true, default-features = false, features = [

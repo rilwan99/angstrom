@@ -1,10 +1,13 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    fmt::Debug,
+    sync::{Arc, Mutex}
+};
 
 use alloy_primitives::FixedBytes;
 use angstrom_types::{
-    orders::OrderId,
+    orders::{OrderId, OrderSet},
     sol_bindings::{
-        grouped_orders::{AllOrders, GroupedUserOrder, OrderWithStorageData},
+        grouped_orders::{AllOrders, GroupedUserOrder, GroupedVanillaOrder, OrderWithStorageData},
         sol::TopOfBlockOrder
     }
 };
@@ -17,11 +20,18 @@ use crate::{
 };
 
 /// The Storage of all verified orders.
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct OrderStorage {
     pub limit_orders:                Arc<Mutex<LimitOrderPool>>,
     pub searcher_orders:             Arc<Mutex<SearcherPool>>,
     pub pending_finalization_orders: Arc<Mutex<FinalizationPool>>
+}
+
+impl Debug for OrderStorage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Simplified implementation for the moment
+        write!(f, "OrderStorage")
+    }
 }
 
 impl OrderStorage {
@@ -120,5 +130,16 @@ impl OrderStorage {
 
     pub fn remove_limit_order(&self, id: &OrderId) -> Option<OrderWithStorageData<AllOrders>> {
         self.limit_orders.lock().expect("poisoned").remove_order(id)
+    }
+
+    pub fn get_all_orders(&self) -> OrderSet<GroupedVanillaOrder, TopOfBlockOrder> {
+        let limit = self.limit_orders.lock().expect("poisoned").get_all_orders();
+        let searcher = self
+            .searcher_orders
+            .lock()
+            .expect("poisoned")
+            .get_all_orders();
+
+        OrderSet { limit, searcher }
     }
 }

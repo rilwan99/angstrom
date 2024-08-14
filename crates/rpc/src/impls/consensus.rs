@@ -1,4 +1,4 @@
-use angstrom_utils::ConsensusState;
+use consensus::ConsensusState;
 use jsonrpsee::{core::RpcResult, PendingSubscriptionSink};
 
 use crate::{api::ConsensusApiServer, types::ConsensusSubscriptionKind};

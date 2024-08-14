@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    future::IntoFuture,
     marker::PhantomData,
     num::NonZeroUsize,
     pin::Pin,
@@ -9,12 +10,17 @@ use std::{
 
 use angstrom_eth::manager::EthEvent;
 use angstrom_types::{
-    orders::{OrderOrigin, OrderPriorityData, PooledOrder},
+    orders::{OrderOrigin, OrderPriorityData, OrderSet},
     rpc::*,
-    sol_bindings::grouped_orders::{AllOrders, PoolOrder}
+    sol_bindings::{
+        grouped_orders::{AllOrders, GroupedVanillaOrder, OrderWithStorageData, RawPoolOrder},
+        sol::TopOfBlockOrder
+    }
 };
 use futures::{future::BoxFuture, stream::FuturesUnordered, Future, StreamExt};
-use order_pool::{OrderIndexer, OrderPoolHandle, PoolConfig, PoolInnerEvent};
+use order_pool::{
+    order_storage::OrderStorage, OrderIndexer, OrderPoolHandle, PoolConfig, PoolInnerEvent
+};
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_network_peers::PeerId;
 use reth_primitives::{TxHash, B256};
@@ -25,7 +31,7 @@ use tokio::sync::{
     oneshot
 };
 use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
-use validation::order::OrderValidatorHandle;
+use validation::order::{self, OrderValidatorHandle};
 
 use crate::{
     LruCache, NetworkOrderEvent, ReputationChangeKind, StromMessage, StromNetworkEvent,
@@ -51,6 +57,11 @@ impl PoolHandle {
     fn send(&self, cmd: OrderCommand) {
         let _ = self.manager_tx.send(cmd);
     }
+
+    async fn send_request<T>(&self, rx: oneshot::Receiver<T>, cmd: OrderCommand) -> T {
+        self.send(cmd);
+        rx.await.unwrap()
+    }
 }
 
 impl OrderPoolHandle for PoolHandle {
@@ -64,6 +75,7 @@ where
     V: OrderValidatorHandle
 {
     validator:            V,
+    order_storage:        Option<Arc<OrderStorage>>,
     network_handle:       StromNetworkHandle,
     strom_network_events: UnboundedReceiverStream<StromNetworkEvent>,
     eth_network_events:   UnboundedReceiverStream<EthEvent>,
@@ -77,6 +89,7 @@ where
 {
     pub fn new(
         validator: V,
+        order_storage: Option<Arc<OrderStorage>>,
         network_handle: StromNetworkHandle,
         eth_network_events: UnboundedReceiverStream<EthEvent>,
         order_events: UnboundedMeteredReceiver<NetworkOrderEvent>
@@ -87,12 +100,18 @@ where
             strom_network_events: network_handle.subscribe_network_events(),
             network_handle,
             validator,
+            order_storage,
             config: Default::default()
         }
     }
 
     pub fn with_config(mut self, config: PoolConfig) -> Self {
         self.config = config;
+        self
+    }
+
+    pub fn with_storage(mut self, order_storage: Arc<OrderStorage>) -> Self {
+        self.order_storage.insert(order_storage);
         self
     }
 
@@ -103,20 +122,24 @@ where
         rx: UnboundedReceiver<OrderCommand>
     ) -> PoolHandle {
         let rx = UnboundedReceiverStream::new(rx);
+        let order_storage = self
+            .order_storage
+            .unwrap_or_else(|| Arc::new(OrderStorage::new(&self.config)));
         let handle = PoolHandle { manager_tx: tx.clone() };
-        let inner = OrderIndexer::new(self.validator, self.config, 0);
+        let inner = OrderIndexer::new(self.validator, order_storage.clone(), 0);
 
         task_spawner.spawn_critical(
             "transaction manager",
             Box::pin(PoolManager {
-                eth_network_events:   self.eth_network_events,
+                eth_network_events: self.eth_network_events,
                 strom_network_events: self.strom_network_events,
-                order_events:         self.order_events,
-                peers:                HashMap::default(),
-                order_sorter:         inner,
-                network:              self.network_handle,
-                _command_tx:          tx,
-                command_rx:           rx
+                order_events: self.order_events,
+                order_storage,
+                peers: HashMap::default(),
+                order_sorter: inner,
+                network: self.network_handle,
+                _command_tx: tx,
+                command_rx: rx
             })
         );
 
@@ -126,20 +149,24 @@ where
     pub fn build<TP: TaskSpawner>(self, task_spawner: TP) -> PoolHandle {
         let (tx, rx) = unbounded_channel();
         let rx = UnboundedReceiverStream::new(rx);
+        let order_storage = self
+            .order_storage
+            .unwrap_or_else(|| Arc::new(OrderStorage::new(&self.config)));
         let handle = PoolHandle { manager_tx: tx.clone() };
-        let inner = OrderIndexer::new(self.validator, self.config, 0);
+        let inner = OrderIndexer::new(self.validator, order_storage.clone(), 0);
 
         task_spawner.spawn_critical(
             "transaction manager",
             Box::pin(PoolManager {
-                eth_network_events:   self.eth_network_events,
+                eth_network_events: self.eth_network_events,
                 strom_network_events: self.strom_network_events,
-                order_events:         self.order_events,
-                peers:                HashMap::default(),
-                order_sorter:         inner,
-                network:              self.network_handle,
-                _command_tx:          tx,
-                command_rx:           rx
+                order_events: self.order_events,
+                order_storage,
+                peers: HashMap::default(),
+                order_sorter: inner,
+                network: self.network_handle,
+                _command_tx: tx,
+                command_rx: rx
             })
         );
 
@@ -153,6 +180,8 @@ where
 {
     /// access to validation and sorted storage of orders.
     order_sorter:         OrderIndexer<V>,
+    /// Shared order storage object
+    order_storage:        Arc<OrderStorage>,
     /// Network access.
     network:              StromNetworkHandle,
     /// Subscriptions to all the strom-network related events.
@@ -183,12 +212,14 @@ where
         eth_network_events: UnboundedReceiverStream<EthEvent>,
         _command_tx: UnboundedSender<OrderCommand>,
         command_rx: UnboundedReceiverStream<OrderCommand>,
-        order_events: UnboundedMeteredReceiver<NetworkOrderEvent>
+        order_events: UnboundedMeteredReceiver<NetworkOrderEvent>,
+        order_storage: Arc<OrderStorage>
     ) -> Self {
         Self {
             strom_network_events,
             network,
             order_sorter,
+            order_storage,
             peers: HashMap::new(),
             order_events,
             command_rx,
@@ -389,7 +420,7 @@ pub enum NetworkTransactionEvent {
     /// Received list of transactions from the given peer.
     ///
     /// This represents transactions that were broadcasted to use from the peer.
-    IncomingOrders { peer_id: PeerId, msg: Vec<PooledOrder> }
+    IncomingOrders { peer_id: PeerId, msg: Vec<AllOrders> }
 }
 
 /// Tracks a single peer

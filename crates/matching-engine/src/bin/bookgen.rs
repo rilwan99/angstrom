@@ -1,7 +1,8 @@
+use angstrom_types::matching::SqrtPriceX96;
 use clap::Parser;
 use matching_engine::{
     book::{sort::SortStrategy, OrderBook},
-    cfmm::uniswap::{math::tick_at_sqrt_price, SqrtPriceX96},
+    cfmm::uniswap::math::tick_at_sqrt_price,
     simulation::{amm::single_position_amm, orders::order_distribution},
     strategy::{MatchingStrategy, SimpleCheckpointStrategy}
 };
@@ -47,7 +48,8 @@ fn main() {
     let args = Args::parse();
 
     let asks = order_distribution(
-        100,
+        false,
+        10,
         args.price,
         args.ask_price_scale,
         args.ask_price_shape,
@@ -58,7 +60,8 @@ fn main() {
     .unwrap();
 
     let bids = order_distribution(
-        100,
+        true,
+        10,
         args.price,
         args.bid_price_scale,
         args.bid_price_shape,
@@ -69,9 +72,12 @@ fn main() {
     .unwrap();
 
     let middle_tick = tick_at_sqrt_price(SqrtPriceX96::from_float_price(args.price)).unwrap();
-    let amm = single_position_amm(middle_tick, 10000, 2e18 as u128).unwrap();
+    let amm = single_position_amm(middle_tick, 10000, 2e36 as u128).unwrap();
 
-    let book = OrderBook::new(Some(amm), bids, asks, Some(SortStrategy::ByPriceByVolume));
+    let book = OrderBook::new(10, Some(amm), bids, asks, Some(SortStrategy::ByPriceByVolume));
+
+    //println!("Orderbook\n{:?}", book.amm());
+    //return;
 
     // We're going to solve using our Simple Checkpoint Strategy
     let solved = SimpleCheckpointStrategy::run(&book).unwrap();
@@ -81,5 +87,5 @@ fn main() {
     println!("{} bids filled", solved.bid_outcomes.iter().filter(|x| x.is_filled()).count());
     println!("{} asks filled", solved.ask_outcomes.iter().filter(|x| x.is_filled()).count());
     println!("{:?}", results);
-    println!("{:?}", solved.crosspool_outcomes())
+    // println!("{:?}", solved.crosspool_outcomes())
 }

@@ -1,4 +1,4 @@
-use angstrom_utils::ConsensusState;
+use consensus::ConsensusState;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 use crate::types::subscriptions::ConsensusSubscriptionKind;

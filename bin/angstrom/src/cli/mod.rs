@@ -1,9 +1,13 @@
 //! CLI definition and entrypoint to executable
-use std::path::PathBuf;
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex}
+};
 
 use angstrom_network::manager::StromConsensusEvent;
+use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_node_builder::{FullNode, NodeHandle};
-use secp256k1::{PublicKey, Secp256k1};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use tokio::sync::mpsc::{
     channel, unbounded_channel, Receiver, Sender, UnboundedReceiver, UnboundedSender
 };
@@ -18,12 +22,12 @@ use angstrom_network::{
     NetworkBuilder as StromNetworkBuilder, NetworkOrderEvent, PoolManagerBuilder, StatusState,
     VerificationSidecar
 };
-use angstrom_rpc::{
-    api::{ConsensusApiServer, OrderApiServer, QuotingApiServer},
-    ConsensusApi, OrderApi, QuotesApi
-};
+use angstrom_rpc::{api::OrderApiServer, OrderApi};
 use clap::Parser;
-use consensus::{ConsensusCommand, ConsensusHandle, ConsensusManager, ManagerNetworkDeps, Signer};
+use consensus::{
+    ConsensusCommand, ConsensusHandle, ConsensusManager, GlobalConsensusState, ManagerNetworkDeps,
+    Signer
+};
 use reth::{
     args::get_secret_key,
     builder::{FullNodeComponents, Node},
@@ -47,13 +51,15 @@ pub fn run() -> eyre::Result<()> {
     Cli::<AngstromConfig>::parse().run(|builder, args| async move {
         let executor = builder.task_executor().clone();
 
-        let mut network = init_network_builder(&args)?;
+        let secret_key = get_secret_key(&args.secret_key_location)?;
+
+        let mut network = init_network_builder(secret_key)?;
         let protocol_handle = network.build_protocol_handler();
         let channels = initialize_strom_handles();
 
         // for rpc
         let pool = channels.get_pool_handle();
-        let consensus = channels.get_consensus_handle();
+        // let consensus = channels.get_consensus_handle();
 
         let NodeHandle { node, node_exit_future } = builder
             .with_types::<EthereumNode>()
@@ -64,32 +70,31 @@ pub fn run() -> eyre::Result<()> {
             )
             .extend_rpc_modules(move |rpc_components| {
                 let order_api = OrderApi { pool: pool.clone() };
-                let quotes_api = QuotesApi { pool: pool.clone() };
-                let consensus_api = ConsensusApi { consensus: consensus.clone() };
+                // let quotes_api = QuotesApi { pool: pool.clone() };
+                // let consensus_api = ConsensusApi { consensus: consensus.clone() };
 
                 rpc_components
                     .modules
                     .merge_configured(order_api.into_rpc())?;
-                rpc_components
-                    .modules
-                    .merge_configured(quotes_api.into_rpc())?;
-                rpc_components
-                    .modules
-                    .merge_configured(consensus_api.into_rpc())?;
+                // rpc_components
+                //     .modules
+                //     .merge_configured(quotes_api.into_rpc())?;
+                // rpc_components
+                //     .modules
+                //     .merge_configured(consensus_api.into_rpc())?;
 
                 Ok(())
             })
             .launch()
             .await?;
 
-        initialize_strom_components(args, channels, network, node, &executor);
+        initialize_strom_components(args, secret_key, channels, network, node, &executor);
 
         node_exit_future.await
     })
 }
 
-pub fn init_network_builder(config: &AngstromConfig) -> eyre::Result<StromNetworkBuilder> {
-    let secret_key = get_secret_key(&config.secret_key_location)?;
+pub fn init_network_builder(secret_key: SecretKey) -> eyre::Result<StromNetworkBuilder> {
     let public_key = PublicKey::from_secret_key(&Secp256k1::new(), &secret_key);
 
     let state = StatusState {
@@ -159,6 +164,7 @@ pub fn initialize_strom_handles() -> StromHandles {
 
 pub fn initialize_strom_components<Node: FullNodeComponents>(
     config: AngstromConfig,
+    secret_key: SecretKey,
     handles: StromHandles,
     network_builder: StromNetworkBuilder,
     node: FullNode<Node>,
@@ -184,18 +190,31 @@ pub fn initialize_strom_components<Node: FullNodeComponents>(
         eth_handle.subscribe_network_stream()
     );
 
-    let pool_handle = PoolManagerBuilder::new(
+    // Create our pool config
+    let pool_config = PoolConfig::default();
+
+    // Create order storage based on that config
+    let order_storage = Arc::new(OrderStorage::new(&pool_config));
+
+    // Build our PoolManager using the PoolConfig and OrderStorage we've already
+    // created
+    let _pool_handle = PoolManagerBuilder::new(
         validator.clone(),
+        Some(order_storage.clone()),
         network_handle.clone(),
         eth_handle.subscribe_network(),
         handles.pool_rx
     )
+    .with_config(pool_config)
     .build_with_channels(executor.clone(), handles.orderpool_tx, handles.orderpool_rx);
 
-    let signer = Signer::default();
+    let signer = Signer::new(secret_key);
+
+    let global_consensus_state = Arc::new(Mutex::new(GlobalConsensusState::default()));
 
     let _consensus_handle = ConsensusManager::spawn(
         executor.clone(),
+        global_consensus_state,
         ManagerNetworkDeps::new(
             network_handle.clone(),
             node.provider.subscribe_to_canonical_state(),
@@ -204,8 +223,8 @@ pub fn initialize_strom_components<Node: FullNodeComponents>(
             handles.consensus_rx
         ),
         signer,
-        pool_handle.clone(),
-        validator.clone()
+        order_storage.clone(),
+        None
     );
 }
 

@@ -8,6 +8,7 @@ use angstrom_types::{
 use super::{parked::ParkedPool, pending::PendingPool};
 use crate::limit::LimitPoolError;
 
+#[derive(Default)]
 pub struct LimitPool {
     pending_orders: HashMap<PoolId, PendingPool<GroupedVanillaOrder>>,
     parked_orders:  HashMap<PoolId, ParkedPool>
@@ -56,5 +57,12 @@ impl LimitPool {
                     .get_mut(&pool_id)
                     .and_then(|pool| pool.remove_order(order_id))
             })
+    }
+
+    pub fn get_all_orders(&self) -> Vec<OrderWithStorageData<GroupedVanillaOrder>> {
+        self.pending_orders
+            .values()
+            .flat_map(|p| p.get_all_orders())
+            .collect()
     }
 }

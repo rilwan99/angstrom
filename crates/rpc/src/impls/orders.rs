@@ -1,8 +1,8 @@
 use alloy_primitives::Bytes;
-use jsonrpsee::{core::RpcResult, PendingSubscriptionSink};
+use jsonrpsee::core::RpcResult;
 use order_pool::OrderPoolHandle;
 
-use crate::{api::OrderApiServer, types::OrderSubscriptionKind};
+use crate::api::OrderApiServer;
 
 pub struct OrderApi<OrderPool> {
     pub pool: OrderPool
@@ -44,11 +44,11 @@ where
         Ok(true)
     }
 
-    async fn subscribe_orders(
-        &self,
-        _pending: PendingSubscriptionSink,
-        _kind: OrderSubscriptionKind
-    ) -> jsonrpsee::core::SubscriptionResult {
-        todo!()
-    }
+    // async fn subscribe_orders(
+    //     &self,
+    //     _pending: PendingSubscriptionSink,
+    //     _kind: OrderSubscriptionKind
+    // ) -> jsonrpsee::core::SubscriptionResult {
+    //     todo!()
+    // }
 }

@@ -1,8 +1,16 @@
+use alloy_primitives::U256;
+use angstrom_types::{
+    matching::Ray,
+    orders::{OrderId, OrderPriorityData},
+    sol_bindings::{
+        grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
+        sol::FlashOrder
+    }
+};
 use rand_distr::{Distribution, SkewNormal};
 
-use crate::book::order::{LimitOrder, Order};
-
-pub fn order_distribution<'a>(
+pub fn order_distribution(
+    is_bid: bool,
     number: usize,
     price_location: f64,
     price_scale: f64,
@@ -10,7 +18,7 @@ pub fn order_distribution<'a>(
     quantity_location: f64,
     quantity_scale: f64,
     quantity_shape: f64
-) -> Result<Vec<Order<'a>>, String> {
+) -> Result<Vec<OrderWithStorageData<GroupedVanillaOrder>>, String> {
     let mut rng = rand::thread_rng();
     let mut rng2 = rand::thread_rng();
     let price_gen = SkewNormal::new(price_location, price_scale, price_shape)
@@ -20,7 +28,27 @@ pub fn order_distribution<'a>(
     Ok(price_gen
         .sample_iter(&mut rng)
         .zip(quantity_gen.sample_iter(&mut rng2))
-        .map(|(p, q)| Order::KillOrFill(LimitOrder::new(p, q)))
+        .map(|(p, q)| {
+            let order = GroupedVanillaOrder::KillOrFill(FlashOrder {
+                max_amount_in_or_out: U256::from(q.floor()),
+                min_price: Ray::from(p).into(),
+                ..FlashOrder::default()
+            });
+            OrderWithStorageData {
+                order,
+                priority_data: OrderPriorityData {
+                    price:  p as u128,
+                    volume: q as u128,
+                    gas:    0
+                },
+                is_bid,
+                is_valid: true,
+                is_currently_valid: true,
+                order_id: OrderId::default(),
+                pool_id: 0,
+                valid_block: 0
+            }
+        })
         .take(number)
         .collect())
 }

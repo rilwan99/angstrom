@@ -1,10 +1,11 @@
 mod volume;
+use angstrom_types::{
+    matching::SqrtPriceX96,
+    orders::{OrderPrice, OrderVolume}
+};
 pub use volume::VolumeFillMatcher;
 
-use crate::{
-    book::{order::OrderDirection, OrderPrice, OrderVolume},
-    cfmm::uniswap::SqrtPriceX96
-};
+use crate::book::order::OrderDirection;
 
 /// Preliminary implementation of a struct that captures all the information
 /// we'd want to get out of a finished match for us to use for heurestics and

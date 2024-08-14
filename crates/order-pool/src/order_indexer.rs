@@ -2,16 +2,20 @@ use std::{
     collections::{HashMap, HashSet},
     ops::Deref,
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll},
     time::{Duration, SystemTime, UNIX_EPOCH}
 };
 
 use alloy_primitives::{B256, U256};
 use angstrom_types::{
-    orders::{OrderId, OrderOrigin},
+    orders::{OrderId, OrderOrigin, OrderSet},
     primitive::PoolId,
-    sol_bindings::grouped_orders::{
-        AllOrders, GroupedComposableOrder, GroupedVanillaOrder, OrderWithStorageData, *
+    sol_bindings::{
+        grouped_orders::{
+            AllOrders, GroupedComposableOrder, GroupedVanillaOrder, OrderWithStorageData, *
+        },
+        sol::TopOfBlockOrder
     }
 };
 use futures_util::{Stream, StreamExt};
@@ -20,16 +24,15 @@ use reth_primitives::Address;
 use tracing::{error, trace};
 use validation::order::OrderValidatorHandle;
 
-use crate::{config::PoolConfig, order_storage::OrderStorage, validator::PoolOrderValidator};
+use crate::{order_storage::OrderStorage, validator::PoolOrderValidator};
 
 /// This is used to remove validated orders. During validation
 /// the same check wil be ran but with more accuracy
 const ETH_BLOCK_TIME: Duration = Duration::from_secs(12);
 
 pub struct OrderIndexer<V: OrderValidatorHandle> {
-    _config:                PoolConfig,
     /// order storage
-    order_storage:          OrderStorage,
+    order_storage:          Arc<OrderStorage>,
     /// Address to order id, used for eoa invalidation
     address_to_orders:      HashMap<Address, Vec<OrderId>>,
     /// touched addresses transition
@@ -53,11 +56,10 @@ impl<V: OrderValidatorHandle> Deref for OrderIndexer<V> {
 }
 
 impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
-    pub fn new(validator: V, config: PoolConfig, block_number: u64) -> Self {
+    pub fn new(validator: V, order_storage: Arc<OrderStorage>, block_number: u64) -> Self {
         Self {
-            order_storage: OrderStorage::new(&config),
+            order_storage,
             block_number,
-            _config: config,
             address_to_orders: HashMap::new(),
             hash_to_order_id: HashMap::new(),
             pending_order_indexing: HashMap::new(),
@@ -269,6 +271,10 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         // nonce overlap is checked during validation so its ok we
         // don't check for duplicates
         self.address_to_orders.entry(user).or_default().push(id);
+    }
+
+    pub fn get_all_orders(&self) -> OrderSet<GroupedVanillaOrder, TopOfBlockOrder> {
+        self.order_storage.get_all_orders()
     }
 }
 

@@ -1,10 +1,9 @@
-use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
-use serde::{Deserialize, Serialize};
+use bincode::{Decode, Encode};
 
-use crate::rpc::SignedLimitOrder;
+use crate::sol_bindings::grouped_orders::AllOrders;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, RlpEncodable, RlpDecodable)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct OrderBuffer {
-    pub excess_orders:  Vec<SignedLimitOrder>,
-    pub reserve_orders: Vec<SignedLimitOrder>
+    pub excess_orders:  Vec<AllOrders>,
+    pub reserve_orders: Vec<AllOrders>
 }

@@ -1,24 +1,24 @@
-use std::{fmt, ops::Deref};
+use std::{fmt, hash::Hash, ops::Deref};
 
 use alloy_primitives::{Address, FixedBytes, TxHash, U256};
 use alloy_sol_types::SolStruct;
+use bincode::{Decode, Encode};
 use reth_primitives::B256;
 
 use super::FetchAssetIndexes;
 use crate::{
+    matching::Ray,
     orders::{OrderId, OrderPriorityData},
     primitive::PoolId,
     sol_bindings::sol::{FlashOrder, StandingOrder, TopOfBlockOrder}
 };
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Encode, Decode)]
 pub enum AllOrders {
     Partial(StandingOrder),
     KillOrFill(FlashOrder),
     TOB(TopOfBlockOrder)
 }
-
-impl AllOrders {}
 
 impl From<TopOfBlockOrder> for AllOrders {
     fn from(value: TopOfBlockOrder) -> Self {
@@ -68,7 +68,7 @@ impl AllOrders {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Encode, Decode)]
 pub struct OrderWithStorageData<Order> {
     /// raw order
     pub order:              Order,
@@ -86,6 +86,12 @@ pub struct OrderWithStorageData<Order> {
     pub valid_block:        u64,
     /// holds expiry data
     pub order_id:           OrderId
+}
+
+impl<Order> Hash for OrderWithStorageData<Order> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.order_id.hash(state)
+    }
 }
 
 impl OrderWithStorageData<AllOrders> {
@@ -149,7 +155,7 @@ impl GroupedUserOrder {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum GroupedVanillaOrder {
     Partial(StandingOrder),
     KillOrFill(FlashOrder)
@@ -162,9 +168,76 @@ impl GroupedVanillaOrder {
             Self::KillOrFill(k) => k.eip712_hash_struct()
         }
     }
+
+    pub fn float_price(&self) -> f64 {
+        match self {
+            Self::Partial(o) => Ray::from(o.min_price).as_f64(),
+            Self::KillOrFill(o) => Ray::from(o.min_price).as_f64()
+        }
+    }
+
+    pub fn price(&self) -> Ray {
+        match self {
+            Self::Partial(o) => o.min_price.into(),
+            Self::KillOrFill(o) => o.min_price.into()
+        }
+    }
+
+    pub fn quantity(&self) -> U256 {
+        match self {
+            Self::Partial(o) => o.max_amount_in_or_out,
+            Self::KillOrFill(o) => o.max_amount_in_or_out
+        }
+    }
+
+    pub fn fill(&self, filled_quantity: U256) -> Self {
+        match self {
+            Self::Partial(o) => Self::Partial(StandingOrder {
+                max_amount_in_or_out: o.max_amount_in_or_out - filled_quantity,
+                ..o.clone()
+            }),
+            Self::KillOrFill(o) => Self::KillOrFill(FlashOrder {
+                max_amount_in_or_out: o.max_amount_in_or_out - filled_quantity,
+                ..o.clone()
+            })
+        }
+    }
 }
 
-#[derive(Debug, Clone)]
+// impl Encodable for GroupedVanillaOrder {
+//     fn encode(&self, out: &mut dyn bytes::BufMut) {
+//         match self {
+//             Self::Partial(o) => {
+//                 0_u8.encode(out);
+//                 o.encode(out);
+//             }
+//             Self::KillOrFill(o) => {
+//                 1_u8.encode(out);
+//                 o.encode(out);
+//             }
+//         }
+//     }
+//
+//     fn length(&self) -> usize {
+//         match self {
+//             Self::Partial(o) => u8::length(&0_u8) + o.length(),
+//             Self::KillOrFill(o) => u8::length(&1_u8) + o.length()
+//         }
+//     }
+// }
+//
+// impl Decodable for GroupedVanillaOrder {
+//     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+//         let v = u8::decode(buf)?;
+//         match v {
+//             0 => Ok(Self::Partial(StandingOrder::decode(buf)?)),
+//             1 => Ok(Self::KillOrFill(FlashOrder::decode(buf)?)),
+//             _ => Err(alloy_rlp::Error::Custom("Unknown value when decoding
+// GroupedVanillaOrder"))         }
+//     }
+// }
+
+#[derive(Debug, Clone, Encode, Decode)]
 pub enum GroupedComposableOrder {
     Partial(StandingOrder),
     KillOrFill(FlashOrder)

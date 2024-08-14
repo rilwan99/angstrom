@@ -19,6 +19,7 @@ angstrom-rpc.workspace = true
 angstrom.workspace = true
 order-pool.workspace = true
 validation.workspace = true
+matching-engine.workspace = true
 
 reth-network-api.workspace = true
 reth-codecs.workspace = true
@@ -78,6 +79,7 @@ reth-db.workspace = true
 
 enr = { workspace = true, features = ["serde", "rust-secp256k1"] }
 rand.workspace = true
+rand_distr.workspace = true
 secp256k1.workspace = true
 
 # misc

@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use alloy_primitives::Address;
 use alloy_provider::Provider;
@@ -11,6 +11,7 @@ use angstrom_types::sol_bindings::{sol::ContractBundle, testnet::TestnetHub};
 use clap::Parser;
 use futures::StreamExt;
 use jsonrpsee::server::ServerBuilder;
+use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_provider::test_utils::NoopProvider;
 use reth_tasks::TokioTaskExecutor;
 use testnet::{
@@ -169,12 +170,17 @@ pub async fn spawn_testnet_node(
 
     let network_handle = network.handle.clone();
 
+    let pool_config = PoolConfig::default();
+    let order_storage = Arc::new(OrderStorage::new(&pool_config));
+
     let _pool_handle = PoolManagerBuilder::new(
         validator.clone(),
+        Some(order_storage.clone()),
         network_handle.clone(),
         eth_handle.subscribe_network(),
         handles.pool_rx
     )
+    .with_config(pool_config)
     .build_with_channels(executor, handles.orderpool_tx, handles.orderpool_rx);
 
     if let Some(port) = port {

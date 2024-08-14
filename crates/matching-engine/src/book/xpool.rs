@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
-use super::{order::OrderCoordinate, BookID};
+use angstrom_types::primitive::PoolId;
+
+use super::order::OrderCoordinate;
 
 #[derive(Clone, Debug)]
 pub struct XPoolOutcomes {
@@ -21,7 +23,7 @@ impl XPoolOutcomes {
         &self.dead
     }
 
-    pub fn valid_books(&self) -> HashSet<u128> {
+    pub fn valid_books(&self) -> HashSet<PoolId> {
         self.live
             .iter()
             .chain(self.dead.iter())
@@ -29,7 +31,7 @@ impl XPoolOutcomes {
             .collect()
     }
 
-    pub fn for_book(&self, book_id: BookID) -> Self {
+    pub fn for_book(&self, book_id: PoolId) -> Self {
         let live = self
             .live
             .iter()

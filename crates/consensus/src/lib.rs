@@ -1,17 +1,31 @@
-mod core;
+mod cache;
 mod evidence;
+mod global;
 mod manager;
 mod round;
 mod round_robin_algo;
 mod signer;
 
-pub use core::{ConsensusCore, ConsensusMessage};
 use std::pin::Pin;
 
+use angstrom_types::consensus::{Commit, PreProposal, Proposal};
 use futures::Stream;
+pub use global::*;
 pub use manager::*;
 pub use signer::*;
 
+#[derive(Debug, Clone)]
+pub enum ConsensusMessage {
+    /// Start/Cycle the consensus process as a new block has begun
+    NewBlock(u64),
+    /// All angstrom nodes broadcast their signed order pools to the network
+    PrePropose(PreProposal),
+    /// The Proposer broadcasts its signed proposal for validation.  This might
+    /// be after execution-time but all nodes need to review this information
+    Proposal(Proposal),
+    /// Commit or nil vote on whether the proposal was properly executed
+    Commit(Box<Commit>)
+}
 /// Listener for consensus data
 pub trait ConsensusListener: Send + Sync + 'static {
     /// subscribes to new messages from our consensus

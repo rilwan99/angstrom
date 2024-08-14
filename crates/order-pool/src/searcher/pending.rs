@@ -51,4 +51,9 @@ impl PendingPool {
         // probably fine to strip extra data here
         Some(order)
     }
+
+    pub fn get_all_orders(&self) -> Vec<OrderWithStorageData<TopOfBlockOrder>> {
+        // TODO:  This should maybe only return the one best Searcher order we've seen?
+        self.orders.values().cloned().collect()
+    }
 }
