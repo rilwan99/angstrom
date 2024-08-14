@@ -177,6 +177,11 @@ where
                                 logs,
                             )
                                 .await?;
+                            tracing::info!(
+                                block_number = chain_head_block_number,
+                                pool_address = ?pool_updated,
+                                "log changes applied to pool"
+                            );
 
                             if let Err(e) = pool_updated_tx.send((pool_updated, chain_head_block_number as BlockNumber)).await {
                                 tracing::error!("Failed to send pool update: {}", e);
@@ -362,7 +367,7 @@ pub async fn handle_state_changes_from_logs(
 
         // check if the log is for our pool
         if log.address() == pool.read().await.address() {
-            tracing::debug!(block_number=log_block_number, pool_address=?log.address(), "Log change");
+            tracing::debug!(block_number=log_block_number, pool_address=?log.address(), "log change");
             if !pool_updated {
                 pool_updated = true;
                 pool_address = Some(log.address());

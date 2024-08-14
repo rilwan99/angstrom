@@ -47,7 +47,7 @@ async fn main() -> eyre::Result<()> {
     let block_number = 20522211;
     // let block_number = 20522212;
     let from_block = block_number + 1;
-    let to_block = block_number + 100;
+    let to_block = block_number + 3;
     let address = address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640");
     let mut pool = EnhancedUniswapV3Pool::new(address, ticks_per_side);
     tracing::info!(block_number=block_number, "loading original pool");
@@ -170,8 +170,8 @@ fn compare_pools(original: &UniswapV3Pool, fresh: &EnhancedUniswapV3Pool, block_
     }
 
     if differences_found {
-        tracing::error!(block_number=block_number, address=?original.address, "Differences found between pools");
+        tracing::error!(block_number=block_number, address=?original.address, "differences found between pools");
     } else {
-        tracing::info!(block_number=block_number, address=?original.address, "No differences found between pools");
+        tracing::info!(block_number=block_number, address=?original.address, "pools are the same");
     }
 }
