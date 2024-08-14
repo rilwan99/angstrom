@@ -8,7 +8,6 @@ import {AssetIndexPair} from "../types/AssetIndexPair.sol";
 struct RewardsUpdate {
     int24 startTick;
     uint128 startLiquidity;
-    uint128 currentTickReward;
     uint128[] quantities;
 }
 
@@ -33,12 +32,7 @@ library PoolRewardsUpdateLib {
         }
         encodedQuantities = bytes.concat(bytes2(encodedQuantities.length.toUint16()), encodedQuantities);
 
-        return bytes.concat(
-            bytes3(uint24(self.startTick)),
-            bytes16(self.startLiquidity),
-            encodedQuantities,
-            bytes16(self.currentTickReward)
-        );
+        return bytes.concat(bytes3(uint24(self.startTick)), bytes16(self.startLiquidity), encodedQuantities);
     }
 
     function encode(PoolRewardsUpdate memory self, Asset[] memory assets) internal pure returns (bytes memory) {

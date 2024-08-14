@@ -135,12 +135,7 @@ contract RewardsUpdaterTest is BaseTest, RewardsUpdater {
             int24 startTick = v.map.brangeToTick(v.donateTicks - 1);
 
             v.total = this.__reward(
-                RewardsUpdate({
-                    startTick: startTick,
-                    startLiquidity: startLiquidity,
-                    amounts: v.amounts,
-                    currentTickReward: 0
-                }).encode()
+                RewardsUpdate({startTick: startTick, startLiquidity: startLiquidity, quantities: v.amounts}).encode()
             );
         } else {
             // Donating above.
@@ -150,12 +145,7 @@ contract RewardsUpdaterTest is BaseTest, RewardsUpdater {
             int24 startTick = v.map.rangeToTick(v.donateTicks - 1);
 
             v.total = this.__reward(
-                RewardsUpdate({
-                    startTick: startTick,
-                    startLiquidity: startLiquidity,
-                    amounts: v.amounts,
-                    currentTickReward: 0
-                }).encode()
+                RewardsUpdate({startTick: startTick, startLiquidity: startLiquidity, quantities: v.amounts}).encode()
             );
         }
 
