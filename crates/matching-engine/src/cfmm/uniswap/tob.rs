@@ -144,16 +144,20 @@ pub fn calculate_reward(
     let tick_donations: HashMap<Tick, U256> = stakes
         .iter()
         .enumerate()
-        .map(|(i, stake)| {
+        .filter_map(|(i, stake)| {
             let tick_num = amm.current_tick + (i as i32 * tick_motion);
-            let total_reward = if filled_price <= stake.0 {
-                U256::ZERO
-            } else {
+            if filled_price > stake.0 {
                 let total_dprice = filled_price - stake.0;
-                total_dprice.mul_quantity(stake.2)
-            };
-            reward_t += total_reward;
-            (tick_num, total_reward)
+                let total_reward = total_dprice.mul_quantity(stake.2);
+                if total_reward > U256::ZERO {
+                    reward_t += total_reward;
+                    Some((tick_num, total_reward))
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
         })
         .collect();
     let tribute = bribe - reward_t;
@@ -191,7 +195,6 @@ mod test {
         order.order.amountIn = total_payment;
         order.order.amountOut = Uint::from(100000000);
         let result = calculate_reward(order, amm).expect("Error calculating tick donations");
-        println!("{:?}", result);
         let total_donations = result
             .tick_donations
             .iter()
@@ -216,6 +219,56 @@ mod test {
             e.to_string()
                 .starts_with("Total cost greater than amount offered")
         }))
+    }
+
+    #[test]
+    fn handles_precisely_zero_donation() {
+        let mut rng = thread_rng();
+        let amm = generate_amm_market(100000);
+        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
+        let total_payment = Uint::from(2_203_194_246_001_u128);
+        order.order.amountIn = total_payment;
+        order.order.amountOut = Uint::from(100000000);
+        let result = calculate_reward(order, amm).expect("Error calculating tick donations");
+        let total_donations = result
+            .tick_donations
+            .iter()
+            .fold(U256::ZERO, |acc, (_tick, donation)| acc + donation);
+        assert!(
+            result.tick_donations.is_empty(),
+            "Donations are being offered when we shouldn't have any"
+        );
+        assert_eq!(
+            total_donations + result.total_cost + result.tribute,
+            total_payment,
+            "Total allocations do not add up to input payment"
+        );
+    }
+
+    #[test]
+    fn handles_partial_donation() {
+        let mut rng = thread_rng();
+        let amm = generate_amm_market(100000);
+        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
+        let total_payment = Uint::from(2_203_371_417_593_u128);
+        order.order.amountIn = total_payment;
+        order.order.amountOut = Uint::from(100000000);
+        let result = calculate_reward(order, amm).expect("Error calculating tick donations");
+        let total_donations = result
+            .tick_donations
+            .iter()
+            .fold(U256::ZERO, |acc, (_tick, donation)| acc + donation);
+        assert!(result.tick_donations.contains_key(&100000), "Donation to first tick missing");
+        assert!(result.tick_donations.contains_key(&100001), "Donation to second tick missing");
+        assert!(
+            !result.tick_donations.contains_key(&100002),
+            "Donation to third tick present when it shouldn't be"
+        );
+        assert_eq!(
+            total_donations + result.total_cost + result.tribute,
+            total_payment,
+            "Total allocations do not add up to input payment"
+        );
     }
 
     #[test]
