@@ -222,7 +222,7 @@ def update_rewards(
     pool.global_reward_growth += sum(quantities)
 
     assert len(quantities) <= len(ticks) + 1, 'Unused quantities'
-    assert liquidity = get_current_liquidity(), 'Invalid set start liquidity'
+    assert liquidity == get_current_liquidity(), 'Invalid set start liquidity'
 ```
 
 |Field|Description |
