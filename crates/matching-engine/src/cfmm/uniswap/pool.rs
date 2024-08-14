@@ -16,10 +16,31 @@ use amms::{
 use std::collections::HashMap;
 use std::ops::Add;
 use std::sync::Arc;
-use alloy::sol_types::private::U256;
-use alloy_primitives::B256;
+use alloy_primitives::{B256, I256, U256};
 use alloy_primitives::private::serde::{Deserialize, Serialize};
-use amms::amm::AutomatedMarketMaker;
+use amms::amm::{AutomatedMarketMaker};
+
+pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
+pub const MIN_SQRT_RATIO: U256 = U256::from_limbs([4295128739, 0, 0, 0]);
+pub const MAX_SQRT_RATIO: U256 = U256::from_limbs([6743328256752651558, 17280870778742802505, 4294805859, 0]);
+#[derive(Default)]
+pub struct StepComputations {
+    pub sqrt_price_start_x_96: U256,
+    pub tick_next: i32,
+    pub initialized: bool,
+    pub sqrt_price_next_x96: U256,
+    pub amount_in: U256,
+    pub amount_out: U256,
+    pub fee_amount: U256,
+}
+
+pub struct CurrentState {
+    amount_specified_remaining: I256,
+    amount_calculated: I256,
+    sqrt_price_x_96: U256,
+    tick: i32,
+    liquidity: u128,
+}
 
 // at around 190 is when "max code size exceeded" comes up
 const MAX_TICKS_PER_REQUEST: u16 = 150;
@@ -382,12 +403,10 @@ mod test {
         let mut pool = setup_pool(provider.clone(), block_number, ticks_per_side).await;
         pool.sync_ticks(Some(block_number), provider.clone()).await.expect("failed to sync ticks");
 
-        // Initial state check
         assert_eq!(pool.sqrt_price, U256::from_str_radix("1522541228652157746214186795710203", 10).unwrap());
         assert_eq!(pool.liquidity, 14623537689052122812u128);
         assert_eq!(pool.tick, 197281);
 
-        // First swap
         let token_in = pool.token_b;
         let amount_in = U256::from_str_radix("300532960990132029", 10).unwrap();
         let amount_out = pool.simulate_swap_mut(token_in, amount_in).expect("First swap simulation failed");
@@ -396,7 +415,7 @@ mod test {
         assert_eq!(pool.liquidity, 14623537689052122812u128);
         assert_eq!(pool.tick, 197281);
 
-        // Second swap
+        // Second swap causing issues
         let token_in = pool.token_b;
         let amount_in = U256::from_str_radix("36948528148148111", 10).unwrap();
         let amount_out = pool.simulate_swap_mut(token_in, amount_in).expect("Second swap simulation failed");
