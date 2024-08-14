@@ -44,10 +44,10 @@ async fn main() -> eyre::Result<()> {
 
     let ticks_per_side = 200;
     let block_number = ws_provider.get_block_number().await?;
-    let block_number = 20522211;
+    let block_number = 20522215;
     // let block_number = 20522212;
     let from_block = block_number + 1;
-    let to_block = block_number + 3;
+    let to_block = block_number + 1;
     let address = address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640");
     let mut pool = EnhancedUniswapV3Pool::new(address, ticks_per_side);
     tracing::info!(block_number=block_number, "loading original pool");
@@ -109,16 +109,22 @@ fn compare_pools(original: &UniswapV3Pool, fresh: &EnhancedUniswapV3Pool, block_
         differences_found = true;
         let diff = original.liquidity.abs_diff(fresh.liquidity);
         tracing::warn!(block_number=block_number, "Liquidity:         A: {} | B: {} | Diff: {}", original.liquidity, fresh.liquidity, diff);
+    } else {
+        tracing::info!(block_number=block_number, "Liquidity:         A: {} | B: {}", original.liquidity, fresh.liquidity);
     }
     if original.sqrt_price != fresh.sqrt_price {
         differences_found = true;
         let diff = original.sqrt_price.abs_diff(fresh.sqrt_price);
         tracing::warn!(block_number=block_number, "Sqrt Price:        A: {} | B: {} | Diff: {}", original.sqrt_price, fresh.sqrt_price, diff);
+    } else {
+        tracing::info!(block_number=block_number, "Sqrt Price:        A: {} | B: {}", original.sqrt_price, fresh.sqrt_price);
     }
     if original.tick != fresh.tick {
         differences_found = true;
         let diff = original.tick.abs_diff(fresh.tick);
         tracing::warn!(block_number=block_number, "Tick:              A: {} | B: {} | Diff: {}", original.tick, fresh.tick, diff);
+    } else {
+        tracing::info!(block_number=block_number, "Tick:              A: {} | B: {}", original.tick, fresh.tick);
     }
     if original.tick_bitmap != fresh.tick_bitmap {
         differences_found = true;

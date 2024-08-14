@@ -30,6 +30,7 @@ use tokio::{
     },
     task::JoinHandle,
 };
+use tokio::sync::RwLockWriteGuard;
 use crate::cfmm::uniswap::mock_block_stream::MockBlockStream;
 
 pub type StateChangeCache = ArrayDeque<StateChange, 150>;
@@ -83,7 +84,10 @@ where
     }
     pub async fn filter(&self) -> Filter {
         let pool = self.pool().await;
-        Filter::new().event_signature(pool.sync_on_event_signatures())
+        Filter::new()
+            // TODO: maybe we interested in changes only for this pool?
+            // .address(pool.address())
+            .event_signature(pool.sync_on_event_signatures())
     }
 
     /// Listens to new blocks and handles state changes, sending the pool address if it incurred a state change in the block.
@@ -171,8 +175,11 @@ where
                                     .await?;
                             }
                         } else {
+                            // We shall have order!
+                            let write_lock = pool.write().await;
+                            // if you don't care for the pool state on each tick, pass the pool
                             let pool_updated = handle_state_changes_from_logs(
-                                pool.clone(),
+                                write_lock,
                                 state_change_cache.clone(),
                                 logs,
                             )
@@ -261,8 +268,9 @@ where
                                     .await?;
                             }
                         } else {
+                            let write_lock = pool.write().await;
                             let _pool_updated = handle_state_changes_from_logs(
-                                pool.clone(),
+                                write_lock,
                                 state_change_cache.clone(),
                                 logs,
                             )
@@ -349,7 +357,7 @@ async fn add_state_change_to_cache(
 }
 
 pub async fn handle_state_changes_from_logs(
-    pool: Arc<RwLock<UniswapV3Pool>>,
+    mut pool: RwLockWriteGuard<'_, UniswapV3Pool>,
     state_change_cache: Arc<RwLock<StateChangeCache>>,
     logs: Vec<Log>,
 ) -> Result<Option<Address>, StateChangeError> {
@@ -366,14 +374,14 @@ pub async fn handle_state_changes_from_logs(
         let log_block_number = get_block_number_from_log(&log)?;
 
         // check if the log is for our pool
-        if log.address() == pool.read().await.address() {
+        if log.address() == pool.address() {
             tracing::debug!(block_number=log_block_number, pool_address=?log.address(), "log change");
             if !pool_updated {
                 pool_updated = true;
                 pool_address = Some(log.address());
             }
 
-            let mut pool = pool.write().await;
+            // let mut pool = pool.write().await;
             let pool_clone = pool.clone();
 
             // ==== CHANGES ==== //
@@ -397,8 +405,10 @@ pub async fn handle_state_changes_from_logs(
                 } else {
                     U256::try_from(swap_event.amount0).map_err(|e| StateChangeError::CapacityError)?
                 };
-                 tracing::debug!(?swap_event, address = ?pool.address, sqrt_price = ?pool.sqrt_price, liquidity = ?pool.liquidity, tick = ?pool.tick, "UniswapV3 swap event");
-                let amount = pool.simulate_swap_mut(token_in, amount_in).expect("applying the simulate");
+                tracing::trace!(block_number=log_block_number, swap_tick=swap_event.tick, swap_price=?swap_event.sqrtPriceX96, swap_liquidity=?swap_event.liquidity, swap_amount0=?swap_event.amount0, swap_amount1=?swap_event.amount1, "swap event");
+                tracing::debug!(block_number=log_block_number, pool_address = ?pool.address, pool_price = ?pool.sqrt_price, pool_liquidity = ?pool.liquidity, pool_tick = ?pool.tick, "pool state before swap");
+                let _ = pool.simulate_swap_mut(token_in, amount_in).expect("applying the simulate");
+                tracing::debug!(block_number=log_block_number, pool_address = ?pool.address, pool_price = ?pool.sqrt_price, pool_liquidity = ?pool.liquidity, pool_tick = ?pool.tick, "pool state after swap");
                 // pool.sync_from_swap_log(log).map_err(StateChangeError)?;
             } else {
                 Err(EventLogError::InvalidEventSignature)?
@@ -425,7 +435,8 @@ pub async fn handle_state_changes_from_logs(
         )
             .await?;
     } else {
-        let pool_clone = pool.read().await.clone();
+        // let pool_clone = pool.read().await.clone();
+        let pool_clone = pool.clone();
         add_state_change_to_cache(
             state_change_cache,
             StateChange::new(Some(pool_clone), last_log_block_number),
