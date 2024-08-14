@@ -12,6 +12,7 @@ use super::{MarketSnapshot, Tick};
 
 #[derive(Debug)]
 pub struct ToBOutcome {
+    pub start_tick:     i32,
     pub tribute:        U256,
     pub total_cost:     U256,
     pub tick_donations: HashMap<Tick, U256>
@@ -181,7 +182,7 @@ pub fn calculate_reward(
     let tribute = bribe - reward_t;
     // Both our tribute and our tick_donations are done in the same currency as
     // amountIn
-    Ok(ToBOutcome { tribute, total_cost, tick_donations })
+    Ok(ToBOutcome { start_tick: amm.current_tick, tribute, total_cost, tick_donations })
 }
 
 #[cfg(test)]
