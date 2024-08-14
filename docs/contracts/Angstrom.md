@@ -190,40 +190,39 @@ the sum of all accrued rewards in the ticks above **including its own**.
 Generally the logic for updating pool rewards looks as follows:
 
 ```python
-class Pool:
-    def update_rewards(
-        self,
-        start_tick: Tick,
-        reward_to_current: int,
-        quantities: list[int],
-        liquidity: int,
-        below: bool
-    ):
-        cumulative_reward_growth: float = 0
+def update_rewards(
+    pool: Pool,
+    start_tick: Tick,
+    reward_to_current: int,
+    quantities: list[int],
+    liquidity: int,
+    below: bool
+):
+    cumulative_reward_growth: float = 0
 
-        end_tick: Tick = get_current_tick()
-        ticks: list[Tick] = initialized_tick_range(start_tick, end_tick, include_end=below)
-        # Missing quantities interpreted as zeros
-        padded_quantities: list[int] = quantities + [0] * max(0, len(ticks) - len(quantities))
+    end_tick: Tick = get_current_tick()
+    ticks: list[Tick] = initialized_tick_range(start_tick, end_tick, include_end=below)
+    # Missing quantities interpreted as zeros
+    padded_quantities: list[int] = quantities + [0] * max(0, len(ticks) - len(quantities))
 
-        for tick, quantity in zip(ticks, padded_quantities):
-            cumulative_reward_growth += quantity / liquidity
-            tick.reward_growth_outside += cumulative_reward_growth
+    for tick, quantity in zip(ticks, padded_quantities):
+        cumulative_reward_growth += quantity / liquidity
+        tick.reward_growth_outside += cumulative_reward_growth
 
-            if below:
-                liquidity += tick.net_liquidity
-            else:
-                liquidity -= tick.net_liquidity
+        if below:
+            liquidity += tick.net_liquidity
+        else:
+            liquidity -= tick.net_liquidity
 
-        # Last quantity assumed to be reward for current tick.
-        if len(quantities) > len(ticks):
-            current_tick_reward: int = quantities[len(ticks)]
-            cumulative_reward_growth += current_tick_reward / liquidity
+    # Last quantity assumed to be reward for current tick.
+    if len(quantities) > len(ticks):
+        current_tick_reward: int = quantities[len(ticks)]
+        cumulative_reward_growth += current_tick_reward / liquidity
 
-        self.global_reward_growth += sum(quantities)
+    pool.global_reward_growth += sum(quantities)
 
-        assert len(quantities) <= len(ticks) + 1, 'Unused quantities'
-        assert liquidity = get_current_liquidity(), 'Invalid set start liquidity'
+    assert len(quantities) <= len(ticks) + 1, 'Unused quantities'
+    assert liquidity = get_current_liquidity(), 'Invalid set start liquidity'
 ```
 
 |Field|Description |
