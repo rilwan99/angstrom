@@ -17,6 +17,20 @@ pub struct ToBOutcome {
     pub tick_donations: HashMap<Tick, U256>
 }
 
+impl ToBOutcome {
+    /// Sum of the donations across all ticks
+    pub fn total_donations(&self) -> U256 {
+        self.tick_donations
+            .iter()
+            .fold(U256::ZERO, |acc, (_tick, donation)| acc + donation)
+    }
+
+    /// Tick donations plus tribute to determine total value of this outcome
+    pub fn total_value(&self) -> U256 {
+        self.total_donations() + self.tribute
+    }
+}
+
 pub fn calculate_reward(
     tob: OrderWithStorageData<TopOfBlockOrder>,
     amm: MarketSnapshot
@@ -110,33 +124,37 @@ pub fn calculate_reward(
     let mut rem_bribe = bribe;
     let mut cur_q = U256::ZERO;
     let mut filled_price = stakes[0].0;
-    for window in stakes.windows(2) {
-        // Price difference between the average price for the current tick and the
-        // average price for the next tick
-        let d_price = window[1].0 - window[0].0;
-        // Total cost to move this tick and all previous ticks to the average price of
-        // the next tick
-        let step_cost = d_price.mul_quantity(cur_q + window[0].2);
+
+    let mut stake_iter = stakes.iter().peekable();
+    while let Some(stake) = stake_iter.next() {
+        let q_step = cur_q + stake.2;
+        // Our target price is either the average price of the next stake or the end
+        // price of the current stake if there's no next stake to deal with
+        let target_price = stake_iter
+            .peek()
+            .map(|next_stake| next_stake.0)
+            .unwrap_or_else(|| stake.1);
+        // The difference between this tick's average price and our target price
+        let d_price = target_price - stake.0;
+
+        // The step cost is the total cost in needed to ensure that all sold quantities
+        // were sold at our target price
+        let step_cost = d_price.mul_quantity(q_step);
+
         if rem_bribe >= step_cost {
-            // We have enough tribute to do this move, update our final clearing
-            // price and continue iterating
-            cur_q += window[0].2;
-            filled_price = window[1].0;
+            // If we have enough bribe to pay the whole cost, allocate that and step forward
+            // to the next price gap
+            cur_q += stake.2;
+            filled_price = target_price;
             rem_bribe -= step_cost;
         } else {
-            // We do not have enough tribute to do this move, figure out what our final
-            // clearing price is and break out of this loop
-            let partial_dprice = Ray::calc_price(rem_bribe, cur_q + window[0].2);
+            // If we don't have enough bribe to pay the whole cost, figure out where the
+            // target price winds up based on what we do have and end this iteration
+            let partial_dprice = Ray::calc_price(rem_bribe, q_step);
             filled_price += partial_dprice;
             break;
         }
     }
-
-    // Do we want to then step all the way to the final price?  This should be
-    // stored in `current_price`
-
-    // Any bribe we have left over after all this is taken as tribute
-    // let tribute = rem_bribe;
 
     // We've now found our filled price, we can allocate our reward to each tick
     // based on how much it costs to bring them up to that price.
@@ -195,10 +213,7 @@ mod test {
         order.order.amountIn = total_payment;
         order.order.amountOut = Uint::from(100000000);
         let result = calculate_reward(order, amm).expect("Error calculating tick donations");
-        let total_donations = result
-            .tick_donations
-            .iter()
-            .fold(U256::ZERO, |acc, (_tick, donation)| acc + donation);
+        let total_donations = result.total_donations();
         assert_eq!(
             total_donations + result.total_cost + result.tribute,
             total_payment,
@@ -230,10 +245,7 @@ mod test {
         order.order.amountIn = total_payment;
         order.order.amountOut = Uint::from(100000000);
         let result = calculate_reward(order, amm).expect("Error calculating tick donations");
-        let total_donations = result
-            .tick_donations
-            .iter()
-            .fold(U256::ZERO, |acc, (_tick, donation)| acc + donation);
+        let total_donations = result.total_donations();
         assert!(
             result.tick_donations.is_empty(),
             "Donations are being offered when we shouldn't have any"
@@ -254,10 +266,7 @@ mod test {
         order.order.amountIn = total_payment;
         order.order.amountOut = Uint::from(100000000);
         let result = calculate_reward(order, amm).expect("Error calculating tick donations");
-        let total_donations = result
-            .tick_donations
-            .iter()
-            .fold(U256::ZERO, |acc, (_tick, donation)| acc + donation);
+        let total_donations = result.total_donations();
         assert!(result.tick_donations.contains_key(&100000), "Donation to first tick missing");
         assert!(result.tick_donations.contains_key(&100001), "Donation to second tick missing");
         assert!(
