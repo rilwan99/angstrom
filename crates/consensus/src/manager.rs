@@ -36,48 +36,6 @@ enum ConsensusTaskResult {
     ValidationSolutions { height: u64, solutions: Vec<PoolSolution> }
 }
 
-pub async fn manager_thread(
-    globalstate: Arc<Mutex<GlobalConsensusState>>,
-    netdeps: ManagerNetworkDeps,
-    signer: Signer,
-    order_storage: Arc<OrderStorage>,
-    timings: Option<RoundStateTimings>
-) {
-    let mut manager = ConsensusManager::new(globalstate, netdeps, signer, order_storage, timings);
-
-    // Start message loop
-    loop {
-        select! {
-            Some(msg) = manager.tasks.join_next() => {
-                match msg {
-                    Ok(task_result) => manager.on_task_complete(task_result),
-                    Err(e) => {
-                        // Don't log an error if we cancelled the task, that error is expected
-                        if !e.is_cancelled() {
-                            tracing::error!("Task error: {}", e)
-                        }
-                    }
-                }
-            },
-            Some(msg) = manager.command.next() => {
-                manager.on_command(msg);
-            },
-            Some(msg) = manager.canonical_block_stream.next() => {
-                match msg {
-                    Ok(notification) => manager.on_blockchain_state(notification).await,
-                    Err(e) => tracing::error!("Error receiving chain state notification: {}", e)
-                }
-            },
-            Some(msg) = manager.strom_consensus_event.next() => {
-                manager.on_network_event(msg);
-            },
-            Some(msg) = manager.roundstate.next() => {
-                manager.on_new_globalstate(msg).await;
-            }
-        }
-    }
-}
-
 pub async fn build_proposal_task(
     preproposals: Vec<PreProposal>
 ) -> Result<Vec<PoolSolution>, String> {
@@ -171,8 +129,10 @@ impl ConsensusManager {
         timings: Option<RoundStateTimings>
     ) -> ConsensusHandle {
         let tx = netdeps.tx.clone();
-        let fut = manager_thread(globalstate, netdeps, signer, order_storage, timings).boxed();
-
+        let manager = ConsensusManager::new(globalstate, netdeps, signer, order_storage, timings);
+        let fut = manager.message_loop().boxed();
+        // let fut = manager_thread(globalstate, netdeps, signer, order_storage,
+        // timings).boxed();
         tp.spawn_critical("consensus", fut);
 
         ConsensusHandle { sender: tx }
@@ -269,7 +229,7 @@ impl ConsensusManager {
         }
     }
 
-    async fn on_new_globalstate(&mut self, new_state: ConsensusState) {
+    fn on_new_globalstate(&mut self, new_state: ConsensusState) {
         // First let's update our global state
         match self.globalstate.lock() {
             Ok(mut lock) => {
@@ -297,7 +257,7 @@ impl ConsensusManager {
         }
     }
 
-    async fn on_blockchain_state(&mut self, notification: CanonStateNotification) {
+    fn on_blockchain_state(&mut self, notification: CanonStateNotification) {
         // Get the newest block height
         let new_block = notification.tip();
         let new_block_height = new_block.block.number;
@@ -311,8 +271,7 @@ impl ConsensusManager {
             // Update our round state to the new round state
             self.roundstate = new_round_state;
             // Update the global state to show that we're back in OrderAccumulation
-            self.on_new_globalstate(ConsensusState::OrderAccumulation)
-                .await;
+            self.on_new_globalstate(ConsensusState::OrderAccumulation);
             // Broadcast that we have a new block
             self.broadcast(ConsensusMessage::NewBlock(new_block_height));
         } else {
@@ -383,6 +342,40 @@ impl ConsensusManager {
         self.subscribers
             .retain_mut(|sub| sub.try_send(msg.clone()).is_ok());
     }
+
+    pub async fn message_loop(mut self) {
+        // Start message loop
+        loop {
+            select! {
+                Some(msg) = self.tasks.join_next() => {
+                    match msg {
+                        Ok(task_result) => self.on_task_complete(task_result),
+                        Err(e) => {
+                            // Don't log an error if we cancelled the task, that error is expected
+                            if !e.is_cancelled() {
+                                tracing::error!("Task error: {}", e)
+                            }
+                        }
+                    }
+                },
+                Some(msg) = self.command.next() => {
+                    self.on_command(msg);
+                },
+                Some(msg) = self.canonical_block_stream.next() => {
+                    match msg {
+                        Ok(notification) => self.on_blockchain_state(notification),
+                        Err(e) => tracing::error!("Error receiving chain state notification: {}", e)
+                    }
+                },
+                Some(msg) = self.strom_consensus_event.next() => {
+                    self.on_network_event(msg);
+                },
+                Some(msg) = self.roundstate.next() => {
+                    self.on_new_globalstate(msg);
+                }
+            }
+        }
+    }
 }
 
 pub enum ConsensusCommand {
@@ -429,8 +422,8 @@ mod tests {
     use tokio_stream::StreamExt;
 
     use crate::{
-        manager::ConsensusTaskResult, manager_thread, round::RoundStateTimings, ConsensusManager,
-        ConsensusMessage, ConsensusState, GlobalConsensusState, ManagerNetworkDeps, Signer
+        manager::ConsensusTaskResult, round::RoundStateTimings, ConsensusManager, ConsensusMessage,
+        ConsensusState, GlobalConsensusState, ManagerNetworkDeps, Signer
     };
 
     fn mock_net_deps() -> ManagerNetworkDeps {
@@ -448,13 +441,9 @@ mod tests {
         let globalstate = Arc::new(Mutex::new(GlobalConsensusState::default()));
         let netdeps = mock_net_deps();
         let order_storage = Arc::new(OrderStorage::default());
-        let thread = tokio::spawn(manager_thread(
-            globalstate,
-            netdeps,
-            Signer::default(),
-            order_storage,
-            None
-        ));
+        let manager =
+            ConsensusManager::new(globalstate, netdeps, Signer::default(), order_storage, None);
+        let thread = tokio::spawn(manager.message_loop());
         thread.abort();
     }
 
@@ -486,7 +475,7 @@ mod tests {
         let new_state = manager.roundstate.next().await.unwrap();
         // We shift to PreProposal state and should have sent out a PreProposal
         assert!(matches!(new_state, ConsensusState::PreProposal));
-        manager.on_new_globalstate(new_state).await;
+        manager.on_new_globalstate(new_state);
         let preproposal = rx.recv().await.unwrap();
         let ConsensusMessage::PrePropose(p) = preproposal else {
             panic!("Didn't get preproposal message");
