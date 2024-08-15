@@ -30,6 +30,10 @@ The `Sequence` type represents a list or array of type `T` where the length of t
 must fit within `N` bytes e.g. `Sequence<2, address>` represents a variable length array of
 `address` values with a maximum length of 3276 (`(256^2 - 1) / 20`).
 
+### Fixed length arrays (`[T; N]`)
+
+Fixed length arrays require a constant length. These are encoded as the concatenation of the PADE
+encoding of the elements.
 
 ### Product Types (aka "Structs")
 
@@ -142,6 +146,11 @@ def pade_encode(x: PadeValue, T: PadeType) -> bytes:
         # For enums `.inner` represents the "inner" value either the
         # value of the unique field or the struct
         return variant_bytes + pade_encode(x.inner)
+    if T.is_fixed_array():
+        return concat([
+            pade_encode(item)
+            for item in x.items
+        ])
     if T.is_sequence():
         encoded_items = concat([
             pade_encode(item)
