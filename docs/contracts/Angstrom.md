@@ -33,13 +33,57 @@ When `execute` is called all it does is authenticate that the caller is a node b
 payload as `data` (this back and forth is required because it establishes a call context from which
 we're allowed to actually interact with Uniswap at all).
 
+### Shared Structs & Types
+
+#### `AssetIndexPair`
+
+```rust
+type AssetIndexPair = u24;
+```
+
+The `AssetIndexPair` type is an alias for `u24` and encodes two 12-bit indices. Packing the two
+indices works as follows:
+
+```python
+def pack_to_index_pair(index_a: int, index_b: int) -> int:
+    assert index_a in range(0, 1 << 12), f'Index A not 12-bit'
+    assert index_b in range(0, 1 << 12), f'Index B not 12-bit'
+
+    return (index_a << 12) | index_b
+```
+
+When referring to "Asset A" or "Asset B" throughout the docs it refers to the asset referenced by
+the index "A" (upper 12 bits) or "B" (lower 12 bits) respectively.
+
+#### `Signature`
+
+
+```rust
+enum Signature {
+    Contract {
+        from: address,
+        signature: Sequence<3, bytes1>
+    },
+    Ecdsa {
+        v: uint8,
+        r: bytes32,
+        s: bytes32
+    }
+}
+```
+
+The `Signature` enum represents either an EOA ECDSA signature or a smart contract signature. Ecdsa
+signature do not need the signer address specified as the signer can be recovered as part of the
+signature validation process.
+
 ### Bundle contents
 
 The bundle is a struct encoded using the [PADE format](./Encoding.md). The string of bytes is the
 value that the `execute` method is called with (not that the call itself is still ABI encoded, just
 the contents of the single `bytes` parameter itself is PADE).
 
-#### Top-level Payload Contents
+
+#### Top-level Payload Contents (the `Bundle` struct)
 
 The `data` payload is the PADE encoding of the following struct:
 
@@ -56,7 +100,7 @@ struct Bundle {
 
 #### `Asset`
 
-Solidity: [decoding implementation (`src/types/Asset.sol`)](../../contracts/src/types/Asset.sol) | [reference
+Solidity: [decoding implementation](../../contracts/src/types/Asset.sol) | [reference
 encoding (`src/reference/Asset.sol`)](../../contracts/src/reference/Asset.sol)
 
 ```rust
@@ -80,7 +124,7 @@ The elements **must be** sorted in ascending order according the value of `.addr
 
 #### `Pair`
 
-Solidity: [decoding implementation (`src/types/Pair.sol`)](../../contracts/src/types/Pair.sol) | [reference
+Solidity: [decoding implementation](../../contracts/src/types/Pair.sol) | [reference
 encoding (`src/reference/Pair.sol`)](../../contracts/src/reference/Pair.sol)
 
 ```rust
@@ -88,7 +132,6 @@ struct Pair {
     asset_indices: AssetIndexPair,
     price_ray_assetAOverB: u256
 }
-
 ```
 
 This list of pairs defines the unique uniform clearing prices for the different pairs in the bundle.
@@ -103,7 +146,7 @@ The elements **must be** sorted in ascending order according the value of `.asse
 
 #### `PoolSwap`
 
-Solidity: [decoding implementation (`src/types/PoolSwap.sol`)](../../contracts/src/types/PoolSwap.sol) | [reference
+Solidity: [decoding implementation](../../contracts/src/types/PoolSwap.sol) | [reference
 encoding (`src/reference/PoolSwap.sol`)](../../contracts/src/reference/PoolSwap.sol)
 
 
@@ -123,9 +166,9 @@ to net out multiple swaps against the same pool into one to save on gas.
 |`assets: AssetIndexPair`|Swap's input & output assets as indices into the asset array. Asset A is the input asset, asset B the output asset.|
 |`quantity_in: u128`|The swap input quantity in the input asset's base units.|
 
-#### 🚧 `TopOfBlockOrder`
+#### `TopOfBlockOrder`
 
-Solidity: [decoding implementation (`src/Angstrom.sol:Angstrom._validateAndExecuteToB`)](../../contracts/src/Angstrom.sol) | [reference encoding (`src/reference/OrderTypes.sol`)](../../contracts/src/reference/OrderTypes.sol).
+Solidity: [decoding implementation (`_validateAndExecuteToB`)](../../contracts/src/Angstrom.sol) | [reference encoding](../../contracts/src/reference/OrderTypes.sol).
 
 ```rust
 struct TopOfBlockOrder {
@@ -133,8 +176,8 @@ struct TopOfBlockOrder {
     quantity_in: u128,
     quantity_out: u128,
     assets_in_out: AssetIndexPair,
-    recipient: Recipient,
-    hookData: Option<Sequence<3, bytes1>>,
+    recipient: Option<address>,
+    hook_data: Option<Sequence<3, bytes1>>,
     signature: Signature
 }
 ```
@@ -145,8 +188,46 @@ struct TopOfBlockOrder {
 |`quantity_in: u128`|The order offered input quanity in the input asset's base units.|
 |`quantity_out: u128`|The order expected output quantity in the output asset's base units.|
 |`assets_in_out: AssetIndexPair`|Swap's input & output assets as indices into the asset array. Asset A is the input asset, asset B the output asset.|
+|`recipient: Option<address>`|Recipient for order output, `None` implies signer.|
+|`hook_data: Option<Sequence<3, bytes1>>`|Optional hook for composable orders, consisting of the hook address concatenated to the hook extra data.|
+|`signature: Signature`|The signature validating the order.|
+
+#### `UserOrder`
+
+```rust
+struct UserOrder {
+    a_to_b: bool,
+    pair_index: u16,
+    min_price: u256,
+    hook_data: Option<Sequence<3, bytes1>>,
+    standing_validation: Option<StandingValidation>,
+    exact_in: bool,
+    use_interal: bool,
+    order_quantities: OrderQuantities,
+    recipient: Option<address>,
+    signature: Signature
+}
+
+struct StandingValidation {
+    nonce: u64,
+    deadline: u40
+}
+
+enum OrderQuantities {
+    Exact {
+        quantity: u128
+    },
+    Partial {
+        min_quantity_in: u128,
+        max_quantity_in: u128,
+        filled_quantity: u128
+    }
+}
+```
 
 #### `PoolRewardsUpdate`
+
+Solidity: [decoding implementation (`_rewardPool`)](../../contracts/modules/PoolRewardsManager.sol) | [reference encoding](../../contracts/src/reference/PoolRewardsUpdate.sol).
 
 
 ```rust
@@ -167,8 +248,9 @@ tracking the "cumulative growth outside".
 
 **Rewards Update**
 
-```rust
+Solidity: [decoding implementation (`_decodeAndReward`)](../../contracts/modules/RewardsUpdater.sol) | [reference encoding](../../contracts/src/reference/PoolRewardsUpdate.sol).
 
+```rust
 struct RewardsUpdate {
     start_tick: i24,
     start_liquidity: u128,
