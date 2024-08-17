@@ -3,28 +3,24 @@ use std::{
     ops::Deref,
 };
 
-// uint 160 for represending SqrtPriceX96
-use alloy_primitives::aliases::{U160, U256};
-use alloy_primitives::Uint;
-// Malachite stuff for our math and conversions
-use malachite::num::arithmetic::traits::{Pow, PowerOf2};
-use malachite::{num::conversion::traits::RoundingInto, Natural, Rational};
-
 use self::math::{
     new_sqrt_price_from_input, new_sqrt_price_from_output, sqrt_price_at_tick, tick_at_sqrt_price,
     token_0_delta,
 };
+// uint 160 for represending SqrtPriceX96
+use alloy::primitives::{U160, U256};
+use alloy_primitives::Uint;
+// Malachite stuff for our math and conversions
+use malachite::num::arithmetic::traits::{Pow, PowerOf2};
+use malachite::{num::conversion::traits::RoundingInto, Natural, Rational};
+use uniswap_v3_math::tick_math::{MAX_TICK, MIN_TICK};
 
-pub mod math;
-pub mod pool;
 mod loader;
-pub mod pool_manager;
+pub mod math;
 pub mod mock_block_stream;
+pub mod pool;
+pub mod pool_manager;
 
-/// A Tick is represented as an i32 as its value range is from around
-/// -900000..900000
-const MIN_TICK: i32 = -887272;
-const MAX_TICK: i32 = 887272;
 type Tick = i32;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]

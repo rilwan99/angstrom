@@ -16,15 +16,16 @@ angstrom-types.workspace = true
 angstrom-utils.workspace = true
 alloy-primitives.workspace = true
 tokio.workspace = true
-uniswap_v3_math.workspace = true
-
-malachite = "0.4.0"
-malachite-q = "0.4.0"
+#uniswap_v3_math.workspace = true
 rand.workspace = true
 rand_distr.workspace = true
 criterion.workspace = true
-arraydeque = "0.5"
+tokio-stream = "0.1.15"
 
+uniswap_v3_math = { git = "https://github.com/0xKitsune/uniswap-v3-math.git", rev = "1120ff6" }
+malachite = "0.4.0"
+malachite-q = "0.4.0"
+arraydeque = "0.5"
 alloy = { version = "0.2", features = [
     "contract",
     "network",
@@ -43,6 +44,7 @@ futures = "0.3.30"
 tracing = "0.1.40"
 async-trait = "0.1.81"
 tracing-subscriber = { version = "0.3.18", features = [ "default", "env-filter"] }
+thiserror = "1.0.63"
 
 [[bench]]
 name = "volume_solver"

@@ -1,12 +1,17 @@
 use std::{collections::HashMap, sync::Arc};
 
-use alloy::{network::Network, primitives::{Address, I256, U256}, providers::Provider, transports::Transport};
+use alloy::{
+    network::Network,
+    primitives::{Address, I256, U256},
+    providers::Provider,
+    transports::Transport,
+};
 use amms::{
     amm::{
         uniswap_v3::{Info, UniswapV3Pool},
-        AutomatedMarketMaker
+        AutomatedMarketMaker,
     },
-    errors::{AMMError, SwapSimulationError}
+    errors::{AMMError, SwapSimulationError},
 };
 use uniswap_v3_math::tick_math::{MAX_TICK, MIN_TICK};
 
@@ -17,17 +22,18 @@ pub const MIN_SQRT_RATIO: U256 = U256::from_limbs([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 =
     U256::from_limbs([6743328256752651558, 17280870778742802505, 4294805859, 0]);
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct StepComputations {
     pub sqrt_price_start_x_96: U256,
-    pub tick_next:             i32,
-    pub initialized:           bool,
-    pub sqrt_price_next_x96:   U256,
-    pub amount_in:             U256,
-    pub amount_out:            U256,
-    pub fee_amount:            U256
+    pub tick_next: i32,
+    pub initialized: bool,
+    pub sqrt_price_next_x96: U256,
+    pub amount_in: U256,
+    pub amount_out: U256,
+    pub fee_amount: U256,
 }
 
+#[derive(Debug)]
 pub struct CurrentSwapState {
     amount_specified_remaining: I256,
     amount_calculated: I256,
@@ -35,15 +41,21 @@ pub struct CurrentSwapState {
     tick: i32,
     liquidity: u128,
     fee_growth_global_x128: U256,
-    protocol_fee: U256
 }
-
+#[derive(Default)]
+struct SwapResult {
+    amount0: I256,
+    amount1: I256,
+    sqrt_price_x_96: U256,
+    liquidity: u128,
+    tick: i32,
+}
 // at around 190 is when "max code size exceeded" comes up
 const MAX_TICKS_PER_REQUEST: u16 = 150;
 #[derive(Debug, Clone)]
 pub struct EnhancedUniswapV3Pool {
-    inner:                  UniswapV3Pool,
-    initial_ticks_per_side: u16
+    inner: UniswapV3Pool,
+    initial_ticks_per_side: u16,
 }
 
 impl EnhancedUniswapV3Pool {
@@ -54,12 +66,12 @@ impl EnhancedUniswapV3Pool {
     pub async fn initialize<T, N, P>(
         &mut self,
         block_number: Option<u64>,
-        provider: Arc<P>
+        provider: Arc<P>,
     ) -> Result<(), AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>
+        P: Provider<T, N>,
     {
         self.populate_data(block_number, provider.clone()).await
     }
@@ -71,12 +83,12 @@ impl EnhancedUniswapV3Pool {
     pub async fn sync_ticks<T, N, P>(
         &mut self,
         block_number: Option<u64>,
-        provider: Arc<P>
+        provider: Arc<P>,
     ) -> Result<(), AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>
+        P: Provider<T, N>,
     {
         if !self.is_initialized() {
             return Err(AMMError::PoolDataError);
@@ -99,10 +111,10 @@ impl EnhancedUniswapV3Pool {
                 true,
                 ticks_to_fetch,
                 block_number,
-                provider.clone()
+                provider.clone(),
             )
-            .await?;
-            left_ticks.extend(fetched_ticks.drain(..));
+                .await?;
+            left_ticks.append(&mut fetched_ticks);
             remaining_ticks -= ticks_to_fetch;
             if let Some(last_tick) = left_ticks.last() {
                 current_tick = last_tick.tick - self.tick_spacing;
@@ -124,10 +136,10 @@ impl EnhancedUniswapV3Pool {
                 false,
                 ticks_to_fetch,
                 block_number,
-                provider.clone()
+                provider.clone(),
             )
-            .await?;
-            right_ticks.extend(fetched_ticks.drain(..));
+                .await?;
+            right_ticks.append(&mut fetched_ticks);
             remaining_ticks -= ticks_to_fetch;
             if let Some(last_tick) = right_ticks.last() {
                 current_tick = last_tick.tick + self.tick_spacing;
@@ -142,9 +154,9 @@ impl EnhancedUniswapV3Pool {
                     tick.tick,
                     Info {
                         liquidity_gross: tick.liquidity_gross,
-                        liquidity_net:   tick.liquidity_net,
-                        initialized:     true
-                    }
+                        liquidity_net: tick.liquidity_net,
+                        initialized: true,
+                    },
                 );
                 self.inner.flip_tick(tick.tick, self.inner.tick_spacing);
             }
@@ -153,134 +165,52 @@ impl EnhancedUniswapV3Pool {
         Ok(())
     }
 
-    pub fn simulate_swap(
+    /// Obvious doc: Sims the swap to get the state changes after applying it
+    ///
+    /// (maybe) Not so obvious doc:
+    ///     * Testing:    If the goal is to test the implementation, passing amount0 *and* limit price, will mess with
+    ///                   your testing reliability, since you'd be clamping the potential change in amount1,
+    ///                   i.e. you probably won't be testing much.
+    ///     * Sync logs:  Swap sync logs don't have the zeroForOne field, which coupled with amountSpecified produces 4 possible
+    ///                   combinations of parameter. Therefore, if you are syncing from swap log, you need to try out
+    ///                   all of the combinations the below, to know exactly with which set of zeroForOne x amountSpecified parameters
+    ///                   the sim method was called
+    ///                   let combinations = [
+    ///                       (pool.token_a, swap_event.amount0),
+    ///                       (pool.token_b, swap_event.amount0),
+    ///                       (pool.token_a, swap_event.amount1),
+    ///                       (pool.token_b, swap_event.amount1),
+    ///                   ];
+    #[allow(clippy::type_complexity)]
+    fn _simulate_swap(
         &self,
         token_in: Address,
-        amount_specified: I256
-    ) -> Result<(I256, I256), SwapSimulationError> {
+        amount_specified: I256,
+        sqrt_price_limit_x96: Option<U256>,
+    ) -> Result<SwapResult, SwapSimulationError> {
         if amount_specified.is_zero() {
-            return Ok((I256::ZERO, I256::ZERO));
+            // maybe we want to throw an error?
+            return Ok(SwapResult::default());
         }
 
         let zero_for_one = token_in == self.token_a;
         let exact_input = amount_specified.is_positive();
 
-        let sqrt_price_limit_x96 =
-            if zero_for_one { MIN_SQRT_RATIO + U256_1 } else { MAX_SQRT_RATIO - U256_1 };
-
-        let mut state = CurrentSwapState {
-            amount_specified_remaining: amount_specified,
-            amount_calculated: I256::ZERO,
-            sqrt_price_x_96: self.sqrt_price,
-            tick: self.tick,
-            liquidity: self.liquidity,
-            fee_growth_global_x128: U256::ZERO,
-            protocol_fee: U256::ZERO
-        };
-
-        while state.amount_specified_remaining != I256::ZERO
-            && state.sqrt_price_x_96 != sqrt_price_limit_x96
-        {
-            let mut step = StepComputations::default();
-            step.sqrt_price_start_x_96 = state.sqrt_price_x_96;
-
-            (step.tick_next, step.initialized) =
-                uniswap_v3_math::tick_bitmap::next_initialized_tick_within_one_word(
-                    &self.tick_bitmap,
-                    state.tick,
-                    self.tick_spacing,
-                    zero_for_one
-                )?;
-
-            step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
-            step.sqrt_price_next_x96 =
-                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?.into();
-
-            let target_sqrt_ratio = if zero_for_one {
-                step.sqrt_price_next_x96.min(sqrt_price_limit_x96)
-            } else {
-                step.sqrt_price_next_x96.max(sqrt_price_limit_x96)
-            };
-
-            (state.sqrt_price_x_96, step.amount_in, step.amount_out, step.fee_amount) =
-                uniswap_v3_math::swap_math::compute_swap_step(
-                    state.sqrt_price_x_96.into(),
-                    target_sqrt_ratio.into(),
-                    state.liquidity,
-                    state.amount_specified_remaining.into(),
-                    self.fee
-                )?;
-
-            if exact_input {
-                state.amount_specified_remaining -=
-                    I256::from_raw(step.amount_in + step.fee_amount);
-                state.amount_calculated -= I256::from_raw(step.amount_out);
-            } else {
-                state.amount_specified_remaining += I256::from_raw(step.amount_out);
-                state.amount_calculated += I256::from_raw(step.amount_in + step.fee_amount);
-            }
-
-            if state.liquidity > 0 {
-                state.fee_growth_global_x128 +=
-                    U256::from(step.fee_amount) * (U256_1 << 128) / U256::from(state.liquidity);
-            }
-
-            if state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
-                if step.initialized {
-                    let liquidity_net = if let Some(info) = self.ticks.get(&step.tick_next) {
-                        if zero_for_one {
-                            -info.liquidity_net
-                        } else {
-                            info.liquidity_net
-                        }
-                    } else {
-                        0
-                    };
-
-                    state.liquidity = if liquidity_net < 0 {
-                        state
-                            .liquidity
-                            .checked_sub((-liquidity_net) as u128)
-                            .ok_or(SwapSimulationError::LiquidityUnderflow)?
-                    } else {
-                        state.liquidity + (liquidity_net as u128)
-                    };
-                }
-
-                state.tick = if zero_for_one { step.tick_next - 1 } else { step.tick_next };
-            } else if state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
-                state.tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(
-                    state.sqrt_price_x_96.into()
-                )?;
-            }
-        }
-
-        let (amount0, amount1) = if zero_for_one == exact_input {
-            (amount_specified - state.amount_specified_remaining, state.amount_calculated)
+        let sqrt_price_limit_x96 = sqrt_price_limit_x96.unwrap_or(if zero_for_one {
+            MIN_SQRT_RATIO + U256_1
         } else {
-            (state.amount_calculated, amount_specified - state.amount_specified_remaining)
-        };
+            MAX_SQRT_RATIO - U256_1
+        });
 
-        tracing::trace!(?amount0, ?amount1);
-        Ok((amount0, amount1))
-    }
-
-    pub fn simulate_swap_mut(
-        &mut self,
-        token_in: Address,
-        amount_specified: I256
-    ) -> Result<(I256, I256), SwapSimulationError> {
-        if amount_specified.is_zero() {
-            return Ok((I256::ZERO, I256::ZERO));
+        if (zero_for_one
+            && (sqrt_price_limit_x96 >= self.sqrt_price || sqrt_price_limit_x96 <= MIN_SQRT_RATIO))
+            || (!zero_for_one
+            && (sqrt_price_limit_x96 <= self.sqrt_price
+            || sqrt_price_limit_x96 >= MAX_SQRT_RATIO))
+        {
+            // maybe we want to throw an error?
+            return Ok(SwapResult::default());
         }
-
-        let zero_for_one = token_in == self.token_a;
-        let exact_input = amount_specified.is_positive();
-
-        // Set sqrt_price_limit_x_96 to the max or min sqrt price in the pool depending
-        // on zero_for_one
-        let sqrt_price_limit_x96 =
-            if zero_for_one { MIN_SQRT_RATIO + U256_1 } else { MAX_SQRT_RATIO - U256_1 };
 
         let mut state = CurrentSwapState {
             amount_specified_remaining: amount_specified,
@@ -289,41 +219,51 @@ impl EnhancedUniswapV3Pool {
             tick: self.tick,
             liquidity: self.liquidity,
             fee_growth_global_x128: U256::ZERO, // We don't track this
-            protocol_fee: U256::ZERO            // We don't track this
         };
+
+        tracing::trace!(
+            token_in = ?token_in,
+            amount_specified = ?amount_specified,
+            zero_for_one = zero_for_one,
+            exact_input = exact_input,
+            sqrt_price_limit_x96 = ?sqrt_price_limit_x96,
+            initial_state = ?state,
+            "starting swap"
+        );
 
         while state.amount_specified_remaining != I256::ZERO
             && state.sqrt_price_x_96 != sqrt_price_limit_x96
         {
-            let mut step = StepComputations::default();
-            step.sqrt_price_start_x_96 = state.sqrt_price_x_96;
+            let mut step = StepComputations { sqrt_price_start_x_96: state.sqrt_price_x_96, ..Default::default() };
 
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bitmap::next_initialized_tick_within_one_word(
                     &self.tick_bitmap,
                     state.tick,
                     self.tick_spacing,
-                    zero_for_one
+                    zero_for_one,
                 )?;
 
             step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
             step.sqrt_price_next_x96 =
-                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?
-                    .into();
+                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
 
-            let target_sqrt_ratio = if zero_for_one {
-                step.sqrt_price_next_x96.min(sqrt_price_limit_x96)
+            let target_sqrt_ratio = if (zero_for_one
+                && step.sqrt_price_next_x96 < sqrt_price_limit_x96)
+                || (!zero_for_one && step.sqrt_price_next_x96 > sqrt_price_limit_x96)
+            {
+                sqrt_price_limit_x96
             } else {
-                step.sqrt_price_next_x96.max(sqrt_price_limit_x96)
+                step.sqrt_price_next_x96
             };
 
             (state.sqrt_price_x_96, step.amount_in, step.amount_out, step.fee_amount) =
                 uniswap_v3_math::swap_math::compute_swap_step(
-                    state.sqrt_price_x_96.into(),
-                    target_sqrt_ratio.into(),
+                    state.sqrt_price_x_96,
+                    target_sqrt_ratio,
                     state.liquidity,
-                    state.amount_specified_remaining.into(),
-                    self.fee
+                    state.amount_specified_remaining,
+                    self.fee,
                 )?;
 
             if exact_input {
@@ -365,15 +305,20 @@ impl EnhancedUniswapV3Pool {
                 state.tick = if zero_for_one { step.tick_next - 1 } else { step.tick_next };
             } else if state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
                 state.tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(
-                    state.sqrt_price_x_96.into()
+                    state.sqrt_price_x_96
                 )?;
             }
-        }
 
-        // Update the pool state
-        self.liquidity = state.liquidity;
-        self.sqrt_price = state.sqrt_price_x_96;
-        self.tick = state.tick;
+            tracing::trace!(
+                sqrt_price_x_96 = ?state.sqrt_price_x_96,
+                amount_in = ?step.amount_in,
+                amount_out = ?step.amount_out,
+                fee_amount = ?step.fee_amount,
+                tick_next = ?step.tick_next,
+                state = ?state,
+                "step completed"
+            );
+        }
 
         let (amount0, amount1) = if zero_for_one == exact_input {
             (amount_specified - state.amount_specified_remaining, state.amount_calculated)
@@ -381,8 +326,40 @@ impl EnhancedUniswapV3Pool {
             (state.amount_calculated, amount_specified - state.amount_specified_remaining)
         };
 
-        tracing::trace!(?amount0, ?amount1);
-        Ok((amount0, amount1))
+        tracing::debug!(?amount0, ?amount1);
+
+        Ok(SwapResult {
+            amount0,
+            amount1,
+            liquidity: state.liquidity,
+            sqrt_price_x_96: state.sqrt_price_x_96,
+            tick: state.tick,
+        })
+    }
+
+    pub fn simulate_swap(
+        &self,
+        token_in: Address,
+        amount_specified: I256,
+        sqrt_price_limit_x96: Option<U256>,
+    ) -> Result<(I256, I256), SwapSimulationError> {
+        let swap_result = self._simulate_swap(token_in, amount_specified, sqrt_price_limit_x96)?;
+        Ok((swap_result.amount0, swap_result.amount1))
+    }
+
+    pub fn simulate_swap_mut(
+        &mut self,
+        token_in: Address,
+        amount_specified: I256,
+        sqrt_price_limit_x96: Option<U256>,
+    ) -> Result<(I256, I256), SwapSimulationError> {
+        let swap_result = self._simulate_swap(token_in, amount_specified, sqrt_price_limit_x96)?;
+
+        self.liquidity = swap_result.liquidity;
+        self.sqrt_price = swap_result.sqrt_price_x_96;
+        self.tick = swap_result.tick;
+
+        Ok((swap_result.amount0, swap_result.amount1))
     }
 }
 
@@ -408,12 +385,12 @@ mod test {
         hex,
         network::Ethereum,
         primitives::{address, Bytes, Log as AlloyLog, U256},
-        providers::{Provider, ProviderBuilder, RootProvider, WsConnect},
+        providers::{Provider, ProviderBuilder, RootProvider},
         rpc::{client::ClientBuilder, types::eth::Log as RpcLog},
         transports::{
             http::{Client, Http},
-            layers::{RetryBackoffLayer, RetryBackoffService}
-        }
+            layers::{RetryBackoffLayer, RetryBackoffService},
+        },
     };
     use alloy_primitives::{BlockHash, LogData, TxHash, B256};
 
@@ -434,7 +411,7 @@ mod test {
     async fn setup_pool(
         provider: Arc<RootProvider<RetryBackoffService<Http<Client>>, Ethereum>>,
         block_number: u64,
-        ticks_per_side: u16
+        ticks_per_side: u16,
     ) -> EnhancedUniswapV3Pool {
         let address = address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640");
         let mut pool = EnhancedUniswapV3Pool::new(address, ticks_per_side);
@@ -489,7 +466,7 @@ mod test {
         let token_in = pool.token_a;
         let amount_in = I256::from_str("66741928781").unwrap(); // 66741.928781 * 10^6
         let (amount_0, amount_1) = pool
-            .simulate_swap_mut(token_in, amount_in)
+            .simulate_swap_mut(token_in, amount_in, None)
             .expect("Swap simulation failed");
 
         // Check the results
@@ -689,7 +666,7 @@ mod test {
         let token_in = pool.token_b;
         let amount_in = I256::from_dec_str("300532960990132029").unwrap();
         let (amount_0, amount_1) = pool
-            .simulate_swap_mut(token_in, amount_in)
+            .simulate_swap_mut(token_in, amount_in, None)
             .expect("Fist swap simulation failed");
         assert_eq!(amount_0, I256::from_dec_str("-813383744").unwrap());
         assert_eq!(amount_1, I256::from_dec_str("300532960990132029").unwrap());
@@ -704,7 +681,7 @@ mod test {
         let token_in = pool.token_b;
         let amount_in = I256::from_dec_str("-100000000").unwrap();
         let (amount_0, amount_1) = pool
-            .simulate_swap_mut(token_in, amount_in)
+            .simulate_swap_mut(token_in, amount_in, None)
             .expect("Second swap simulation failed");
         assert_eq!(amount_0, I256::from_dec_str("-100000000").unwrap());
         assert_eq!(amount_1, I256::from_dec_str("36948528148148111").unwrap());
@@ -719,7 +696,7 @@ mod test {
         let token_in = pool.token_b;
         let amount_in = I256::from_dec_str("-111610000").unwrap();
         let (amount_0, amount_1) = pool
-            .simulate_swap_mut(token_in, amount_in)
+            .simulate_swap_mut(token_in, amount_in, None)
             .expect("Third swap simulation failed");
         assert_eq!(amount_0, I256::from_dec_str("-111610000").unwrap());
         assert_eq!(amount_1, I256::from_dec_str("41238263733788147").unwrap());
@@ -729,34 +706,5 @@ mod test {
         );
         assert_eq!(pool.liquidity, 14623537689052122812u128);
         assert_eq!(pool.tick, 197281);
-    }
-
-    #[tokio::test]
-    #[ignore]
-    async fn test_pool_manager() {
-        let block_number = 20498069;
-        let ticks_per_side = 10;
-        let provider = setup_provider().await;
-        let mut pool = setup_pool(provider.clone(), block_number, ticks_per_side).await;
-        pool.sync_ticks(Some(block_number), provider.clone())
-            .await
-            .expect("failed to sync ticks");
-
-        let ws_endpoint = std::env::var("ETHEREUM_WS_ENDPOINT").unwrap();
-
-        // Initialize WS provider
-        let ws = WsConnect::new(ws_endpoint);
-        let provider = Arc::new(ProviderBuilder::new().on_ws(ws).await.unwrap());
-
-        let step: u64 = 1000;
-        // let state_space_manager = StateSpaceManager::new(vec![pool],
-        // block_number, 100, 100, provider); let (mut rx,
-        // _join_handles) =
-        // state_space_manager.subscribe_state_changes().await?;
-        // for _ in 0..10 {
-        //     if let Some(state_changes) = rx.recv().await {
-        //         println!("State changes: {:?}", state_changes);
-        //     }
-        // }
     }
 }

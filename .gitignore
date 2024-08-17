@@ -16,3 +16,6 @@ target/
 /target
 
 *.env
+
+
+.idea/

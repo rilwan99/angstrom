@@ -1,72 +1,71 @@
-use std::{marker::PhantomData, sync::Arc};
+use alloy::eips::BlockNumberOrTag;
+use alloy::providers::RootProvider;
+use alloy::rpc::types::Block;
 use alloy::{
-    eips::BlockNumberOrTag,
-    network::Network,
-    providers::Provider,
-    rpc::types::Block,
+    network::Network, providers::Provider,
     transports::Transport,
 };
-use futures::{Stream, StreamExt};
-use tokio::time::{sleep, Duration};
+use futures::Stream;
+use std::marker::PhantomData;
+use std::sync::Arc;
+use tokio::sync::broadcast;
+use tokio_stream::{
+    wrappers::BroadcastStream,
+    StreamExt,
+};
 
 #[derive(Debug, Clone)]
-pub struct MockBlockStream<T, N, P> {
+pub struct MockBlockStream<P, T, N> {
+    inner: Arc<P>,
     from_block: u64,
     to_block: u64,
-    provider: Arc<P>,
-    transport: PhantomData<T>,
-    network: PhantomData<N>,
+    _phantom: PhantomData<(T, N)>,
 }
 
-impl<T, N, P> MockBlockStream<T, N, P>
+impl<P, T, N> MockBlockStream<P, T, N>
 where
+    P: Provider<T, N> + 'static,
     T: Transport + Clone,
     N: Network,
-    P: Provider<T, N> + 'static,
 {
-    pub fn new(from_block: u64, to_block: u64, provider: Arc<P>) -> Self {
+    pub fn new(inner: Arc<P>, from_block: u64, to_block: u64) -> Self {
         Self {
+            inner,
             from_block,
             to_block,
-            provider,
-            transport: PhantomData,
-            network: PhantomData,
+            _phantom: PhantomData,
         }
     }
 
-    pub async fn subscribe_blocks(&self) -> Result<impl Stream<Item=Block> + Send, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn subscribe_blocks(
+        &self
+    ) -> Result<impl Stream<Item=Block> + Send, Box<dyn std::error::Error + Send + Sync>> {
+        let (tx, rx) = broadcast::channel(100);
         let from_block = self.from_block;
         let to_block = self.to_block;
-        let provider = self.provider.clone();
+        let inner = self.inner.clone();
 
-        let stream = futures::stream::unfold(from_block, move |current_block| {
-            let provider = provider.clone();
-            async move {
-                if current_block > to_block {
-                    return None;
-                }
-
-                match provider.get_block_by_number(BlockNumberOrTag::Number(current_block), false).await {
-                    Ok(Some(block)) => {
-                        // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                        Some((Ok(block), current_block + 1))
-                    },
-                    Ok(None) => None,
-                    Err(e) => {
-                        tracing::error!("RPC ERROR {:?}", e);
-                        Some((Err(Box::new(e) as Box<dyn std::error::Error + Send + Sync>), current_block))
-                    },
-                }
-            }
-        }).filter_map(|result| async move {
-            match result {
-                Ok(block) => Some(block),
-                Err(e) => {
-                    tracing::error!("Error fetching block: {:?}", e);
-                    None
+        tokio::spawn(async move {
+            for block_number in from_block..=to_block {
+                if let Some(block) = inner
+                    .get_block_by_number(BlockNumberOrTag::Number(block_number), false)
+                    .await
+                    .ok()
+                    .and_then(|b| b)
+                {
+                    if tx.send(block).is_err() {
+                        break;
+                    }
                 }
             }
         });
-        Ok(Box::pin(stream))
+        Ok(BroadcastStream::new(rx).filter_map(|result| result.ok()))
+    }
+}
+
+#[async_trait::async_trait]
+impl<P: Provider<T, N> + 'static, T: Transport + Clone, N: Network> Provider<T, N> for MockBlockStream<P, T, N> {
+    fn root(&self) -> &RootProvider<T, N> {
+        self.inner.root()
     }
 }
