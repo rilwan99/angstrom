@@ -9,7 +9,6 @@ repository.workspace = true
 exclude.workspace = true
 
 [dev-dependencies]
-testing-tools.workspace = true
 divan = "0.1.14"
 
 [dependencies]
@@ -18,7 +17,6 @@ angstrom-utils.workspace = true
 alloy-primitives.workspace = true
 eyre.workspace = true
 futures-util.workspace = true
-uniswap_v3_math.workspace = true
 malachite = "0.4.0"
 malachite-q = "0.4.0"
 rand.workspace = true
@@ -26,8 +24,29 @@ rand_distr.workspace = true
 tokio.workspace = true
 reth-tasks.workspace = true
 criterion.workspace = true
+
+uniswap_v3_math = { git = "https://github.com/0xKitsune/uniswap-v3-math.git", rev = "1120ff6" }
+arraydeque = "0.5"
+tokio-stream = "0.1.15"
+alloy = { version = "0.2", features = [
+    "contract",
+    "network",
+    "provider-ws",
+    "rpc-types-eth",
+    "signer-local",
+    "json-rpc"
+] }
+eyre = "0.6"
+
 # Using clap for our bookgen command-line tool
-clap = "4.5.4"
+clap = { version = "4.5.4", features = ["derive"] }
+amms = { git = "https://github.com/darkforestry/amms-rs.git", rev ="643b049"}
+serde_json = "1.0.122"
+futures = "0.3.30"
+tracing = "0.1.40"
+async-trait = "0.1.81"
+tracing-subscriber = { version = "0.3.18", features = [ "default", "env-filter"] }
+thiserror = "1.0.63"
 
 [[bench]]
 name = "volume_solver"
@@ -41,4 +60,3 @@ incremental = false
 opt-level = 3
 panic = 'abort'
 overflow-checks = false
-
