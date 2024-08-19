@@ -1,13 +1,14 @@
 extern crate arraydeque;
 use std::{ops::Deref, sync::Arc};
+
 use alloy::{
     network::Ethereum,
     primitives::address,
     providers::{ProviderBuilder, RootProvider, WsConnect},
-    pubsub::PubSubFrontend,
+    pubsub::PubSubFrontend
 };
 use alloy_primitives::BlockNumber;
-use amms::amm::{uniswap_v3::UniswapV3Pool};
+use amms::amm::uniswap_v3::UniswapV3Pool;
 use matching_engine::cfmm::uniswap::{
     mock_block_stream::MockBlockStream, pool::EnhancedUniswapV3Pool,
     pool_manager::UniswapPoolManager
@@ -27,15 +28,12 @@ async fn main() -> eyre::Result<()> {
         ProviderBuilder::default().on_ws(ws).await.unwrap();
     let ws_provider = Arc::new(ws_provider);
     let ticks_per_side = 400;
-    // let block_number = ws_provider.get_block_number().await?;
-    // let block_number = 20522649;
-    // let block_number = 20522215;
     let block_number = 20522309;
     let from_block = block_number + 1;
     let to_block = block_number + 100;
-    // let ws_provider= Arc::new(SimProvider::new(ws_provider.clone(), from_block, to_block));
     let address = address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640");
     let mut pool = EnhancedUniswapV3Pool::new(address, ticks_per_side);
+    pool.set_sim_swap_sync(true);
     tracing::info!(block_number = block_number, "loading old pool");
     pool.initialize(Some(block_number), ws_provider.clone())
         .await?;
@@ -45,14 +43,14 @@ async fn main() -> eyre::Result<()> {
     let state_change_buffer = 1;
 
     let mock_block_stream = MockBlockStream::new(ws_provider.clone(), from_block, to_block);
-    let state_space_manager = UniswapPoolManager::new(
+    let mut state_space_manager = UniswapPoolManager::new(
         pool,
         block_number,
         stream_buffer,
         state_change_buffer,
-        ws_provider.clone(),
-        Some(mock_block_stream),
+        ws_provider.clone()
     );
+    state_space_manager.set_mock_block_stream(mock_block_stream);
 
     let (mut rx, _join_handles) = state_space_manager.subscribe_state_changes().await?;
 
@@ -188,9 +186,10 @@ fn compare_pools(old: &UniswapV3Pool, new: &EnhancedUniswapV3Pool, block_number:
     let mut fresh_ticks: Vec<_> = new.ticks.keys().collect();
     fresh_ticks.sort();
 
-    // since loading does not account for tick window moving up or down if fresh_ticks are used
-    // then it could happen that there are ticks in the fresh pool that are not in the old simply
-    // because left/right end would be -/+1 for the fresh pool
+    // since loading does not account for tick window moving up or down if
+    // fresh_ticks are used then it could happen that there are ticks in the
+    // fresh pool that are not in the old simply because left/right end would be
+    // -/+1 for the fresh pool
     for (idx, tick) in original_ticks.iter().enumerate() {
         let original_info = &old.ticks[tick];
         if let Some(fresh_info) = new.ticks.get(tick) {

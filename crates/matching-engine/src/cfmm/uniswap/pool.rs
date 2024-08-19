@@ -1,21 +1,25 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use alloy::{
     network::Network,
     primitives::{Address, I256, U256},
     providers::Provider,
-    transports::Transport,
+    rpc::types::eth::Log,
+    sol_types::SolEvent,
+    transports::Transport
 };
 use amms::{
     amm::{
-        uniswap_v3::{Info, UniswapV3Pool},
-        AutomatedMarketMaker,
+        uniswap_v3::{IUniswapV3Pool, Info, UniswapV3Pool},
+        AutomatedMarketMaker
     },
-    errors::{AMMError, SwapSimulationError},
+    errors::{AMMError, SwapSimulationError}
 };
 use uniswap_v3_math::tick_math::{MAX_TICK, MIN_TICK};
 
-use crate::cfmm::uniswap::loader::get_uniswap_v3_tick_data_batch_request;
+use crate::cfmm::uniswap::{
+    loader::get_uniswap_v3_tick_data_batch_request, pool_manager::PoolManagerError
+};
 
 pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
 pub const MIN_SQRT_RATIO: U256 = U256::from_limbs([4295128739, 0, 0, 0]);
@@ -25,12 +29,12 @@ pub const MAX_SQRT_RATIO: U256 =
 #[derive(Default, Debug)]
 pub struct StepComputations {
     pub sqrt_price_start_x_96: U256,
-    pub tick_next: i32,
-    pub initialized: bool,
-    pub sqrt_price_next_x96: U256,
-    pub amount_in: U256,
-    pub amount_out: U256,
-    pub fee_amount: U256,
+    pub tick_next:             i32,
+    pub initialized:           bool,
+    pub sqrt_price_next_x96:   U256,
+    pub amount_in:             U256,
+    pub amount_out:            U256,
+    pub fee_amount:            U256
 }
 
 #[derive(Debug)]
@@ -40,40 +44,52 @@ pub struct CurrentSwapState {
     sqrt_price_x_96: U256,
     tick: i32,
     liquidity: u128,
-    fee_growth_global_x128: U256,
+    fee_growth_global_x128: U256
 }
+
 #[derive(Default)]
 struct SwapResult {
-    amount0: I256,
-    amount1: I256,
+    amount0:         I256,
+    amount1:         I256,
     sqrt_price_x_96: U256,
-    liquidity: u128,
-    tick: i32,
+    liquidity:       u128,
+    tick:            i32
 }
+
 // at around 190 is when "max code size exceeded" comes up
 const MAX_TICKS_PER_REQUEST: u16 = 150;
+
 #[derive(Debug, Clone)]
 pub struct EnhancedUniswapV3Pool {
-    inner: UniswapV3Pool,
-    initial_ticks_per_side: u16,
+    inner:                  UniswapV3Pool,
+    sync_swap_with_sim:          bool,
+    initial_ticks_per_side: u16
 }
 
 impl EnhancedUniswapV3Pool {
     pub fn new(address: Address, initial_ticks_per_side: u16) -> Self {
-        Self { inner: UniswapV3Pool { address, ..Default::default() }, initial_ticks_per_side }
+        Self {
+            inner: UniswapV3Pool { address, ..Default::default() },
+            initial_ticks_per_side,
+            sync_swap_with_sim: false
+        }
+    }
+
+    pub fn set_sim_swap_sync(&mut self, sync_swap_with_sim: bool) {
+        self.sync_swap_with_sim = sync_swap_with_sim;
     }
 
     pub async fn initialize<T, N, P>(
         &mut self,
         block_number: Option<u64>,
-        provider: Arc<P>,
+        provider: Arc<P>
     ) -> Result<(), AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N>
     {
-        self.populate_data(block_number, provider.clone()).await
+        self.populate_data(block_number, provider).await
     }
 
     pub fn is_initialized(&self) -> bool {
@@ -83,20 +99,19 @@ impl EnhancedUniswapV3Pool {
     pub async fn sync_ticks<T, N, P>(
         &mut self,
         block_number: Option<u64>,
-        provider: Arc<P>,
+        provider: Arc<P>
     ) -> Result<(), AMMError>
     where
         T: Transport + Clone,
         N: Network,
-        P: Provider<T, N>,
+        P: Provider<T, N>
     {
         if !self.is_initialized() {
             return Err(AMMError::PoolDataError);
         }
 
-        // refreshing the state just in case
-        self.ticks = HashMap::new();
-        self.tick_bitmap = HashMap::new();
+        self.ticks.clear();
+        self.tick_bitmap.clear();
 
         let mut remaining_ticks = self.initial_ticks_per_side;
         let mut current_tick = self.tick;
@@ -111,9 +126,9 @@ impl EnhancedUniswapV3Pool {
                 true,
                 ticks_to_fetch,
                 block_number,
-                provider.clone(),
+                provider.clone()
             )
-                .await?;
+            .await?;
             left_ticks.append(&mut fetched_ticks);
             remaining_ticks -= ticks_to_fetch;
             if let Some(last_tick) = left_ticks.last() {
@@ -136,9 +151,9 @@ impl EnhancedUniswapV3Pool {
                 false,
                 ticks_to_fetch,
                 block_number,
-                provider.clone(),
+                provider.clone()
             )
-                .await?;
+            .await?;
             right_ticks.append(&mut fetched_ticks);
             remaining_ticks -= ticks_to_fetch;
             if let Some(last_tick) = right_ticks.last() {
@@ -148,15 +163,15 @@ impl EnhancedUniswapV3Pool {
             }
         }
 
-        for tick in left_ticks.into_iter().chain(right_ticks.into_iter()) {
+        for tick in left_ticks.into_iter().chain(right_ticks) {
             if tick.initialized {
                 self.ticks.insert(
                     tick.tick,
                     Info {
                         liquidity_gross: tick.liquidity_gross,
-                        liquidity_net: tick.liquidity_net,
-                        initialized: true,
-                    },
+                        liquidity_net:   tick.liquidity_net,
+                        initialized:     true
+                    }
                 );
                 self.inner.flip_tick(tick.tick, self.inner.tick_spacing);
             }
@@ -168,25 +183,24 @@ impl EnhancedUniswapV3Pool {
     /// Obvious doc: Sims the swap to get the state changes after applying it
     ///
     /// (maybe) Not so obvious doc:
-    ///     * Testing:    If the goal is to test the implementation, passing amount0 *and* limit price, will mess with
-    ///                   your testing reliability, since you'd be clamping the potential change in amount1,
-    ///                   i.e. you probably won't be testing much.
-    ///     * Sync logs:  Swap sync logs don't have the zeroForOne field, which coupled with amountSpecified produces 4 possible
-    ///                   combinations of parameter. Therefore, if you are syncing from swap log, you need to try out
-    ///                   all of the combinations the below, to know exactly with which set of zeroForOne x amountSpecified parameters
-    ///                   the sim method was called
-    ///                   let combinations = [
-    ///                       (pool.token_a, swap_event.amount0),
-    ///                       (pool.token_b, swap_event.amount0),
-    ///                       (pool.token_a, swap_event.amount1),
-    ///                       (pool.token_b, swap_event.amount1),
-    ///                   ];
-    #[allow(clippy::type_complexity)]
+    ///     * Testing:    If the goal is to test the implementation, passing
+    ///       amount0 *and* limit price, will mess with your testing
+    ///       reliability, since you'd be clamping the potential change in
+    ///       amount1, i.e. you probably won't be testing much.
+    ///     * Sync logs:  Swap sync logs don't have the zeroForOne field, which
+    ///       coupled with amountSpecified produces 4 possible combinations of
+    ///       parameter. Therefore, if you are syncing from swap log, you need
+    ///       to try out all of the combinations the below, to know exactly with
+    ///       which set of zeroForOne x amountSpecified parameters the sim
+    ///       method was called let combinations = [ (pool.token_a,
+    ///       swap_event.amount0), (pool.token_b, swap_event.amount0),
+    ///       (pool.token_a, swap_event.amount1), (pool.token_b,
+    ///       swap_event.amount1), ];
     fn _simulate_swap(
         &self,
         token_in: Address,
         amount_specified: I256,
-        sqrt_price_limit_x96: Option<U256>,
+        sqrt_price_limit_x96: Option<U256>
     ) -> Result<SwapResult, SwapSimulationError> {
         if amount_specified.is_zero() {
             // maybe we want to throw an error?
@@ -205,8 +219,8 @@ impl EnhancedUniswapV3Pool {
         if (zero_for_one
             && (sqrt_price_limit_x96 >= self.sqrt_price || sqrt_price_limit_x96 <= MIN_SQRT_RATIO))
             || (!zero_for_one
-            && (sqrt_price_limit_x96 <= self.sqrt_price
-            || sqrt_price_limit_x96 >= MAX_SQRT_RATIO))
+                && (sqrt_price_limit_x96 <= self.sqrt_price
+                    || sqrt_price_limit_x96 >= MAX_SQRT_RATIO))
         {
             // maybe we want to throw an error?
             return Ok(SwapResult::default());
@@ -218,7 +232,7 @@ impl EnhancedUniswapV3Pool {
             sqrt_price_x_96: self.sqrt_price,
             tick: self.tick,
             liquidity: self.liquidity,
-            fee_growth_global_x128: U256::ZERO, // We don't track this
+            fee_growth_global_x128: U256::ZERO // We don't track this
         };
 
         tracing::trace!(
@@ -234,14 +248,17 @@ impl EnhancedUniswapV3Pool {
         while state.amount_specified_remaining != I256::ZERO
             && state.sqrt_price_x_96 != sqrt_price_limit_x96
         {
-            let mut step = StepComputations { sqrt_price_start_x_96: state.sqrt_price_x_96, ..Default::default() };
+            let mut step = StepComputations {
+                sqrt_price_start_x_96: state.sqrt_price_x_96,
+                ..Default::default()
+            };
 
             (step.tick_next, step.initialized) =
                 uniswap_v3_math::tick_bitmap::next_initialized_tick_within_one_word(
                     &self.tick_bitmap,
                     state.tick,
                     self.tick_spacing,
-                    zero_for_one,
+                    zero_for_one
                 )?;
 
             step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
@@ -263,7 +280,7 @@ impl EnhancedUniswapV3Pool {
                     target_sqrt_ratio,
                     state.liquidity,
                     state.amount_specified_remaining,
-                    self.fee,
+                    self.fee
                 )?;
 
             if exact_input {
@@ -304,9 +321,8 @@ impl EnhancedUniswapV3Pool {
 
                 state.tick = if zero_for_one { step.tick_next - 1 } else { step.tick_next };
             } else if state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
-                state.tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(
-                    state.sqrt_price_x_96
-                )?;
+                state.tick =
+                    uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(state.sqrt_price_x_96)?;
             }
 
             tracing::trace!(
@@ -333,7 +349,7 @@ impl EnhancedUniswapV3Pool {
             amount1,
             liquidity: state.liquidity,
             sqrt_price_x_96: state.sqrt_price_x_96,
-            tick: state.tick,
+            tick: state.tick
         })
     }
 
@@ -341,7 +357,7 @@ impl EnhancedUniswapV3Pool {
         &self,
         token_in: Address,
         amount_specified: I256,
-        sqrt_price_limit_x96: Option<U256>,
+        sqrt_price_limit_x96: Option<U256>
     ) -> Result<(I256, I256), SwapSimulationError> {
         let swap_result = self._simulate_swap(token_in, amount_specified, sqrt_price_limit_x96)?;
         Ok((swap_result.amount0, swap_result.amount1))
@@ -351,7 +367,7 @@ impl EnhancedUniswapV3Pool {
         &mut self,
         token_in: Address,
         amount_specified: I256,
-        sqrt_price_limit_x96: Option<U256>,
+        sqrt_price_limit_x96: Option<U256>
     ) -> Result<(I256, I256), SwapSimulationError> {
         let swap_result = self._simulate_swap(token_in, amount_specified, sqrt_price_limit_x96)?;
 
@@ -360,6 +376,64 @@ impl EnhancedUniswapV3Pool {
         self.tick = swap_result.tick;
 
         Ok((swap_result.amount0, swap_result.amount1))
+    }
+
+    pub fn sync_from_swap_log(&mut self, log: Log) -> Result<(), PoolManagerError> {
+        if self.sync_swap_with_sim {
+            self.sync_swap_with_sim(log)
+        } else {
+            self.inner.sync_from_swap_log(log).map_err(Into::into)
+        }
+    }
+
+    fn sync_swap_with_sim(&mut self, log: Log) -> Result<(), PoolManagerError> {
+        let swap_event = IUniswapV3Pool::Swap::decode_log(&log.inner, true)?;
+
+        tracing::trace!(pool_tick = ?self.tick, pool_price = ?self.sqrt_price, pool_liquidity = ?self.liquidity, pool_address = ?self.address, "pool before");
+        tracing::debug!(swap_tick=swap_event.tick, swap_price=?swap_event.sqrtPriceX96, swap_liquidity=?swap_event.liquidity, swap_amount0=?swap_event.amount0, swap_amount1=?swap_event.amount1, "swap event");
+
+        let combinations = [
+            (self.token_b, swap_event.amount1),
+            (self.token_a, swap_event.amount0),
+            (self.token_a, swap_event.amount1),
+            (self.token_b, swap_event.amount0)
+        ];
+
+        let mut simulation_failed = true;
+        for (token_in, amount_in) in combinations.iter() {
+            let sqrt_price_limit_x96 = Some(swap_event.sqrtPriceX96);
+            if let Ok((amount0, amount1)) =
+                self.simulate_swap(*token_in, *amount_in, sqrt_price_limit_x96)
+            {
+                if swap_event.amount0 == amount0 && swap_event.amount1 == amount1 {
+                    // will not fail
+                    let (..) =
+                        self.simulate_swap_mut(*token_in, *amount_in, sqrt_price_limit_x96)?;
+                    simulation_failed = false;
+                    break;
+                }
+            }
+        }
+
+        if simulation_failed {
+            tracing::error!(
+                pool_address = ?self.address,
+                pool_price = ?self.sqrt_price,
+                pool_liquidity = ?self.liquidity,
+                pool_tick = ?self.tick,
+                swap_price = ?swap_event.sqrtPriceX96,
+                swap_tick = swap_event.tick,
+                swap_liquidity = ?swap_event.liquidity,
+                swap_amount0 = ?swap_event.amount0,
+                swap_amount1 = ?swap_event.amount1,
+                "Swap simulation failed"
+            );
+            return Err(PoolManagerError::SwapSimulationFailed);
+        } else {
+            tracing::trace!(pool_tick = ?self.tick, pool_price = ?self.sqrt_price, pool_liquidity = ?self.liquidity, pool_address = ?self.address, "pool after");
+        }
+
+        Ok(())
     }
 }
 
@@ -389,8 +463,8 @@ mod test {
         rpc::{client::ClientBuilder, types::eth::Log as RpcLog},
         transports::{
             http::{Client, Http},
-            layers::{RetryBackoffLayer, RetryBackoffService},
-        },
+            layers::{RetryBackoffLayer, RetryBackoffService}
+        }
     };
     use alloy_primitives::{BlockHash, LogData, TxHash, B256};
 
@@ -411,7 +485,7 @@ mod test {
     async fn setup_pool(
         provider: Arc<RootProvider<RetryBackoffService<Http<Client>>, Ethereum>>,
         block_number: u64,
-        ticks_per_side: u16,
+        ticks_per_side: u16
     ) -> EnhancedUniswapV3Pool {
         let address = address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640");
         let mut pool = EnhancedUniswapV3Pool::new(address, ticks_per_side);

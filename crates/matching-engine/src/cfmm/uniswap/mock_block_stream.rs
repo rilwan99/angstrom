@@ -1,45 +1,37 @@
-use alloy::eips::BlockNumberOrTag;
-use alloy::providers::RootProvider;
-use alloy::rpc::types::Block;
+use std::{marker::PhantomData, sync::Arc};
+
 use alloy::{
-    network::Network, providers::Provider,
-    transports::Transport,
+    eips::BlockNumberOrTag,
+    network::Network,
+    providers::{Provider, RootProvider},
+    rpc::types::Block,
+    transports::Transport
 };
 use futures::Stream;
-use std::marker::PhantomData;
-use std::sync::Arc;
 use tokio::sync::broadcast;
-use tokio_stream::{
-    wrappers::BroadcastStream,
-    StreamExt,
-};
+use tokio_stream::{wrappers::BroadcastStream, StreamExt};
 
 #[derive(Debug, Clone)]
 pub struct MockBlockStream<P, T, N> {
-    inner: Arc<P>,
+    inner:      Arc<P>,
     from_block: u64,
-    to_block: u64,
-    _phantom: PhantomData<(T, N)>,
+    to_block:   u64,
+    _phantom:   PhantomData<(T, N)>
 }
 
 impl<P, T, N> MockBlockStream<P, T, N>
 where
     P: Provider<T, N> + 'static,
     T: Transport + Clone,
-    N: Network,
+    N: Network
 {
     pub fn new(inner: Arc<P>, from_block: u64, to_block: u64) -> Self {
-        Self {
-            inner,
-            from_block,
-            to_block,
-            _phantom: PhantomData,
-        }
+        Self { inner, from_block, to_block, _phantom: PhantomData }
     }
 
     pub async fn subscribe_blocks(
         &self
-    ) -> Result<impl Stream<Item=Block> + Send, Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<impl Stream<Item = Block> + Send, Box<dyn std::error::Error + Send + Sync>> {
         let (tx, rx) = broadcast::channel(100);
         let from_block = self.from_block;
         let to_block = self.to_block;
@@ -64,7 +56,9 @@ where
 }
 
 #[async_trait::async_trait]
-impl<P: Provider<T, N> + 'static, T: Transport + Clone, N: Network> Provider<T, N> for MockBlockStream<P, T, N> {
+impl<P: Provider<T, N> + 'static, T: Transport + Clone, N: Network> Provider<T, N>
+    for MockBlockStream<P, T, N>
+{
     fn root(&self) -> &RootProvider<T, N> {
         self.inner.root()
     }
