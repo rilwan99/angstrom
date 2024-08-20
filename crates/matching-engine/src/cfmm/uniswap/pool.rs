@@ -1,5 +1,7 @@
+use amms::amm::consts::U256_1;
 use std::sync::Arc;
 
+use crate::cfmm::uniswap::pool_manager::PoolManagerError;
 use alloy::{
     network::Network,
     primitives::{Address, I256, U256},
@@ -17,17 +19,11 @@ use amms::{
     errors::AMMError
 };
 use thiserror::Error;
+use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MIN_SQRT_RATIO};
 use uniswap_v3_math::{
     error::UniswapV3MathError,
     tick_math::{MAX_TICK, MIN_TICK}
 };
-
-use crate::cfmm::uniswap::pool_manager::PoolManagerError;
-
-pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
-pub const MIN_SQRT_RATIO: U256 = U256::from_limbs([4295128739, 0, 0, 0]);
-pub const MAX_SQRT_RATIO: U256 =
-    U256::from_limbs([6743328256752651558, 17280870778742802505, 4294805859, 0]);
 
 sol! {
     #[allow(missing_docs)]
