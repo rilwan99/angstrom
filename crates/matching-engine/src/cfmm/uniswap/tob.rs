@@ -187,7 +187,7 @@ pub fn calculate_reward(
 
 #[cfg(test)]
 mod test {
-    use alloy_primitives::{Uint, U256};
+    use alloy::primitives::{Uint, U256};
     use angstrom_types::matching::SqrtPriceX96;
     use rand::thread_rng;
     use testing_tools::type_generator::orders::generate_top_of_block_order;
@@ -227,7 +227,7 @@ mod test {
         let amm = generate_amm_market(-100000);
         let mut order = generate_top_of_block_order(&mut rng, true, None, None);
         order.is_bid = true;
-        order.order.amountOut = Uint::from(1_000_000_000_000_0_u128);
+        order.order.amountOut = Uint::from(10_000_000_000_000_u128);
         order.order.amountIn = Uint::from(100000000);
         let result = calculate_reward(order, amm);
         assert!(result.is_err_and(|e| {
@@ -286,7 +286,7 @@ mod test {
         let amm = generate_amm_market(100000);
         let mut order = generate_top_of_block_order(&mut rng, true, None, None);
         order.is_bid = true;
-        order.order.amountIn = Uint::from(1_000_000_000_000_0_u128);
+        order.order.amountIn = Uint::from(10_000_000_000_000_u128);
         order.order.amountOut = Uint::from(100000000);
         let result = calculate_reward(order, amm);
         assert!(result.is_ok());
@@ -298,7 +298,7 @@ mod test {
         let amm = generate_amm_market(100000);
         let mut order = generate_top_of_block_order(&mut rng, true, None, None);
         order.is_bid = false;
-        order.order.amountOut = Uint::from(1_000_000_000_000_0_u128);
+        order.order.amountOut = Uint::from(10_000_000_000_000_u128);
         order.order.amountIn = Uint::from(800000000);
         let result = calculate_reward(order, amm);
         assert!(result.is_ok());
