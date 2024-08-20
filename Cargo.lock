@@ -5418,6 +5418,9 @@ version = "0.1.0"
 dependencies = [
  "alloy 0.2.1",
  "amms",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-sol-types",
  "angstrom-types",
  "angstrom-utils",
  "arraydeque",

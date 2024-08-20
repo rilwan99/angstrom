@@ -1,9 +1,12 @@
 use std::collections::HashMap;
 
-use alloy::primitives::{I256, U256};
+use alloy::primitives::{address, I256, U256};
 use angstrom_types::{
     matching::{Ray, SqrtPriceX96},
-    sol_bindings::{grouped_orders::OrderWithStorageData, sol::TopOfBlockOrder}
+    sol_bindings::{
+        grouped_orders::OrderWithStorageData,
+        sol::{SolDonate, SolPoolRewardsUpdate, SolRewardsUpdate, TopOfBlockOrder}
+    }
 };
 use eyre::{eyre, Context, OptionExt};
 use uniswap_v3_math::{swap_math::compute_swap_step, tick_math::get_sqrt_ratio_at_tick};
@@ -12,10 +15,11 @@ use super::{MarketSnapshot, Tick};
 
 #[derive(Debug)]
 pub struct ToBOutcome {
-    pub start_tick:     i32,
-    pub tribute:        U256,
-    pub total_cost:     U256,
-    pub tick_donations: HashMap<Tick, U256>
+    pub start_tick:      i32,
+    pub start_liquidity: u128,
+    pub tribute:         U256,
+    pub total_cost:      U256,
+    pub tick_donations:  HashMap<Tick, U256>
 }
 
 impl ToBOutcome {
@@ -29,6 +33,31 @@ impl ToBOutcome {
     /// Tick donations plus tribute to determine total value of this outcome
     pub fn total_value(&self) -> U256 {
         self.total_donations() + self.tribute
+    }
+
+    pub fn to_donate(&self, a0_idx: u16, a1_idx: u16) -> SolPoolRewardsUpdate {
+        // These are TEMPROARY LOCAL ADDRESSES from Dave's Testnet - if you are seeing
+        // these used in prod code they are No Bueno
+        let asset0 = address!("332Fb35767182F8ac9F9C1405db626105F6694E0");
+        let asset1 = address!("982830D87C95479dB81Fe62cd08dd9118D080697");
+        let mut donations = self.tick_donations.iter().collect::<Vec<_>>();
+        // Will sort from lowest to highest (donations[0] will be the lowest tick
+        // number)
+        donations.sort_by_key(|f| f.0);
+        // Each reward value is the cumulative sum of the rewards before it
+        let quantities = donations
+            .iter()
+            .scan(U256::ZERO, |state, (_tick, q)| {
+                *state += **q;
+                Some(u128::try_from(*state).unwrap())
+            })
+            .collect::<Vec<_>>();
+        let update = SolRewardsUpdate {
+            startTick: *donations[0].0 + 1,
+            startLiquidity: self.start_liquidity,
+            quantities
+        };
+        SolPoolRewardsUpdate { asset0, asset1, update }
     }
 }
 
@@ -182,13 +211,23 @@ pub fn calculate_reward(
     let tribute = bribe - reward_t;
     // Both our tribute and our tick_donations are done in the same currency as
     // amountIn
-    Ok(ToBOutcome { start_tick: amm.current_tick, tribute, total_cost, tick_donations })
+    Ok(ToBOutcome {
+        start_tick: amm.current_tick,
+        start_liquidity: amm.current_position().liquidity(),
+        tribute,
+        total_cost,
+        tick_donations
+    })
 }
 
 #[cfg(test)]
 mod test {
-    use alloy::primitives::{Uint, U256};
-    use angstrom_types::matching::SqrtPriceX96;
+    use alloy::{
+        primitives::{address, Bytes, Uint, U256},
+        providers::ProviderBuilder,
+        sol_types::{SolCall, SolValue}
+    };
+    use angstrom_types::{matching::SqrtPriceX96, sol_bindings::sol::SolMockRewardsManager};
     use rand::thread_rng;
     use testing_tools::type_generator::orders::generate_top_of_block_order;
     use uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick;
@@ -302,5 +341,29 @@ mod test {
         order.order.amountIn = Uint::from(800000000);
         let result = calculate_reward(order, amm);
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn talks_to_contract() {
+        // Build a ToB outcome that we care about
+        let mut rng = thread_rng();
+        let amm = generate_amm_market(100000);
+        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
+        let total_payment = Uint::from(10_000_000_000_000_u128);
+        order.order.amountIn = total_payment;
+        order.order.amountOut = Uint::from(100000000);
+        let tob_outcome = calculate_reward(order, amm).expect("Error calculating tick donations");
+        // Connect to our contract and send the ToBoutcome over
+        let provider = ProviderBuilder::new().on_http("http://localhost:8545".parse().unwrap());
+        // Currently the address of a local deploy that I'm running, not the right
+        // address, should configure this to stand up on its own
+        let contract_address = address!("12975173B87F7595EE45dFFb2Ab812ECE596Bf84");
+        let contract = SolMockRewardsManager::new(contract_address, &provider);
+        let tob_bytes = Bytes::from(tob_outcome.to_donate(12, 12).abi_encode());
+        let call = contract.reward(tob_bytes);
+        // let reward_call =
+        // SolMockRewardsManager::rewardCall::new((Bytes::default(),)).abi_encode();
+        let call_return = call.call().await.unwrap();
+        println!("{:?}", call_return);
     }
 }
