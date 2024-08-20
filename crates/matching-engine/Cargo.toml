@@ -25,10 +25,9 @@ rand_distr.workspace = true
 tokio.workspace = true
 reth-tasks.workspace = true
 criterion.workspace = true
+uniswap_v3_math.workspace = true
 
-uniswap_v3_math = { git = "https://github.com/0xKitsune/uniswap-v3-math.git", rev = "1120ff6" }
 arraydeque = "0.5"
-tokio-stream = "0.1.15"
 alloy = { version = "0.2", features = [
     "contract",
     "network",
@@ -37,7 +36,6 @@ alloy = { version = "0.2", features = [
     "signer-local",
     "json-rpc"
 ] }
-eyre = "0.6"
 
 # Using clap for our bookgen command-line tool
 clap = { version = "4.5.4", features = ["derive"] }
