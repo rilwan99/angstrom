@@ -1,4 +1,7 @@
-use crate::cfmm::uniswap::{math::sqrt_price_at_tick, MarketSnapshot, PoolRange};
+use angstrom_types::matching::SqrtPriceX96;
+use uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick;
+
+use crate::cfmm::uniswap::{MarketSnapshot, PoolRange};
 
 /// Create a simple AMM with a single position with fixed liquidity across the
 /// range of ticks from `middle_tick - width` to `middle_tick + width`
@@ -7,7 +10,7 @@ pub fn single_position_amm(
     width: i32,
     liquidity: u128
 ) -> Option<MarketSnapshot> {
-    let amm_price = sqrt_price_at_tick(middle_tick + 1).unwrap();
+    let amm_price = SqrtPriceX96::from(get_sqrt_ratio_at_tick(middle_tick + 1).unwrap());
     let lower_tick = middle_tick - width;
     let upper_tick = middle_tick + width;
     let ranges = vec![PoolRange::new(lower_tick, upper_tick, liquidity).unwrap()];

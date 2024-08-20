@@ -89,3 +89,4 @@ tempfile.workspace = true
 parking_lot.workspace = true
 clap = { version = "4.5.4", features = ["derive"] }
 eyre = "0.6.12"
+uniswap_v3_math.workspace = true

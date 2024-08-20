@@ -57,7 +57,7 @@ angstrom-network = { path = "./crates/angstrom-net/" }
 testing-tools = { path = "./testing-tools/" }
 angstrom = { path = "./bin/angstrom/" }
 matching-engine = { path = "./crates/matching-engine/" }
-eyre = "0.3.7"
+eyre = "0.6.12"
 
 # BLS library
 blsful = "2.5.7"
@@ -166,7 +166,7 @@ alloy-json-rpc = { version = "0.1", default-features = false }
 alloy-rpc-client = { version = "0.1", default-features = false }
 
 # Uniswap math helpers
-uniswap_v3_math = "0.4.1"
+uniswap_v3_math = "0.5.1"
 
 hex-literal = "0.4.1"
 

@@ -16,7 +16,7 @@ use rand::{rngs::ThreadRng, thread_rng, Rng};
 use reth_network_peers::pk2id;
 use secp256k1::{Secp256k1, SecretKey as Secp256SecretKey};
 
-use super::orders::DistributionParameters;
+use super::orders::{generate_top_of_block_order, DistributionParameters};
 use crate::type_generator::orders::{generate_limit_order, generate_order_distribution};
 
 pub fn generate_limit_order_set(
@@ -58,7 +58,11 @@ pub fn generate_random_preproposal(count: usize, pool_count: usize, block: u64) 
         .flat_map(|pool_id| generate_limit_order_distribution(count, pool_id, block))
         .collect();
 
-    PreProposal::generate_pre_proposal(block, source, limit, vec![], &sk)
+    let searcher = (0..pool_count)
+        .map(|pool_id| generate_top_of_block_order(&mut rng, true, Some(pool_id), Some(block)))
+        .collect();
+
+    PreProposal::generate_pre_proposal(block, source, limit, searcher, &sk)
 }
 
 pub fn generate_random_proposal(count: usize, pool_count: usize, block: u64) -> Proposal {
@@ -119,7 +123,7 @@ mod tests {
 
     #[test]
     fn random_commit_is_valid() {
-        // We generate our secret key first 
+        // We generate our secret key first
         let sk = blsful::SecretKey::random(&mut thread_rng());
         let commit = generate_random_commit(&sk);
         assert!(commit.validate(&[sk.public_key()]));

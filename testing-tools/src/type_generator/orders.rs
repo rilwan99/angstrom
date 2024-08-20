@@ -3,8 +3,8 @@ use angstrom_types::{
     matching::Ray,
     orders::{OrderId, OrderPriorityData},
     sol_bindings::{
-        grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
-        sol::{FlashOrder, StandingOrder}
+        grouped_orders::{GroupedVanillaOrder, OrderWithStorageData, RawPoolOrder},
+        sol::{FlashOrder, StandingOrder, TopOfBlockOrder}
     }
 };
 use rand::{rngs::ThreadRng, Rng};
@@ -49,6 +49,35 @@ pub fn generate_limit_order(
     }
 }
 
+pub fn generate_top_of_block_order(
+    rng: &mut ThreadRng,
+    is_bid: bool,
+    pool_id: Option<usize>,
+    valid_block: Option<u64>
+) -> OrderWithStorageData<TopOfBlockOrder> {
+    let pool_id = pool_id.unwrap_or_default();
+    let valid_block = valid_block.unwrap_or_default();
+    // Could update this to be within a distribution
+    let price: u128 = rng.gen();
+    let volume: u128 = rng.gen();
+    let gas: u128 = rng.gen();
+    let order = build_top_of_block_order();
+
+    let priority_data = OrderPriorityData { price, volume, gas };
+    let order_id = generate_order_id(pool_id, order.hash());
+    // Todo: Sign It, make this overall better
+    OrderWithStorageData {
+        order,
+        priority_data,
+        is_bid,
+        is_currently_valid: true,
+        is_valid: true,
+        order_id,
+        pool_id,
+        valid_block
+    }
+}
+
 pub fn build_limit_order(
     kof: bool,
     valid_block: u64,
@@ -69,6 +98,10 @@ pub fn build_limit_order(
             ..Default::default()
         })
     }
+}
+
+pub fn build_top_of_block_order() -> TopOfBlockOrder {
+    TopOfBlockOrder::default()
 }
 
 #[derive(Debug, Default)]
