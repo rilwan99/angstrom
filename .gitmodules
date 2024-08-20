@@ -16,3 +16,6 @@
 [submodule "contracts/lib/forge-gas-snapshot"]
 	path = contracts/lib/forge-gas-snapshot
 	url = https://github.com/marktoda/forge-gas-snapshot
+[submodule "contracts/lib/solmate"]
+	path = contracts/lib/solmate
+	url = https://github.com/transmissions11/solmate
