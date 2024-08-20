@@ -1,4 +1,4 @@
-use std::{marker::PhantomData, sync::Arc};
+use std::{marker::PhantomData, sync::atomic::{AtomicBool, Ordering}, sync::Arc};
 
 use alloy::{
     network::Network,
@@ -37,7 +37,8 @@ pub struct UniswapPoolManager<P, T, N> {
     provider:            Arc<P>,
     // Can't be avoided for now if we want to be able to test
     mock_block_stream:   Arc<Option<MockBlockStream<P, T, N>>>,
-    _phantom:            PhantomData<(T, N)>
+    _phantom:            PhantomData<(T, N)>,
+    sync_started:        AtomicBool,
 }
 
 impl<P, T, N> UniswapPoolManager<P, T, N>
@@ -59,7 +60,8 @@ where
             state_change_cache: Arc::new(RwLock::new(ArrayDeque::new())),
             provider,
             mock_block_stream: Arc::new(None),
-            _phantom: PhantomData
+            _phantom: PhantomData,
+            sync_started: AtomicBool::new(false),
         }
     }
 
@@ -90,6 +92,10 @@ where
         (Receiver<(Address, BlockNumber)>, JoinHandle<Result<(), PoolManagerError>>),
         PoolManagerError
     > {
+        if self.sync_started.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+            return Err(PoolManagerError::SyncAlreadyStarted);
+        }
+
         let (pool_updated_tx, pool_updated_rx) =
             tokio::sync::mpsc::channel(self.state_change_buffer);
 
@@ -105,6 +111,10 @@ where
     pub async fn watch_state_changes(
         &self
     ) -> Result<JoinHandle<Result<(), PoolManagerError>>, PoolManagerError> {
+        if self.sync_started.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+            return Err(PoolManagerError::SyncAlreadyStarted);
+        }
+
         let address = self.pool().await.address;
         let updated_pool_handle = self.handle_state_changes(None, address).await?;
 
@@ -345,5 +355,7 @@ pub enum PoolManagerError {
     #[error(transparent)]
     BlockSendError(#[from] tokio::sync::mpsc::error::SendError<Block>),
     #[error(transparent)]
-    JoinError(#[from] tokio::task::JoinError)
+    JoinError(#[from] tokio::task::JoinError),
+    #[error("Synchronization has already been started")]
+    SyncAlreadyStarted,
 }
