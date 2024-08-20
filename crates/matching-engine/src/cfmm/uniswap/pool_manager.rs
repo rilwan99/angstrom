@@ -10,19 +10,21 @@ use alloy::{
 };
 use amms::{
     amm::{uniswap_v3::IUniswapV3Pool, AutomatedMarketMaker},
-    errors::{EventLogError, SwapSimulationError}
+    errors::EventLogError
 };
 use arraydeque::ArrayDeque;
 use futures::StreamExt;
+use futures_util::stream::BoxStream;
 use thiserror::Error;
 use tokio::{
     sync::{
-        mpsc::Receiver,
+        mpsc::{Receiver, Sender},
         RwLock, RwLockReadGuard, RwLockWriteGuard
     },
     task::JoinHandle
 };
 
+use super::pool::SwapSimulationError;
 use crate::cfmm::uniswap::{mock_block_stream::MockBlockStream, pool::EnhancedUniswapV3Pool};
 
 pub type StateChangeCache = ArrayDeque<StateChange, 150>;
@@ -30,7 +32,6 @@ pub type StateChangeCache = ArrayDeque<StateChange, 150>;
 pub struct UniswapPoolManager<P, T, N> {
     pool:                Arc<RwLock<EnhancedUniswapV3Pool>>,
     latest_synced_block: u64,
-    stream_buffer:       usize,
     state_change_buffer: usize,
     state_change_cache:  Arc<RwLock<StateChangeCache>>,
     provider:            Arc<P>,
@@ -48,14 +49,12 @@ where
     pub fn new(
         pool: EnhancedUniswapV3Pool,
         latest_synced_block: u64,
-        stream_buffer: usize,
         state_change_buffer: usize,
         provider: Arc<P>
     ) -> Self {
         Self {
             pool: Arc::new(RwLock::new(pool)),
             latest_synced_block,
-            stream_buffer,
             state_change_buffer,
             state_change_cache: Arc::new(RwLock::new(ArrayDeque::new())),
             provider,
@@ -88,45 +87,50 @@ where
     pub async fn subscribe_state_changes(
         &self
     ) -> Result<
-        (Receiver<(Address, BlockNumber)>, Vec<JoinHandle<Result<(), PoolManagerError>>>),
+        (Receiver<(Address, BlockNumber)>, JoinHandle<Result<(), PoolManagerError>>),
         PoolManagerError
     > {
-        let mut last_synced_block = self.latest_synced_block;
-
-        let (stream_tx, mut stream_rx) = tokio::sync::mpsc::channel(self.stream_buffer);
-
-        let provider = Arc::clone(&self.provider);
-        let address = self.pool().await.address;
-        let mock_block_stream = Arc::clone(&self.mock_block_stream);
-        let stream_handle = tokio::spawn(async move {
-            match mock_block_stream.as_ref() {
-                Some(provider) => {
-                    let mut block_stream = provider.subscribe_blocks().await.expect("the stream");
-                    while let Some(block) = block_stream.next().await {
-                        stream_tx.send(block).await?;
-                    }
-                }
-                None => {
-                    let subscription = provider.subscribe_blocks().await?;
-                    let mut block_stream = subscription.into_stream();
-                    while let Some(block) = block_stream.next().await {
-                        stream_tx.send(block).await?;
-                    }
-                }
-            };
-            Ok(())
-        });
-
         let (pool_updated_tx, pool_updated_rx) =
             tokio::sync::mpsc::channel(self.state_change_buffer);
+
+        let address = self.pool().await.address;
+        let updated_pool_handle = self
+            .handle_state_changes(Some(pool_updated_tx), address)
+            .await?;
+
+        Ok((pool_updated_rx, updated_pool_handle))
+    }
+
+    /// Listens to new blocks and handles state changes
+    pub async fn watch_state_changes(
+        &self
+    ) -> Result<JoinHandle<Result<(), PoolManagerError>>, PoolManagerError> {
+        let address = self.pool().await.address;
+        let updated_pool_handle = self.handle_state_changes(None, address).await?;
+
+        Ok(updated_pool_handle)
+    }
+
+    async fn handle_state_changes(
+        &self,
+        pool_updated_tx: Option<Sender<(Address, BlockNumber)>>,
+        address: Address
+    ) -> Result<JoinHandle<Result<(), PoolManagerError>>, PoolManagerError> {
+        let mut last_synced_block = self.latest_synced_block;
 
         let pool = Arc::clone(&self.pool);
         let provider = Arc::clone(&self.provider);
         let filter = self.filter().await;
         let state_change_cache = Arc::clone(&self.state_change_cache);
+        let mock_block_stream = Arc::clone(&self.mock_block_stream);
 
         let updated_pool_handle = tokio::spawn(async move {
-            while let Some(block) = stream_rx.recv().await {
+            let mut block_stream: BoxStream<Block> = match mock_block_stream.as_ref() {
+                Some(provider) => provider.subscribe_blocks().await,
+                None => provider.subscribe_blocks().await?.into_stream().boxed()
+            };
+
+            while let Some(block) = block_stream.next().await {
                 let chain_head_block_number = block
                     .header
                     .number
@@ -140,8 +144,9 @@ where
                         last_synced_block,
                         "reorg detected, unwinding state changes"
                     );
-                    unwind_state_changes(
-                        Arc::clone(&pool),
+                    let write_lock = pool.write().await;
+                    Self::unwind_state_changes(
+                        write_lock,
                         Arc::clone(&state_change_cache),
                         chain_head_block_number
                     )
@@ -163,7 +168,7 @@ where
 
                 if logs.is_empty() {
                     for block_number in from_block..=chain_head_block_number {
-                        add_state_change_to_cache(
+                        Self::add_state_change_to_cache(
                             Arc::clone(&state_change_cache),
                             StateChange::new(None, block_number)
                         )
@@ -171,19 +176,20 @@ where
                     }
                 } else {
                     let write_lock = pool.write().await;
-                    // if you don't care for the pool state on each block, pass the pool
-                    handle_state_changes_from_logs(
+                    Self::handle_state_changes_from_logs(
                         write_lock,
                         Arc::clone(&state_change_cache),
                         logs
                     )
                     .await?;
 
-                    if let Err(e) = pool_updated_tx
-                        .send((address, chain_head_block_number as BlockNumber))
-                        .await
-                    {
-                        tracing::error!("Failed to send pool update: {}", e);
+                    if let Some(tx) = &pool_updated_tx {
+                        if let Err(e) = tx
+                            .send((address, chain_head_block_number as BlockNumber))
+                            .await
+                        {
+                            tracing::error!("Failed to send pool update: {}", e);
+                        }
                     }
                 }
 
@@ -193,89 +199,100 @@ where
             Ok(())
         });
 
-        Ok((pool_updated_rx, vec![stream_handle, updated_pool_handle]))
+        Ok(updated_pool_handle)
     }
 
-    /// Listens to new blocks and handles state changes
-    pub async fn watch_state_changes(
-        &self
-    ) -> Result<Vec<JoinHandle<Result<(), PoolManagerError>>>, PoolManagerError> {
-        let mut last_synced_block = self.latest_synced_block;
+    /// Unwinds the state changes cache for every block from the most recent
+    /// state change cache back to the block to unwind -1.
+    async fn unwind_state_changes(
+        mut pool: RwLockWriteGuard<'_, EnhancedUniswapV3Pool>,
+        state_change_cache: Arc<RwLock<StateChangeCache>>,
+        block_to_unwind: u64
+    ) -> Result<(), PoolManagerError> {
+        let mut state_change_cache = state_change_cache.write().await;
 
-        let (stream_tx, mut stream_rx) = tokio::sync::mpsc::channel(self.stream_buffer);
-
-        let provider = Arc::clone(&self.provider);
-        let stream_handle = tokio::spawn(async move {
-            let subscription = provider.subscribe_blocks().await?;
-            let mut block_stream = subscription.into_stream();
-            while let Some(block) = block_stream.next().await {
-                stream_tx.send(block).await?;
-            }
-
-            Ok(())
-        });
-
-        let pool = Arc::clone(&self.pool);
-        let provider = Arc::clone(&self.provider);
-        let filter = self.filter().await;
-        let state_change_cache = Arc::clone(&self.state_change_cache);
-
-        let updated_pool_handle = tokio::spawn(async move {
-            while let Some(block) = stream_rx.recv().await {
-                let chain_head_block_number = block
-                    .header
-                    .number
-                    .ok_or(PoolManagerError::BlockNumberNotFound)?;
-
-                // If there is a reorg, unwind state changes from last_synced block to the
-                // chain head block number
-                if chain_head_block_number <= last_synced_block {
-                    unwind_state_changes(
-                        Arc::clone(&pool),
-                        Arc::clone(&state_change_cache),
-                        chain_head_block_number
-                    )
-                    .await?;
-
-                    // set the last synced block to the head block number
-                    last_synced_block = chain_head_block_number - 1;
-                }
-
-                let from_block = last_synced_block + 1;
-                let logs = provider
-                    .get_logs(
-                        &filter
-                            .clone()
-                            .from_block(from_block)
-                            .to_block(chain_head_block_number)
-                    )
-                    .await?;
-
-                if logs.is_empty() {
-                    for block_number in from_block..=chain_head_block_number {
-                        add_state_change_to_cache(
-                            Arc::clone(&state_change_cache),
-                            StateChange::new(None, block_number)
-                        )
-                        .await?;
+        loop {
+            // check if the most recent state change block is >= the block to unwind,
+            match state_change_cache.get(0) {
+                Some(state_change) if state_change.block_number >= block_to_unwind => {
+                    if let Some(option_state_change) = state_change_cache.pop_front() {
+                        if let Some(pool_state) = option_state_change.state_change {
+                            *pool = pool_state;
+                        }
+                    } else {
+                        // We know that there is a state change from state_change_cache.get(0) so
+                        // when we pop front without returning a value,
+                        // there is an issue
+                        return Err(PoolManagerError::PopFrontError);
                     }
-                } else {
-                    let write_lock = pool.write().await;
-                    handle_state_changes_from_logs(
-                        write_lock,
-                        Arc::clone(&state_change_cache),
-                        logs
-                    )
-                    .await?;
                 }
-
-                last_synced_block = chain_head_block_number;
+                Some(_) => return Ok(()),
+                None => {
+                    // We return an error here because we never want to be unwinding past where we
+                    // have state changes. For example, if you initialize a state space
+                    // that syncs to block 100, then immediately after there is a chain reorg to 95,
+                    // we can not roll back the state changes for an accurate state
+                    // space. In this case, we return an error
+                    return Err(PoolManagerError::NoStateChangesInCache);
+                }
             }
+        }
+    }
 
-            Ok(())
-        });
+    async fn add_state_change_to_cache(
+        state_change_cache: Arc<RwLock<StateChangeCache>>,
+        state_change: StateChange
+    ) -> Result<(), PoolManagerError> {
+        let mut state_change_cache = state_change_cache.write().await;
 
-        Ok(vec![stream_handle, updated_pool_handle])
+        if state_change_cache.is_full() {
+            state_change_cache.pop_back();
+        }
+        state_change_cache
+            .push_front(state_change)
+            .map_err(|_| PoolManagerError::CapacityError)
+    }
+
+    async fn handle_state_changes_from_logs(
+        mut pool: RwLockWriteGuard<'_, EnhancedUniswapV3Pool>,
+        state_change_cache: Arc<RwLock<StateChangeCache>>,
+        logs: Vec<Log>
+    ) -> Result<(), PoolManagerError> {
+        let log = logs.first().ok_or(PoolManagerError::NoLogsProvided)?;
+        let mut last_log_block_number = log
+            .block_number
+            .ok_or(EventLogError::LogBlockNumberNotFound)?;
+
+        for log in logs {
+            let log_block_number = log
+                .block_number
+                .ok_or(EventLogError::LogBlockNumberNotFound)?;
+
+            let pool_clone = pool.clone();
+            let event_signature = log.topics()[0];
+            match event_signature {
+                IUniswapV3Pool::Burn::SIGNATURE_HASH => pool.sync_from_burn_log(log)?,
+                IUniswapV3Pool::Mint::SIGNATURE_HASH => pool.sync_from_mint_log(log)?,
+                IUniswapV3Pool::Swap::SIGNATURE_HASH => pool.sync_from_swap_log(log)?,
+                _ => return Err(EventLogError::InvalidEventSignature.into())
+            }
+            if log_block_number != last_log_block_number {
+                Self::add_state_change_to_cache(
+                    Arc::clone(&state_change_cache),
+                    StateChange::new(Some(pool_clone), last_log_block_number)
+                )
+                .await?;
+
+                last_log_block_number = log_block_number;
+            }
+        }
+
+        let pool_clone = pool.clone();
+        Self::add_state_change_to_cache(
+            state_change_cache,
+            StateChange::new(Some(pool_clone), last_log_block_number)
+        )
+        .await
     }
 }
 
@@ -289,99 +306,6 @@ impl StateChange {
     pub fn new(state_change: Option<EnhancedUniswapV3Pool>, block_number: u64) -> Self {
         Self { state_change, block_number }
     }
-}
-
-/// Unwinds the state changes cache for every block from the most recent state
-/// change cache back to the block to unwind -1.
-async fn unwind_state_changes(
-    pool: Arc<RwLock<EnhancedUniswapV3Pool>>,
-    state_change_cache: Arc<RwLock<StateChangeCache>>,
-    block_to_unwind: u64
-) -> Result<(), PoolManagerError> {
-    let mut state_change_cache = state_change_cache.write().await;
-
-    loop {
-        // check if the most recent state change block is >= the block to unwind,
-        match state_change_cache.get(0) {
-            Some(state_change) if state_change.block_number >= block_to_unwind => {
-                if let Some(option_state_change) = state_change_cache.pop_front() {
-                    if let Some(pool_state) = option_state_change.state_change {
-                        *pool.write().await = pool_state;
-                    }
-                } else {
-                    // We know that there is a state change from state_change_cache.get(0) so when
-                    // we pop front without returning a value, there is an issue
-                    return Err(PoolManagerError::PopFrontError);
-                }
-            }
-            Some(_) => return Ok(()),
-            None => {
-                // We return an error here because we never want to be unwinding past where we
-                // have state changes. For example, if you initialize a state space
-                // that syncs to block 100, then immediately after there is a chain reorg to 95,
-                // we can not roll back the state changes for an accurate state
-                // space. In this case, we return an error
-                return Err(PoolManagerError::NoStateChangesInCache);
-            }
-        }
-    }
-}
-
-async fn add_state_change_to_cache(
-    state_change_cache: Arc<RwLock<StateChangeCache>>,
-    state_change: StateChange
-) -> Result<(), PoolManagerError> {
-    let mut state_change_cache = state_change_cache.write().await;
-
-    if state_change_cache.is_full() {
-        state_change_cache.pop_back();
-    }
-    state_change_cache
-        .push_front(state_change)
-        .map_err(|_| PoolManagerError::CapacityError)
-}
-
-pub async fn handle_state_changes_from_logs(
-    mut pool: RwLockWriteGuard<'_, EnhancedUniswapV3Pool>,
-    state_change_cache: Arc<RwLock<StateChangeCache>>,
-    logs: Vec<Log>
-) -> Result<(), PoolManagerError> {
-    let log = logs.first().ok_or(PoolManagerError::NoLogsProvided)?;
-    let mut last_log_block_number = get_block_number_from_log(log)?;
-
-    for log in logs {
-        let log_block_number = get_block_number_from_log(&log)?;
-
-        let pool_clone = pool.clone();
-        let event_signature = log.topics()[0];
-        match event_signature {
-            IUniswapV3Pool::Burn::SIGNATURE_HASH => pool.sync_from_burn_log(log)?,
-            IUniswapV3Pool::Mint::SIGNATURE_HASH => pool.sync_from_mint_log(log)?,
-            IUniswapV3Pool::Swap::SIGNATURE_HASH => pool.sync_from_swap_log(log)?,
-            _ => return Err(EventLogError::InvalidEventSignature.into())
-        }
-        if log_block_number != last_log_block_number {
-            add_state_change_to_cache(
-                Arc::clone(&state_change_cache),
-                StateChange::new(Some(pool_clone), last_log_block_number)
-            )
-            .await?;
-
-            last_log_block_number = log_block_number;
-        }
-    }
-
-    let pool_clone = pool.clone();
-    add_state_change_to_cache(
-        state_change_cache,
-        StateChange::new(Some(pool_clone), last_log_block_number)
-    )
-    .await
-}
-
-pub fn get_block_number_from_log(log: &Log) -> Result<u64, EventLogError> {
-    log.block_number
-        .ok_or(EventLogError::LogBlockNumberNotFound)
 }
 
 #[derive(Error, Debug)]

@@ -10,12 +10,12 @@ pub mod uniswap;
 #[derive(Debug)]
 pub struct PoolRange {
     // Liquidity range bounds.
-    lower: f64,
-    upper: f64,
+    lower:     f64,
+    upper:     f64,
     liquidity: f64,
     // (𝛥x, 𝛥y) The the net amounts required to fully jump the range.
-    full_dx: f64,
-    full_dy: f64,
+    full_dx:   f64,
+    full_dy:   f64
 }
 
 impl PoolRange {
@@ -42,9 +42,9 @@ impl PoolRange {
 /// Math: https://www.desmos.com/calculator/kh8ckngzap
 #[derive(Debug)]
 pub struct UniswapV4Book<const BOUND: usize> {
-    price: f64,
+    price:       f64,
     range_index: usize,
-    ranges: [PoolRange; BOUND],
+    ranges:      [PoolRange; BOUND]
 }
 
 impl<const BOUND: usize> UniswapV4Book<BOUND> {

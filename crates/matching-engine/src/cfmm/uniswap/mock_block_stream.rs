@@ -1,15 +1,10 @@
 use std::{marker::PhantomData, sync::Arc};
 
 use alloy::{
-    eips::BlockNumberOrTag,
-    network::Network,
-    providers::{Provider, RootProvider},
-    rpc::types::Block,
+    eips::BlockNumberOrTag, network::Network, providers::Provider, rpc::types::Block,
     transports::Transport
 };
-use futures::Stream;
-use tokio::sync::broadcast;
-use tokio_stream::{wrappers::BroadcastStream, StreamExt};
+use futures_util::StreamExt;
 
 #[derive(Debug, Clone)]
 pub struct MockBlockStream<P, T, N> {
@@ -29,37 +24,22 @@ where
         Self { inner, from_block, to_block, _phantom: PhantomData }
     }
 
-    pub async fn subscribe_blocks(
-        &self
-    ) -> Result<impl Stream<Item = Block> + Send, Box<dyn std::error::Error + Send + Sync>> {
-        let (tx, rx) = broadcast::channel(100);
+    pub async fn subscribe_blocks(&self) -> futures::stream::BoxStream<Block> {
         let from_block = self.from_block;
         let to_block = self.to_block;
         let inner = self.inner.clone();
 
-        tokio::spawn(async move {
-            for block_number in from_block..=to_block {
-                if let Some(block) = inner
-                    .get_block_by_number(BlockNumberOrTag::Number(block_number), false)
-                    .await
-                    .ok()
-                    .and_then(|b| b)
-                {
-                    if tx.send(block).is_err() {
-                        break;
-                    }
+        futures::stream::iter(from_block..=to_block)
+            .filter_map(move |i| {
+                let value = inner.clone();
+                async move {
+                    value
+                        .get_block_by_number(BlockNumberOrTag::Number(i), false)
+                        .await
+                        .ok()
+                        .flatten()
                 }
-            }
-        });
-        Ok(BroadcastStream::new(rx).filter_map(|result| result.ok()))
-    }
-}
-
-#[async_trait::async_trait]
-impl<P: Provider<T, N> + 'static, T: Transport + Clone, N: Network> Provider<T, N>
-    for MockBlockStream<P, T, N>
-{
-    fn root(&self) -> &RootProvider<T, N> {
-        self.inner.root()
+            })
+            .boxed()
     }
 }

@@ -39,17 +39,11 @@ async fn main() -> eyre::Result<()> {
         .await?;
     pool.sync_ticks(Some(block_number), ws_provider.clone())
         .await?;
-    let stream_buffer = 1;
     let state_change_buffer = 1;
 
     let mock_block_stream = MockBlockStream::new(ws_provider.clone(), from_block, to_block);
-    let mut state_space_manager = UniswapPoolManager::new(
-        pool,
-        block_number,
-        stream_buffer,
-        state_change_buffer,
-        ws_provider.clone()
-    );
+    let mut state_space_manager =
+        UniswapPoolManager::new(pool, block_number, state_change_buffer, ws_provider.clone());
     state_space_manager.set_mock_block_stream(mock_block_stream);
 
     let (mut rx, _join_handles) = state_space_manager.subscribe_state_changes().await?;

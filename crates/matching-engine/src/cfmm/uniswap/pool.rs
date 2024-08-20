@@ -5,7 +5,8 @@ use alloy::{
     primitives::{Address, I256, U256},
     providers::Provider,
     rpc::types::eth::Log,
-    sol_types::SolEvent,
+    sol,
+    sol_types::{SolEvent, SolType},
     transports::Transport
 };
 use amms::{
@@ -13,38 +14,48 @@ use amms::{
         uniswap_v3::{IUniswapV3Pool, Info, UniswapV3Pool},
         AutomatedMarketMaker
     },
-    errors::{AMMError, SwapSimulationError}
+    errors::AMMError
 };
-use uniswap_v3_math::tick_math::{MAX_TICK, MIN_TICK};
+use thiserror::Error;
+use uniswap_v3_math::{
+    error::UniswapV3MathError,
+    tick_math::{MAX_TICK, MIN_TICK}
+};
 
-use crate::cfmm::uniswap::{
-    loader::get_uniswap_v3_tick_data_batch_request, pool_manager::PoolManagerError
-};
+use crate::cfmm::uniswap::pool_manager::PoolManagerError;
 
 pub const U256_1: U256 = U256::from_limbs([1, 0, 0, 0]);
 pub const MIN_SQRT_RATIO: U256 = U256::from_limbs([4295128739, 0, 0, 0]);
 pub const MAX_SQRT_RATIO: U256 =
     U256::from_limbs([6743328256752651558, 17280870778742802505, 4294805859, 0]);
 
-#[derive(Default, Debug)]
-pub struct StepComputations {
-    pub sqrt_price_start_x_96: U256,
-    pub tick_next:             i32,
-    pub initialized:           bool,
-    pub sqrt_price_next_x96:   U256,
-    pub amount_in:             U256,
-    pub amount_out:            U256,
-    pub fee_amount:            U256
+sol! {
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    IGetUniswapV3TickDataBatchRequest,
+    "src/cfmm/uniswap/GetUniswapV3TickDataBatchRequestABI.json"
 }
 
-#[derive(Debug)]
-pub struct CurrentSwapState {
-    amount_specified_remaining: I256,
-    amount_calculated: I256,
-    sqrt_price_x_96: U256,
-    tick: i32,
-    liquidity: u128,
-    fee_growth_global_x128: U256
+sol! {
+    struct TickData {
+        bool initialized;
+        int24 tick;
+        uint128 liquidityGross;
+        int128 liquidityNet;
+    }
+
+    struct TicksWithBlock {
+        TickData[] ticks;
+        uint256 blockNumber;
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct UniswapV3TickData {
+    pub initialized:     bool,
+    pub tick:            i32,
+    pub liquidity_gross: u128,
+    pub liquidity_net:   i128
 }
 
 #[derive(Default)]
@@ -62,7 +73,7 @@ const MAX_TICKS_PER_REQUEST: u16 = 150;
 #[derive(Debug, Clone)]
 pub struct EnhancedUniswapV3Pool {
     inner:                  UniswapV3Pool,
-    sync_swap_with_sim:          bool,
+    sync_swap_with_sim:     bool,
     initial_ticks_per_side: u16
 }
 
@@ -77,6 +88,49 @@ impl EnhancedUniswapV3Pool {
 
     pub fn set_sim_swap_sync(&mut self, sync_swap_with_sim: bool) {
         self.sync_swap_with_sim = sync_swap_with_sim;
+    }
+
+    pub async fn get_uniswap_v3_tick_data_batch_request<P, T, N>(
+        &self,
+        tick_start: i32,
+        zero_for_one: bool,
+        num_ticks: u16,
+        block_number: Option<u64>,
+        provider: Arc<P>
+    ) -> Result<(Vec<UniswapV3TickData>, U256), AMMError>
+    where
+        P: Provider<T, N>,
+        T: Transport + Clone,
+        N: Network
+    {
+        let deployer = IGetUniswapV3TickDataBatchRequest::deploy_builder(
+            provider.clone(),
+            self.address,
+            zero_for_one,
+            tick_start,
+            num_ticks,
+            self.tick_spacing
+        );
+
+        let data = match block_number {
+            Some(number) => deployer.block(number.into()).call_raw().await?,
+            None => deployer.call_raw().await?
+        };
+
+        let result = TicksWithBlock::abi_decode(&data, true)?;
+
+        let tick_data: Vec<UniswapV3TickData> = result
+            .ticks
+            .iter()
+            .map(|tick| UniswapV3TickData {
+                initialized:     tick.initialized,
+                tick:            tick.tick,
+                liquidity_gross: tick.liquidityGross,
+                liquidity_net:   tick.liquidityNet
+            })
+            .collect();
+
+        Ok((tick_data, result.blockNumber))
     }
 
     pub async fn initialize<T, N, P>(
@@ -113,69 +167,50 @@ impl EnhancedUniswapV3Pool {
         self.ticks.clear();
         self.tick_bitmap.clear();
 
-        let mut remaining_ticks = self.initial_ticks_per_side;
-        let mut current_tick = self.tick;
+        let total_ticks_to_fetch = self.initial_ticks_per_side * 2;
+        let mut remaining_ticks = total_ticks_to_fetch;
+        //  +1 because the retrieve is gt start_tick, i.e. start one step back to
+        // include the tick
+        let mut start_tick = (self.tick / self.tick_spacing) * self.tick_spacing
+            - self.tick_spacing * (self.initial_ticks_per_side + 1) as i32;
 
-        // Fetch left ticks
-        let mut left_ticks = Vec::new();
+        // Fetch ticks from left to right
+        let mut fetched_ticks = Vec::new();
         while remaining_ticks > 0 {
             let ticks_to_fetch = remaining_ticks.min(MAX_TICKS_PER_REQUEST);
-            let (mut fetched_ticks, _) = get_uniswap_v3_tick_data_batch_request(
-                &self.inner,
-                current_tick,
-                true,
-                ticks_to_fetch,
-                block_number,
-                provider.clone()
-            )
-            .await?;
-            left_ticks.append(&mut fetched_ticks);
+            let (mut batch_ticks, _) = self
+                .get_uniswap_v3_tick_data_batch_request(
+                    start_tick,
+                    false,
+                    ticks_to_fetch,
+                    block_number,
+                    provider.clone()
+                )
+                .await?;
+            batch_ticks.sort_by_key(|s| s.tick);
+            fetched_ticks.append(&mut batch_ticks);
             remaining_ticks -= ticks_to_fetch;
-            if let Some(last_tick) = left_ticks.last() {
-                current_tick = last_tick.tick - self.tick_spacing;
+            if let Some(last_tick) = fetched_ticks.last() {
+                start_tick = last_tick.tick;
             } else {
                 break;
             }
         }
 
-        // Reset for right side
-        remaining_ticks = self.initial_ticks_per_side;
-        current_tick = self.tick;
-        // Fetch right ticks
-        let mut right_ticks = Vec::new();
-        while remaining_ticks > 0 {
-            let ticks_to_fetch = remaining_ticks.min(MAX_TICKS_PER_REQUEST);
-            let (mut fetched_ticks, _) = get_uniswap_v3_tick_data_batch_request(
-                &self.inner,
-                current_tick,
-                false,
-                ticks_to_fetch,
-                block_number,
-                provider.clone()
-            )
-            .await?;
-            right_ticks.append(&mut fetched_ticks);
-            remaining_ticks -= ticks_to_fetch;
-            if let Some(last_tick) = right_ticks.last() {
-                current_tick = last_tick.tick + self.tick_spacing;
-            } else {
-                break;
-            }
-        }
-
-        for tick in left_ticks.into_iter().chain(right_ticks) {
-            if tick.initialized {
+        fetched_ticks
+            .into_iter()
+            .filter(|tick| tick.initialized)
+            .for_each(|tick| {
                 self.ticks.insert(
                     tick.tick,
                     Info {
+                        initialized:     tick.initialized,
                         liquidity_gross: tick.liquidity_gross,
-                        liquidity_net:   tick.liquidity_net,
-                        initialized:     true
+                        liquidity_net:   tick.liquidity_net
                     }
                 );
                 self.inner.flip_tick(tick.tick, self.inner.tick_spacing);
-            }
-        }
+            });
 
         Ok(())
     }
@@ -203,8 +238,7 @@ impl EnhancedUniswapV3Pool {
         sqrt_price_limit_x96: Option<U256>
     ) -> Result<SwapResult, SwapSimulationError> {
         if amount_specified.is_zero() {
-            // maybe we want to throw an error?
-            return Ok(SwapResult::default());
+            return Err(SwapSimulationError::ZeroAmountSpecified);
         }
 
         let zero_for_one = token_in == self.token_a;
@@ -222,18 +256,14 @@ impl EnhancedUniswapV3Pool {
                 && (sqrt_price_limit_x96 <= self.sqrt_price
                     || sqrt_price_limit_x96 >= MAX_SQRT_RATIO))
         {
-            // maybe we want to throw an error?
-            return Ok(SwapResult::default());
+            return Err(SwapSimulationError::InvalidSqrtPriceLimit);
         }
 
-        let mut state = CurrentSwapState {
-            amount_specified_remaining: amount_specified,
-            amount_calculated: I256::ZERO,
-            sqrt_price_x_96: self.sqrt_price,
-            tick: self.tick,
-            liquidity: self.liquidity,
-            fee_growth_global_x128: U256::ZERO // We don't track this
-        };
+        let mut amount_specified_remaining = amount_specified;
+        let mut amount_calculated = I256::ZERO;
+        let mut sqrt_price_x_96 = self.sqrt_price;
+        let mut tick = self.tick;
+        let mut liquidity = self.liquidity;
 
         tracing::trace!(
             token_in = ?token_in,
@@ -241,116 +271,99 @@ impl EnhancedUniswapV3Pool {
             zero_for_one = zero_for_one,
             exact_input = exact_input,
             sqrt_price_limit_x96 = ?sqrt_price_limit_x96,
-            initial_state = ?state,
+            initial_state = ?(&amount_specified_remaining, &amount_calculated, &sqrt_price_x_96, &tick, &liquidity),
             "starting swap"
         );
 
-        while state.amount_specified_remaining != I256::ZERO
-            && state.sqrt_price_x_96 != sqrt_price_limit_x96
-        {
-            let mut step = StepComputations {
-                sqrt_price_start_x_96: state.sqrt_price_x_96,
-                ..Default::default()
-            };
-
-            (step.tick_next, step.initialized) =
+        while amount_specified_remaining != I256::ZERO && sqrt_price_x_96 != sqrt_price_limit_x96 {
+            let sqrt_price_start_x_96 = sqrt_price_x_96;
+            let (tick_next, initialized) =
                 uniswap_v3_math::tick_bitmap::next_initialized_tick_within_one_word(
                     &self.tick_bitmap,
-                    state.tick,
+                    tick,
                     self.tick_spacing,
                     zero_for_one
                 )?;
 
-            step.tick_next = step.tick_next.clamp(MIN_TICK, MAX_TICK);
-            step.sqrt_price_next_x96 =
-                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(step.tick_next)?;
+            let tick_next = tick_next.clamp(MIN_TICK, MAX_TICK);
+            let sqrt_price_next_x96 =
+                uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick(tick_next)?;
 
-            let target_sqrt_ratio = if (zero_for_one
-                && step.sqrt_price_next_x96 < sqrt_price_limit_x96)
-                || (!zero_for_one && step.sqrt_price_next_x96 > sqrt_price_limit_x96)
+            let target_sqrt_ratio = if (zero_for_one && sqrt_price_next_x96 < sqrt_price_limit_x96)
+                || (!zero_for_one && sqrt_price_next_x96 > sqrt_price_limit_x96)
             {
                 sqrt_price_limit_x96
             } else {
-                step.sqrt_price_next_x96
+                sqrt_price_next_x96
             };
 
-            (state.sqrt_price_x_96, step.amount_in, step.amount_out, step.fee_amount) =
+            let (new_sqrt_price_x_96, amount_in, amount_out, fee_amount) =
                 uniswap_v3_math::swap_math::compute_swap_step(
-                    state.sqrt_price_x_96,
+                    sqrt_price_x_96,
                     target_sqrt_ratio,
-                    state.liquidity,
-                    state.amount_specified_remaining,
+                    liquidity,
+                    amount_specified_remaining,
                     self.fee
                 )?;
 
+            sqrt_price_x_96 = new_sqrt_price_x_96;
+
             if exact_input {
-                state.amount_specified_remaining -=
-                    I256::from_raw(step.amount_in + step.fee_amount);
-                state.amount_calculated -= I256::from_raw(step.amount_out);
+                amount_specified_remaining -= I256::from_raw(amount_in + fee_amount);
+                amount_calculated -= I256::from_raw(amount_out);
             } else {
-                state.amount_specified_remaining += I256::from_raw(step.amount_out);
-                state.amount_calculated += I256::from_raw(step.amount_in + step.fee_amount);
+                amount_specified_remaining += I256::from_raw(amount_out);
+                amount_calculated += I256::from_raw(amount_in + fee_amount);
             }
 
-            if state.liquidity > 0 {
-                state.fee_growth_global_x128 +=
-                    U256::from(step.fee_amount) * (U256_1 << 128) / U256::from(state.liquidity);
-            }
+            if sqrt_price_x_96 == sqrt_price_next_x96 {
+                if initialized {
+                    let liquidity_net =
+                        self.ticks
+                            .get(&tick_next)
+                            .map(|info| {
+                                if zero_for_one {
+                                    -info.liquidity_net
+                                } else {
+                                    info.liquidity_net
+                                }
+                            })
+                            .unwrap_or_default();
 
-            if state.sqrt_price_x_96 == step.sqrt_price_next_x96 {
-                if step.initialized {
-                    let liquidity_net = if let Some(info) = self.ticks.get(&step.tick_next) {
-                        if zero_for_one {
-                            -info.liquidity_net
-                        } else {
-                            info.liquidity_net
-                        }
-                    } else {
-                        0
-                    };
-
-                    state.liquidity = if liquidity_net < 0 {
-                        state
-                            .liquidity
+                    liquidity = if liquidity_net < 0 {
+                        liquidity
                             .checked_sub((-liquidity_net) as u128)
                             .ok_or(SwapSimulationError::LiquidityUnderflow)?
                     } else {
-                        state.liquidity + (liquidity_net as u128)
+                        liquidity + (liquidity_net as u128)
                     };
                 }
 
-                state.tick = if zero_for_one { step.tick_next - 1 } else { step.tick_next };
-            } else if state.sqrt_price_x_96 != step.sqrt_price_start_x_96 {
-                state.tick =
-                    uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(state.sqrt_price_x_96)?;
+                tick = if zero_for_one { tick_next - 1 } else { tick_next };
+            } else if sqrt_price_x_96 != sqrt_price_start_x_96 {
+                tick = uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio(sqrt_price_x_96)?;
             }
 
             tracing::trace!(
-                sqrt_price_x_96 = ?state.sqrt_price_x_96,
-                amount_in = ?step.amount_in,
-                amount_out = ?step.amount_out,
-                fee_amount = ?step.fee_amount,
-                tick_next = ?step.tick_next,
-                state = ?state,
+                sqrt_price_x_96 = ?sqrt_price_x_96,
+                amount_in = ?amount_in,
+                amount_out = ?amount_out,
+                fee_amount = ?fee_amount,
+                tick_next = ?tick_next,
+                state = ?(&amount_specified_remaining, &amount_calculated, &sqrt_price_x_96, &tick, &liquidity),
                 "step completed"
             );
         }
 
         let (amount0, amount1) = if zero_for_one == exact_input {
-            (amount_specified - state.amount_specified_remaining, state.amount_calculated)
+            (amount_specified - amount_specified_remaining, amount_calculated)
         } else {
-            (state.amount_calculated, amount_specified - state.amount_specified_remaining)
+            (amount_calculated, amount_specified - amount_specified_remaining)
         };
 
         tracing::debug!(?amount0, ?amount1);
 
-        Ok(SwapResult {
-            amount0,
-            amount1,
-            liquidity: state.liquidity,
-            sqrt_price_x_96: state.sqrt_price_x_96,
-            tick: state.tick
-        })
+        Ok(SwapResult { amount0, amount1, liquidity, sqrt_price_x_96, tick })
     }
 
     pub fn simulate_swap(
@@ -449,6 +462,20 @@ impl std::ops::DerefMut for EnhancedUniswapV3Pool {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
+}
+
+#[derive(Error, Debug)]
+pub enum SwapSimulationError {
+    #[error("Could not get next tick")]
+    InvalidTick,
+    #[error(transparent)]
+    UniswapV3MathError(#[from] UniswapV3MathError),
+    #[error("Liquidity underflow")]
+    LiquidityUnderflow,
+    #[error("Invalid sqrt price limit")]
+    InvalidSqrtPriceLimit,
+    #[error("Amount specified must be non-zero")]
+    ZeroAmountSpecified
 }
 
 #[cfg(test)]
@@ -675,10 +702,8 @@ mod test {
             .await
             .expect("failed to sync ticks");
 
-        // Print all loaded ticks
         assert_eq!(pool.ticks.len(), 20, "No ticks were loaded");
         let expected_ticks = vec![
-            (197430, 7384325092267, -7384325092267),
             (197440, 111865134864137602, 102733576284820334),
             (197450, 2771971676516941, -2771834237563469),
             (197460, 3859798908378, 3722359954906),
@@ -698,6 +723,7 @@ mod test {
             (197630, 1349269385245271, 1345601874435831),
             (197640, 6516724029717570, 6516724029717570),
             (197650, 7142580627476203506, 7142569105915081148),
+            (197670, 560640048101896452, 516286964688874506),
         ];
 
         for (tick, expected_gross, expected_net) in expected_ticks {
