@@ -26,6 +26,9 @@ tokio.workspace = true
 reth-tasks.workspace = true
 criterion.workspace = true
 uniswap_v3_math.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+thiserror.workspace = true
 
 arraydeque = "0.5"
 alloy = { version = "0.2", features = [
@@ -38,14 +41,9 @@ alloy = { version = "0.2", features = [
 ] }
 
 # Using clap for our bookgen command-line tool
-clap = { version = "4.5.4", features = ["derive"] }
+clap = "4.5.4"
 amms = { git = "https://github.com/darkforestry/amms-rs.git", rev ="643b049"}
-serde_json = "1.0.122"
 futures = "0.3.30"
-tracing = "0.1.40"
-async-trait = "0.1.81"
-tracing-subscriber = { version = "0.3.18", features = [ "default", "env-filter"] }
-thiserror = "1.0.63"
 
 [[bench]]
 name = "volume_solver"
