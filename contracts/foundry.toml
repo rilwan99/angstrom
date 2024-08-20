@@ -15,5 +15,6 @@ ignored_error_codes = [
 
 remappings = [
   "solady/src/=lib/solady/src/",
-  "v4-core/src/=lib/v4-core/src/"
+  "v4-core/src/=lib/v4-core/src/",
+  "solmate/=lib/solmate/"
 ]
