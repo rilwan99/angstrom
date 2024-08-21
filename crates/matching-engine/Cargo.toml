@@ -17,6 +17,7 @@ angstrom-types.workspace = true
 angstrom-utils.workspace = true
 alloy-primitives.workspace = true
 eyre.workspace = true
+futures.workspace = true
 futures-util.workspace = true
 uniswap_v3_math.workspace = true
 malachite = "0.4.0"
@@ -26,8 +27,23 @@ rand_distr.workspace = true
 tokio.workspace = true
 reth-tasks.workspace = true
 criterion.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+thiserror.workspace = true
+
+arraydeque = "0.5"
+alloy = { version = "0.2", features = [
+    "contract",
+    "network",
+    "provider-ws",
+    "rpc-types-eth",
+    "signer-local",
+    "json-rpc"
+] }
+
 # Using clap for our bookgen command-line tool
 clap = "4.5.4"
+amms = { git = "https://github.com/darkforestry/amms-rs.git", version="0.6.2"}
 
 [[bench]]
 name = "volume_solver"
@@ -41,4 +57,3 @@ incremental = false
 opt-level = 3
 panic = 'abort'
 overflow-checks = false
-

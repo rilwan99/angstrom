@@ -10,6 +10,7 @@ use angstrom_types::{
     matching::{Ray, SqrtPriceX96},
     orders::OrderPrice
 };
+use uniswap_v3_math::tick_math::{MAX_TICK, MIN_TICK};
 use uniswap_v3_math::{
     sqrt_price_math::{
         _get_amount_0_delta, get_next_sqrt_price_from_input, get_next_sqrt_price_from_output
@@ -17,11 +18,11 @@ use uniswap_v3_math::{
     tick_math::{get_sqrt_ratio_at_tick, get_tick_at_sqrt_ratio}
 };
 
+pub mod pool_manager;
+pub mod pool;
+pub mod mock_block_stream;
 pub mod tob;
-/// A Tick is represented as an i32 as its value range is from around
-/// -900000..900000
-const MIN_TICK: i32 = -887272;
-const MAX_TICK: i32 = 887272;
+
 type Tick = i32;
 
 /// A PoolRange describes the liquidity conditions within a specific range of
@@ -348,7 +349,6 @@ impl<'a> PriceRange<'a> {
 
 #[cfg(test)]
 mod tests {
-
     use alloy_primitives::U160;
 
     use super::*;
