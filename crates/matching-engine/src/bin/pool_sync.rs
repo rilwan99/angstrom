@@ -1,5 +1,5 @@
 extern crate arraydeque;
-use std::{ops::Deref, sync::Arc};
+use std::sync::Arc;
 
 use alloy::{
     network::Ethereum,
@@ -57,15 +57,14 @@ async fn main() -> eyre::Result<()> {
             _ = sigint.recv() => break,
             state_changes = rx.recv() => {
                 if let Some(changes) = state_changes {
-                    let pool_guard = state_space_manager.pool().await;
-                    let res = pool_guard.deref();
+                   let pool_guard = state_space_manager.pool().await;
                     let changes_block_number = changes.1;
                     let mut fresh_pool = EnhancedUniswapV3Pool::new(address, ticks_per_side);
                     fresh_pool.initialize(Some(changes_block_number), ws_provider.clone()).await?;
                     fresh_pool.sync_ticks(Some(changes_block_number), ws_provider.clone()).await?;
 
                     // Compare the new pool with the old pool
-                    compare_pools(res, &fresh_pool, changes_block_number);
+                    compare_pools(&pool_guard, &fresh_pool, changes_block_number);
                 } else {
                     // Channel closed
                     break;
@@ -80,7 +79,6 @@ async fn main() -> eyre::Result<()> {
 
 fn compare_pools(old: &UniswapV3Pool, new: &EnhancedUniswapV3Pool, block_number: BlockNumber) {
     let mut differences_found = false;
-
     if old.liquidity != new.liquidity {
         differences_found = true;
         let diff = old.liquidity.abs_diff(new.liquidity);

@@ -25,6 +25,8 @@ rand_distr.workspace = true
 tokio.workspace = true
 reth-tasks.workspace = true
 criterion.workspace = true
+futures.workspace = true
+#alloy.workspace = true
 uniswap_v3_math.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
@@ -43,7 +45,6 @@ alloy = { version = "0.2", features = [
 # Using clap for our bookgen command-line tool
 clap = "4.5.4"
 amms = { git = "https://github.com/darkforestry/amms-rs.git", rev ="643b049"}
-futures = "0.3.30"
 
 [[bench]]
 name = "volume_solver"

@@ -154,13 +154,13 @@ where
                         last_synced_block,
                         "reorg detected, unwinding state changes"
                     );
-                    let write_lock = pool.write().await;
+                    let mut pool_guard = pool.write().await;
+                    let mut state_change_cache = state_change_cache.write().await;
                     Self::unwind_state_changes(
-                        write_lock,
-                        Arc::clone(&state_change_cache),
+                        &mut pool_guard,
+                        &mut state_change_cache,
                         chain_head_block_number
-                    )
-                    .await?;
+                    )?;
 
                     // set the last synced block to the head block number
                     last_synced_block = chain_head_block_number - 1;
@@ -177,21 +177,21 @@ where
                     .await?;
 
                 if logs.is_empty() {
+                    let mut state_change_cache = state_change_cache.write().await;
                     for block_number in from_block..=chain_head_block_number {
                         Self::add_state_change_to_cache(
-                            Arc::clone(&state_change_cache),
+                            &mut state_change_cache,
                             StateChange::new(None, block_number)
-                        )
-                        .await?;
+                        )?;
                     }
                 } else {
-                    let write_lock = pool.write().await;
+                    let mut pool_guard = pool.write().await;
+                    let mut state_change_cache = state_change_cache.write().await;
                     Self::handle_state_changes_from_logs(
-                        write_lock,
-                        Arc::clone(&state_change_cache),
+                        &mut pool_guard,
+                        &mut state_change_cache,
                         logs
-                    )
-                    .await?;
+                    )?;
 
                     if let Some(tx) = &pool_updated_tx {
                         if let Err(e) = tx
@@ -214,13 +214,11 @@ where
 
     /// Unwinds the state changes cache for every block from the most recent
     /// state change cache back to the block to unwind -1.
-    async fn unwind_state_changes(
-        mut pool: RwLockWriteGuard<'_, EnhancedUniswapV3Pool>,
-        state_change_cache: Arc<RwLock<StateChangeCache>>,
+    fn unwind_state_changes(
+        pool: &mut EnhancedUniswapV3Pool,
+        state_change_cache: &mut StateChangeCache,
         block_to_unwind: u64
     ) -> Result<(), PoolManagerError> {
-        let mut state_change_cache = state_change_cache.write().await;
-
         loop {
             // check if the most recent state change block is >= the block to unwind,
             match state_change_cache.get(0) {
@@ -249,12 +247,10 @@ where
         }
     }
 
-    async fn add_state_change_to_cache(
-        state_change_cache: Arc<RwLock<StateChangeCache>>,
+    fn add_state_change_to_cache(
+        state_change_cache: &mut StateChangeCache,
         state_change: StateChange
     ) -> Result<(), PoolManagerError> {
-        let mut state_change_cache = state_change_cache.write().await;
-
         if state_change_cache.is_full() {
             state_change_cache.pop_back();
         }
@@ -263,9 +259,9 @@ where
             .map_err(|_| PoolManagerError::CapacityError)
     }
 
-    async fn handle_state_changes_from_logs(
-        mut pool: RwLockWriteGuard<'_, EnhancedUniswapV3Pool>,
-        state_change_cache: Arc<RwLock<StateChangeCache>>,
+    fn handle_state_changes_from_logs(
+        pool: &mut EnhancedUniswapV3Pool,
+        state_change_cache: &mut StateChangeCache,
         logs: Vec<Log>
     ) -> Result<(), PoolManagerError> {
         let log = logs.first().ok_or(PoolManagerError::NoLogsProvided)?;
@@ -288,10 +284,9 @@ where
             }
             if log_block_number != last_log_block_number {
                 Self::add_state_change_to_cache(
-                    Arc::clone(&state_change_cache),
+                    state_change_cache,
                     StateChange::new(Some(pool_clone), last_log_block_number)
-                )
-                .await?;
+                )?;
 
                 last_log_block_number = log_block_number;
             }
@@ -302,7 +297,6 @@ where
             state_change_cache,
             StateChange::new(Some(pool_clone), last_log_block_number)
         )
-        .await
     }
 }
 
