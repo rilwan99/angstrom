@@ -43,7 +43,7 @@ alloy = { version = "0.2", features = [
 
 # Using clap for our bookgen command-line tool
 clap = "4.5.4"
-amms = { git = "https://github.com/darkforestry/amms-rs.git", rev ="643b049"}
+amms = { git = "https://github.com/darkforestry/amms-rs.git", version="0.6.2"}
 
 [[bench]]
 name = "volume_solver"
