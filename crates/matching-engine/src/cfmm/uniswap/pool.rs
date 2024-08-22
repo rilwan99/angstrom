@@ -1,7 +1,5 @@
-use amms::amm::consts::U256_1;
 use std::sync::Arc;
 
-use crate::cfmm::uniswap::pool_manager::PoolManagerError;
 use alloy::{
     network::Network,
     primitives::{Address, I256, U256},
@@ -13,17 +11,19 @@ use alloy::{
 };
 use amms::{
     amm::{
+        consts::U256_1,
         uniswap_v3::{IUniswapV3Pool, Info, UniswapV3Pool},
         AutomatedMarketMaker
     },
     errors::AMMError
 };
 use thiserror::Error;
-use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MIN_SQRT_RATIO};
 use uniswap_v3_math::{
     error::UniswapV3MathError,
-    tick_math::{MAX_TICK, MIN_TICK}
+    tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK}
 };
+
+use crate::cfmm::uniswap::pool_manager::PoolManagerError;
 
 sol! {
     #[allow(missing_docs)]

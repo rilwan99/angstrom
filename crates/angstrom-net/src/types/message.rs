@@ -1,19 +1,19 @@
 #![allow(missing_docs)]
-use std::{borrow::BorrowMut, fmt::Debug, sync::Arc};
+use std::{fmt::Debug, sync::Arc};
 
-use alloy_rlp::{Decodable, Encodable, RlpDecodable, RlpEncodable};
+use alloy_rlp::{Decodable, Encodable};
 use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
     sol_bindings::grouped_orders::AllOrders
 };
 use bincode::{config::standard, decode_from_slice, encode_into_slice, Decode, Encode};
-use reth_eth_wire::{capability::Capability, protocol::Protocol};
+use reth_eth_wire::{protocol::Protocol, Capability};
 use reth_network_p2p::error::RequestError;
 use reth_primitives::bytes::{Buf, BufMut};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use crate::{errors::StromStreamError, StromSessionMessage};
+use crate::errors::StromStreamError;
 /// Result alias for result of a request.
 pub type RequestResult<T> = Result<T, RequestError>;
 use crate::Status;

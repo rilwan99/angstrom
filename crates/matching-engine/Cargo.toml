@@ -15,7 +15,7 @@ divan = "0.1.14"
 [dependencies]
 angstrom-types.workspace = true
 angstrom-utils.workspace = true
-alloy-primitives.workspace = true
+alloy.workspace = true
 eyre.workspace = true
 futures.workspace = true
 futures-util.workspace = true
@@ -32,14 +32,6 @@ tracing-subscriber.workspace = true
 thiserror.workspace = true
 
 arraydeque = "0.5"
-alloy = { version = "0.2", features = [
-    "contract",
-    "network",
-    "provider-ws",
-    "rpc-types-eth",
-    "signer-local",
-    "json-rpc"
-] }
 
 # Using clap for our bookgen command-line tool
 clap = "4.5.4"

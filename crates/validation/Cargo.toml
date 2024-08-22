@@ -54,7 +54,7 @@ secp256k1 = { version = "0.27.0", default-features = false, features = [
 byteorder = "1.4.3"
 
 # error
-thiserror = "1.0.44"
+thiserror = "1.0.34"
 
 # cache
 schnellru = "0.2"
@@ -74,7 +74,7 @@ tracing.workspace = true
 testing-tools.workspace = true
 angstrom-network.workspace = true
 # reth
-reth-discv4 = { git = "https://github.com/paradigmxyz/reth", version = "1.0.0", tag = "v1.0.0", features = [
+reth-discv4 = { git = "https://github.com/paradigmxyz/reth", version = "1.0.4", tag = "v1.0.4", features = [
   "test-utils",
 ] }
 reth-primitives = { workspace = true, features = ["test-utils"] }

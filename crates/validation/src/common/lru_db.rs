@@ -11,7 +11,7 @@ use reth_primitives::{
     Account, BlockNumber, StorageKey, StorageValue, KECCAK_EMPTY
 };
 use reth_provider::{
-    AccountReader, BlockNumReader, ProviderError, ProviderResult, StateProvider, StateProviderBox,
+    AccountReader, BlockNumReader, ProviderResult, StateProvider, StateProviderBox,
     StateProviderFactory
 };
 use reth_revm::{Database, DatabaseRef};
@@ -181,7 +181,7 @@ where
         DatabaseRef::storage_ref(&self, address, index)
     }
 
-    fn block_hash(&mut self, number: U256) -> Result<B256, Self::Error> {
+    fn block_hash(&mut self, number: u64) -> Result<B256, Self::Error> {
         DatabaseRef::block_hash_ref(&self, number)
     }
 
@@ -202,7 +202,7 @@ where
         accounts
             .get(&address)
             .map(|acc| Ok(acc.info()))
-            .unwrap_or_else(|| self.basic_ref_no_cache(&address))
+            .unwrap_or_else(|| self.basic_ref_no_cache(&address).map_err(RethError::from))
     }
 
     fn code_by_hash_ref(&self, _code_hash: B256) -> Result<Bytecode, Self::Error> {
@@ -214,7 +214,7 @@ where
         // check for overrides
         if let Some(storage) = self.state_overrides.read().get(&address) {
             if let Some(value) = storage.get(&index) {
-                return Ok(*value)
+                return Ok(*value);
             }
         }
 
@@ -239,7 +239,7 @@ where
             .unwrap_or_default())
     }
 
-    fn block_hash_ref(&self, _number: U256) -> Result<B256, Self::Error> {
+    fn block_hash_ref(&self, _number: u64) -> Result<B256, Self::Error> {
         unreachable!() // this should never be reached since we will never sim
                        // blocks
     }

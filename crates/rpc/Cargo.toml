@@ -18,6 +18,7 @@ angstrom-types.workspace = true
 angstrom-utils.workspace = true
 angstrom-network.workspace = true
 consensus.workspace = true
+reth.workspace = true
 order-pool.workspace = true
 
 reth-primitives.workspace = true

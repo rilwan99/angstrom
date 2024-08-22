@@ -11,6 +11,7 @@ use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use tokio::sync::mpsc::{
     channel, unbounded_channel, Receiver, Sender, UnboundedReceiver, UnboundedSender
 };
+
 mod network_builder;
 use alloy_chains::Chain;
 use angstrom_eth::{
@@ -29,20 +30,19 @@ use consensus::{
     Signer
 };
 use reth::{
-    args::get_secret_key,
+    api::NodeAddOns,
     builder::{FullNodeComponents, Node},
-
-    // builder::{components::FullNodeComponents, Node},
     cli::Cli,
     providers::CanonStateSubscriptions,
     tasks::TaskExecutor
 };
+use reth_cli_util::get_secret_key;
 use reth_metrics::common::mpsc::{UnboundedMeteredReceiver, UnboundedMeteredSender};
 use reth_network_peers::pk2id;
-use reth_node_ethereum::EthereumNode;
+use reth_node_ethereum::{node::EthereumAddOns, EthereumNode};
 use validation::init_validation;
 
-use self::network_builder::AngstromNetworkBuilder;
+use crate::cli::network_builder::AngstromNetworkBuilder;
 
 /// Convenience function for parsing CLI options, set up logging and run the
 /// chosen command.
@@ -60,14 +60,14 @@ pub fn run() -> eyre::Result<()> {
         // for rpc
         let pool = channels.get_pool_handle();
         // let consensus = channels.get_consensus_handle();
-
-        let NodeHandle { node, node_exit_future } = builder
+        let Ok(NodeHandle { node, node_exit_future }) = builder
             .with_types::<EthereumNode>()
             .with_components(
                 EthereumNode::default()
                     .components_builder()
                     .network(AngstromNetworkBuilder::new(protocol_handle))
             )
+            .with_add_ons::<EthereumAddOns>()
             .extend_rpc_modules(move |rpc_components| {
                 let order_api = OrderApi { pool: pool.clone() };
                 // let quotes_api = QuotesApi { pool: pool.clone() };
@@ -86,7 +86,10 @@ pub fn run() -> eyre::Result<()> {
                 Ok(())
             })
             .launch()
-            .await?;
+            .await
+        else {
+            todo!()
+        };
 
         initialize_strom_components(args, secret_key, channels, network, node, &executor);
 
@@ -162,12 +165,12 @@ pub fn initialize_strom_handles() -> StromHandles {
     }
 }
 
-pub fn initialize_strom_components<Node: FullNodeComponents>(
+pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<Node>>(
     config: AngstromConfig,
     secret_key: SecretKey,
     handles: StromHandles,
     network_builder: StromNetworkBuilder,
-    node: FullNode<Node>,
+    node: FullNode<Node, AddOns>,
     executor: &TaskExecutor
 ) {
     let eth_handle = EthDataCleanser::spawn(
@@ -231,8 +234,7 @@ pub fn initialize_strom_components<Node: FullNodeComponents>(
 #[derive(Debug, Clone, Default, clap::Args)]
 pub struct AngstromConfig {
     #[clap(long)]
-    pub mev_guard: bool,
-
+    pub mev_guard:             bool,
     #[clap(long)]
     pub secret_key_location:   PathBuf,
     // default is 100mb

@@ -1,4 +1,10 @@
-use std::{marker::PhantomData, sync::atomic::{AtomicBool, Ordering}, sync::Arc};
+use std::{
+    marker::PhantomData,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc
+    }
+};
 
 use alloy::{
     network::Network,
@@ -38,7 +44,7 @@ pub struct UniswapPoolManager<P, T, N> {
     // Can't be avoided for now if we want to be able to test
     mock_block_stream:   Arc<Option<MockBlockStream<P, T, N>>>,
     _phantom:            PhantomData<(T, N)>,
-    sync_started:        AtomicBool,
+    sync_started:        AtomicBool
 }
 
 impl<P, T, N> UniswapPoolManager<P, T, N>
@@ -61,7 +67,7 @@ where
             provider,
             mock_block_stream: Arc::new(None),
             _phantom: PhantomData,
-            sync_started: AtomicBool::new(false),
+            sync_started: AtomicBool::new(false)
         }
     }
 
@@ -92,7 +98,11 @@ where
         (Receiver<(Address, BlockNumber)>, JoinHandle<Result<(), PoolManagerError>>),
         PoolManagerError
     > {
-        if self.sync_started.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+        if self
+            .sync_started
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
             return Err(PoolManagerError::SyncAlreadyStarted);
         }
 
@@ -111,7 +121,11 @@ where
     pub async fn watch_state_changes(
         &self
     ) -> Result<JoinHandle<Result<(), PoolManagerError>>, PoolManagerError> {
-        if self.sync_started.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst).is_err() {
+        if self
+            .sync_started
+            .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
+            .is_err()
+        {
             return Err(PoolManagerError::SyncAlreadyStarted);
         }
 
@@ -351,5 +365,5 @@ pub enum PoolManagerError {
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
     #[error("Synchronization has already been started")]
-    SyncAlreadyStarted,
+    SyncAlreadyStarted
 }

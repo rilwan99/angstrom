@@ -1,10 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
-use alloy_primitives::{keccak256, Address, FixedBytes, B256, U256};
-use alloy_sol_macro::sol;
-use parking_lot::RwLock;
-use reth_provider::StateProvider;
-use revm::DatabaseRef;
+use alloy_primitives::{Address, U256};
+use reth_revm::DatabaseRef;
 
 use crate::{
     common::lru_db::{BlockStateProviderFactory, RevmLRU},

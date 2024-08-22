@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use alloy_primitives::{I256, U256};
+use alloy::primitives::{I256, U256};
 use angstrom_types::{
     matching::{Ray, SqrtPriceX96},
     sol_bindings::{grouped_orders::OrderWithStorageData, sol::TopOfBlockOrder}
@@ -187,7 +187,6 @@ pub fn calculate_reward(
 
 #[cfg(test)]
 mod test {
-
     use alloy_primitives::{Uint, U256};
     use angstrom_types::matching::SqrtPriceX96;
     use rand::thread_rng;
