@@ -493,7 +493,7 @@ mod test {
     use alloy::{
         hex,
         network::Ethereum,
-        primitives::{address, Bytes, Log as AlloyLog, U256},
+        primitives::{address, BlockHash, Bytes, Log as AlloyLog, LogData, TxHash, B256, U256},
         providers::{Provider, ProviderBuilder, RootProvider},
         rpc::{client::ClientBuilder, types::eth::Log as RpcLog},
         transports::{
@@ -501,7 +501,6 @@ mod test {
             layers::{RetryBackoffLayer, RetryBackoffService}
         }
     };
-    use alloy_primitives::{BlockHash, LogData, TxHash, B256};
 
     use super::*;
 
