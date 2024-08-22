@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use alloy_primitives::{hex, Address, B256, U256};
 use reth_primitives::keccak256;
-use revm::DatabaseRef;
+use reth_revm::DatabaseRef;
 
 use super::ANGSTROM_CONTRACT;
 use crate::order::state::{BlockStateProviderFactory, RevmLRU};

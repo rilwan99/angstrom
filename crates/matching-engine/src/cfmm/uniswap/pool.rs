@@ -1,7 +1,5 @@
-use amms::amm::consts::U256_1;
 use std::sync::Arc;
 
-use crate::cfmm::uniswap::pool_manager::PoolManagerError;
 use alloy::{
     network::Network,
     primitives::{Address, I256, U256},
@@ -13,17 +11,19 @@ use alloy::{
 };
 use amms::{
     amm::{
+        consts::U256_1,
         uniswap_v3::{IUniswapV3Pool, Info, UniswapV3Pool},
         AutomatedMarketMaker
     },
     errors::AMMError
 };
 use thiserror::Error;
-use uniswap_v3_math::tick_math::{MAX_SQRT_RATIO, MIN_SQRT_RATIO};
 use uniswap_v3_math::{
     error::UniswapV3MathError,
-    tick_math::{MAX_TICK, MIN_TICK}
+    tick_math::{MAX_SQRT_RATIO, MAX_TICK, MIN_SQRT_RATIO, MIN_TICK}
 };
+
+use crate::cfmm::uniswap::pool_manager::PoolManagerError;
 
 sol! {
     #[allow(missing_docs)]
@@ -267,7 +267,13 @@ impl EnhancedUniswapV3Pool {
             zero_for_one = zero_for_one,
             exact_input = exact_input,
             sqrt_price_limit_x96 = ?sqrt_price_limit_x96,
-            initial_state = ?(&amount_specified_remaining, &amount_calculated, &sqrt_price_x_96, &tick, &liquidity),
+            initial_state = ?(
+                &amount_specified_remaining,
+                &amount_calculated,
+                &sqrt_price_x_96,
+                &tick,
+                &liquidity
+            ),
             "starting swap"
         );
 
@@ -346,7 +352,13 @@ impl EnhancedUniswapV3Pool {
                 amount_out = ?amount_out,
                 fee_amount = ?fee_amount,
                 tick_next = ?tick_next,
-                state = ?(&amount_specified_remaining, &amount_calculated, &sqrt_price_x_96, &tick, &liquidity),
+                state = ?(
+                    &amount_specified_remaining,
+                    &amount_calculated,
+                    &sqrt_price_x_96,
+                    &tick,
+                    &liquidity
+                ),
                 "step completed"
             );
         }
@@ -481,7 +493,7 @@ mod test {
     use alloy::{
         hex,
         network::Ethereum,
-        primitives::{address, Bytes, Log as AlloyLog, U256},
+        primitives::{address, BlockHash, Bytes, Log as AlloyLog, LogData, TxHash, B256, U256},
         providers::{Provider, ProviderBuilder, RootProvider},
         rpc::{client::ClientBuilder, types::eth::Log as RpcLog},
         transports::{
@@ -489,7 +501,6 @@ mod test {
             layers::{RetryBackoffLayer, RetryBackoffService}
         }
     };
-    use alloy_primitives::{BlockHash, LogData, TxHash, B256};
 
     use super::*;
 

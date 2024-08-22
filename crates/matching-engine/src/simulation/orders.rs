@@ -1,4 +1,4 @@
-use alloy_primitives::U256;
+use alloy::primitives::U256;
 use angstrom_types::{
     matching::Ray,
     orders::{OrderId, OrderPriorityData},
@@ -9,6 +9,7 @@ use angstrom_types::{
 };
 use rand_distr::{Distribution, SkewNormal};
 
+#[allow(clippy::too_many_arguments)]
 pub fn order_distribution(
     is_bid: bool,
     number: usize,

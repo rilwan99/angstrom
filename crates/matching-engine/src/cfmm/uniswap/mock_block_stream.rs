@@ -23,6 +23,7 @@ where
     pub fn new(inner: Arc<P>, from_block: u64, to_block: u64) -> Self {
         Self { inner, from_block, to_block, _phantom: PhantomData }
     }
+
     pub async fn subscribe_blocks(&self) -> futures::stream::BoxStream<Block> {
         futures::stream::iter(self.from_block..=self.to_block)
             .filter_map(move |i| async move {

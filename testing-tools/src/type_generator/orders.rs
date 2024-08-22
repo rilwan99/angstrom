@@ -11,8 +11,8 @@ use rand::{rngs::ThreadRng, Rng};
 use rand_distr::{num_traits::ToPrimitive, Distribution, SkewNormal};
 
 // fn build_priority_data(order: &GroupedVanillaOrder) -> OrderPriorityData {
-//     OrderPriorityData { price: order.price().into(), volume: order.quantity() as u128, gas: 10 }
-// }
+//     OrderPriorityData { price: order.price().into(), volume: order.quantity()
+// as u128, gas: 10 } }
 
 fn generate_order_id(pool_id: usize, hash: FixedBytes<32>) -> OrderId {
     let address = Address::random();
@@ -118,7 +118,7 @@ impl DistributionParameters {
 
         (bids, asks)
     }
-    
+
     pub fn fixed_at(location: f64) -> (Self, Self) {
         let bids = Self { location, scale: 1.0, shape: 0.0 };
         let asks = Self { location, scale: 1.0, shape: 0.0 };
@@ -133,10 +133,12 @@ pub fn generate_order_distribution(
     priceparams: DistributionParameters,
     volumeparams: DistributionParameters,
     pool_id: usize,
-    valid_block: u64,
+    valid_block: u64
 ) -> Result<Vec<OrderWithStorageData<GroupedVanillaOrder>>, String> {
-    let DistributionParameters { location: price_location, scale: price_scale, shape: price_shape } = priceparams;
-    let DistributionParameters { location: v_location, scale: v_scale, shape: v_shape } = volumeparams;
+    let DistributionParameters { location: price_location, scale: price_scale, shape: price_shape } =
+        priceparams;
+    let DistributionParameters { location: v_location, scale: v_scale, shape: v_shape } =
+        volumeparams;
     let mut rng = rand::thread_rng();
     let mut rng2 = rand::thread_rng();
     let price_gen = SkewNormal::new(price_location, price_scale, price_shape)
@@ -151,14 +153,10 @@ pub fn generate_order_distribution(
             let volume = v.to_u128().unwrap_or_default();
             let order = build_limit_order(true, valid_block, volume, price);
             let order_id = generate_order_id(pool_id, order.hash());
-            
+
             OrderWithStorageData {
                 order,
-                priority_data: OrderPriorityData {
-                    price,
-                    volume,
-                    gas:    10
-                },
+                priority_data: OrderPriorityData { price, volume, gas: 10 },
                 is_bid,
                 is_valid: true,
                 is_currently_valid: true,

@@ -1,6 +1,6 @@
 use std::{borrow::Cow, cell::Cell, cmp::Ordering};
 
-use alloy_primitives::U256;
+use alloy::primitives::U256;
 use angstrom_types::{
     matching::{Ray, SqrtPriceX96},
     orders::{NetAmmOrder, OrderFillState, OrderOutcome, PoolSolution},

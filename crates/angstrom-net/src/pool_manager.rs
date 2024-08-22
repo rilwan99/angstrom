@@ -205,6 +205,7 @@ impl<V> PoolManager<V>
 where
     V: OrderValidatorHandle<Order = AllOrders>
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         order_sorter: OrderIndexer<V>,
         network: StromNetworkHandle,

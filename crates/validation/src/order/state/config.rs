@@ -1,10 +1,9 @@
 use std::{path::Path, sync::Arc};
 
 use alloy_primitives::Address;
-use alloy_sol_types::SolValue;
 use angstrom_types::primitive::PoolId;
 use reth_primitives::{keccak256, U256};
-use revm::DatabaseRef;
+use reth_revm::DatabaseRef;
 use serde::Deserialize;
 
 use crate::common::lru_db::{BlockStateProviderFactory, RevmLRU};

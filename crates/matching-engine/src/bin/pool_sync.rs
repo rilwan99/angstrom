@@ -3,11 +3,10 @@ use std::sync::Arc;
 
 use alloy::{
     network::Ethereum,
-    primitives::address,
+    primitives::{address, BlockNumber},
     providers::{ProviderBuilder, RootProvider, WsConnect},
     pubsub::PubSubFrontend
 };
-use alloy_primitives::BlockNumber;
 use amms::amm::uniswap_v3::UniswapV3Pool;
 use matching_engine::cfmm::uniswap::{
     mock_block_stream::MockBlockStream, pool::EnhancedUniswapV3Pool,
