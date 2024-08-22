@@ -9,6 +9,7 @@ use angstrom_types::{
 };
 use rand_distr::{Distribution, SkewNormal};
 
+#[allow(clippy::too_many_arguments)]
 pub fn order_distribution(
     is_bid: bool,
     number: usize,

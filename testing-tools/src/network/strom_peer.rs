@@ -33,7 +33,7 @@ pub struct StromPeer<C = NoopProvider> {
 
 impl<C: Unpin> StromPeer<C>
 where
-    C: BlockReader + HeaderProvider + Unpin + Clone
+    C: BlockReader + HeaderProvider + Unpin + Clone + 'static
 {
     pub async fn new(c: C) -> Self {
         let mut rng = thread_rng();
@@ -181,7 +181,7 @@ where
 
 impl<C> Future for StromPeer<C>
 where
-    C: BlockReader + HeaderProvider + Unpin + Clone
+    C: BlockReader + HeaderProvider + Unpin + Clone + 'static
 {
     type Output = ();
 

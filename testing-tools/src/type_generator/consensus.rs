@@ -100,7 +100,7 @@ pub fn generate_random_proposal(count: usize, pool_count: usize, block: u64) -> 
 
 pub fn generate_random_commit(sk: &SecretKey<Bls12381G1Impl>) -> Commit {
     let proposal = generate_random_proposal(100, 10, 10);
-    Commit::from_proposal(&proposal, &sk)
+    Commit::from_proposal(&proposal, sk)
 }
 
 #[cfg(test)]

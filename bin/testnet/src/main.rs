@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
+use alloy::providers::Provider;
 use alloy_primitives::Address;
-use alloy_provider::Provider;
 use alloy_sol_types::SolValue;
 use angstrom::cli::{initialize_strom_handles, StromHandles};
 use angstrom_eth::handle::Eth;
@@ -143,7 +143,7 @@ pub async fn spawn_testnet_node(
                 let number = cloned_block.header.number.unwrap();
                 let mut res = vec![];
                 for hash in cloned_block.transactions.hashes() {
-                    let Ok(Some(tx)) = rpc.provider.get_transaction_by_hash(*hash).await else {
+                    let Ok(Some(tx)) = rpc.provider.get_transaction_by_hash(hash).await else {
                         continue
                     };
                     res.push(tx);

@@ -1260,7 +1260,6 @@ dependencies = [
  "metrics 0.21.1",
  "order-pool",
  "rand 0.8.5",
- "reth",
  "reth-metrics",
  "reth-primitives",
  "serde",

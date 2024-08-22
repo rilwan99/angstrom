@@ -267,7 +267,13 @@ impl EnhancedUniswapV3Pool {
             zero_for_one = zero_for_one,
             exact_input = exact_input,
             sqrt_price_limit_x96 = ?sqrt_price_limit_x96,
-            initial_state = ?(&amount_specified_remaining, &amount_calculated, &sqrt_price_x_96, &tick, &liquidity),
+            initial_state = ?(
+                &amount_specified_remaining,
+                &amount_calculated,
+                &sqrt_price_x_96,
+                &tick,
+                &liquidity
+            ),
             "starting swap"
         );
 
@@ -346,7 +352,13 @@ impl EnhancedUniswapV3Pool {
                 amount_out = ?amount_out,
                 fee_amount = ?fee_amount,
                 tick_next = ?tick_next,
-                state = ?(&amount_specified_remaining, &amount_calculated, &sqrt_price_x_96, &tick, &liquidity),
+                state = ?(
+                    &amount_specified_remaining,
+                    &amount_calculated,
+                    &sqrt_price_x_96,
+                    &tick,
+                    &liquidity
+                ),
                 "step completed"
             );
         }

@@ -51,7 +51,7 @@ pub fn load_reth_db(db_path: &Path) -> Provider {
     let tree_config = BlockchainTreeConfig::default();
 
     let blockchain_tree = ShareableBlockchainTree::new(
-        BlockchainTree::new(tree_externals, tree_config, Some(PruneModes::none())).unwrap()
+        BlockchainTree::new(tree_externals, tree_config, PruneModes::none()).unwrap()
     );
 
     BlockchainProvider::new(provider_factory.clone(), Arc::new(blockchain_tree)).unwrap()
