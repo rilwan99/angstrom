@@ -11,6 +11,7 @@ use tokio::sync::{broadcast, RwLock};
 
 use crate::cfmm::uniswap::{pool_manager::PoolManagerError, pool_providers::PoolManagerProvider};
 
+const MAX_NUMBER_OF_BLOCKS_LOOKBACK: usize = 20;
 pub struct CanonicalStateAdapter {
     canon_state_notifications: broadcast::Receiver<CanonStateNotification>,
     log_cache:                 Arc<RwLock<HashMap<BlockNumber, Vec<AlloyLog>>>>
@@ -24,6 +25,16 @@ impl CanonicalStateAdapter {
     async fn update_log_cache(&self, block_number: BlockNumber, new_logs: Vec<AlloyLog>) {
         let mut cache = self.log_cache.write().await;
         cache.insert(block_number, new_logs);
+        
+        // Keep only the last 20 blocks
+        if cache.len() > MAX_NUMBER_OF_BLOCKS_LOOKBACK {
+            let mut block_numbers: Vec<_> = cache.keys().cloned().collect();
+            block_numbers.sort_unstable();
+            let to_remove = block_numbers.len() - MAX_NUMBER_OF_BLOCKS_LOOKBACK;
+            for &block_num in block_numbers.iter().take(to_remove) {
+                cache.remove(&block_num);
+            }
+        }
     }
 }
 
