@@ -1,18 +1,12 @@
-use std::{
-    marker::PhantomData,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc
-    }
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc
 };
 
 use alloy::{
-    network::Network,
     primitives::{Address, BlockNumber},
-    providers::Provider,
     rpc::types::eth::{Block, Filter, Log},
-    sol_types::SolEvent,
-    transports::Transport
+    sol_types::SolEvent
 };
 use amms::{
     amm::{uniswap_v3::IUniswapV3Pool, AutomatedMarketMaker},
@@ -31,27 +25,22 @@ use tokio::{
 };
 
 use super::pool::SwapSimulationError;
-use crate::cfmm::uniswap::{mock_block_stream::MockBlockStream, pool::EnhancedUniswapV3Pool};
+use crate::cfmm::uniswap::{pool::EnhancedUniswapV3Pool, pool_providers::PoolManagerProvider};
 
 pub type StateChangeCache = ArrayDeque<StateChange, 150>;
 
-pub struct UniswapPoolManager<P, T, N> {
+pub struct UniswapPoolManager<P> {
     pool:                Arc<RwLock<EnhancedUniswapV3Pool>>,
     latest_synced_block: u64,
     state_change_buffer: usize,
     state_change_cache:  Arc<RwLock<StateChangeCache>>,
     provider:            Arc<P>,
-    // Can't be avoided for now if we want to be able to test
-    mock_block_stream:   Arc<Option<MockBlockStream<P, T, N>>>,
-    _phantom:            PhantomData<(T, N)>,
     sync_started:        AtomicBool
 }
 
-impl<P, T, N> UniswapPoolManager<P, T, N>
+impl<P> UniswapPoolManager<P>
 where
-    P: Provider<T, N> + 'static,
-    T: Transport + Clone,
-    N: Network
+    P: PoolManagerProvider + Send + Sync + 'static
 {
     pub fn new(
         pool: EnhancedUniswapV3Pool,
@@ -65,14 +54,8 @@ where
             state_change_buffer,
             state_change_cache: Arc::new(RwLock::new(ArrayDeque::new())),
             provider,
-            mock_block_stream: Arc::new(None),
-            _phantom: PhantomData,
             sync_started: AtomicBool::new(false)
         }
-    }
-
-    pub fn set_mock_block_stream(&mut self, mock_block_stream: MockBlockStream<P, T, N>) {
-        self.mock_block_stream = Arc::new(Some(mock_block_stream));
     }
 
     pub async fn pool(&self) -> RwLockReadGuard<'_, EnhancedUniswapV3Pool> {
@@ -146,20 +129,11 @@ where
         let provider = Arc::clone(&self.provider);
         let filter = self.filter().await;
         let state_change_cache = Arc::clone(&self.state_change_cache);
-        let mock_block_stream = Arc::clone(&self.mock_block_stream);
-
         let updated_pool_handle = tokio::spawn(async move {
-            let mut block_stream: BoxStream<Block> = match mock_block_stream.as_ref() {
-                Some(provider) => provider.subscribe_blocks().await,
-                None => provider.subscribe_blocks().await?.into_stream().boxed()
-            };
-
-            while let Some(block) = block_stream.next().await {
-                let chain_head_block_number = block
-                    .header
-                    .number
-                    .ok_or(PoolManagerError::BlockNumberNotFound)?;
-
+            let mut block_stream: BoxStream<Option<u64>> = provider.subscribe_blocks();
+            while let Some(block_number) = block_stream.next().await {
+                let chain_head_block_number =
+                    block_number.ok_or(PoolManagerError::BlockNumberNotFound)?;
                 // If there is a reorg, unwind state changes from last_synced block to the
                 // chain head block number
                 if chain_head_block_number <= last_synced_block {
