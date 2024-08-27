@@ -71,8 +71,8 @@ enum OrderInvalidation {
 }
 
 enum Option<T: type> {
-    Some(T),
-    None
+    None,
+    Some(T)
 }
 ```
 
@@ -86,8 +86,8 @@ will later have to have some functions like the EIP712 struct hashing defined fo
 
 ```rust
 enum Option<T: type> {
-    Some(T),
-    None
+    None,
+    Some(T)
 }
 
 enum Bool {
