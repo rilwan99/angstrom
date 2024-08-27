@@ -12,7 +12,7 @@ members = [
   "crates/eth/",
   "crates/submission",
   "testing-tools",
-  "crates/matching-engine",
+  "crates/matching-engine", "crates/pade", "crates/pade-macro",
 ]
 
 
@@ -48,6 +48,7 @@ incremental = false
 [workspace.dependencies]
 consensus = { path = "./crates/consensus/" }
 angstrom-types = { path = "./crates/types/" }
+pade = { path = "./crates/pade" }
 angstrom-utils = { path = "./crates/utils/" }
 validation = { path = "./crates/validation/" }
 order-pool = { path = "./crates/order-pool/" }
