@@ -402,14 +402,14 @@ library OrdersLib {
     function encode(TopOfBlockOrder memory order, Asset[] memory assets) internal pure returns (bytes memory) {
         // TODO: Update encoding.
         RefOrderVariant memory variantMap = RefOrderVariant({
-            isExact: false,
-            isFlash: false,
-            isOut: false,
             noHook: order.hook == address(0),
             useInternal: order.useInternal,
             hasRecipient: order.recipient != address(0),
             isEcdsa: order.meta.isEcdsa,
-            aToB: order.assetIn < order.assetOut
+            aToB: order.assetIn < order.assetOut,
+            isExact: false,
+            isFlash: false,
+            isOut: false
         });
 
         return bytes.concat(
