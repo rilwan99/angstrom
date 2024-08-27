@@ -49,7 +49,7 @@ library PairLib {
         for (uint256 i = 0; i < pairs.length; i++) {
             b = bytes.concat(b, pairs[i].encode(assets));
         }
-        b = bytes.concat(bytes2(b.length.toUint16()), b);
+        b = bytes.concat(bytes3(b.length.toUint24()), b);
     }
 
     function gt(Pair memory a, Pair memory b) internal pure returns (bool) {

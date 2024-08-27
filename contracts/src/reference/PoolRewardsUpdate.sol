@@ -30,7 +30,7 @@ library PoolRewardsUpdateLib {
         for (uint256 i = 0; i < self.quantities.length; i++) {
             encodedQuantities = bytes.concat(encodedQuantities, bytes16(self.quantities[i]));
         }
-        encodedQuantities = bytes.concat(bytes2(encodedQuantities.length.toUint16()), encodedQuantities);
+        encodedQuantities = bytes.concat(bytes3(encodedQuantities.length.toUint24()), encodedQuantities);
 
         return bytes.concat(bytes3(uint24(self.startTick)), bytes16(self.startLiquidity), encodedQuantities);
     }

@@ -18,7 +18,7 @@ library StructArrayLib {
         returns (CalldataReader, uint256 packed)
     {
         CalldataReader end;
-        (reader, end) = reader.readU16End();
+        (reader, end) = reader.readU24End();
 
         // TODO: Full bytes could've not been used.
         uint256 length = (end.offset() - reader.offset()) / size;

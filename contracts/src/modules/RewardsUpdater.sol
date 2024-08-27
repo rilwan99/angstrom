@@ -29,7 +29,7 @@ abstract contract RewardsUpdater {
             uint128 liquidity;
             (reader, liquidity) = reader.readU128();
             CalldataReader amountsEnd;
-            (reader, amountsEnd) = reader.readU16End();
+            (reader, amountsEnd) = reader.readU24End();
             (reader, total, cumulativeGrowth, endLiquidity) = startTick <= currentTick
                 ? _rewardBelow(poolRewards.rewardGrowthOutside, currentTick, reader, startTick, id, liquidity, amountsEnd)
                 : _rewardAbove(poolRewards.rewardGrowthOutside, currentTick, reader, startTick, id, liquidity, amountsEnd);

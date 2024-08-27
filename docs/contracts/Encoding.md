@@ -24,11 +24,12 @@ Unlike Solidity or the ABI spec we will always use angled brack (e.g. `uint<8>`)
 
 Rust-like syntax will used to define the types.
 
-### The Sequence Type (`Sequence<N: size, T: type>`)
+### The List Type (`List<T: type>`)
 
-The `Sequence` type represents a list or array of type `T` where the length of the encoded values
-must fit within `N` bytes e.g. `Sequence<2, address>` represents a variable length array of
-`address` values with a maximum length of 3276 (`(256^2 - 1) / 20`).
+The `List` type represents a list or array of type `T` where the encoded length **must not** exceed
+`16777215` (length must fit in 3 bytes). 
+
+List are encoded by appended the concatenation of the encoding of the elements to a 3 byte length.
 
 ### Fixed length arrays (`[T; N]`)
 
@@ -47,11 +48,11 @@ struct Trade {
 }
 
 struct Matched {
-    asks: Sequence<4, Trade>,
-    bids: Sequence<4, Trade>,
+    asks: List<Trade>,
+    bids: List<Trade>,
 }
 
-struct String<N: size>(Sequence<N, bytes<1>>);
+struct String<N: size>(List<bytes<1>>);
 ```
 
 ### Sum Types (aka "Enums")
@@ -151,7 +152,7 @@ def pade_encode(x: PadeValue, T: PadeType) -> bytes:
             pade_encode(item)
             for item in x.items
         ])
-    if T.is_sequence():
+    if T.is_list():
         encoded_items = concat([
             pade_encode(item)
             for item in x.items
@@ -178,7 +179,7 @@ def pade_encode(x: PadeValue, T: PadeType) -> bytes:
             variant_bitmap |= variant << bitmap_size
             bitmap_size += variant_size
 
-        variant_bytes = variant_bitmap.to_bytes(full_bytes(bitmap_size), 'big')
+        variant_bytes = variant_bitmap.to_bytes(full_bytes(bitmap_size), 'little')
 
         return variant_bytes + fields_encoded
 ```

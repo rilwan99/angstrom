@@ -31,6 +31,6 @@ library PoolSwapLib {
         for (uint256 i = 0; i < swaps.length; i++) {
             b = bytes.concat(b, swaps[i].encode(assets));
         }
-        b = bytes.concat(bytes2(b.length.toUint16()), b);
+        b = bytes.concat(bytes3(b.length.toUint24()), b);
     }
 }

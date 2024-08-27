@@ -142,13 +142,6 @@ library CalldataReaderLib {
         return (self, variant);
     }
 
-    function readU16End(CalldataReader self) internal pure returns (CalldataReader, CalldataReader end) {
-        uint256 length;
-        (self, length) = self.readU16();
-        end = CalldataReader.wrap(self.offset() + length);
-        return (self, end);
-    }
-
     function readU24End(CalldataReader self) internal pure returns (CalldataReader, CalldataReader end) {
         uint256 length;
         (self, length) = self.readU24();

@@ -46,7 +46,7 @@ abstract contract Accounter is UniConsumer {
 
     function _execPoolSwaps(CalldataReader reader, AssetArray assets) internal returns (CalldataReader) {
         CalldataReader end;
-        (reader, end) = reader.readU16End();
+        (reader, end) = reader.readU24End();
 
         while (reader != end) {
             PoolSwap swap;

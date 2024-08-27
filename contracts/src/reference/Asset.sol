@@ -42,7 +42,7 @@ library AssetLib {
         for (uint256 i = 0; i < assets.length; i++) {
             b = bytes.concat(b, assets[i].encode());
         }
-        b = bytes.concat(bytes2(b.length.toUint16()), b);
+        b = bytes.concat(bytes3(b.length.toUint24()), b);
     }
 
     function sort(Asset[] memory assets) internal pure {

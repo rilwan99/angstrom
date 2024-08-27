@@ -62,7 +62,7 @@ the index "A" (upper 12 bits) or "B" (lower 12 bits) respectively.
 enum Signature {
     Contract {
         from: address,
-        signature: Sequence<3, bytes1>
+        signature: List<bytes1>
     },
     Ecdsa {
         v: uint8,
@@ -89,12 +89,12 @@ The `data` payload is the PADE encoding of the following struct:
 
 ```rust
 struct Bundle {
-    assets: Sequence<2, Asset>,
-    pairs: Sequence<2, Pair>,
-    swaps: Sequence<2, PoolSwap>,
-    toBOrders: Sequence<3, TopOfBlockOrder>,
-    userOrders: Sequence<3, UserOrder>,
-    poolRewardsUpdates: Sequence<3, PoolRewardsUpdate>
+    assets: List<Asset>,
+    pairs: List<Pair>,
+    swaps: List<PoolSwap>,
+    toBOrders: List<TopOfBlockOrder>,
+    userOrders: List<UserOrder>,
+    poolRewardsUpdates: List<PoolRewardsUpdate>
 }
 ```
 
@@ -177,7 +177,7 @@ struct TopOfBlockOrder {
     quantity_out: u128,
     assets_in_out: AssetIndexPair,
     recipient: Option<address>,
-    hook_data: Option<Sequence<3, bytes1>>,
+    hook_data: Option<List<bytes1>>,
     signature: Signature
 }
 ```
@@ -189,7 +189,7 @@ struct TopOfBlockOrder {
 |`quantity_out: u128`|The order expected output quantity in the output asset's base units.|
 |`assets_in_out: AssetIndexPair`|Swap's input & output assets as indices into the asset array. Asset A is the input asset, asset B the output asset.|
 |`recipient: Option<address>`|Recipient for order output, `None` implies signer.|
-|`hook_data: Option<Sequence<3, bytes1>>`|Optional hook for composable orders, consisting of the hook address concatenated to the hook extra data.|
+|`hook_data: Option<List<bytes1>>`|Optional hook for composable orders, consisting of the hook address concatenated to the hook extra data.|
 |`signature: Signature`|The signature validating the order.|
 
 #### `UserOrder`
@@ -200,7 +200,7 @@ struct UserOrder {
     pair_index: u16,
     min_price: u256,
     recipient: Option<address>,
-    hook_data: Option<Sequence<3, bytes1>>,
+    hook_data: Option<List<bytes1>>,
     a_to_b: bool,
     standing_validation: Option<StandingValidation>,
     order_quantities: OrderQuantities,
@@ -224,6 +224,25 @@ enum OrderQuantities {
     }
 }
 ```
+
+**`UserOrder`**
+
+|Field|Description|
+|-----|-----------|
+|`use_internal: bool`|Whether to use angstrom internal balance (`true`) or actual ERC20 balance (`false`) to settle|
+|`pair_index: u16`|The index into the `List<Pair>` array that the order is trading in.|
+|`min_price: u256`|The minimum price in asset out over asset in base units in RAY|
+|`recipient: Option<address>`|Recipient for order output, `None` implies signer.|
+|`hook_data: Option<List<bytes1>>`|Optional hook for composable orders, consisting of the hook address concatenated to the hook extra data.|
+|`a_to_b: bool`|Whether the order is swapping in the pair's asset A and getting out B (`true`) or the other way around (`false`)|
+|`standing_validation: Option<StandingValidation>`|The one-time order validation data. (`None` implies a flash order which is validated via the block number)|
+|`order_quantities: OrderQuantities`|Description of the quantities the order trades.|
+|`exact_in: bool`|For exact orders: whether the specified quantity is the input or output (disregarded for partial orders).|
+|`signature: Signature`|The signature validating the order.|
+
+**`StandingValidation`**
+|`nonce: u64`|The order's nonce (can only be used once but do not have to be used in order).|
+|`deadline: u40`|The unix timestamp in seconds (inclusive) after which the order is considered invalid by the contract. |
 
 #### `PoolRewardsUpdate`
 
@@ -254,7 +273,7 @@ Solidity: [decoding implementation (`_decodeAndReward`)](../../contracts/modules
 struct RewardsUpdate {
     start_tick: i24,
     start_liquidity: u128,
-    quantities: Sequence<2, u128>
+    quantities: List<u128>
 }
 ```
 
@@ -311,4 +330,4 @@ def update_rewards(
 |-----|-----------|
 |`start_tick: i24`| When rewarding below the current tick: the first tick **above** the first tick to donate to. <br> When rewarding above: just the first tick actually being donated to. |
 |`start_liquidity: u128`|The current liquidity if `start_tick` were the current tick.|
-|`quantities: Sequence<2, u128>`|The reward for each initialized tick. Zeros at the end of the array can be left out. To donate to the current tick append a quantity.|
+|`quantities: List<u128>`|The reward for each initialized tick. Zeros at the end of the array can be left out. To donate to the current tick append a quantity.|
