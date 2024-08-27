@@ -152,7 +152,8 @@ encoding (`src/reference/PoolSwap.sol`)](../../contracts/src/reference/PoolSwap.
 
 ```rust
 struct PoolSwap {
-    assets_in_out: AssetIndexPair,
+    asset_in_index: u16,
+    asset_out_index: u16,
     quantity_in: u128
 }
 ```
@@ -163,7 +164,8 @@ to net out multiple swaps against the same pool into one to save on gas.
 
 |Field|Description|
 |-----|-----------|
-|`assets: AssetIndexPair`|Swap's input & output assets as indices into the asset array. Asset A is the input asset, asset B the output asset.|
+|`asset_in_index: u16`|Swap's input asset as index into the assets array|
+|`asset_out_index: u16`|Swap's output asset as index into the assets array|
 |`quantity_in: u128`|The swap input quantity in the input asset's base units.|
 
 #### `TopOfBlockOrder`
@@ -175,7 +177,8 @@ struct TopOfBlockOrder {
     use_internal: bool,
     quantity_in: u128,
     quantity_out: u128,
-    assets_in_out: AssetIndexPair,
+    asset_in_index: u16,
+    asset_out_index: u16,
     recipient: Option<address>,
     hook_data: Option<List<bytes1>>,
     signature: Signature
@@ -187,7 +190,8 @@ struct TopOfBlockOrder {
 |`use_internal: bool`|Whether to use angstrom internal balance (`true`) or actual ERC20 balance (`false`) to settle|
 |`quantity_in: u128`|The order offered input quanity in the input asset's base units.|
 |`quantity_out: u128`|The order expected output quantity in the output asset's base units.|
-|`assets_in_out: AssetIndexPair`|Swap's input & output assets as indices into the asset array. Asset A is the input asset, asset B the output asset.|
+|`asset_in_index: u16`|Order's input asset as index into the assets array|
+|`asset_out_index: u16`|Order's output asset as index into the assets array|
 |`recipient: Option<address>`|Recipient for order output, `None` implies signer.|
 |`hook_data: Option<List<bytes1>>`|Optional hook for composable orders, consisting of the hook address concatenated to the hook extra data.|
 |`signature: Signature`|The signature validating the order.|
