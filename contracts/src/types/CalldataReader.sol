@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {OrderVariant} from "./OrderVariant.sol";
+import {OrderVariantMap} from "./OrderVariantMap.sol";
 import {console} from "forge-std/console.sol";
 
 /// @dev Represents a calldata offset.
@@ -134,7 +134,7 @@ library CalldataReaderLib {
         return (self, value);
     }
 
-    function readVariant(CalldataReader self) internal pure returns (CalldataReader, OrderVariant variant) {
+    function readVariant(CalldataReader self) internal pure returns (CalldataReader, OrderVariantMap variant) {
         assembly {
             variant := shr(248, calldataload(self))
             self := add(self, 1)

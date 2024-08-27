@@ -20,19 +20,19 @@ library OrderVariantMapLib {
         return OrderVariantMap.unwrap(variant) & USE_INTERNAL_BIT != 0;
     }
 
-    function recipienIsSome(OrderVariantMap variant) internal pure returns (bool) {
+    function recipientIsSome(OrderVariantMap variant) internal pure returns (bool) {
         return OrderVariantMap.unwrap(variant) & HAS_RECIPIENT_BIT != 0;
     }
 
-    function hookDataIsSome(OrderVariantMap variant) internal pure returns (bool) {
-        return OrderVariantMap.unwrap(variant) & HAS_HOOK_BIT != 0;
+    function noHook(OrderVariantMap variant) internal pure returns (bool) {
+        return OrderVariantMap.unwrap(variant) & HAS_HOOK_BIT == 0;
     }
 
     function aToB(OrderVariantMap variant) internal pure returns (bool) {
         return OrderVariantMap.unwrap(variant) & A_TO_B_BIT != 0;
     }
 
-    function standingValidationIsSome(OrderVariantMap variant) internal pure returns (bool) {
+    function isStanding(OrderVariantMap variant) internal pure returns (bool) {
         return OrderVariantMap.unwrap(variant) & IS_STANDING_BIT != 0;
     }
 
@@ -44,7 +44,17 @@ library OrderVariantMapLib {
         return OrderVariantMap.unwrap(variant) & IS_EXACT_IN_BIT != 0;
     }
 
-    function sigIsEcdsa(OrderVariantMap variant) internal pure returns (bool) {
+    function isEcdsa(OrderVariantMap variant) internal pure returns (bool) {
         return OrderVariantMap.unwrap(variant) & IS_ECDSA_BIT != 0;
+    }
+
+    function asB32(OrderVariantMap variant) internal pure returns (bytes32) {
+        if (variant.isStanding()) {
+            if (variant.quantitiesPartial()) return "Standing_Partial";
+            else return "Standing_Exact";
+        } else {
+            if (variant.quantitiesPartial()) return "Flash_Partial";
+            else return "Flash_Exact";
+        }
     }
 }

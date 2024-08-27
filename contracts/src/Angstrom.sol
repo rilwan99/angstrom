@@ -15,13 +15,15 @@ import {AssetArray, AssetLib} from "./types/Asset.sol";
 import {PairArray, Pair, PairLib} from "./types/Pair.sol";
 import {ToBOrderBuffer} from "./types/ToBOrderBuffer.sol";
 import {UserOrderBuffer} from "./types/UserOrderBuffer.sol";
-import {OrderVariant} from "./types/OrderVariant.sol";
+import {OrderVariantMap} from "./types/OrderVariantMap.sol";
 import {HookBuffer, HookBufferLib} from "./types/HookBuffer.sol";
 import {CalldataReader, CalldataReaderLib} from "./types/CalldataReader.sol";
 import {SignatureLib} from "./libraries/SignatureLib.sol";
 import {PriceAB as PriceOutVsIn, AmountA as AmountOut, AmountB as AmountIn} from "./types/Price.sol";
 
 import {RayMathLib} from "./libraries/RayMathLib.sol";
+
+import {DEBUG_LOGS} from "./modules/DevFlags.sol";
 
 import {IUnlockCallback} from "v4-core/src/interfaces/callback/IUnlockCallback.sol";
 
@@ -92,7 +94,7 @@ contract Angstrom is
         // Purposefully devolve into an endless loop if the specified length isn't exactly used s.t.
         // `reader == end` at some point.
         while (reader != end) {
-            OrderVariant variant;
+            OrderVariantMap variant;
             (reader, variant) = reader.readVariant();
             buffer.useInternal = variant.useInternal();
 
@@ -101,7 +103,7 @@ contract Angstrom is
 
             (reader, buffer.assetIn) = assets.readAssetAddrFrom(reader);
             (reader, buffer.assetOut) = assets.readAssetAddrFrom(reader);
-            (reader, buffer.recipient) = variant.hasRecipient() ? reader.readAddr() : (reader, address(0));
+            (reader, buffer.recipient) = variant.recipientIsSome() ? reader.readAddr() : (reader, address(0));
 
             HookBuffer hook;
             (reader, hook, buffer.hookDataHash) = HookBufferLib.readFrom(reader, variant.noHook());
@@ -125,6 +127,8 @@ contract Angstrom is
         return reader;
     }
 
+    uint256 orderCounter;
+
     function _validateAndExecuteOrders(CalldataReader reader, AssetArray assets, PairArray pairs)
         internal
         returns (CalldataReader)
@@ -135,11 +139,17 @@ contract Angstrom is
         CalldataReader end;
         (reader, end) = reader.readU24End();
 
+        if (DEBUG_LOGS) orderCounter = 0;
+
         // Purposefully devolve into an endless loop if the specified length isn't exactly used s.t.
         // `reader == end` at some point.
         while (reader != end) {
-            OrderVariant variant;
+            if (DEBUG_LOGS) console.log("[%s]", orderCounter++);
+
+            OrderVariantMap variant;
             (reader, variant) = reader.readVariant();
+
+            if (DEBUG_LOGS) console.log("  variant: %s", variant.asB32());
 
             buffer.setTypeHash(variant);
             buffer.useInternal = variant.useInternal();
@@ -156,6 +166,8 @@ contract Angstrom is
             (reader, buffer.minPrice) = reader.readU256();
             if (price.into() < buffer.minPrice) revert LimitViolated();
 
+            (reader, buffer.recipient) = variant.recipientIsSome() ? reader.readAddr() : (reader, address(0));
+
             HookBuffer hook;
             (reader, hook, buffer.hookDataHash) = HookBufferLib.readFrom(reader, variant.noHook());
 
@@ -167,7 +179,7 @@ contract Angstrom is
             AmountOut amountOut;
             (reader, amountIn, amountOut) = buffer.loadAndComputeQuantity(reader, variant, price, halfSpreadRay);
 
-            (reader, buffer.recipient) = variant.hasRecipient() ? reader.readAddr() : (reader, address(0));
+            if (DEBUG_LOGS) buffer.logBytes(variant);
 
             bytes32 orderHash = buffer.hash712(variant, typedHasher);
 
@@ -176,11 +188,11 @@ contract Angstrom is
                 ? SignatureLib.readAndCheckEcdsa(reader, orderHash)
                 : SignatureLib.readAndCheckERC1271(reader, orderHash);
 
-            if (variant.isFlash()) {
-                _invalidateOrderHash(orderHash);
-            } else {
+            if (variant.isStanding()) {
                 _checkDeadline(buffer.deadline_or_empty);
                 _invalidateNonce(from, buffer.nonce_or_validForBlock);
+            } else {
+                _invalidateOrderHash(orderHash);
             }
 
             hook.tryTrigger(from);

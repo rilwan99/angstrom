@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {OrderVariant as Variant, OrderVariantLib as VariantLib} from "../types/OrderVariant.sol";
+import {OrderVariantMap as Variant, OrderVariantMapLib as VariantLib} from "../types/OrderVariantMap.sol";
 import {BitPackLib} from "./BitPackLib.sol";
 
 struct OrderVariant {
@@ -25,14 +25,14 @@ library OrderVariantLib {
         // forgefmt: disable-next-item
         return Variant.wrap(
             uint8(
-                (variant.isExact ? VariantLib.VARIANT_IS_EXACT_BIT : 0)
-                    .bitOverlay(variant.isFlash ? VariantLib.VARIANT_IS_FLASH_BIT : 0)
-                    .bitOverlay(variant.isOut ? VariantLib.VARIANT_IS_OUT_BIT : 0)
-                    .bitOverlay(variant.noHook ? VariantLib.VARIANT_NO_HOOK_BIT : 0)
-                    .bitOverlay(variant.useInternal ? VariantLib.VARIANT_USE_INTERNAL_BIT : 0)
-                    .bitOverlay(variant.hasRecipient ? VariantLib.VARIANT_HAS_RECIPIENT : 0)
-                    .bitOverlay(variant.isEcdsa ? VariantLib.VARIANT_IS_ECDSA_BIT : 0)
-                    .bitOverlay(variant.aToB ? VariantLib.VARIANT_A_TO_B_BIT : 0)
+                (!variant.isExact ? VariantLib.QTY_PARTIAL_BIT : 0)
+                    .bitOverlay(!variant.isFlash ? VariantLib.IS_STANDING_BIT : 0)
+                    .bitOverlay(!variant.isOut ? VariantLib.IS_EXACT_IN_BIT : 0)
+                    .bitOverlay(!variant.noHook ? VariantLib.HAS_HOOK_BIT : 0)
+                    .bitOverlay(variant.useInternal ? VariantLib.USE_INTERNAL_BIT : 0)
+                    .bitOverlay(variant.hasRecipient ? VariantLib.HAS_RECIPIENT_BIT : 0)
+                    .bitOverlay(variant.isEcdsa ? VariantLib.IS_ECDSA_BIT : 0)
+                    .bitOverlay(variant.aToB ? VariantLib.A_TO_B_BIT : 0)
             )
         );
     }

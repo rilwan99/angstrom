@@ -196,15 +196,15 @@ struct TopOfBlockOrder {
 
 ```rust
 struct UserOrder {
-    a_to_b: bool,
+    use_interal: bool,
     pair_index: u16,
     min_price: u256,
-    hook_data: Option<Sequence<3, bytes1>>,
-    standing_validation: Option<StandingValidation>,
-    exact_in: bool,
-    use_interal: bool,
-    order_quantities: OrderQuantities,
     recipient: Option<address>,
+    hook_data: Option<Sequence<3, bytes1>>,
+    a_to_b: bool,
+    standing_validation: Option<StandingValidation>,
+    order_quantities: OrderQuantities,
+    exact_in: bool,
     signature: Signature
 }
 

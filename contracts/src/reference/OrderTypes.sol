@@ -1,16 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {OrderVariant} from "../types/OrderVariant.sol";
+import {OrderVariantMap} from "../types/OrderVariantMap.sol";
 import {OrderVariant as RefOrderVariant} from "../reference/OrderVariant.sol";
 import {UserOrderBufferLib} from "../types/UserOrderBuffer.sol";
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 import {Pair, PairLib} from "./Pair.sol";
 import {Asset, AssetLib} from "./Asset.sol";
+import {DEBUG_LOGS} from "src/modules/DevFlags.sol";
 
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 import {console} from "forge-std/console.sol";
+import {consoleext} from "super-sol/libraries/consoleext.sol";
 
 struct OrderMeta {
     bool isEcdsa;
@@ -259,6 +261,7 @@ library OrdersLib {
     }
 
     function _logB(bytes memory b) internal pure returns (bytes memory) {
+        if (DEBUG_LOGS) consoleext.logInWords(b);
         return b;
     }
 
@@ -278,7 +281,7 @@ library OrdersLib {
         );
     }
 
-    /// @dev WARNING: Assumes `assets` and `pairs` are sorted.
+    /// @dev WARNING: Assumes `pairs` are sorted.
     function encode(PartialStandingOrder memory order, Pair[] memory pairs) internal pure returns (bytes memory) {
         (uint16 pairIndex, bool aToB) = pairs.getIndex(order.assetIn, order.assetOut);
 
@@ -295,17 +298,17 @@ library OrdersLib {
 
         return bytes.concat(
             bytes.concat(
-                bytes1(OrderVariant.unwrap(variantMap.encode())),
+                bytes1(OrderVariantMap.unwrap(variantMap.encode())),
                 bytes2(pairIndex),
                 bytes32(order.minPrice),
+                _encodeRecipient(order.recipient),
                 _encodeHookData(order.hook, order.hookPayload),
-                bytes8(order.nonce),
-                bytes5(order.deadline)
+                bytes8(order.nonce)
             ),
+            bytes5(order.deadline),
             bytes16(order.minAmountIn),
             bytes16(order.maxAmountIn),
             bytes16(order.amountFilled),
-            _encodeRecipient(order.recipient),
             _encodeSig(order.meta)
         );
     }
@@ -325,14 +328,14 @@ library OrdersLib {
         });
 
         return bytes.concat(
-            bytes1(OrderVariant.unwrap(variantMap.encode())),
+            bytes1(OrderVariantMap.unwrap(variantMap.encode())),
             bytes2(pairIndex),
             bytes32(order.minPrice),
+            _encodeRecipient(order.recipient),
             _encodeHookData(order.hook, order.hookPayload),
             bytes8(order.nonce),
             bytes5(order.deadline),
             bytes16(order.amount),
-            _encodeRecipient(order.recipient),
             _encodeSig(order.meta)
         );
     }
@@ -352,14 +355,14 @@ library OrdersLib {
         });
 
         return bytes.concat(
-            bytes1(OrderVariant.unwrap(variantMap.encode())),
+            bytes1(OrderVariantMap.unwrap(variantMap.encode())),
             bytes2(pairIndex),
             bytes32(order.minPrice),
+            _encodeRecipient(order.recipient),
             _encodeHookData(order.hook, order.hookPayload),
             bytes16(order.minAmountIn),
             bytes16(order.maxAmountIn),
             bytes16(order.amountFilled),
-            _encodeRecipient(order.recipient),
             _encodeSig(order.meta)
         );
     }
@@ -379,12 +382,12 @@ library OrdersLib {
         });
 
         return bytes.concat(
-            bytes1(OrderVariant.unwrap(variantMap.encode())),
+            bytes1(OrderVariantMap.unwrap(variantMap.encode())),
             bytes2(pairIndex),
             bytes32(order.minPrice),
+            _encodeRecipient(order.recipient),
             _encodeHookData(order.hook, order.hookPayload),
             bytes16(order.amount),
-            _encodeRecipient(order.recipient),
             _encodeSig(order.meta)
         );
     }
@@ -397,6 +400,7 @@ library OrdersLib {
     }
 
     function encode(TopOfBlockOrder memory order, Asset[] memory assets) internal pure returns (bytes memory) {
+        // TODO: Update encoding.
         RefOrderVariant memory variantMap = RefOrderVariant({
             isExact: false,
             isFlash: false,
@@ -409,7 +413,7 @@ library OrdersLib {
         });
 
         return bytes.concat(
-            bytes1(OrderVariant.unwrap(variantMap.encode())),
+            bytes1(OrderVariantMap.unwrap(variantMap.encode())),
             bytes16(order.quantityIn),
             bytes16(order.quantityOut),
             bytes1(assets.getIndex(order.assetIn).toUint8()),

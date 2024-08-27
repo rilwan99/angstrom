@@ -38,6 +38,8 @@ import {
     AmountB as AmountIn
 } from "src/types/Price.sol";
 
+import {DEBUG_LOGS} from "src/modules/DevFlags.sol";
+
 import {PoolGate} from "../_helpers/PoolGate.sol";
 import {Trader} from "../_helpers/types/Trader.sol";
 import {PRNG} from "super-sol/collections/PRNG.sol";
@@ -193,6 +195,7 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
 
             for (uint256 i = 0; i < v.pairOrderCounts[j]; i++) {
                 uint256 oi = v.orderIndexOffset[j] + i;
+                if (DEBUG_LOGS) console.log("[%s]", oi);
                 assertFalse(usedIndices[oi]);
                 usedIndices[oi] = true;
 
@@ -213,6 +216,11 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
                         : rng.randmag((v.priceOutVsIn.into() / 10).rayToWad(), (v.priceOutVsIn.into() * 10).rayToWad())
                 );
                 v.amountIn = v.priceOutVsIn.convert(v.amountOut);
+                if (DEBUG_LOGS) {
+                    console.log("  amountIn: %18e", AmountIn.unwrap(v.amountIn));
+                    console.log("  amountOut: %18e", AmountOut.unwrap(v.amountOut));
+                    console.log("  price: %27e", PriceOutVsIn.unwrap(pair.priceAB));
+                }
 
                 if (v.aToB) {
                     v.totalBOut = v.totalBOut + AmountB.wrap(v.amountOut.into());
@@ -222,6 +230,7 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
 
                 v.isFlash = rng.randbool();
                 v.minPrice = v.priceOutVsIn.mulRayScalar(rng.randuint(0.89e18, 1.0e18));
+                if (DEBUG_LOGS) console.log("v.minPrice: %s", PriceOutVsIn.unwrap(v.minPrice));
                 v.trader = v.traders[rng.randuint(v.traders.length)];
                 v.deadline = block.timestamp + 240 + rng.randuint(0, 3600);
                 bool useInternal;
