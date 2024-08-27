@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {OrderVariantMap} from "./OrderVariantMap.sol";
+import {AssetIndexPair} from "./AssetIndexPair.sol";
 import {console} from "forge-std/console.sol";
 
 /// @dev Represents a calldata offset.
@@ -78,10 +79,10 @@ library CalldataReaderLib {
         return (self, value);
     }
 
-    function readU24(CalldataReader self) internal pure returns (CalldataReader, uint24 value) {
+    function readU32(CalldataReader self) internal pure returns (CalldataReader, uint32 value) {
         assembly {
-            value := shr(232, calldataload(self))
-            self := add(self, 3)
+            value := shr(224, calldataload(self))
+            self := add(self, 4)
         }
         return (self, value);
     }
@@ -143,10 +144,18 @@ library CalldataReaderLib {
     }
 
     function readU24End(CalldataReader self) internal pure returns (CalldataReader, CalldataReader end) {
-        uint256 length;
-        (self, length) = self.readU24();
-        end = CalldataReader.wrap(self.offset() + length);
+        assembly ("memory-safe") {
+            let len := shr(232, calldataload(self))
+            self := add(self, 3)
+            end := add(self, len)
+        }
         return (self, end);
+    }
+
+    function readAssetIndexPair(CalldataReader self) internal pure returns (CalldataReader, AssetIndexPair) {
+        uint32 pair;
+        (self, pair) = self.readU32();
+        return (self, AssetIndexPair.wrap(pair));
     }
 
     function readBytes(CalldataReader self) internal pure returns (CalldataReader, bytes calldata slice) {

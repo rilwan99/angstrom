@@ -12,6 +12,7 @@ import {UniConsumer} from "./modules/UniConsumer.sol";
 import {TypedDataHasher} from "./types/TypedDataHasher.sol";
 
 import {AssetArray, AssetLib} from "./types/Asset.sol";
+import {AssetIndexPair} from "./types/AssetIndexPair.sol";
 import {PairArray, Pair, PairLib} from "./types/Pair.sol";
 import {ToBOrderBuffer} from "./types/ToBOrderBuffer.sol";
 import {UserOrderBuffer} from "./types/UserOrderBuffer.sol";
@@ -101,8 +102,13 @@ contract Angstrom is
             (reader, buffer.quantityIn) = reader.readU128();
             (reader, buffer.quantityOut) = reader.readU128();
 
-            (reader, buffer.assetIn) = assets.readAssetAddrFrom(reader);
-            (reader, buffer.assetOut) = assets.readAssetAddrFrom(reader);
+            {
+                AssetIndexPair indices;
+                (reader, indices) = reader.readAssetIndexPair();
+                buffer.assetIn = assets.get(indices.indexA()).addr();
+                buffer.assetOut = assets.get(indices.indexB()).addr();
+            }
+
             (reader, buffer.recipient) = variant.recipientIsSome() ? reader.readAddr() : (reader, address(0));
 
             HookBuffer hook;

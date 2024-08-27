@@ -38,22 +38,22 @@ we're allowed to actually interact with Uniswap at all).
 #### `AssetIndexPair`
 
 ```rust
-type AssetIndexPair = u24;
+type AssetIndexPair = u32;
 ```
 
-The `AssetIndexPair` type is an alias for `u24` and encodes two 12-bit indices. Packing the two
+The `AssetIndexPair` type is an alias for `u32` and encodes two 16-bit indices. Packing the two
 indices works as follows:
 
 ```python
 def pack_to_index_pair(index_a: int, index_b: int) -> int:
-    assert index_a in range(0, 1 << 12), f'Index A not 12-bit'
-    assert index_b in range(0, 1 << 12), f'Index B not 12-bit'
+    assert index_a in range(0, 1 << 16), f'Index A not 16-bit'
+    assert index_b in range(0, 1 << 16), f'Index B not 16-bit'
 
-    return (index_a << 12) | index_b
+    return (index_a << 16) | index_b
 ```
 
 When referring to "Asset A" or "Asset B" throughout the docs it refers to the asset referenced by
-the index "A" (upper 12 bits) or "B" (lower 12 bits) respectively.
+the index "A" (upper 16 bits) or "B" (lower 16 bits) respectively.
 
 #### `Signature`
 
@@ -130,7 +130,7 @@ encoding (`src/reference/Pair.sol`)](../../contracts/src/reference/Pair.sol)
 ```rust
 struct Pair {
     asset_indices: AssetIndexPair,
-    price_ray_assetAOverB: u256
+    price_AOverB: u256
 }
 ```
 

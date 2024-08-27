@@ -21,7 +21,7 @@ library PoolSwapLib {
 
     function encode(PoolSwap memory swap, Asset[] memory assets) internal pure returns (bytes memory b) {
         b = bytes.concat(
-            bytes3(AssetIndexPair.unwrap(assets.getIndexPair({assetA: swap.assetIn, assetB: swap.assetOut}))),
+            bytes4(AssetIndexPair.unwrap(assets.getIndexPair({assetA: swap.assetIn, assetB: swap.assetOut}))),
             bytes16(swap.amountIn)
         );
         require(b.length == ActualPoolSwapLib.SWAP_BYTES);

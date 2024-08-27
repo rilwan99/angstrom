@@ -99,9 +99,8 @@ abstract contract PoolRewardsManager is RewardsUpdater, ILiqChangeHooks, UniCons
     {
         address asset0;
         PoolId id;
-        uint24 data;
-        (reader, data) = reader.readU24();
-        AssetIndexPair indices = AssetIndexPair.wrap(data);
+        AssetIndexPair indices;
+        (reader, indices) = reader.readAssetIndexPair();
         asset0 = assets.get(indices.indexA()).addr();
         id = ConversionLib.toPoolKey(address(this), asset0, assets.get(indices.indexB()).addr()).toId();
 

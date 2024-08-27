@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-type AssetIndexPair is uint24;
+type AssetIndexPair is uint32;
 
 using AssetIndexPairLib for AssetIndexPair global;
 using {le as <=, ge as >=, lt as <, gt as >} for AssetIndexPair global;
@@ -26,16 +26,16 @@ function gt(AssetIndexPair x, AssetIndexPair y) pure returns (bool) {
 library AssetIndexPairLib {
     error IndexTooLarge();
 
-    uint256 internal constant INDEX_A_OFFSET = 12;
-    uint256 internal constant INDEX_B_MASK = 0xfff;
-    uint256 internal constant MAX_INDEX = (1 << 12) - 1;
+    uint256 internal constant INDEX_A_OFFSET = 16;
+    uint256 internal constant INDEX_B_MASK = 0xffff;
+    uint256 internal constant MAX_INDEX = (1 << 16) - 1;
 
     function _index(uint256 x) internal pure returns (uint256) {
         if (x > MAX_INDEX) revert IndexTooLarge();
         return x;
     }
 
-    function into(AssetIndexPair self) internal pure returns (uint24) {
+    function into(AssetIndexPair self) internal pure returns (uint32) {
         return AssetIndexPair.unwrap(self);
     }
 

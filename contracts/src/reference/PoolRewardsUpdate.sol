@@ -38,7 +38,7 @@ library PoolRewardsUpdateLib {
     function encode(PoolRewardsUpdate memory self, Asset[] memory assets) internal pure returns (bytes memory) {
         AssetIndexPair indices = assets.getIndexPair({assetA: self.asset0, assetB: self.asset1});
 
-        return bytes.concat(bytes3(indices.into()), self.update.encode());
+        return bytes.concat(bytes4(indices.into()), self.update.encode());
     }
 
     function encode(PoolRewardsUpdate[] memory updates, Asset[] memory assets) internal pure returns (bytes memory b) {

@@ -14,10 +14,10 @@ using PoolSwapLib for PoolSwap global;
 library PoolSwapLib {
     using StructArrayLib for uint256;
 
-    uint256 internal constant SWAP_BYTES = 19;
+    uint256 internal constant SWAP_BYTES = 20;
 
     uint256 internal constant INDICES_OFFSET = 0;
-    uint256 internal constant AMOUNT_IN_OFFSET = 3;
+    uint256 internal constant AMOUNT_IN_OFFSET = 4;
 
     function readNextFrom(CalldataReader reader) internal pure returns (CalldataReader, PoolSwap swap) {
         assembly {
@@ -32,7 +32,7 @@ library PoolSwapLib {
     }
 
     function assetIndices(PoolSwap self) internal pure returns (AssetIndexPair) {
-        uint24 data = self.into().readU24MemberFromPtr(INDICES_OFFSET);
+        uint32 data = self.into().readU32MemberFromPtr(INDICES_OFFSET);
         return AssetIndexPair.wrap(data);
     }
 

@@ -26,10 +26,10 @@ library PairLib {
     error OutOfOrderOrDuplicatePairs();
     error UnsortedPair();
 
-    uint256 internal constant PAIR_BYTES = 35;
+    uint256 internal constant PAIR_BYTES = 36;
 
     uint256 internal constant INDICES_OFFSET = 0;
-    uint256 internal constant PRICE_AB_OFFSET = 3;
+    uint256 internal constant PRICE_AB_OFFSET = 4;
 
     function readFromAndValidate(CalldataReader reader) internal pure returns (CalldataReader, PairArray) {
         uint256 packed;
@@ -69,7 +69,7 @@ library PairLib {
     }
 
     function assetIndices(Pair self) internal pure returns (AssetIndexPair) {
-        uint24 data = self.into().readU24MemberFromPtr(INDICES_OFFSET);
+        uint32 data = self.into().readU32MemberFromPtr(INDICES_OFFSET);
         return _validated(AssetIndexPair.wrap(data));
     }
 

@@ -42,7 +42,7 @@ library PairLib {
     function encode(Pair memory self, Asset[] memory assets) internal pure returns (bytes memory) {
         self._checkOrdered();
         AssetIndexPair indices = assets.getIndexPair(self.assetA, self.assetB);
-        return bytes.concat(bytes3(indices.into()), bytes32(self.priceAB.into()));
+        return bytes.concat(bytes4(indices.into()), bytes32(self.priceAB.into()));
     }
 
     function encode(Pair[] memory pairs, Asset[] memory assets) internal pure returns (bytes memory b) {

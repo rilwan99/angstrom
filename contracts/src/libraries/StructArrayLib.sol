@@ -37,9 +37,9 @@ library StructArrayLib {
         return packed & CALLDATA_PTR_MASK;
     }
 
-    function readU24MemberFromPtr(uint256 cdPtr, uint256 memberOffset) internal pure returns (uint24 value) {
+    function readU32MemberFromPtr(uint256 cdPtr, uint256 memberOffset) internal pure returns (uint32 value) {
         assembly {
-            value := shr(232, calldataload(add(cdPtr, memberOffset)))
+            value := shr(224, calldataload(add(cdPtr, memberOffset)))
         }
     }
 
