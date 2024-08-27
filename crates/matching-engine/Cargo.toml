@@ -25,6 +25,7 @@ futures-util.workspace = true
 uniswap_v3_math.workspace = true
 malachite = "0.4.0"
 malachite-q = "0.4.0"
+pade.workspace = true
 rand.workspace = true
 rand_distr.workspace = true
 tokio.workspace = true

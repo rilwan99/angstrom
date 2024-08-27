@@ -10,6 +10,13 @@ impl<const B: usize, T> Sequence<B, T> {}
 
 pub trait PadeEncode {
     fn pade_encode(&self) -> Vec<u8>;
+    /// The number of bytes in the PADE-encoded output that represent header
+    /// information.  0 for most encoding schemes but Enum and List both
+    /// have header metadata that are added
+    #[inline]
+    fn pade_header_bits(&self) -> u8 {
+        0
+    }
 }
 
 //Implementation for arrays
@@ -19,7 +26,8 @@ impl<T: PadeEncode, const N: usize> PadeEncode for [T; N] {
     }
 }
 
-// Decided on a generic List<3> implementation
+// Decided on a generic List<3> implementation - no header bits because we don't
+// want to hoist them in a struct
 impl<T: PadeEncode> PadeEncode for Vec<T> {
     fn pade_encode(&self) -> Vec<u8> {
         let len_bytes = self.len().to_le_bytes();

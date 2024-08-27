@@ -36,10 +36,6 @@ impl ToBOutcome {
     }
 
     pub fn to_donate(&self, a0_idx: u16, a1_idx: u16) -> SolPoolRewardsUpdate {
-        // These are TEMPROARY LOCAL ADDRESSES from Dave's Testnet - if you are seeing
-        // these used in prod code they are No Bueno
-        let asset0 = address!("332Fb35767182F8ac9F9C1405db626105F6694E0");
-        let asset1 = address!("982830D87C95479dB81Fe62cd08dd9118D080697");
         let mut donations = self.tick_donations.iter().collect::<Vec<_>>();
         // Will sort from lowest to highest (donations[0] will be the lowest tick
         // number)
@@ -57,7 +53,7 @@ impl ToBOutcome {
             startLiquidity: self.start_liquidity,
             quantities
         };
-        SolPoolRewardsUpdate { asset0, asset1, update }
+        SolPoolRewardsUpdate { asset0: a0_idx, asset1: a1_idx, update }
     }
 }
 
@@ -227,7 +223,10 @@ mod test {
         providers::ProviderBuilder,
         sol_types::{SolCall, SolValue}
     };
-    use angstrom_types::{matching::SqrtPriceX96, sol_bindings::sol::SolMockRewardsManager};
+    use angstrom_types::{
+        matching::SqrtPriceX96,
+        sol_bindings::sol::{SolMockContractMessage, SolMockRewardsManager}
+    };
     use rand::thread_rng;
     use testing_tools::type_generator::orders::generate_top_of_block_order;
     use uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick;
@@ -345,6 +344,11 @@ mod test {
 
     #[tokio::test]
     async fn talks_to_contract() {
+        // These are TEMPROARY LOCAL ADDRESSES from Dave's Testnet - if you are seeing
+        // these used in prod code they are No Bueno
+        let asset1 = address!("332Fb35767182F8ac9F9C1405db626105F6694E0");
+        let asset0 = address!("982830D87C95479dB81Fe62cd08dd9118D080697");
+
         // Build a ToB outcome that we care about
         let mut rng = thread_rng();
         let amm = generate_amm_market(100000);
@@ -359,7 +363,11 @@ mod test {
         // address, should configure this to stand up on its own
         let contract_address = address!("12975173B87F7595EE45dFFb2Ab812ECE596Bf84");
         let contract = SolMockRewardsManager::new(contract_address, &provider);
-        let tob_bytes = Bytes::from(tob_outcome.to_donate(12, 12).abi_encode());
+        let tob_mock_message = SolMockContractMessage {
+            addressList: vec![asset0, asset1],
+            update:      tob_outcome.to_donate(0, 1)
+        };
+        let tob_bytes = Bytes::from(pade::PadeEncode::pade_encode(&tob_mock_message));
         let call = contract.reward(tob_bytes);
         // let reward_call =
         // SolMockRewardsManager::rewardCall::new((Bytes::default(),)).abi_encode();

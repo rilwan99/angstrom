@@ -20,3 +20,14 @@ macro_rules! use_alloy_default {
 }
 
 use_alloy_default!(U256, u128, Address);
+
+#[cfg(test)]
+mod tests {
+    use crate::PadeEncode;
+
+    #[test]
+    fn implemented_pade() {
+        let tim = 128_u128;
+        println!("{:?}", tim.pade_header_bits());
+    }
+}
