@@ -187,7 +187,7 @@ pub fn calculate_reward(
 
 #[cfg(test)]
 mod test {
-    use alloy_primitives::{Uint, U256};
+    use alloy::primitives::Uint;
     use angstrom_types::matching::SqrtPriceX96;
     use rand::thread_rng;
     use testing_tools::type_generator::orders::generate_top_of_block_order;

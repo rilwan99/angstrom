@@ -4,7 +4,6 @@ use alloy::{
     network::Network,
     primitives::{Address, I256, U256},
     providers::Provider,
-    rpc::types::eth::Log,
     sol,
     sol_types::{SolEvent, SolType},
     transports::Transport
@@ -15,8 +14,9 @@ use amms::{
         uniswap_v3::{IUniswapV3Pool, Info, UniswapV3Pool},
         AutomatedMarketMaker
     },
-    errors::AMMError
+    errors::{AMMError, EventLogError}
 };
+use reth_primitives::Log;
 use thiserror::Error;
 use uniswap_v3_math::{
     error::UniswapV3MathError,
@@ -221,12 +221,16 @@ impl EnhancedUniswapV3Pool {
     ///     * Sync logs:  Swap sync logs don't have the zeroForOne field, which
     ///       coupled with amountSpecified produces 4 possible combinations of
     ///       parameter. Therefore, if you are syncing from swap log, you need
-    ///       to try out all of the combinations the below, to know exactly with
+    ///       to try out all of the combinations below, to know exactly with
     ///       which set of zeroForOne x amountSpecified parameters the sim
-    ///       method was called let combinations = [ (pool.token_a,
-    ///       swap_event.amount0), (pool.token_b, swap_event.amount0),
-    ///       (pool.token_a, swap_event.amount1), (pool.token_b,
-    ///       swap_event.amount1), ];
+    ///       method was called
+    ///
+    ///       let combinations = [
+    ///           (pool.token_a, swap_event.amount0),
+    ///           (pool.token_b, swap_event.amount0),
+    ///           (pool.token_a, swap_event.amount1),
+    ///           (pool.token_b, swap_event.amount1),
+    ///       ];
     fn _simulate_swap(
         &self,
         token_in: Address,
@@ -403,12 +407,12 @@ impl EnhancedUniswapV3Pool {
         if self.sync_swap_with_sim {
             self.sync_swap_with_sim(log)
         } else {
-            self.inner.sync_from_swap_log(log).map_err(Into::into)
+            self._sync_from_swap_log(log).map_err(Into::into)
         }
     }
 
     fn sync_swap_with_sim(&mut self, log: Log) -> Result<(), PoolManagerError> {
-        let swap_event = IUniswapV3Pool::Swap::decode_log(&log.inner, true)?;
+        let swap_event = IUniswapV3Pool::Swap::decode_log(&log, true)?;
 
         tracing::trace!(pool_tick = ?self.tick, pool_price = ?self.sqrt_price, pool_liquidity = ?self.liquidity, pool_address = ?self.address, "pool before");
         tracing::debug!(swap_tick=swap_event.tick, swap_price=?swap_event.sqrtPriceX96, swap_liquidity=?swap_event.liquidity, swap_amount0=?swap_event.amount0, swap_amount1=?swap_event.amount1, "swap event");
@@ -456,6 +460,58 @@ impl EnhancedUniswapV3Pool {
 
         Ok(())
     }
+
+    pub fn sync_from_log(&mut self, log: Log) -> Result<(), EventLogError> {
+        let event_signature = log.topics()[0];
+
+        if event_signature == IUniswapV3Pool::Burn::SIGNATURE_HASH {
+            self.sync_from_burn_log(log)?;
+        } else if event_signature == IUniswapV3Pool::Mint::SIGNATURE_HASH {
+            self.sync_from_mint_log(log)?;
+        } else if event_signature == IUniswapV3Pool::Swap::SIGNATURE_HASH {
+            self._sync_from_swap_log(log)?;
+        } else {
+            Err(EventLogError::InvalidEventSignature)?
+        }
+
+        Ok(())
+    }
+
+    pub fn sync_from_burn_log(&mut self, log: Log) -> Result<(), alloy::dyn_abi::Error> {
+        let burn_event = IUniswapV3Pool::Burn::decode_log(&log, true)?;
+
+        self.modify_position(
+            burn_event.tickLower,
+            burn_event.tickUpper,
+            -(burn_event.amount as i128)
+        );
+
+        tracing::debug!(?burn_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "burn event");
+
+        Ok(())
+    }
+
+    pub fn sync_from_mint_log(&mut self, log: Log) -> Result<(), alloy::dyn_abi::Error> {
+        let mint_event = IUniswapV3Pool::Mint::decode_log(&log, true)?;
+
+        self.modify_position(mint_event.tickLower, mint_event.tickUpper, mint_event.amount as i128);
+
+        tracing::debug!(?mint_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "mint event");
+
+        Ok(())
+    }
+
+    pub fn _sync_from_swap_log(&mut self, log: Log) -> Result<(), alloy::sol_types::Error> {
+        let swap_event = IUniswapV3Pool::Swap::decode_log(&log, true)?;
+
+        self.sqrt_price = swap_event.sqrtPriceX96;
+        self.liquidity = swap_event.liquidity;
+        self.tick = swap_event.tick;
+
+        tracing::debug!(?swap_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "swap event");
+
+        Ok(())
+    }
 }
 
 impl std::ops::Deref for EnhancedUniswapV3Pool {
@@ -493,9 +549,9 @@ mod test {
     use alloy::{
         hex,
         network::Ethereum,
-        primitives::{address, BlockHash, Bytes, Log as AlloyLog, LogData, TxHash, B256, U256},
-        providers::{Provider, ProviderBuilder, RootProvider},
-        rpc::{client::ClientBuilder, types::eth::Log as RpcLog},
+        primitives::{address, Bytes, Log as AlloyLog, LogData, B256, U256},
+        providers::{ProviderBuilder, RootProvider},
+        rpc::client::ClientBuilder,
         transports::{
             http::{Client, Http},
             layers::{RetryBackoffLayer, RetryBackoffService}
@@ -620,26 +676,17 @@ mod test {
         // owner: 0xC36442b4a4522E871399CD717aBDD847Ab11FE88, tickLower: 195090,
         // tickUpper: 195540, amount: 136670924187209102, amount0: 0, amount1:
         // 53560594103808093362
-        pool.sync_from_burn_log(RpcLog {
-            inner: AlloyLog {
-                address: address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),
-                data: LogData::new(
-                    vec![
-                        B256::from_slice(&hex::decode("0c396cd989a39f4459b5fa1aed6a9a8dcdbc45908acfd67e028cd568da98982c").unwrap()),
-                        B256::from_slice(&hex::decode("000000000000000000000000c36442b4a4522e871399cd717abdd847ab11fe88").unwrap()),
-                        B256::from_slice(&hex::decode("000000000000000000000000000000000000000000000000000000000002fa12").unwrap()),
-                        B256::from_slice(&hex::decode("000000000000000000000000000000000000000000000000000000000002fbd4").unwrap()),
-                    ],
-                    Bytes::copy_from_slice(&hex::decode("00000000000000000000000000000000000000000000000001e58d7b3f4d8d8e0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002e74d748fac5cecb2").unwrap()),
-                ).unwrap(),
-            },
-            block_hash: Some(BlockHash::from_slice(&hex::decode("8777a4798a4f74c24a30847c646921939ae8422f55fb1ccaa2718fa7bd3b3381").unwrap())),
-            block_number: Some(burn_block),
-            block_timestamp: None,
-            transaction_hash: Some(TxHash::from_slice(&hex::decode("20b553d3067e12892051e2d07e63cd12bd58ee7f31fa5402f7c4065505890d39").unwrap())),
-            transaction_index: Some(21),
-            log_index: Some(100),
-            removed: false,
+        pool.sync_from_burn_log(AlloyLog {
+            address: address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640"),
+            data: LogData::new(
+                vec![
+                    B256::from_slice(&hex::decode("0c396cd989a39f4459b5fa1aed6a9a8dcdbc45908acfd67e028cd568da98982c").unwrap()),
+                    B256::from_slice(&hex::decode("000000000000000000000000c36442b4a4522e871399cd717abdd847ab11fe88").unwrap()),
+                    B256::from_slice(&hex::decode("000000000000000000000000000000000000000000000000000000000002fa12").unwrap()),
+                    B256::from_slice(&hex::decode("000000000000000000000000000000000000000000000000000000000002fbd4").unwrap()),
+                ],
+                Bytes::copy_from_slice(&hex::decode("00000000000000000000000000000000000000000000000001e58d7b3f4d8d8e0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000002e74d748fac5cecb2").unwrap()),
+            ).unwrap(),
         }).unwrap();
 
         let mut after_burn_pool = setup_pool(provider.clone(), burn_block, ticks_per_side).await;
@@ -688,15 +735,6 @@ mod test {
                 tick
             );
         }
-    }
-
-    #[tokio::test]
-    async fn test_mint_pool() {
-        // TODO: add an interesting case for minting
-        let block_number = 20505110;
-        let ticks_per_side = 10;
-        let provider = setup_provider().await;
-        let pool = setup_pool(provider.clone(), block_number, ticks_per_side).await;
     }
 
     #[tokio::test]

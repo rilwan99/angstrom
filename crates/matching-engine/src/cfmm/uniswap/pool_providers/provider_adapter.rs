@@ -1,12 +1,8 @@
 use std::{marker::PhantomData, sync::Arc};
 
-use alloy::{
-    network::Network,
-    providers::Provider,
-    rpc::types::{Filter, Log},
-    transports::Transport
-};
+use alloy::{network::Network, providers::Provider, rpc::types::Filter, transports::Transport};
 use futures_util::{FutureExt, StreamExt};
+use reth_primitives::Log;
 
 use crate::cfmm::uniswap::{pool_manager::PoolManagerError, pool_providers::PoolManagerProvider};
 
@@ -46,6 +42,20 @@ where
     }
 
     async fn get_logs(&self, filter: &Filter) -> Result<Vec<Log>, PoolManagerError> {
-        self.inner.get_logs(filter).await.map_err(|e| e.into())
+        let alloy_logs = self
+            .inner
+            .get_logs(filter)
+            .await
+            .map_err(PoolManagerError::from)?;
+
+        let reth_logs = alloy_logs
+            .iter()
+            .map(|alloy_log| Log {
+                address: alloy_log.address(),
+                data:    alloy_log.data().clone()
+            })
+            .collect();
+
+        Ok(reth_logs)
     }
 }

@@ -1,9 +1,13 @@
 //! CLI definition and entrypoint to executable
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex}
+};
+
 use angstrom_network::manager::StromConsensusEvent;
 use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_node_builder::{FullNode, NodeHandle};
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
-use std::{path::PathBuf, sync::{Arc, Mutex}};
 use tokio::sync::mpsc::{
     channel, unbounded_channel, Receiver, Sender, UnboundedReceiver, UnboundedSender
 };
@@ -69,9 +73,7 @@ pub fn run() -> eyre::Result<()> {
                 // let quotes_api = QuotesApi { pool: pool.clone() };
                 // let consensus_api = ConsensusApi { consensus: consensus.clone() };
 
-                rpc_context
-                    .modules
-                    .merge_configured(order_api.into_rpc())?;
+                rpc_context.modules.merge_configured(order_api.into_rpc())?;
                 // rpc_context
                 //     .modules
                 //     .merge_configured(quotes_api.into_rpc())?;

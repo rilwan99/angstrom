@@ -347,7 +347,7 @@ impl<'a> PriceRange<'a> {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::U160;
+    use alloy::primitives::U160;
 
     use super::*;
 

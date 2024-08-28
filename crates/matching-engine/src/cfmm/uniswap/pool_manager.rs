@@ -5,16 +5,13 @@ use std::sync::{
 
 use alloy::{
     primitives::{Address, BlockNumber},
-    rpc::types::eth::{Block, Filter, Log},
-    sol_types::SolEvent
+    rpc::types::eth::{Block, Filter}
 };
-use amms::{
-    amm::{uniswap_v3::IUniswapV3Pool, AutomatedMarketMaker},
-    errors::EventLogError
-};
+use amms::{amm::AutomatedMarketMaker, errors::EventLogError};
 use arraydeque::ArrayDeque;
 use futures::StreamExt;
 use futures_util::stream::BoxStream;
+use reth_primitives::Log;
 use thiserror::Error;
 use tokio::{
     sync::{
@@ -154,40 +151,31 @@ where
                     last_synced_block = chain_head_block_number - 1;
                 }
 
-                let from_block = last_synced_block + 1;
                 let logs = provider
                     .get_logs(
                         &filter
                             .clone()
-                            .from_block(from_block)
+                            // last_synced_block + 1 == chain_head_block_number (always)
+                            .from_block(last_synced_block + 1)
                             .to_block(chain_head_block_number)
                     )
                     .await?;
 
-                if logs.is_empty() {
-                    let mut state_change_cache = state_change_cache.write().await;
-                    for block_number in from_block..=chain_head_block_number {
-                        Self::add_state_change_to_cache(
-                            &mut state_change_cache,
-                            StateChange::new(None, block_number)
-                        )?;
-                    }
-                } else {
+                if !logs.is_empty() {
                     let mut pool_guard = pool.write().await;
                     let mut state_change_cache = state_change_cache.write().await;
                     Self::handle_state_changes_from_logs(
                         &mut pool_guard,
                         &mut state_change_cache,
-                        logs
+                        logs,
+                        chain_head_block_number
                     )?;
 
                     if let Some(tx) = &pool_updated_tx {
-                        if let Err(e) = tx
-                            .send((address, chain_head_block_number as BlockNumber))
+                        tx.send((address, chain_head_block_number))
                             .await
-                        {
-                            tracing::error!("Failed to send pool update: {}", e);
-                        }
+                            .map_err(|e| tracing::error!("Failed to send pool update: {}", e))
+                            .ok();
                     }
                 }
 
@@ -250,40 +238,17 @@ where
     fn handle_state_changes_from_logs(
         pool: &mut EnhancedUniswapV3Pool,
         state_change_cache: &mut StateChangeCache,
-        logs: Vec<Log>
+        logs: Vec<Log>,
+        block_number: BlockNumber
     ) -> Result<(), PoolManagerError> {
-        let log = logs.first().ok_or(PoolManagerError::NoLogsProvided)?;
-        let mut last_log_block_number = log
-            .block_number
-            .ok_or(EventLogError::LogBlockNumberNotFound)?;
-
         for log in logs {
-            let log_block_number = log
-                .block_number
-                .ok_or(EventLogError::LogBlockNumberNotFound)?;
-
-            let pool_clone = pool.clone();
-            let event_signature = log.topics()[0];
-            match event_signature {
-                IUniswapV3Pool::Burn::SIGNATURE_HASH => pool.sync_from_burn_log(log)?,
-                IUniswapV3Pool::Mint::SIGNATURE_HASH => pool.sync_from_mint_log(log)?,
-                IUniswapV3Pool::Swap::SIGNATURE_HASH => pool.sync_from_swap_log(log)?,
-                _ => return Err(EventLogError::InvalidEventSignature.into())
-            }
-            if log_block_number != last_log_block_number {
-                Self::add_state_change_to_cache(
-                    state_change_cache,
-                    StateChange::new(Some(pool_clone), last_log_block_number)
-                )?;
-
-                last_log_block_number = log_block_number;
-            }
+            pool.sync_from_log(log)?;
         }
 
         let pool_clone = pool.clone();
         Self::add_state_change_to_cache(
             state_change_cache,
-            StateChange::new(Some(pool_clone), last_log_block_number)
+            StateChange::new(Some(pool_clone), block_number)
         )
     }
 }
@@ -302,6 +267,8 @@ impl StateChange {
 
 #[derive(Error, Debug)]
 pub enum PoolManagerError {
+    #[error("Invalid block range")]
+    InvalidBlockRange,
     #[error("No logs provided")]
     NoLogsProvided,
     #[error("No state changes in cache")]
@@ -324,10 +291,6 @@ pub enum PoolManagerError {
     BlockNumberNotFound,
     #[error(transparent)]
     TransportError(#[from] alloy::transports::TransportError),
-    #[error(transparent)]
-    ContractError(#[from] alloy::contract::Error),
-    #[error(transparent)]
-    ABICodecError(#[from] alloy::dyn_abi::Error),
     #[error(transparent)]
     EthABIError(#[from] alloy::sol_types::Error),
     #[error(transparent)]

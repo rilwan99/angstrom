@@ -1,12 +1,8 @@
 use std::{marker::PhantomData, sync::Arc};
 
-use alloy::{
-    network::Network,
-    providers::Provider,
-    rpc::types::{Filter, Log},
-    transports::Transport
-};
+use alloy::{network::Network, providers::Provider, rpc::types::Filter, transports::Transport};
 use futures_util::StreamExt;
+use reth_primitives::Log;
 
 use crate::cfmm::uniswap::{pool_manager::PoolManagerError, pool_providers::PoolManagerProvider};
 
@@ -37,12 +33,29 @@ where
 {
     fn subscribe_blocks(&self) -> futures::stream::BoxStream<Option<u64>> {
         futures::stream::iter(self.from_block..=self.to_block)
-            .map(move |i| async move { Some(i) })
-            .then(|fut| fut)
+            .then(|block| async move {
+                // yield to sym async call
+                tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+                Some(block)
+            })
             .boxed()
     }
 
     async fn get_logs(&self, filter: &Filter) -> Result<Vec<Log>, PoolManagerError> {
-        self.inner.get_logs(filter).await.map_err(|e| e.into())
+        let alloy_logs = self
+            .inner
+            .get_logs(filter)
+            .await
+            .map_err(PoolManagerError::from)?;
+
+        let reth_logs = alloy_logs
+            .iter()
+            .map(|alloy_log| Log {
+                address: alloy_log.address(),
+                data:    alloy_log.data().clone()
+            })
+            .collect();
+
+        Ok(reth_logs)
     }
 }
