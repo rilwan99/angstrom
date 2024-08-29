@@ -2,12 +2,12 @@
 pragma solidity ^0.8.0;
 
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {CommonBase} from "forge-std/Base.sol";
+import {Test} from "forge-std/Test.sol";
 
 import {console} from "forge-std/console.sol";
 
 /// @author philogy <https://github.com/philogy>
-abstract contract HookDeployer is CommonBase {
+abstract contract HookDeployer is Test {
     function _angstromFlags() internal pure returns (uint160) {
         return Hooks.BEFORE_SWAP_FLAG | Hooks.BEFORE_INITIALIZE_FLAG | Hooks.BEFORE_ADD_LIQUIDITY_FLAG
             | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG;
@@ -32,9 +32,12 @@ abstract contract HookDeployer is CommonBase {
         }
 
         (success, retdata) = factory.call(abi.encodePacked(salt, initcode));
-        console.logBytes(retdata);
         if (success) {
-            assert(retdata.length == 20 && addr == address(bytes20(retdata)));
+            assertEq(retdata, abi.encodePacked(addr), "Sanity check: factory returned data is not mined address");
+        } else {
+            assembly ("memory-safe") {
+                revert(add(retdata, 0x20), mload(retdata))
+            }
         }
     }
 }
