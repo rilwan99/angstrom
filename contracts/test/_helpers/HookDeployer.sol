@@ -4,6 +4,8 @@ pragma solidity ^0.8.0;
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {CommonBase} from "forge-std/Base.sol";
 
+import {console} from "forge-std/console.sol";
+
 /// @author philogy <https://github.com/philogy>
 abstract contract HookDeployer is CommonBase {
     function _angstromFlags() internal pure returns (uint160) {
@@ -30,8 +32,9 @@ abstract contract HookDeployer is CommonBase {
         }
 
         (success, retdata) = factory.call(abi.encodePacked(salt, initcode));
+        console.logBytes(retdata);
         if (success) {
-            assert(retdata.length == 0x20 && addr == abi.decode(retdata, (address)));
+            assert(retdata.length == 20 && addr == address(bytes20(retdata)));
         }
     }
 }
@@ -53,7 +56,7 @@ contract Create2Factory {
                 revert(0, returndatasize())
             }
             mstore(0, result)
-            return(0, 0x20)
+            return(12, 20)
         }
     }
 }
