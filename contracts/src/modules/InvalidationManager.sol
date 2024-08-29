@@ -7,22 +7,12 @@ import {tuint256} from "transient-goodies/TransientPrimitives.sol";
 abstract contract InvalidationManager {
     error NonceReuse();
     error OrderAlreadyExecuted();
-    error OnlyOncePerBlock();
     error Expired();
-
-    uint256 public lastBlockUpdated;
 
     mapping(bytes32 => tuint256) internal alreadyExecuted;
 
     /// @dev `keccak256("angstrom-v1_0.unordered-nonces.slot")[0:4]`
     uint256 private constant UNORDERED_NONCES_SLOT = 0xdaa050e9;
-
-    modifier blockWideNonReentrant() {
-        // Block-wide reentrancy lock. Prevents general reentrancy and replay of flash orders.
-        if (lastBlockUpdated == block.number) revert OnlyOncePerBlock();
-        lastBlockUpdated = block.number;
-        _;
-    }
 
     function invalidateNonce(uint64 nonce) external {
         _invalidateNonce(msg.sender, nonce);

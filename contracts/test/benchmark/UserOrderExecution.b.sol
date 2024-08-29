@@ -107,7 +107,7 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
         address[] memory nodes = new address[](1);
         nodes[0] = node;
         vm.prank(gov);
-        angstrom.updateNodes(nodes);
+        angstrom.govToggleNodes(nodes);
     }
 
     mapping(uint256 => bool) usedIndices;

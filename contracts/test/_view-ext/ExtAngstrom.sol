@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Angstrom} from "../../src/Angstrom.sol";
+import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 
 /// @author philogy <https://github.com/philogy>
 contract ExtAngstrom is Angstrom {
@@ -13,7 +14,7 @@ contract ExtAngstrom is Angstrom {
     }
 
     function updateLastBlock() public {
-        lastBlockUpdated = block.number;
+        lastBlockUpdated = SafeCastLib.toUint64(block.number);
     }
 
     function isNode(address addr) public view returns (bool) {

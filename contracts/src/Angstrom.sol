@@ -53,17 +53,12 @@ contract Angstrom is
 
     constructor(address uniV4PoolManager, address governance) UniConsumer(uniV4PoolManager) NodeManager(governance) {}
 
-    function execute(bytes calldata data) external onlyNode {
+    function execute(bytes calldata data) external {
+        _nodeBundleLock();
         UNI_V4.unlock(data);
     }
 
-    function unlockCallback(bytes calldata data)
-        external
-        override
-        onlyUniV4
-        blockWideNonReentrant
-        returns (bytes memory)
-    {
+    function unlockCallback(bytes calldata data) external override onlyUniV4 returns (bytes memory) {
         CalldataReader reader = CalldataReaderLib.from(data);
 
         AssetArray assets;
