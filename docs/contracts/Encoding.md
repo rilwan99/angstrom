@@ -168,7 +168,7 @@ def pade_encode(x: PadeValue, T: PadeType) -> bytes:
         # Encode fields
         for field_value, (field_type, name) in zip(x.values, T.fields):
             if field_type.is_enum():
-                variant_size = full_bytes(bits(len(field_type.variants)))
+                variant_size = bits(len(field_type.variants))
                 variant: int = field_value.variant
                 fields_encoded += pade_encode(field_value.inner)
             else:
