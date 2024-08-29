@@ -9,8 +9,8 @@ use alloy::{
 };
 use amms::amm::uniswap_v3::UniswapV3Pool;
 use matching_engine::cfmm::uniswap::{
-    mock_block_stream::MockBlockStream, pool::EnhancedUniswapV3Pool,
-    pool_manager::UniswapPoolManager
+    pool::EnhancedUniswapV3Pool, pool_manager::UniswapPoolManager,
+    pool_providers::mock_block_stream::MockBlockStream
 };
 use tokio::signal::unix::{signal, SignalKind};
 
@@ -40,10 +40,10 @@ async fn main() -> eyre::Result<()> {
         .await?;
     let state_change_buffer = 1;
 
-    let mock_block_stream = MockBlockStream::new(ws_provider.clone(), from_block, to_block);
-    let mut state_space_manager =
-        UniswapPoolManager::new(pool, block_number, state_change_buffer, ws_provider.clone());
-    state_space_manager.set_mock_block_stream(mock_block_stream);
+    let mock_block_stream =
+        Arc::new(MockBlockStream::new(ws_provider.clone(), from_block, to_block));
+    let state_space_manager =
+        UniswapPoolManager::new(pool, block_number, state_change_buffer, mock_block_stream);
 
     let (mut rx, _join_handles) = state_space_manager.subscribe_state_changes().await?;
 

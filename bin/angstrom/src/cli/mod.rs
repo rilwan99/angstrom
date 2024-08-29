@@ -60,7 +60,7 @@ pub fn run() -> eyre::Result<()> {
         // for rpc
         let pool = channels.get_pool_handle();
         // let consensus = channels.get_consensus_handle();
-        let Ok(NodeHandle { node, node_exit_future }) = builder
+        let NodeHandle { node, node_exit_future } = builder
             .with_types::<EthereumNode>()
             .with_components(
                 EthereumNode::default()
@@ -68,28 +68,23 @@ pub fn run() -> eyre::Result<()> {
                     .network(AngstromNetworkBuilder::new(protocol_handle))
             )
             .with_add_ons::<EthereumAddOns>()
-            .extend_rpc_modules(move |rpc_components| {
+            .extend_rpc_modules(move |rpc_context| {
                 let order_api = OrderApi { pool: pool.clone() };
                 // let quotes_api = QuotesApi { pool: pool.clone() };
                 // let consensus_api = ConsensusApi { consensus: consensus.clone() };
 
-                rpc_components
-                    .modules
-                    .merge_configured(order_api.into_rpc())?;
-                // rpc_components
+                rpc_context.modules.merge_configured(order_api.into_rpc())?;
+                // rpc_context
                 //     .modules
                 //     .merge_configured(quotes_api.into_rpc())?;
-                // rpc_components
+                // rpc_context
                 //     .modules
                 //     .merge_configured(consensus_api.into_rpc())?;
 
                 Ok(())
             })
             .launch()
-            .await
-        else {
-            todo!()
-        };
+            .await?;
 
         initialize_strom_components(args, secret_key, channels, network, node, &executor);
 

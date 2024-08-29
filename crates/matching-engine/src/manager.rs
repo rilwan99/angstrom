@@ -147,7 +147,7 @@ pub async fn manager_thread(mut input: Receiver<MatcherCommand>) {
 mod tests {
     use std::collections::HashSet;
 
-    use alloy_primitives::FixedBytes;
+    use alloy::primitives::FixedBytes;
     use angstrom_types::consensus::PreProposal;
     use testing_tools::type_generator::consensus::generate_random_preproposal;
 

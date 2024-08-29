@@ -16,9 +16,9 @@ use uniswap_v3_math::{
     tick_math::{get_sqrt_ratio_at_tick, get_tick_at_sqrt_ratio, MAX_TICK, MIN_TICK}
 };
 
-pub mod mock_block_stream;
 pub mod pool;
 pub mod pool_manager;
+pub mod pool_providers;
 pub mod tob;
 
 type Tick = i32;
@@ -347,7 +347,7 @@ impl<'a> PriceRange<'a> {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::U160;
+    use alloy::primitives::U160;
 
     use super::*;
 
