@@ -49,6 +49,7 @@ incremental = false
 consensus = { path = "./crates/consensus/" }
 angstrom-types = { path = "./crates/types/" }
 pade = { path = "./crates/pade" }
+pade-macro = { path = "./crates/pade-macro" }
 angstrom-utils = { path = "./crates/utils/" }
 validation = { path = "./crates/validation/" }
 order-pool = { path = "./crates/order-pool/" }

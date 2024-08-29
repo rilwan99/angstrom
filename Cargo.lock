@@ -1310,6 +1310,8 @@ dependencies = [
  "malachite",
  "modular-bitfield",
  "open-fastrlp",
+ "pade",
+ "pade-macro",
  "rand 0.8.5",
  "reth-codecs",
  "reth-network-peers",
@@ -6110,14 +6112,13 @@ version = "0.1.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
- "angstrom-types",
+ "bitvec",
 ]
 
 [[package]]
 name = "pade-macro"
 version = "0.1.0"
 dependencies = [
- "bitvec",
  "pade",
  "proc-macro2",
  "quote",

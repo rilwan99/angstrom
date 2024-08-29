@@ -19,7 +19,7 @@ macro_rules! use_alloy_default {
     };
 }
 
-use_alloy_default!(U256, u128, Address);
+use_alloy_default!(u16, i32, U256, u128, Address);
 
 #[cfg(test)]
 mod tests {

@@ -1,6 +1,7 @@
 mod private {
     use alloy_sol_macro::sol;
     use bincode::{Decode, Encode};
+    use pade_macro::PadeEncode;
     use serde::{Deserialize, Serialize};
 
     sol! {
@@ -166,18 +167,21 @@ mod private {
             uint256[] amounts0;
         }
 
+        #[derive(PadeEncode)]
         struct RewardsUpdate {
             int24 startTick;
             uint128 startLiquidity;
             uint128[] quantities;
         }
 
+        #[derive(PadeEncode)]
         struct PoolRewardsUpdate {
             uint16 asset0;
             uint16 asset1;
             RewardsUpdate update;
         }
 
+        #[derive(PadeEncode)]
         struct MockContractMessage {
             address[] addressList;
             PoolRewardsUpdate update;

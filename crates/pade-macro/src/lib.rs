@@ -1,7 +1,9 @@
 use proc_macro2::{Literal, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
 use syn::{
-    parse_macro_input, spanned::Spanned, Data, DataEnum, DataStruct, DeriveInput, Fields, Generics, Ident, Index};
+    parse_macro_input, spanned::Spanned, Data, DataEnum, DataStruct, DeriveInput, Fields, Generics,
+    Ident, Index
+};
 
 #[proc_macro_derive(PadeEncode)]
 pub fn pade_encode_fn(raw: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -30,8 +32,12 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                 quote! {
                     let #encoded = self.#name.pade_encode();
                     let #header_bytes = self.#name.pade_header_bits().div_ceil(8) as usize;
-                    output.extend(if #header_bytes > 0 {
-                        headers.extend_from_bitslice(#encoded[0..#header_bytes].view_bits::<Lsb0>().split_at(self.#name.pade_header_bits() as usize).0);
+                    output.extend(
+                        if #header_bytes > 0 {
+                            headers.extend_from_bitslice(
+                                pade::bitvec::view::BitView::view_bits::<pade::bitvec::order::Lsb0>(
+                                    &#encoded[0..#header_bytes]
+                                ).split_at(self.#name.pade_header_bits() as usize).0);
                         #encoded[#header_bytes..].iter()
                     } else { #encoded[0..].iter() });
                 }
@@ -48,8 +54,12 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                 quote! {
                     let #encoded = self.#name.pade_encode();
                     let #header_bytes = self.#name.pade_header_bits().div_ceil(8) as usize;
-                    output.extend(if #header_bytes > 0 {
-                        headers.extend_from_bitslice(#encoded[0..#header_bytes].view_bits::<Lsb0>().split_at(self.#name.pade_header_bits() as usize).0);
+                    output.extend(
+                        if #header_bytes > 0 {
+                            headers.extend_from_bitslice(
+                            pade::bitvec::view::BitView::view_bits::<pade::bitvec::order::Lsb0>(
+                                &#encoded[0..#header_bytes]
+                            ).split_at(self.#name.pade_header_bits() as usize).0);
                         #encoded[0..#header_bytes].iter()
                     } else { #encoded[0..].iter() });
                 }
@@ -62,7 +72,7 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
     quote! {
         impl #impl_gen pade::PadeEncode for #name #ty_gen #where_clause {
             fn pade_encode(&self) -> Vec<u8> {
-                let mut headers = BitVec::<u8, Lsb0>::new();
+                let mut headers = pade::bitvec::vec::BitVec::<u8, pade::bitvec::order::Lsb0>::new();
                 let mut output: Vec<u8> = Vec::new();
                 #field_encoders
                 [headers.as_raw_slice().to_vec(), output].concat()
@@ -93,9 +103,9 @@ fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStre
                     };
                     (name, field_encoder)
                 });
-                let (field_names, field_encoders): (Vec<&Ident>, Vec<TokenStream>) = unnamed_fields.unzip();
-                let all_encoders = number_encoder
-                .chain(field_encoders);
+                let (field_names, field_encoders): (Vec<&Ident>, Vec<TokenStream>) =
+                    unnamed_fields.unzip();
+                let all_encoders = number_encoder.chain(field_encoders);
                 quote! {
                     Self::#name { #(#field_names),* } => [#(#all_encoders),*].concat()
                 }
@@ -109,13 +119,13 @@ fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStre
                     };
                     (field_name, field_encoder)
                 });
-                let (field_names, field_encoders): (Vec<Ident>, Vec<TokenStream>) = unnamed_fields.unzip();
-                let all_encoders = number_encoder
-                .chain(field_encoders);
+                let (field_names, field_encoders): (Vec<Ident>, Vec<TokenStream>) =
+                    unnamed_fields.unzip();
+                let all_encoders = number_encoder.chain(field_encoders);
                 quote! {
                     Self::#name(#(#field_names),*) => [#(#all_encoders),*].concat()
                 }
-            },
+            }
             Fields::Unit => {
                 quote! {
                     Self::#name => [#(#raw_number),*].to_vec()
