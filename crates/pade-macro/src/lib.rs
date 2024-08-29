@@ -20,61 +20,54 @@ pub fn pade_encode_fn(raw: proc_macro::TokenStream) -> proc_macro::TokenStream {
 fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> TokenStream {
     let (impl_gen, ty_gen, where_clause) = generics.split_for_impl();
 
-    let field_encoders = match s.fields {
-        Fields::Unit => unimplemented!(),
-        Fields::Named(ref fields) => {
-            // let encoders = fields.named.iter().map(encode_named_field);
-            let encoders = fields.named.iter().map(|f| {
-                let name = f.ident.as_ref().unwrap();
-                let encoded = format_ident!("{}_encoded", name);
-                let header_bytes = format_ident!("{}_header_bytes", name);
-                // TODO:  get quote_spanned in here
-                quote! {
-                    let #encoded = self.#name.pade_encode();
-                    let #header_bytes = self.#name.pade_header_bits().div_ceil(8) as usize;
-                    output.extend(
-                        if #header_bytes > 0 {
-                            headers.extend_from_bitslice(
-                                pade::bitvec::view::BitView::view_bits::<pade::bitvec::order::Lsb0>(
-                                    &#encoded[0..#header_bytes]
-                                ).split_at(self.#name.pade_header_bits() as usize).0);
-                        #encoded[#header_bytes..].iter()
-                    } else { #encoded[0..].iter() });
-                }
-            });
-            quote! {
-                #(#encoders)*
-            }
-        }
-        Fields::Unnamed(ref fields) => {
-            let encoders = fields.unnamed.iter().enumerate().map(|(i, _f)| {
-                let name = Index::from(i);
-                let encoded = format_ident!("field_{}_encoded", name);
-                let header_bytes = format_ident!("field_{}_header_bytes", name);
-                quote! {
-                    let #encoded = self.#name.pade_encode();
-                    let #header_bytes = self.#name.pade_header_bits().div_ceil(8) as usize;
-                    output.extend(
-                        if #header_bytes > 0 {
-                            headers.extend_from_bitslice(
-                            pade::bitvec::view::BitView::view_bits::<pade::bitvec::order::Lsb0>(
-                                &#encoded[0..#header_bytes]
-                            ).split_at(self.#name.pade_header_bits() as usize).0);
-                        #encoded[0..#header_bytes].iter()
-                    } else { #encoded[0..].iter() });
-                }
-            });
-            quote! {
-                #(#encoders)*
-            }
-        }
+    let field_list = match s.fields {
+        Fields::Named(ref fields) => &fields.named,
+        Fields::Unnamed(ref fields) => &fields.unnamed,
+        _ => unimplemented!()
     };
+
+    let field_encoders: Vec<TokenStream> = field_list
+        .iter()
+        .enumerate()
+        .map(|(idx, f)| {
+            let (name, encoded, variant_map_bytes) = f
+                .ident
+                .as_ref()
+                .map(|i| {
+                    (
+                        quote! { self.#i },
+                        format_ident!("{}_encoded", i),
+                        format_ident!("{}_variant_map_bytes", i)
+                    )
+                })
+                .unwrap_or_else(|| {
+                    (
+                        quote! { self.#idx },
+                        format_ident!("field_{}_encoded", idx),
+                        format_ident!("field_{}_variant_map_bytes", idx)
+                    )
+                });
+            quote! {
+                let #encoded = #name.pade_encode();
+                let #variant_map_bytes = #name.pade_variant_map_bits().div_ceil(8);
+                output.extend(
+                    if #variant_map_bytes > 0 {
+                        headers.extend_from_bitslice(
+                            pade::bitvec::view::BitView::view_bits::<pade::bitvec::order::Msb0>(
+                                &#encoded[0..#variant_map_bytes]
+                            ).split_at(#name.pade_variant_map_bits()).0);
+                    #encoded[#variant_map_bytes..].iter()
+                } else { #encoded[0..].iter() });
+            }
+        })
+        .collect();
+
     quote! {
         impl #impl_gen pade::PadeEncode for #name #ty_gen #where_clause {
             fn pade_encode(&self) -> Vec<u8> {
-                let mut headers = pade::bitvec::vec::BitVec::<u8, pade::bitvec::order::Lsb0>::new();
+                let mut headers = pade::bitvec::vec::BitVec::<u8, pade::bitvec::order::Msb0>::new();
                 let mut output: Vec<u8> = Vec::new();
-                #field_encoders
+                #(#field_encoders)*
                 [headers.as_raw_slice().to_vec(), output].concat()
             }
         }
@@ -85,8 +78,8 @@ fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStre
     let (impl_gen, ty_gen, where_clause) = generics.split_for_impl();
     let variant_count = e.variants.len();
     // This will panic if there are no variants, is that a legal state?
-    let variant_bits = variant_count.ilog2() + 1;
-    let variant_bytes = variant_bits.div_ceil(8) as usize;
+    let variant_bits = (variant_count.ilog2() + 1) as usize;
+    let variant_bytes = variant_bits.div_ceil(8);
     // Each variant gets a clause in the match
     let clauses = e.variants.iter().enumerate().map(|(i, v)| {
         let raw_number = number_to_literals(i, variant_bytes);
@@ -133,15 +126,13 @@ fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStre
             }
         }
     });
-    let match_statement = quote! {
-        match self {
-            #(#clauses),*
-        }
-    };
     quote! {
         impl #impl_gen pade::PadeEncode for #name #ty_gen #where_clause {
+            const PADE_VARIANT_MAP_BITS: usize = #variant_bits;
             fn pade_encode(&self) -> Vec<u8> {
-                #match_statement
+                match self {
+                    #(#clauses),*
+                }
             }
         }
     }

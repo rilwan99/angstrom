@@ -11,13 +11,20 @@ pub struct Sequence<const B: usize, T>(std::marker::PhantomData<T>);
 impl<const B: usize, T> Sequence<B, T> {}
 
 pub trait PadeEncode {
+    const PADE_HEADER_BITS: usize = 0;
+    const PADE_VARIANT_MAP_BITS: usize = 0;
     fn pade_encode(&self) -> Vec<u8>;
     /// The number of bytes in the PADE-encoded output that represent header
     /// information.  0 for most encoding schemes but Enum and List both
     /// have header metadata that are added
     #[inline]
-    fn pade_header_bits(&self) -> u8 {
-        0
+    fn pade_header_bits(&self) -> usize {
+        Self::PADE_HEADER_BITS
+    }
+
+    #[inline]
+    fn pade_variant_map_bits(&self) -> usize {
+        Self::PADE_VARIANT_MAP_BITS
     }
 }
 
@@ -28,40 +35,36 @@ impl<T: PadeEncode, const N: usize> PadeEncode for [T; N] {
     }
 }
 
-// Decided on a generic List<3> implementation - no header bits because we don't
-// want to hoist them in a struct
+// Decided on a generic List<3> implementation - no variant bits because we
+// don't want to hoist them in a struct
 impl<T: PadeEncode> PadeEncode for Vec<T> {
+    const PADE_HEADER_BITS: usize = 24;
+
     fn pade_encode(&self) -> Vec<u8> {
-        let len_bytes = self.len().to_le_bytes();
+        let len_bytes = self.len().to_be_bytes();
         let len = vec![len_bytes[0], len_bytes[1], len_bytes[2]];
         let items = self.iter().flat_map(|i| i.pade_encode()).collect();
         [len, items].concat()
     }
 }
 
-// Specific implementations for testing - these should go away soon
-// impl PadeEncode for SolRewardsUpdate {
-//     fn pade_encode(&self) -> Vec<u8> {
-//         let start_tick = self.startTick.abi_encode_packed();
-//         let start_liquidity = self.startLiquidity.abi_encode_packed();
-//         let quantities = self.quantities.pade_encode();
-//         [start_tick, start_liquidity, quantities].concat()
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use crate::PadeEncode;
 
-// impl PadeEncode for SolPoolRewardsUpdate {
-//     fn pade_encode(&self) -> Vec<u8> {
-//         let a0 = self.asset0.abi_encode_packed();
-//         let a1 = self.asset1.abi_encode_packed();
-//         let update = self.update.pade_encode();
-//         [a0, a1, update].concat()
-//     }
-// }
+    #[test]
+    fn can_encode_array() {
+        let array = [100_u128, 300_u128, 256_u128];
+        array.pade_encode();
+        assert!(array.pade_header_bits() == 0);
+        assert!(array.pade_variant_map_bits() == 0);
+    }
 
-// impl PadeEncode for SolMockContractMessage {
-//     fn pade_encode(&self) -> Vec<u8> {
-//         let address_list = self.addressList.pade_encode();
-//         let update = self.update.pade_encode();
-//         [address_list, update].concat()
-//     }
-// }
+    #[test]
+    fn can_encode_vec() {
+        let vec = vec![100_u128, 300_u128, 256_u128];
+        vec.pade_encode();
+        assert!(vec.pade_header_bits() == 24);
+        assert!(vec.pade_variant_map_bits() == 0);
+    }
+}
