@@ -12,6 +12,7 @@ import {Slot0} from "v4-core/src/types/Slot0.sol";
 import {ConversionLib} from "../../src/libraries/ConversionLib.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 
+import {SignedUnsignedLib} from "super-sol/libraries/SignedUnsignedLib.sol";
 import {console2 as console} from "forge-std/console2.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
@@ -19,10 +20,10 @@ import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 /// @dev Interacts with pools
 contract PoolGate is IUnlockCallback {
     using FormatLib for *;
+    using SignedUnsignedLib for *;
     using PoolIdLibrary for PoolKey;
     using IUniV4 for IPoolManager;
     using ConversionLib for address;
-    using ConversionLib for uint256;
 
     error CallFailed(bytes);
 

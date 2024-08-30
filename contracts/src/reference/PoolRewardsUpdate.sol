@@ -3,7 +3,6 @@ pragma solidity ^0.8.13;
 
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 import {Asset, AssetLib} from "./Asset.sol";
-import {AssetIndexPair} from "../types/AssetIndexPair.sol";
 
 struct RewardsUpdate {
     int24 startTick;
@@ -36,9 +35,10 @@ library PoolRewardsUpdateLib {
     }
 
     function encode(PoolRewardsUpdate memory self, Asset[] memory assets) internal pure returns (bytes memory) {
-        AssetIndexPair indices = assets.getIndexPair({assetA: self.asset0, assetB: self.asset1});
+        require(self.asset0 < self.asset1, "Pool reward update assets not ordered");
+        (uint16 indexA, uint16 indexB) = assets.getIndexPair({assetA: self.asset0, assetB: self.asset1});
 
-        return bytes.concat(bytes4(indices.into()), self.update.encode());
+        return bytes.concat(bytes2(indexA), bytes2(indexB), self.update.encode());
     }
 
     function encode(PoolRewardsUpdate[] memory updates, Asset[] memory assets) internal pure returns (bytes memory b) {

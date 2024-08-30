@@ -4,7 +4,6 @@ pragma solidity ^0.8.13;
 import {CalldataReader} from "./CalldataReader.sol";
 import {StructArrayLib} from "../libraries/StructArrayLib.sol";
 import {AssetArray} from "./Asset.sol";
-import {AssetIndexPair} from "./AssetIndexPair.sol";
 
 type PoolSwap is uint256;
 
@@ -16,7 +15,8 @@ library PoolSwapLib {
 
     uint256 internal constant SWAP_BYTES = 20;
 
-    uint256 internal constant INDICES_OFFSET = 0;
+    uint256 internal constant INDEX_A_OFFSET = 0;
+    uint256 internal constant INDEX_B_OFFSET = 2;
     uint256 internal constant AMOUNT_IN_OFFSET = 4;
 
     function readNextFrom(CalldataReader reader) internal pure returns (CalldataReader, PoolSwap swap) {
@@ -31,9 +31,16 @@ library PoolSwapLib {
         return PoolSwap.unwrap(self);
     }
 
-    function assetIndices(PoolSwap self) internal pure returns (AssetIndexPair) {
-        uint32 data = self.into().readU32MemberFromPtr(INDICES_OFFSET);
-        return AssetIndexPair.wrap(data);
+    function assetIndices(PoolSwap self) internal pure returns (uint32 packedIndices) {
+        packedIndices = self.into().readU32MemberFromPtr(INDEX_A_OFFSET);
+    }
+
+    function indexA(PoolSwap self) internal pure returns (uint16 ia) {
+        ia = self.into().readU16MemberFromPtr(INDEX_A_OFFSET);
+    }
+
+    function indexB(PoolSwap self) internal pure returns (uint16 ib) {
+        ib = self.into().readU16MemberFromPtr(INDEX_B_OFFSET);
     }
 
     function amountIn(PoolSwap self) internal pure returns (uint256) {
@@ -45,9 +52,8 @@ library PoolSwapLib {
         pure
         returns (address asset0, address asset1, bool zeroForOne)
     {
-        AssetIndexPair indices = self.assetIndices();
-        address assetIn = assets.get(indices.indexA()).addr();
-        address assetOut = assets.get(indices.indexB()).addr();
+        address assetIn = assets.get(self.indexA()).addr();
+        address assetOut = assets.get(self.indexB()).addr();
         zeroForOne = assetIn < assetOut;
         (asset0, asset1) = zeroForOne ? (assetIn, assetOut) : (assetOut, assetIn);
     }

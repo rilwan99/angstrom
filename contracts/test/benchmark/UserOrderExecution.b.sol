@@ -15,6 +15,7 @@ import {
 } from "../../src/reference/OrderTypes.sol";
 import {ExtAngstrom} from "../_view-ext/ExtAngstrom.sol";
 
+import {PadeEncoded} from "../../src/types/PadeEncoded.sol";
 import {ArrayLib} from "super-sol/libraries/ArrayLib.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {UniV4Inspector} from "../_view-ext/UniV4Inspector.sol";
@@ -107,7 +108,7 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
         address[] memory nodes = new address[](1);
         nodes[0] = node;
         vm.prank(gov);
-        angstrom.updateNodes(nodes);
+        angstrom.govToggleNodes(nodes);
     }
 
     mapping(uint256 => bool) usedIndices;
@@ -375,7 +376,7 @@ contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
     /// memory allocation.
     function __doExecute(bytes calldata payload) external returns (uint256 cost) {
         vm.prank(node);
-        bytes memory execPayload = abi.encodeCall(angstrom.execute, (payload));
+        bytes memory execPayload = abi.encodeCall(angstrom.execute, PadeEncoded(payload));
         address angstromAddr = address(angstrom);
         uint256 before = gasleft();
         assembly {

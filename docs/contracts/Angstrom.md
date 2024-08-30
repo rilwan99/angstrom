@@ -35,26 +35,6 @@ we're allowed to actually interact with Uniswap at all).
 
 ### Shared Structs & Types
 
-#### `AssetIndexPair`
-
-```rust
-type AssetIndexPair = u32;
-```
-
-The `AssetIndexPair` type is an alias for `u32` and encodes two 16-bit indices. Packing the two
-indices works as follows:
-
-```python
-def pack_to_index_pair(index_a: int, index_b: int) -> int:
-    assert index_a in range(0, 1 << 16), f'Index A not 16-bit'
-    assert index_b in range(0, 1 << 16), f'Index B not 16-bit'
-
-    return (index_a << 16) | index_b
-```
-
-When referring to "Asset A" or "Asset B" throughout the docs it refers to the asset referenced by
-the index "A" (upper 16 bits) or "B" (lower 16 bits) respectively.
-
 #### `Signature`
 
 
@@ -129,17 +109,21 @@ encoding (`src/reference/Pair.sol`)](../../contracts/src/reference/Pair.sol)
 
 ```rust
 struct Pair {
-    asset_indices: AssetIndexPair,
+    index_a: u16,
+    index_b: u16,
     price_AOverB: u256
 }
 ```
 
 This list of pairs defines the unique uniform clearing prices for the different pairs in the bundle.
-The elements **must be** sorted in ascending order according the value of `.asset_indices`.
+The elements **must be** sorted in ascending order according to the tuple `(.index_a, .index_b)`.
+
+Note that to ensure pair uniqueness `.index_a` **must** be less than `.index_b`.
 
 |Field|Description|
 |-----|-----------|
-|`assets: AssetIndexPair`|Pair's assets as indices into the asset array. `asset_indices.index_a() < asset_indices.index_b()` **must** hold.|
+|`index_a: u16`|Pair's asset A as index into the asset array|
+|`index_b: u16`|Pair's asset B as index into the asset array|
 |`price_AOverB: u256`|Unform clearing price of pair in asset A **over** asset B base units in Ray e.g. `13.2e27` represents 13.2 base units of A for every base unit of A.|
 
 

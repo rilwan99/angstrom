@@ -11,6 +11,7 @@ import {PriceAB as PriceOutVsIn, AmountA as AmountOut, AmountB as AmountIn} from
 import {CalldataReader} from "../types/CalldataReader.sol";
 
 import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
+import {SignedUnsignedLib} from "super-sol/libraries/SignedUnsignedLib.sol";
 import {ConversionLib} from "src/libraries/ConversionLib.sol";
 
 import {console2 as console} from "forge-std/console2.sol";
@@ -18,10 +19,12 @@ import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 /// @author philogy <https://github.com/philogy>
 abstract contract Accounter is UniConsumer {
-    using FormatLib for *;
-
     using SafeTransferLib for address;
     using ConversionLib for *;
+    using SignedUnsignedLib for *;
+
+    // TODO: Remove
+    using FormatLib for *;
 
     /// @dev Uniswap's `MIN_SQRT_RATIO + 1` to pass the limit check.
     uint160 internal constant MIN_SQRT_RATIO = 4295128740;

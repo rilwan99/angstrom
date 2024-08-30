@@ -5,6 +5,7 @@ import {Test} from "forge-std/Test.sol";
 import {Trader} from "./types/Trader.sol";
 import {console2 as console} from "forge-std/console2.sol";
 import {HookDeployer} from "./HookDeployer.sol";
+import {stdError} from "forge-std/StdError.sol";
 
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
@@ -47,6 +48,82 @@ contract BaseTest is Test {
         traders = new Trader[](n);
         for (uint256 i = 0; i < n; i++) {
             traders[i] = makeTrader(string.concat("trader_", (i + 1).toStr()));
+        }
+    }
+
+    function tryAdd(uint256 x, uint256 y) internal view returns (bool, bytes memory, uint256) {
+        return tryFn(this.__safeAdd, x, y);
+    }
+
+    function trySub(uint256 x, uint256 y) internal view returns (bool, bytes memory, uint256) {
+        return tryFn(this.__safeSub, x, y);
+    }
+
+    function tryMul(uint256 x, uint256 y) internal view returns (bool, bytes memory, uint256) {
+        return tryFn(this.__safeMul, x, y);
+    }
+
+    function tryDiv(uint256 x, uint256 y) internal view returns (bool, bytes memory, uint256) {
+        return tryFn(this.__safeDiv, x, y);
+    }
+
+    function tryMod(uint256 x, uint256 y) internal view returns (bool, bytes memory, uint256) {
+        return tryFn(this.__safeMod, x, y);
+    }
+
+    function tryFn(function(uint, uint) external pure returns (uint) op, uint256 x, uint256 y)
+        internal
+        pure
+        returns (bool hasErr, bytes memory err, uint256 z)
+    {
+        try op(x, y) returns (uint256 result) {
+            hasErr = false;
+            z = result;
+        } catch (bytes memory errorData) {
+            err = errorData;
+            assertEq(err, stdError.arithmeticError);
+            hasErr = true;
+            z = 0;
+        }
+    }
+
+    function __safeAdd(uint256 x, uint256 y) external pure returns (uint256) {
+        return x + y;
+    }
+
+    function __safeSub(uint256 x, uint256 y) external pure returns (uint256) {
+        return x - y;
+    }
+
+    function __safeMul(uint256 x, uint256 y) external pure returns (uint256) {
+        return x * y;
+    }
+
+    function __safeDiv(uint256 x, uint256 y) external pure returns (uint256) {
+        return x / y;
+    }
+
+    function __safeMod(uint256 x, uint256 y) external pure returns (uint256) {
+        return x / y;
+    }
+
+    function freePtr() internal pure returns (uint256 ptr) {
+        assembly ("memory-safe") {
+            ptr := mload(0x40)
+        }
+    }
+
+    function _brutalize(uint256 seed, uint256 freeWordsToBrutalize) internal pure {
+        assembly ("memory-safe") {
+            mstore(0x00, seed)
+            let free := mload(0x40)
+            for { let i := 0 } lt(i, freeWordsToBrutalize) { i := add(i, 1) } {
+                let newGarbage := keccak256(0x00, 0x20)
+                mstore(add(free, mul(i, 0x20)), newGarbage)
+                mstore(0x01, newGarbage)
+            }
+            mstore(0x20, keccak256(0x00, 0x20))
+            mstore(0x00, keccak256(0x10, 0x20))
         }
     }
 }

@@ -8,7 +8,6 @@ import {ILiqChangeHooks} from "../interfaces/ILiqChangeHooks.sol";
 import {tuint256} from "transient-goodies/TransientPrimitives.sol";
 import {AssetArray} from "../types/Asset.sol";
 import {CalldataReader} from "../types/CalldataReader.sol";
-import {AssetIndexPair} from "../types/AssetIndexPair.sol";
 import {PoolRewards} from "../types/PoolRewards.sol";
 
 import {IUniV4} from "../interfaces/IUniV4.sol";
@@ -19,6 +18,9 @@ import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {MixedSignLib} from "../libraries/MixedSignLib.sol";
+
+import {console} from "forge-std/console.sol";
+import {DEBUG_LOGS} from "./DevFlags.sol";
 
 /// @author philogy <https://github.com/philogy>
 abstract contract PoolRewardsManager is RewardsUpdater, ILiqChangeHooks, UniConsumer {
@@ -97,12 +99,17 @@ abstract contract PoolRewardsManager is RewardsUpdater, ILiqChangeHooks, UniCons
         internal
         returns (CalldataReader, address, uint256 total)
     {
+        if (DEBUG_LOGS) console.log("[PoolRewardsManager] entering _rewardPool");
         address asset0;
         PoolId id;
-        AssetIndexPair indices;
-        (reader, indices) = reader.readAssetIndexPair();
-        asset0 = assets.get(indices.indexA()).addr();
-        id = ConversionLib.toPoolKey(address(this), asset0, assets.get(indices.indexB()).addr()).toId();
+        if (DEBUG_LOGS) console.log("[PoolRewardsManager] decoding asset indices");
+        uint16 indexA;
+        (reader, indexA) = reader.readU16();
+        uint16 indexB;
+        (reader, indexB) = reader.readU16();
+        if (DEBUG_LOGS) console.log("[PoolRewardsManager] retrieving assets, building pool id");
+        asset0 = assets.get(indexA).addr();
+        id = ConversionLib.toPoolKey(address(this), asset0, assets.get(indexB).addr()).toId();
 
         (reader, total) = _decodeAndReward(poolsRewards[id], id, reader);
 
