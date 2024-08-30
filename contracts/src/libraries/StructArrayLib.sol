@@ -2,12 +2,13 @@
 pragma solidity ^0.8.13;
 
 import {CalldataReader} from "../types/CalldataReader.sol";
+import {console} from "forge-std/console.sol";
 
 /// @author philogy <https://github.com/philogy>
 library StructArrayLib {
     using StructArrayLib for uint256;
 
-    error OutOfBoundRead();
+    error OutOfBoundRead(uint256 arrayIndex, uint256 arrayLength);
 
     uint256 internal constant LENGTH_OFFSET = 32;
     uint256 internal constant CALLDATA_PTR_MASK = 0xffffffff;
@@ -62,6 +63,7 @@ library StructArrayLib {
     }
 
     function _checkBounds(uint256 packed, uint256 index) internal pure {
-        if (index >= packed.len()) revert OutOfBoundRead();
+        uint256 length = packed.len();
+        if (index >= length) revert OutOfBoundRead(index, length);
     }
 }

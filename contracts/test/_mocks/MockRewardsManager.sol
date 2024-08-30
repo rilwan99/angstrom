@@ -9,25 +9,33 @@ import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {TICK_SPACING, SET_POOL_FEE} from "../../src/Constants.sol";
 import {IUniV4, IPoolManager} from "../../src/interfaces/IUniV4.sol";
 
+import {MOCK_LOGS} from "../../src/modules/DevFlags.sol";
+import {console} from "forge-std/console.sol";
+
 /// @author philogy <https://github.com/philogy>
 contract MockRewardsManager is UniConsumer, PoolRewardsManager {
     using IUniV4 for IPoolManager;
 
-    constructor(address uniV4PoolManager) UniConsumer(uniV4PoolManager) {}
+    constructor(address uniV4PoolManager) UniConsumer(uniV4PoolManager) {
+        console.log("rewards manager deployed");
+    }
 
     /// @param data PADE encoded `(Sequence<2, Asset>, PoolRewardsUpdate)`.
     function reward(bytes calldata data) public {
         CalldataReader reader = CalldataReaderLib.from(data);
 
         AssetArray assets;
+        if (MOCK_LOGS) console.log("[REWARD] loading assets");
         (reader, assets) = AssetLib.readFromAndValidate(reader);
 
+        if (MOCK_LOGS) console.log("[REWARD] rewarding pool");
         (reader,,) = _rewardPool(reader, assets);
 
         reader.requireAtEndOf(data);
     }
 
     function consts() external pure returns (int24 tickSpacing, uint24 poolFee) {
+        console.log("\n[FAT CALL] hello\n");
         tickSpacing = TICK_SPACING;
         poolFee = SET_POOL_FEE;
     }

@@ -3,7 +3,11 @@ pragma solidity ^0.8.13;
 
 import {OrderVariantMap} from "./OrderVariantMap.sol";
 import {AssetIndexPair} from "./AssetIndexPair.sol";
+
 import {console} from "forge-std/console.sol";
+import {FormatLib} from "super-sol/libraries/FormatLib.sol";
+import {DEBUG_LOGS} from "../modules/DevFlags.sol";
+import {LibString} from "solady/src/utils/LibString.sol";
 
 /// @dev Represents a calldata offset.
 type CalldataReader is uint256;
@@ -37,6 +41,9 @@ function le(CalldataReader a, CalldataReader b) pure returns (bool) {
 
 /// @author philogy <https://github.com/philogy>
 library CalldataReaderLib {
+    using FormatLib for *;
+    using LibString for *;
+
     error ReaderNotAtEnd();
 
     function from(bytes calldata data) internal pure returns (CalldataReader reader) {
@@ -64,6 +71,7 @@ library CalldataReaderLib {
     }
 
     function readU8(CalldataReader self) internal pure returns (CalldataReader, uint8 value) {
+        if (DEBUG_LOGS) self.logPos(1, "u8");
         assembly {
             value := byte(0, calldataload(self))
             self := add(self, 1)
@@ -72,6 +80,7 @@ library CalldataReaderLib {
     }
 
     function readU16(CalldataReader self) internal pure returns (CalldataReader, uint16 value) {
+        if (DEBUG_LOGS) self.logPos(2, "u16");
         assembly {
             value := shr(240, calldataload(self))
             self := add(self, 2)
@@ -80,6 +89,7 @@ library CalldataReaderLib {
     }
 
     function readU32(CalldataReader self) internal pure returns (CalldataReader, uint32 value) {
+        if (DEBUG_LOGS) self.logPos(4, "u32");
         assembly {
             value := shr(224, calldataload(self))
             self := add(self, 4)
@@ -88,6 +98,7 @@ library CalldataReaderLib {
     }
 
     function readI24(CalldataReader self) internal pure returns (CalldataReader, int24 value) {
+        if (DEBUG_LOGS) self.logPos(3, "i24");
         assembly {
             value := sar(232, calldataload(self))
             self := add(self, 3)
@@ -96,6 +107,7 @@ library CalldataReaderLib {
     }
 
     function readU40(CalldataReader self) internal pure returns (CalldataReader, uint40 value) {
+        if (DEBUG_LOGS) self.logPos(5, "u40");
         assembly {
             value := shr(216, calldataload(self))
             self := add(self, 5)
@@ -104,6 +116,7 @@ library CalldataReaderLib {
     }
 
     function readU64(CalldataReader self) internal pure returns (CalldataReader, uint64 value) {
+        if (DEBUG_LOGS) self.logPos(8, "u64");
         assembly {
             value := shr(192, calldataload(self))
             self := add(self, 8)
@@ -112,6 +125,7 @@ library CalldataReaderLib {
     }
 
     function readU128(CalldataReader self) internal pure returns (CalldataReader, uint128 value) {
+        if (DEBUG_LOGS) self.logPos(16, "u128");
         assembly {
             value := shr(128, calldataload(self))
             self := add(self, 16)
@@ -120,6 +134,7 @@ library CalldataReaderLib {
     }
 
     function readAddr(CalldataReader self) internal pure returns (CalldataReader, address addr) {
+        if (DEBUG_LOGS) self.logPos(20, "address");
         assembly {
             addr := shr(96, calldataload(self))
             self := add(self, 20)
@@ -128,6 +143,7 @@ library CalldataReaderLib {
     }
 
     function readU256(CalldataReader self) internal pure returns (CalldataReader, uint256 value) {
+        if (DEBUG_LOGS) self.logPos(32, "u256");
         assembly {
             value := calldataload(self)
             self := add(self, 32)
@@ -136,6 +152,7 @@ library CalldataReaderLib {
     }
 
     function readVariant(CalldataReader self) internal pure returns (CalldataReader, OrderVariantMap variant) {
+        if (DEBUG_LOGS) self.logPos(1, "OrderVariantMap");
         assembly {
             variant := shr(248, calldataload(self))
             self := add(self, 1)
@@ -144,6 +161,7 @@ library CalldataReaderLib {
     }
 
     function readU24End(CalldataReader self) internal pure returns (CalldataReader, CalldataReader end) {
+        if (DEBUG_LOGS) self.logPos(3, "u24/List.length");
         assembly ("memory-safe") {
             let len := shr(232, calldataload(self))
             self := add(self, 3)
@@ -152,13 +170,29 @@ library CalldataReaderLib {
         return (self, end);
     }
 
-    function readAssetIndexPair(CalldataReader self) internal pure returns (CalldataReader, AssetIndexPair) {
-        uint32 pair;
-        (self, pair) = self.readU32();
-        return (self, AssetIndexPair.wrap(pair));
+    function readAssetIndexPair(CalldataReader self) internal pure returns (CalldataReader, AssetIndexPair pair) {
+        if (DEBUG_LOGS) self.logPos(4, "u32:AssetIndexPair");
+        assembly {
+            pair := shr(224, calldataload(self))
+            self := add(self, 4)
+        }
+        return (self, pair);
     }
 
     function readBytes(CalldataReader self) internal pure returns (CalldataReader, bytes calldata slice) {
+        if (DEBUG_LOGS) {
+            self.logPos(3, "u24/bytes.length");
+            (CalldataReader postReader, bytes calldata b) = _readBytes(self);
+            console.log(
+                "[CALLDATAREADER] reading next %s byte(s) at %s as bytes ->",
+                b.length.toStr().lpad(" ", 6),
+                postReader.offset().toHexString(3)
+            );
+        }
+        return _readBytes(self);
+    }
+
+    function _readBytes(CalldataReader self) private pure returns (CalldataReader, bytes calldata slice) {
         assembly ("memory-safe") {
             slice.length := shr(232, calldataload(self))
             self := add(self, 3)
@@ -178,5 +212,23 @@ library CalldataReaderLib {
             calldatacopy(dataOffset, self, n)
         }
         console.logBytes(b);
+    }
+
+    function logPos(CalldataReader self, uint8 reading, string memory dtype) internal pure {
+        uint256 read;
+        assembly {
+            read := shr(sub(256, mul(reading, 8)), calldataload(self))
+        }
+        console.log(
+            string.concat(
+                "[CALLDATAREADER] reading next ",
+                uint256(reading).toStr().lpad(" ", 2),
+                " byte(s) at ",
+                self.offset().toHexString(3),
+                " as %s -> %s"
+            ),
+            dtype,
+            read.toHexString(reading)
+        );
     }
 }
