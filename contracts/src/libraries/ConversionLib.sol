@@ -26,18 +26,6 @@ library ConversionLib {
         });
     }
 
-    function neg(uint256 x) internal pure returns (int256) {
-        if (x > (1 << 255)) revert Overflow();
-        unchecked {
-            return int256(0 - x);
-        }
-    }
-
-    function signed(uint256 x) internal pure returns (int256 y) {
-        if (x >= (1 << 255)) revert Overflow();
-        return int256(x);
-    }
-
     function into(bool x) internal pure returns (uint256 y) {
         // forgefmt: disable-next-item
         assembly { y := x }
