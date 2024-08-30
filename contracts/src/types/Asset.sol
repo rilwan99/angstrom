@@ -4,6 +4,9 @@ pragma solidity ^0.8.13;
 import {CalldataReader} from "./CalldataReader.sol";
 import {StructArrayLib} from "../libraries/StructArrayLib.sol";
 
+import {console} from "forge-std/console.sol";
+import {DEBUG_LOGS} from "../modules/DevFlags.sol";
+
 type Asset is uint256;
 
 type AssetArray is uint256;
@@ -70,6 +73,7 @@ library AssetLib {
     }
 
     function get(AssetArray self, uint256 index) internal pure returns (Asset asset) {
+        if (DEBUG_LOGS) console.log("[Asset] Attempting to retrieve asset[%s] from array", index);
         self.into()._checkBounds(index);
         return Asset.wrap(self.into().ptr() + index * ASSET_BYTES);
     }

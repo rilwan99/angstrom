@@ -20,6 +20,9 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {MixedSignLib} from "../libraries/MixedSignLib.sol";
 
+import {console} from "forge-std/console.sol";
+import {DEBUG_LOGS} from "./DevFlags.sol";
+
 /// @author philogy <https://github.com/philogy>
 abstract contract PoolRewardsManager is RewardsUpdater, ILiqChangeHooks, UniConsumer {
     using PoolIdLibrary for PoolKey;
@@ -97,10 +100,13 @@ abstract contract PoolRewardsManager is RewardsUpdater, ILiqChangeHooks, UniCons
         internal
         returns (CalldataReader, address, uint256 total)
     {
+        if (DEBUG_LOGS) console.log("[PoolRewardsManager] entering _rewardPool");
         address asset0;
         PoolId id;
         AssetIndexPair indices;
+        if (DEBUG_LOGS) console.log("[PoolRewardsManager] decoding asset indices");
         (reader, indices) = reader.readAssetIndexPair();
+        if (DEBUG_LOGS) console.log("[PoolRewardsManager] retrieving assets, building pool id");
         asset0 = assets.get(indices.indexA()).addr();
         id = ConversionLib.toPoolKey(address(this), asset0, assets.get(indices.indexB()).addr()).toId();
 

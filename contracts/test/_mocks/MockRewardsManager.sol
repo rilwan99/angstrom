@@ -20,22 +20,21 @@ contract MockRewardsManager is UniConsumer, PoolRewardsManager {
         console.log("rewards manager deployed");
     }
 
-    /// @param data PADE encoded `(Sequence<2, Asset>, PoolRewardsUpdate)`.
+    /// @param data PADE encoded `(List<Asset>, PoolRewardsUpdate)`.
     function reward(bytes calldata data) public {
         CalldataReader reader = CalldataReaderLib.from(data);
 
         AssetArray assets;
-        if (MOCK_LOGS) console.log("[REWARD] loading assets");
+        if (MOCK_LOGS) console.log("[MockRewardsManager] loading assets");
         (reader, assets) = AssetLib.readFromAndValidate(reader);
 
-        if (MOCK_LOGS) console.log("[REWARD] rewarding pool");
+        if (MOCK_LOGS) console.log("[MockRewardsManager] rewarding pool");
         (reader,,) = _rewardPool(reader, assets);
 
         reader.requireAtEndOf(data);
     }
 
     function consts() external pure returns (int24 tickSpacing, uint24 poolFee) {
-        console.log("\n[FAT CALL] hello\n");
         tickSpacing = TICK_SPACING;
         poolFee = SET_POOL_FEE;
     }
