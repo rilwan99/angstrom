@@ -191,7 +191,7 @@ mod private {
         contract MockRewardsManager {
             constructor(address univ4);
             #[derive(Debug)]
-            function reward(bytes calldata data);
+            function reward(bytes calldata data) public returns (string memory);
             // function consts();
             // function getGrowthInsideTick(PoolId id, int24 tick);
             // function getGrowthInsideRange();

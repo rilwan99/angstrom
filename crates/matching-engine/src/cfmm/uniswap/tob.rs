@@ -219,14 +219,15 @@ pub fn calculate_reward(
 #[cfg(test)]
 mod test {
     use alloy::{
-        primitives::{address, Bytes, Uint, U256},
+        network::EthereumWallet,
+        primitives::{address, Bytes, FixedBytes, Uint, U256},
         providers::ProviderBuilder,
+        signers::local::PrivateKeySigner,
+        sol,
         sol_types::{SolCall, SolValue}
     };
-    use angstrom_types::{
-        matching::SqrtPriceX96,
-        sol_bindings::sol::{SolMockContractMessage, SolMockRewardsManager}
-    };
+    use angstrom_types::matching::SqrtPriceX96;
+    use pade_macro::PadeEncode;
     use rand::thread_rng;
     use testing_tools::type_generator::orders::generate_top_of_block_order;
     use uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick;
@@ -344,10 +345,55 @@ mod test {
 
     #[tokio::test]
     async fn talks_to_contract() {
+        // Define the contract and types
+        sol! {
+            #[derive(PadeEncode)]
+            struct RewardsUpdate {
+                int24 startTick;
+                uint128 startLiquidity;
+                uint128[] quantities;
+            }
+
+            #[derive(PadeEncode)]
+            struct PoolRewardsUpdate {
+                uint16 asset0;
+                uint16 asset1;
+                RewardsUpdate update;
+            }
+
+            #[derive(PadeEncode)]
+            struct MockContractMessage {
+                address[] addressList;
+                PoolRewardsUpdate update;
+            }
+
+            type PoolId is bytes32;
+
+            #[sol(rpc)]
+            contract MockRewardsManager {
+            constructor(address univ4);
+            #[derive(Debug)]
+            function reward(bytes calldata data) public;
+            #[derive(Debug)]
+            function getGrowthInsideTick(
+                bytes32 id,
+                int24 tick
+            ) public view returns (uint256);
+            #[derive(Debug)]
+            function consts()
+            external
+            pure
+            returns (int24 tickSpacing, uint24 poolFee);
+            // function consts();
+            // function getGrowthInsideTick(PoolId id, int24 tick);
+            // function getGrowthInsideRange();
+            }
+        }
+
         // These are TEMPROARY LOCAL ADDRESSES from Dave's Testnet - if you are seeing
         // these used in prod code they are No Bueno
-        let asset1 = address!("332Fb35767182F8ac9F9C1405db626105F6694E0");
-        let asset0 = address!("982830D87C95479dB81Fe62cd08dd9118D080697");
+        let asset1 = address!("76ca03a67C049477FfB09694dFeF00416dB69746");
+        let asset0 = address!("1696C7203769A71c97Ca725d42b13270ee493526");
 
         // Build a ToB outcome that we care about
         let mut rng = thread_rng();
@@ -357,16 +403,41 @@ mod test {
         order.order.amountIn = total_payment;
         order.order.amountOut = Uint::from(100000000);
         let tob_outcome = calculate_reward(order, amm).expect("Error calculating tick donations");
+        // ---- Manually do to_donate to be in our new structs
+        let mut donations = tob_outcome.tick_donations.iter().collect::<Vec<_>>();
+        // Will sort from lowest to highest (donations[0] will be the lowest tick
+        // number)
+        donations.sort_by_key(|f| f.0);
+        // Each reward value is the cumulative sum of the rewards before it
+        let quantities = donations
+            .iter()
+            .scan(U256::ZERO, |state, (_tick, q)| {
+                *state += **q;
+                Some(u128::try_from(*state).unwrap())
+            })
+            .collect::<Vec<_>>();
+        let update = RewardsUpdate {
+            startTick: *donations[0].0 + 1,
+            startLiquidity: tob_outcome.start_liquidity,
+            quantities
+        };
+        let update = PoolRewardsUpdate { asset0: 0, asset1: 1, update };
+
+        // ---- End of all that
+
         // Connect to our contract and send the ToBoutcome over
+        //let signer = PrivateKeySigner::from_signing_key()
+        //let wallet = EthereumWallet::from(signer);
         let provider = ProviderBuilder::new().on_http("http://localhost:8545".parse().unwrap());
         // Currently the address of a local deploy that I'm running, not the right
         // address, should configure this to stand up on its own
-        let contract_address = address!("12975173B87F7595EE45dFFb2Ab812ECE596Bf84");
-        let contract = SolMockRewardsManager::new(contract_address, &provider);
-        let tob_mock_message = SolMockContractMessage {
-            addressList: vec![asset0, asset1],
-            update:      tob_outcome.to_donate(0, 1)
-        };
+        let contract_address = address!("A0B6Dd0Bd209D2EF77A81248931e6804A8C82980");
+        let contract = MockRewardsManager::new(contract_address, &provider);
+        // let new_test =
+        // contract.getGrowthInsideTick(FixedBytes::<32>::default(),12345);
+        // let new_test_res = new_test.send().await.unwrap().;
+        // println!("New test: {:?}", new_test_res);
+        let tob_mock_message = MockContractMessage { addressList: vec![asset0, asset1], update };
         let tob_bytes = Bytes::from(pade::PadeEncode::pade_encode(&tob_mock_message));
         let call = contract.reward(tob_bytes);
         // let reward_call =
