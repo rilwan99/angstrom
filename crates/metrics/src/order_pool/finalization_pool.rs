@@ -1,7 +1,9 @@
 use prometheus::IntGauge;
 
+use crate::METRICS_ENABLED;
+
 #[derive(Clone)]
-pub struct FinalizationOrderPoolMetrics {
+struct FinalizationOrderPoolMetrics {
     // number of blocks tracked
     blocks_tracked: IntGauge,
     // number of finalization orders
@@ -41,5 +43,35 @@ impl FinalizationOrderPoolMetrics {
 
     pub fn decr_blocks_tracked(&self) {
         self.blocks_tracked.sub(1);
+    }
+}
+
+#[derive(Clone)]
+pub struct FinalizationOrderPoolMetricsWrapper(Option<FinalizationOrderPoolMetrics>);
+
+impl FinalizationOrderPoolMetricsWrapper {
+    pub fn new() -> Self {
+        Self(
+            METRICS_ENABLED
+                .get()
+                .unwrap()
+                .then(FinalizationOrderPoolMetrics::default)
+        )
+    }
+
+    pub fn incr_total_orders(&self) {
+        self.0.as_ref().map(|this| this.incr_total_orders());
+    }
+
+    pub fn decr_total_orders(&self) {
+        self.0.as_ref().map(|this| this.decr_total_orders());
+    }
+
+    pub fn incr_blocks_tracked(&self) {
+        self.0.as_ref().map(|this| this.incr_blocks_tracked());
+    }
+
+    pub fn decr_blocks_tracked(&self) {
+        self.0.as_ref().map(|this| this.decr_blocks_tracked());
     }
 }

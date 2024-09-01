@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use angstrom_metrics::ComposableLimitOrderPoolMetrics;
+use angstrom_metrics::ComposableLimitOrderPoolMetricsWrapper;
 use angstrom_types::{
     primitive::PoolId,
     sol_bindings::grouped_orders::{GroupedComposableOrder, OrderWithStorageData}
@@ -12,13 +12,13 @@ use super::{pending::PendingPool, LimitPoolError};
 #[derive(Default)]
 pub struct ComposableLimitPool {
     map:     HashMap<PoolId, PendingPool<GroupedComposableOrder>>,
-    metrics: ComposableLimitOrderPoolMetrics
+    metrics: ComposableLimitOrderPoolMetricsWrapper
 }
 
 impl ComposableLimitPool {
     pub fn new(ids: &[PoolId]) -> Self {
         let map = ids.iter().map(|id| (*id, PendingPool::new())).collect();
-        Self { map, metrics: ComposableLimitOrderPoolMetrics::default() }
+        Self { map, metrics: ComposableLimitOrderPoolMetricsWrapper::default() }
     }
 
     pub fn add_order(

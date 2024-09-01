@@ -4,7 +4,7 @@ use std::{
 };
 
 use alloy_primitives::FixedBytes;
-use angstrom_metrics::OrderStorageMetrics;
+use angstrom_metrics::OrderStorageMetricsWrapper;
 use angstrom_types::{
     orders::{OrderId, OrderSet},
     sol_bindings::{
@@ -26,7 +26,7 @@ pub struct OrderStorage {
     pub limit_orders:                Arc<Mutex<LimitOrderPool>>,
     pub searcher_orders:             Arc<Mutex<SearcherPool>>,
     pub pending_finalization_orders: Arc<Mutex<FinalizationPool>>,
-    pub metrics:                     OrderStorageMetrics
+    pub metrics:                     OrderStorageMetricsWrapper
 }
 
 impl Debug for OrderStorage {
@@ -52,7 +52,7 @@ impl OrderStorage {
             limit_orders,
             searcher_orders,
             pending_finalization_orders,
-            metrics: OrderStorageMetrics::default()
+            metrics: OrderStorageMetricsWrapper::default()
         }
     }
 

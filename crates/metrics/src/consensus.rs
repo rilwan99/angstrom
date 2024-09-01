@@ -2,8 +2,10 @@ use std::{collections::HashMap, time::Instant};
 
 use prometheus::{IntGauge, IntGaugeVec};
 
+use crate::METRICS_ENABLED;
+
 #[derive(Clone)]
-pub struct ConsensusMetrics {
+struct ConsensusMetrics {
     // current block height
     block_height: IntGauge,
     // time (ms) it takes a round of consensus to complete per block
@@ -92,5 +94,49 @@ impl ConsensusMetrics {
             .get_metric_with_label_values(&[&block_number.to_string()])
             .unwrap()
             .set(time as i64);
+    }
+}
+
+#[derive(Clone)]
+pub struct ConsensusMetricsWrapper(Option<ConsensusMetrics>);
+
+impl ConsensusMetricsWrapper {
+    pub fn new() -> Self {
+        Self(
+            METRICS_ENABLED
+                .get()
+                .unwrap()
+                .then(ConsensusMetrics::default)
+        )
+    }
+
+    pub fn set_consensus_completion_time(&self, block_number: u64, time: u128) {
+        self.0
+            .as_ref()
+            .map(|this| this.set_consensus_completion_time(block_number, time));
+    }
+
+    pub fn set_proposal_verification_time(&self, block_number: u64, time: u128) {
+        self.0
+            .as_ref()
+            .map(|this| this.set_proposal_verification_time(block_number, time));
+    }
+
+    pub fn set_proposal_build_time(&self, block_number: u64, time: u128) {
+        self.0
+            .as_ref()
+            .map(|this| this.set_proposal_build_time(block_number, time));
+    }
+
+    pub fn set_block_height(&mut self, block_number: u64) {
+        self.0
+            .as_mut()
+            .map(|this| this.set_block_height(block_number));
+    }
+
+    pub fn set_commit_time(&mut self, block_number: u64) {
+        self.0
+            .as_mut()
+            .map(|this| this.set_commit_time(block_number));
     }
 }

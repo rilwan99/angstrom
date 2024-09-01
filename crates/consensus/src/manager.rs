@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex}
 };
 
-use angstrom_metrics::ConsensusMetrics;
+use angstrom_metrics::ConsensusMetricsWrapper;
 use angstrom_network::{manager::StromConsensusEvent, StromMessage, StromNetworkHandle};
 use angstrom_types::{
     consensus::{PreProposal, Proposal},
@@ -63,7 +63,7 @@ pub struct ConsensusManager {
     order_storage: Arc<OrderStorage>,
     cache:         ProposalCache,
     tasks:         JoinSet<ConsensusTaskResult>,
-    metrics:       ConsensusMetrics
+    metrics:       ConsensusMetricsWrapper
 }
 
 pub struct ManagerNetworkDeps {
@@ -119,7 +119,7 @@ impl ConsensusManager {
             tasks: JoinSet::new(),
             cache: ProposalCache::new(),
             canonical_block_stream: wrapped_broadcast_stream,
-            metrics: ConsensusMetrics::default()
+            metrics: ConsensusMetricsWrapper::new()
         }
     }
 

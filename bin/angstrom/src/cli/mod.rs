@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex}
 };
 
-use angstrom_metrics::initialize_prometheus_metrics;
+use angstrom_metrics::{initialize_prometheus_metrics, METRICS_ENABLED};
 use angstrom_network::manager::StromConsensusEvent;
 use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_node_builder::{FullNode, NodeHandle};
@@ -54,6 +54,9 @@ pub fn run() -> eyre::Result<()> {
 
         if args.metrics {
             executor.spawn_critical("metrics", init_metrics(args.metrics_port));
+            METRICS_ENABLED.set(true).unwrap();
+        } else {
+            METRICS_ENABLED.set(false).unwrap();
         }
 
         let secret_key = get_secret_key(&args.secret_key_location)?;

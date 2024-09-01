@@ -1,7 +1,9 @@
 use prometheus::{IntGauge, IntGaugeVec};
 
+use crate::METRICS_ENABLED;
+
 #[derive(Clone)]
-pub struct SearcherOrderPoolMetrics {
+struct SearcherOrderPoolMetrics {
     // number of searcher orders
     total_orders: IntGauge,
     // number of orders per pool
@@ -52,5 +54,45 @@ impl SearcherOrderPoolMetrics {
             .sub(count as i64);
 
         self.decr_total_orders(count);
+    }
+}
+
+#[derive(Clone)]
+pub struct SearcherOrderPoolMetricsWrapper(Option<SearcherOrderPoolMetrics>);
+
+impl Default for SearcherOrderPoolMetricsWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SearcherOrderPoolMetricsWrapper {
+    pub fn new() -> Self {
+        Self(
+            METRICS_ENABLED
+                .get()
+                .unwrap()
+                .then(SearcherOrderPoolMetrics::default)
+        )
+    }
+
+    pub fn incr_total_orders(&self, count: usize) {
+        self.0.as_ref().map(|this| this.incr_total_orders(count));
+    }
+
+    pub fn decr_total_orders(&self, count: usize) {
+        self.0.as_ref().map(|this| this.decr_total_orders(count));
+    }
+
+    pub fn incr_all_orders(&self, pool_id: usize, count: usize) {
+        self.0
+            .as_ref()
+            .map(|this| this.incr_all_orders(pool_id, count));
+    }
+
+    pub fn decr_all_orders(&self, pool_id: usize, count: usize) {
+        self.0
+            .as_ref()
+            .map(|this| this.decr_all_orders(pool_id, count));
     }
 }

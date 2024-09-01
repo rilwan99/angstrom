@@ -1,14 +1,14 @@
 use std::collections::HashMap;
 
 use alloy_primitives::FixedBytes;
-use angstrom_metrics::FinalizationOrderPoolMetrics;
+use angstrom_metrics::FinalizationOrderPoolMetricsWrapper;
 use angstrom_types::sol_bindings::grouped_orders::{AllOrders, OrderWithStorageData};
 use angstrom_utils::map::OwnedMap;
 
 pub struct FinalizationPool {
     id_to_orders: HashMap<FixedBytes<32>, AllOrders>,
     block_to_ids: HashMap<u64, Vec<FixedBytes<32>>>,
-    metrics:      FinalizationOrderPoolMetrics
+    metrics:      FinalizationOrderPoolMetricsWrapper
 }
 
 impl Default for FinalizationPool {
@@ -22,7 +22,7 @@ impl FinalizationPool {
         Self {
             block_to_ids: HashMap::default(),
             id_to_orders: HashMap::default(),
-            metrics:      FinalizationOrderPoolMetrics::default()
+            metrics:      FinalizationOrderPoolMetricsWrapper::new()
         }
     }
 

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use angstrom_metrics::VanillaLimitOrderPoolMetrics;
+use angstrom_metrics::VanillaLimitOrderPoolMetricsWrapper;
 use angstrom_types::{
     primitive::PoolId,
     sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
@@ -14,7 +14,7 @@ use crate::limit::LimitPoolError;
 pub struct LimitPool {
     pending_orders: HashMap<PoolId, PendingPool<GroupedVanillaOrder>>,
     parked_orders:  HashMap<PoolId, ParkedPool>,
-    metrics:        VanillaLimitOrderPoolMetrics
+    metrics:        VanillaLimitOrderPoolMetricsWrapper
 }
 
 impl LimitPool {
@@ -25,7 +25,7 @@ impl LimitPool {
         Self {
             parked_orders:  parked,
             pending_orders: pending,
-            metrics:        VanillaLimitOrderPoolMetrics::default()
+            metrics:        VanillaLimitOrderPoolMetricsWrapper::new()
         }
     }
 

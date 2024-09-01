@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use angstrom_metrics::SearcherOrderPoolMetrics;
+use angstrom_metrics::SearcherOrderPoolMetricsWrapper;
 use angstrom_types::{
     orders::OrderId,
     primitive::PoolId,
@@ -22,7 +22,7 @@ pub struct SearcherPool {
     searcher_orders: HashMap<PoolId, PendingPool>,
     /// The size of the current transactions.
     size:            SizeTracker,
-    metrics:         SearcherOrderPoolMetrics
+    metrics:         SearcherOrderPoolMetricsWrapper
 }
 
 impl SearcherPool {
@@ -31,7 +31,7 @@ impl SearcherPool {
         Self {
             searcher_orders,
             size: SizeTracker { max: max_size, current: 0 },
-            metrics: SearcherOrderPoolMetrics::default()
+            metrics: SearcherOrderPoolMetricsWrapper::default()
         }
     }
 

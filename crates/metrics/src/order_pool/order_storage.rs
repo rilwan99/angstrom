@@ -1,7 +1,9 @@
 use prometheus::IntGauge;
 
+use crate::METRICS_ENABLED;
+
 #[derive(Clone)]
-pub struct OrderStorageMetrics {
+struct OrderStorageMetrics {
     // number of vanilla limit orders
     vanilla_limit_orders:        IntGauge,
     // number of composable limit orders
@@ -78,5 +80,69 @@ impl OrderStorageMetrics {
 
     pub fn decr_pending_finalization_orders(&self, count: usize) {
         self.pending_finalization_orders.sub(count as i64);
+    }
+}
+
+#[derive(Clone)]
+pub struct OrderStorageMetricsWrapper(Option<OrderStorageMetrics>);
+
+impl Default for OrderStorageMetricsWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl OrderStorageMetricsWrapper {
+    pub fn new() -> Self {
+        Self(
+            METRICS_ENABLED
+                .get()
+                .unwrap()
+                .then(OrderStorageMetrics::default)
+        )
+    }
+
+    pub fn incr_vanilla_limit_orders(&self, count: usize) {
+        self.0
+            .as_ref()
+            .map(|this| this.incr_vanilla_limit_orders(count));
+    }
+
+    pub fn decr_vanilla_limit_orders(&self, count: usize) {
+        self.0
+            .as_ref()
+            .map(|this| this.decr_vanilla_limit_orders(count));
+    }
+
+    pub fn incr_composable_limit_orders(&self, count: usize) {
+        self.0
+            .as_ref()
+            .map(|this| this.incr_composable_limit_orders(count));
+    }
+
+    pub fn decr_composable_limit_orders(&self, count: usize) {
+        self.0
+            .as_ref()
+            .map(|this| this.decr_composable_limit_orders(count));
+    }
+
+    pub fn incr_searcher_orders(&self, count: usize) {
+        self.0.as_ref().map(|this| this.incr_searcher_orders(count));
+    }
+
+    pub fn decr_searcher_orders(&self, count: usize) {
+        self.0.as_ref().map(|this| this.decr_searcher_orders(count));
+    }
+
+    pub fn incr_pending_finalization_orders(&self, count: usize) {
+        self.0
+            .as_ref()
+            .map(|this| this.incr_pending_finalization_orders(count));
+    }
+
+    pub fn decr_pending_finalization_orders(&self, count: usize) {
+        self.0
+            .as_ref()
+            .map(|this| this.decr_pending_finalization_orders(count));
     }
 }

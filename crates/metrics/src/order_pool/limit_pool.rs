@@ -1,7 +1,9 @@
 use prometheus::{IntGauge, IntGaugeVec};
 
+use crate::METRICS_ENABLED;
+
 #[derive(Clone)]
-pub struct VanillaLimitOrderPoolMetrics {
+struct VanillaLimitOrderPoolMetrics {
     // number of vanilla limit orders
     total_orders:         IntGauge,
     // number of pending vanilla limit orders
@@ -121,7 +123,51 @@ impl VanillaLimitOrderPoolMetrics {
 }
 
 #[derive(Clone)]
-pub struct ComposableLimitOrderPoolMetrics {
+pub struct VanillaLimitOrderPoolMetricsWrapper(Option<VanillaLimitOrderPoolMetrics>);
+
+impl Default for VanillaLimitOrderPoolMetricsWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl VanillaLimitOrderPoolMetricsWrapper {
+    pub fn new() -> Self {
+        Self(
+            METRICS_ENABLED
+                .get()
+                .unwrap()
+                .then(VanillaLimitOrderPoolMetrics::default)
+        )
+    }
+
+    pub fn incr_parked_orders(&self, pool_id: usize, count: usize) {
+        self.0
+            .as_ref()
+            .map(|this| this.incr_parked_orders(pool_id, count));
+    }
+
+    pub fn decr_parked_orders(&self, pool_id: usize, count: usize) {
+        self.0
+            .as_ref()
+            .map(|this| this.decr_parked_orders(pool_id, count));
+    }
+
+    pub fn incr_pending_orders(&self, pool_id: usize, count: usize) {
+        self.0
+            .as_ref()
+            .map(|this| this.incr_pending_orders(pool_id, count));
+    }
+
+    pub fn decr_pending_orders(&self, pool_id: usize, count: usize) {
+        self.0
+            .as_ref()
+            .map(|this| this.decr_pending_orders(pool_id, count));
+    }
+}
+
+#[derive(Clone)]
+struct ComposableLimitOrderPoolMetrics {
     // number of composable limit orders
     total_orders: IntGauge,
     // number of orders per pool
@@ -172,5 +218,37 @@ impl ComposableLimitOrderPoolMetrics {
             .sub(count as i64);
 
         self.decr_total_orders(count);
+    }
+}
+
+#[derive(Clone)]
+pub struct ComposableLimitOrderPoolMetricsWrapper(Option<ComposableLimitOrderPoolMetrics>);
+
+impl Default for ComposableLimitOrderPoolMetricsWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl ComposableLimitOrderPoolMetricsWrapper {
+    pub fn new() -> Self {
+        Self(
+            METRICS_ENABLED
+                .get()
+                .unwrap()
+                .then(ComposableLimitOrderPoolMetrics::default)
+        )
+    }
+
+    pub fn incr_all_orders(&self, pool_id: usize, count: usize) {
+        self.0
+            .as_ref()
+            .map(|this| this.incr_all_orders(pool_id, count));
+    }
+
+    pub fn decr_all_orders(&self, pool_id: usize, count: usize) {
+        self.0
+            .as_ref()
+            .map(|this| this.decr_all_orders(pool_id, count));
     }
 }
