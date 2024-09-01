@@ -5,6 +5,7 @@ use angstrom_types::{
     primitive::PoolId,
     sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
 };
+use angstrom_utils::map::OwnedMap;
 
 use super::{parked::ParkedPool, pending::PendingPool};
 use crate::limit::LimitPoolError;
@@ -60,17 +61,13 @@ impl LimitPool {
         self.pending_orders
             .get_mut(&pool_id)
             .and_then(|pool| {
-                pool.remove_order(order_id).map(|order| {
-                    self.metrics.decr_pending_orders(pool_id, 1);
-                    order
-                })
+                pool.remove_order(order_id)
+                    .owned_map(|| self.metrics.decr_pending_orders(pool_id, 1))
             })
             .or_else(|| {
                 self.parked_orders.get_mut(&pool_id).and_then(|pool| {
-                    pool.remove_order(order_id).map(|order| {
-                        self.metrics.decr_parked_orders(pool_id, 1);
-                        order
-                    })
+                    pool.remove_order(order_id)
+                        .owned_map(|| self.metrics.decr_parked_orders(pool_id, 1))
                 })
             })
     }

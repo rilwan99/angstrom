@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
+use angstrom_metrics::SearcherOrderPoolMetrics;
 use angstrom_types::{
     orders::OrderId,
     primitive::PoolId,
     sol_bindings::{grouped_orders::OrderWithStorageData, sol::TopOfBlockOrder}
 };
+use angstrom_utils::map::OwnedMap;
 use pending::PendingPool;
 
 use crate::common::SizeTracker;
@@ -19,13 +21,18 @@ pub struct SearcherPool {
     /// Holds all non composable searcher order pools
     searcher_orders: HashMap<PoolId, PendingPool>,
     /// The size of the current transactions.
-    size:            SizeTracker
+    size:            SizeTracker,
+    metrics:         SearcherOrderPoolMetrics
 }
 
 impl SearcherPool {
     pub fn new(ids: &[PoolId], max_size: Option<usize>) -> Self {
         let searcher_orders = ids.iter().map(|id| (*id, PendingPool::new())).collect();
-        Self { searcher_orders, size: SizeTracker { max: max_size, current: 0 } }
+        Self {
+            searcher_orders,
+            size: SizeTracker { max: max_size, current: 0 },
+            metrics: SearcherOrderPoolMetrics::default()
+        }
     }
 
     pub fn add_searcher_order(
@@ -37,10 +44,13 @@ impl SearcherPool {
             return Err(SearcherPoolError::MaxSize)
         }
 
+        let pool_id = order.pool_id;
         self.searcher_orders
-            .get_mut(&order.pool_id)
-            .ok_or_else(|| SearcherPoolError::NoPool(order.pool_id))?
+            .get_mut(&pool_id)
+            .ok_or_else(|| SearcherPoolError::NoPool(pool_id))?
             .add_order(order);
+
+        self.metrics.incr_all_orders(pool_id, 1);
 
         Ok(())
     }
@@ -49,6 +59,7 @@ impl SearcherPool {
         self.searcher_orders
             .get_mut(&id.pool_id)
             .and_then(|pool| pool.remove_order(id.hash))
+            .owned_map(|| self.metrics.decr_all_orders(id.pool_id, 1))
     }
 
     pub fn get_all_orders(&self) -> Vec<OrderWithStorageData<TopOfBlockOrder>> {

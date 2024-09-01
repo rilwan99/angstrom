@@ -5,6 +5,7 @@ use angstrom_types::{
     primitive::PoolId,
     sol_bindings::grouped_orders::{GroupedComposableOrder, OrderWithStorageData}
 };
+use angstrom_utils::map::OwnedMap;
 
 use super::{pending::PendingPool, LimitPoolError};
 
@@ -43,9 +44,6 @@ impl ComposableLimitPool {
         self.map
             .get_mut(&pool_id)?
             .remove_order(tx_id)
-            .map(|order| {
-                self.metrics.decr_all_orders(pool_id, 1);
-                order
-            })
+            .owned_map(|| self.metrics.decr_all_orders(pool_id, 1))
     }
 }
