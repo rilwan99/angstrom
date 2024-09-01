@@ -6130,6 +6130,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "angstrom-eth",
+ "angstrom-metrics",
  "angstrom-network",
  "angstrom-types",
  "angstrom-utils",

@@ -147,6 +147,10 @@ impl GroupedUserOrder {
         matches!(self, Self::Vanilla(_))
     }
 
+    pub fn is_composable(&self) -> bool {
+        matches!(self, Self::Composable(_))
+    }
+
     pub fn order_hash(&self) -> B256 {
         match self {
             GroupedUserOrder::Vanilla(v) => v.hash(),

@@ -4,7 +4,7 @@ use angstrom_types::{
     orders::OrderId,
     primitive::PoolId,
     sol_bindings::grouped_orders::{
-        AllOrders, GroupedComposableOrder, GroupedVanillaOrder, OrderWithStorageData
+        GroupedComposableOrder, GroupedUserOrder, GroupedVanillaOrder, OrderWithStorageData
     }
 };
 
@@ -58,14 +58,22 @@ impl LimitOrderPool {
         self.limit_orders.add_order(order)
     }
 
-    pub fn remove_order(&mut self, id: &OrderId) -> Option<OrderWithStorageData<AllOrders>> {
+    pub fn remove_order(&mut self, id: &OrderId) -> Option<OrderWithStorageData<GroupedUserOrder>> {
         self.limit_orders
             .remove_order(id.pool_id, id.hash)
-            .and_then(|value| value.try_map_inner(|this| Ok(this.into())).ok())
+            .and_then(|value| {
+                value
+                    .try_map_inner(|this| Ok(GroupedUserOrder::Vanilla(this)))
+                    .ok()
+            })
             .or_else(|| {
                 self.composable_orders
                     .remove_order(id.pool_id, id.hash)
-                    .and_then(|value| value.try_map_inner(|this| Ok(this.into())).ok())
+                    .and_then(|value| {
+                        value
+                            .try_map_inner(|this| Ok(GroupedUserOrder::Composable(this)))
+                            .ok()
+                    })
             })
     }
 
