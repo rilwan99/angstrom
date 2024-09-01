@@ -89,10 +89,6 @@ pub struct VanillaLimitOrderPoolMetrics {
     total_pending_orders: IntGauge,
     // number of parked vanilla limit orders
     total_parked_orders:  IntGauge,
-    // // number of pending pools
-    // pending_pools:  IntGauge,
-    // // number of parked pools
-    // parked_pools:   IntGauge,
     // number of pending orders per pool
     pending_orders:       IntGaugeVec,
     // number of parked orders per pool
@@ -118,18 +114,6 @@ impl Default for VanillaLimitOrderPoolMetrics {
             "number of parked vanilla limit orders",
         )
         .unwrap();
-
-        // let pending_pools = prometheus::register_int_gauge!(
-        //     "vanilla_limit_order_pool_pending_pools",
-        //     "number of pending pools",
-        // )
-        // .unwrap();
-
-        // let parked_pools = prometheus::register_int_gauge!(
-        //     "vanilla_limit_order_pool_parked_pools",
-        //     "number of parked pools",
-        // )
-        // .unwrap();
 
         let pending_orders = prometheus::register_int_gauge_vec!(
             "vanilla_limit_order_pool_pending_orders",
