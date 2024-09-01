@@ -147,11 +147,14 @@ impl OrderStorage {
             .lock()
             .expect("posioned")
             .remove_order(id)
-            .map(|value| value.try_map_inner(|v| Ok(AllOrders::TOB(v))).unwrap());
-
-        if order.is_some() {
-            self.metrics.decr_searcher_orders(1);
-        }
+            .map(|value| {
+                value
+                    .try_map_inner(|v| {
+                        self.metrics.decr_searcher_orders(1);
+                        Ok(AllOrders::TOB(v))
+                    })
+                    .unwrap()
+            });
 
         order
     }
