@@ -10,6 +10,9 @@ exclude.workspace = true
 
 [dependencies]
 
+# angstrom
+angstrom-types.workspace = true
+
 # async
 tokio = { workspace = true, features = ["full", "tracing"] }
 futures.workspace = true
