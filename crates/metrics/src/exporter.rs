@@ -1,5 +1,9 @@
 //! Prometheus exporter
-use std::{convert::Infallible, net::SocketAddr, sync::Arc};
+use std::{
+    convert::Infallible,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    sync::Arc
+};
 
 use eyre::WrapErr;
 use hyper::{
@@ -79,10 +83,8 @@ async fn start_endpoint<F: Hook + 'static>(
 
 /// Installs Prometheus as the metrics recorder and serves it over HTTP with
 /// database and process metrics.
-pub async fn initialize(
-    listen_addr: SocketAddr,
-    process: metrics_process::Collector
-) -> eyre::Result<()> {
+pub async fn initialize_prometheus_metrics(port: u16) -> eyre::Result<()> {
+    let process = metrics_process::Collector::default();
     // Clone `process` to move it into the hook and use the original `process` for
     // describe below.
     let cloned_process = process.clone();
@@ -91,7 +93,8 @@ pub async fn initialize(
         Box::new(collect_memory_stats),
         Box::new(collect_io_stats),
     ];
-    initialize_with_hooks(listen_addr, hooks).await?;
+    initialize_with_hooks(SocketAddr::new(IpAddr::V4(Ipv4Addr::from([0, 0, 0, 0])), port), hooks)
+        .await?;
 
     // We describe the metrics after the recorder is installed, otherwise this
     // information is not registered
