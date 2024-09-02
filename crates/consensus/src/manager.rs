@@ -1,8 +1,10 @@
 use std::{
+    alloc::Layout,
     pin::Pin,
     sync::{Arc, Mutex}
 };
 
+use angstrom_metrics::ConsensusMetricsWrapper;
 use angstrom_network::{manager::StromConsensusEvent, StromMessage, StromNetworkHandle};
 use angstrom_types::{
     consensus::{PreProposal, Proposal},
@@ -10,7 +12,7 @@ use angstrom_types::{
 };
 use futures::{FutureExt, Stream, StreamExt};
 use matching_engine::MatchingManager;
-use order_pool::order_storage::OrderStorage;
+use order_pool::{order_storage::OrderStorage, timer::async_time_fn};
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_provider::{CanonStateNotification, CanonStateNotifications};
 use reth_tasks::TaskSpawner;
@@ -61,7 +63,8 @@ pub struct ConsensusManager {
     signer:        Signer,
     order_storage: Arc<OrderStorage>,
     cache:         ProposalCache,
-    tasks:         JoinSet<ConsensusTaskResult>
+    tasks:         JoinSet<ConsensusTaskResult>,
+    metrics:       ConsensusMetricsWrapper
 }
 
 pub struct ManagerNetworkDeps {
@@ -116,7 +119,8 @@ impl ConsensusManager {
             order_storage,
             tasks: JoinSet::new(),
             cache: ProposalCache::new(),
-            canonical_block_stream: wrapped_broadcast_stream
+            canonical_block_stream: wrapped_broadcast_stream,
+            metrics: ConsensusMetricsWrapper::new()
         }
     }
 
@@ -158,10 +162,16 @@ impl ConsensusManager {
         let preproposals = self.roundstate.get_preproposals();
         let signer = self.signer.clone();
         let ethereum_block = self.roundstate.current_height();
+        let metrics = self.metrics.clone();
         let build_handle = self.tasks.spawn(async move {
-            let solutions = build_proposal_task(preproposals.clone()).await.unwrap();
-            let proposal = signer.sign_proposal(ethereum_block, preproposals, solutions);
-            ConsensusTaskResult::BuiltProposal(proposal)
+            let (res, timer) = async_time_fn(|| async move {
+                let solutions = build_proposal_task(preproposals.clone()).await.unwrap();
+                let proposal = signer.sign_proposal(ethereum_block, preproposals, solutions);
+                ConsensusTaskResult::BuiltProposal(proposal)
+            })
+            .await;
+            metrics.set_proposal_build_time(ethereum_block, timer);
+            res
         });
         self.roundstate.on_proposal(build_handle);
     }
@@ -174,9 +184,15 @@ impl ConsensusManager {
         if proposal.validate() {
             let preproposals = proposal.preproposals().clone();
             let height = proposal.ethereum_height;
+            let metrics = self.metrics.clone();
             self.tasks.spawn(async move {
-                let solutions = build_proposal_task(preproposals).await.unwrap();
-                ConsensusTaskResult::ValidationSolutions { height, solutions }
+                let (res, timer) = async_time_fn(|| async move {
+                    let solutions = build_proposal_task(preproposals).await.unwrap();
+                    ConsensusTaskResult::ValidationSolutions { height, solutions }
+                })
+                .await;
+                metrics.set_proposal_verification_time(height, timer);
+                res
             });
             // We've passed basic validation so we can return true here
             return true;
@@ -297,6 +313,7 @@ impl ConsensusManager {
                 // We should now check to see if we have gotten enough pre-proposals to step
                 // forward
                 let _ = self.roundstate.on_pre_propose(peer, pre_proposal.clone());
+
                 // Alert all subscribers to our preproposal received
                 self.broadcast(ConsensusMessage::PrePropose(pre_proposal))
             }
@@ -316,6 +333,7 @@ impl ConsensusManager {
             // now I'm not sure what we should do with this but overall SOMEONE has to collect
             // these for slashing purposes, no?
             StromConsensusEvent::Commit(peer, mut commit) => {
+                let block_height = commit.block_height;
                 // Validate the commit itself - not currently checked
                 commit.validate(&[]);
                 if commit.signed_by(self.signer.validator_id) {
@@ -332,8 +350,9 @@ impl ConsensusManager {
                     // Store it locally as a commit we've seen
                     let _ = self.roundstate.on_commit(peer, *commit.clone());
                     // Broadcast to all our internal subscribers
-                    self.broadcast(ConsensusMessage::Commit(commit))
+                    self.broadcast(ConsensusMessage::Commit(commit));
                 }
+                self.metrics.set_commit_time(block_height);
             }
         }
     }
@@ -365,7 +384,8 @@ impl ConsensusManager {
                     match msg {
                         Ok(notification) => self.on_blockchain_state(notification),
                         Err(e) => tracing::error!("Error receiving chain state notification: {}", e)
-                    }
+                    };
+                    self.metrics.set_block_height(self.roundstate.current_height());
                 },
                 Some(msg) = self.strom_consensus_event.next() => {
                     self.on_network_event(msg);

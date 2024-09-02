@@ -4,6 +4,7 @@ use std::{
     sync::{Arc, Mutex}
 };
 
+use angstrom_metrics::{initialize_prometheus_metrics, METRICS_ENABLED};
 use angstrom_network::manager::StromConsensusEvent;
 use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_node_builder::{FullNode, NodeHandle};
@@ -50,6 +51,13 @@ use crate::cli::network_builder::AngstromNetworkBuilder;
 pub fn run() -> eyre::Result<()> {
     Cli::<AngstromConfig>::parse().run(|builder, args| async move {
         let executor = builder.task_executor().clone();
+
+        if args.metrics {
+            executor.spawn_critical("metrics", init_metrics(args.metrics_port));
+            METRICS_ENABLED.set(true).unwrap();
+        } else {
+            METRICS_ENABLED.set(false).unwrap();
+        }
 
         let secret_key = get_secret_key(&args.secret_key_location)?;
 
@@ -234,5 +242,18 @@ pub struct AngstromConfig {
     pub secret_key_location:   PathBuf,
     // default is 100mb
     #[clap(long, default_value = "1000000")]
-    pub validation_cache_size: usize
+    pub validation_cache_size: usize,
+    /// enables the metrics
+    #[clap(long, default_value = "false", global = true)]
+    pub metrics:               bool,
+    /// spawns the prometheus metrics exporter at the specified port
+    /// Default: 6969
+    #[clap(long, default_value = "6969", global = true)]
+    pub metrics_port:          u16
+}
+
+async fn init_metrics(metrics_port: u16) {
+    let _ = initialize_prometheus_metrics(metrics_port)
+        .await
+        .inspect_err(|e| eprintln!("failed to start metrics endpoint - {:?}", e));
 }

@@ -2,6 +2,8 @@ pub mod macros;
 pub mod poll_ext;
 pub mod sync_pipeline;
 
+pub mod map;
+pub mod timer;
 pub use poll_ext::*;
 
 pub trait GenericExt<T> {
