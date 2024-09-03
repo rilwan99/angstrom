@@ -38,10 +38,6 @@ library AssetLib {
         return assets.into().len();
     }
 
-    function ptr(AssetArray assets) internal pure returns (uint256) {
-        return assets.into().ptr();
-    }
-
     function _validated(AssetArray self) internal pure returns (AssetArray) {
         uint256 length = self.len();
         address lastAddr = address(0);
