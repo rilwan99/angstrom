@@ -2,11 +2,25 @@
 pragma solidity ^0.8.0;
 
 import {Test} from "forge-std/Test.sol";
-import {TickLib, TICK_SPACING} from "../src/libraries/TickLib.sol";
+import {TickLib, TICK_SPACING} from "../../src/libraries/TickLib.sol";
 
 /// @author philogy <https://github.com/philogy>
 contract TickLibTest is Test {
     function setUp() public {}
+
+    function test_findNextGte() public pure {
+        assertNextBitPosGteEq(1, 0, true, 0);
+        assertNextBitPosGteEq(1, 1, false, 255);
+        assertNextBitPosGteEq(0x0201, 0, true, 0);
+        assertNextBitPosGteEq(0x0201, 1, true, 9);
+        assertNextBitPosGteEq(0x0201, 10, false, 255);
+    }
+
+    function test_fuzzing_findNextGte_zeroWord(uint8 bitPos) public pure {
+        (bool initialized, uint8 outPos) = TickLib.nextBitPosGte(0, bitPos);
+        assertFalse(initialized);
+        assertEq(outPos, 255);
+    }
 
     function test_fuzzing_findNextGte(uint256 word, uint8 bitPos) public pure {
         (bool libInitialized, uint8 libPos) = TickLib.nextBitPosGte(word, bitPos);
@@ -32,6 +46,12 @@ contract TickLibTest is Test {
         assertEq(libCompressed, safeCompressed);
     }
 
+    function test_fuzzing_tickRecreatedFromPositionToTick(int24 tick) public pure {
+        (int16 wordPos, uint8 bitPos) = TickLib.position(tick / TICK_SPACING);
+        int24 outTick = TickLib.toTick(wordPos, bitPos);
+        assertEq(tick - tick % TICK_SPACING, outTick);
+    }
+
     function _findNextGte(uint256 word, uint8 bitPos) internal pure returns (uint8 nextBitPos, bool initialized) {
         for (uint256 i = bitPos; i < 256; i++) {
             if (word & (1 << i) != 0) return (uint8(i), true);
@@ -45,5 +65,14 @@ contract TickLibTest is Test {
             if (bitPos == 0) break;
             bitPos--;
         }
+    }
+
+    function assertNextBitPosGteEq(uint256 word, uint8 bitPos, bool expectedInitialized, uint8 expectedOutBitPos)
+        internal
+        pure
+    {
+        (bool initialized, uint8 outPos) = TickLib.nextBitPosGte(word, bitPos);
+        assertEq(initialized, expectedInitialized);
+        assertEq(outPos, expectedOutBitPos);
     }
 }
