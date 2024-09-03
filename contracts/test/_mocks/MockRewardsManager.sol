@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import {PadeEncoded} from "../../src/types/PadeEncoded.sol";
 import {CalldataReader, CalldataReaderLib} from "../../src/types/CalldataReader.sol";
 import {Asset, AssetArray, AssetLib} from "../../src/types/Asset.sol";
 import {PoolRewardsManager} from "../../src/modules/PoolRewardsManager.sol";
@@ -20,9 +21,9 @@ contract MockRewardsManager is UniConsumer, PoolRewardsManager {
         console.log("rewards manager deployed");
     }
 
-    /// @param data PADE encoded `(List<Asset>, PoolRewardsUpdate)`.
-    function reward(bytes calldata data) public {
-        CalldataReader reader = CalldataReaderLib.from(data);
+    /// @param encoded PADE `(List<Asset>, PoolRewardsUpdate)`.
+    function reward(PadeEncoded calldata encoded) public {
+        CalldataReader reader = CalldataReaderLib.from(encoded.data);
 
         AssetArray assets;
         if (MOCK_LOGS) console.log("[MockRewardsManager] loading assets");
@@ -31,7 +32,7 @@ contract MockRewardsManager is UniConsumer, PoolRewardsManager {
         if (MOCK_LOGS) console.log("[MockRewardsManager] rewarding pool");
         (reader,,) = _rewardPool(reader, assets);
 
-        reader.requireAtEndOf(data);
+        reader.requireAtEndOf(encoded.data);
     }
 
     function consts() external pure returns (int24 tickSpacing, uint24 poolFee) {

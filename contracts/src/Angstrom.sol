@@ -12,6 +12,7 @@ import {IUnlockCallback} from "v4-core/src/interfaces/callback/IUnlockCallback.s
 
 import {TypedDataHasher} from "./types/TypedDataHasher.sol";
 
+import {PadeEncoded} from "./types/PadeEncoded.sol";
 import {AssetArray, AssetLib} from "./types/Asset.sol";
 import {AssetIndexPair} from "./types/AssetIndexPair.sol";
 import {PairArray, Pair, PairLib} from "./types/Pair.sol";
@@ -48,9 +49,9 @@ contract Angstrom is
 
     constructor(address uniV4PoolManager, address governance) UniConsumer(uniV4PoolManager) NodeManager(governance) {}
 
-    function execute(bytes calldata data) external {
+    function execute(PadeEncoded calldata encoded) external {
         _nodeBundleLock();
-        UNI_V4.unlock(data);
+        UNI_V4.unlock(encoded.data);
     }
 
     function unlockCallback(bytes calldata data) external override onlyUniV4 returns (bytes memory) {
