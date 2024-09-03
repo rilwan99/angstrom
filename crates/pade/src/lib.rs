@@ -41,9 +41,9 @@ impl<T: PadeEncode> PadeEncode for Vec<T> {
     const PADE_HEADER_BITS: usize = 24;
 
     fn pade_encode(&self) -> Vec<u8> {
-        let len_bytes = self.len().to_be_bytes();
-        let len = vec![len_bytes[0], len_bytes[1], len_bytes[2]];
-        let items = self.iter().flat_map(|i| i.pade_encode()).collect();
+        let items: Vec<u8> = self.iter().flat_map(|i| i.pade_encode()).collect();
+        let len_bytes = items.len().to_be_bytes();
+        let len = vec![len_bytes[5], len_bytes[6], len_bytes[7]];
         [len, items].concat()
     }
 }
