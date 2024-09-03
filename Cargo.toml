@@ -59,6 +59,7 @@ angstrom-network = { path = "./crates/angstrom-net/" }
 testing-tools = { path = "./testing-tools/" }
 angstrom = { path = "./bin/angstrom/" }
 matching-engine = { path = "./crates/matching-engine/" }
+contract-bindings = { path = "./crates/contract-bindings/" }
 eyre = "0.6.12"
 
 # BLS library
@@ -126,6 +127,8 @@ alloy = { version = "0.2", features = [
   "signer-mnemonic",
   "signer-trezor",
   "signer-yubihsm",
+  "sol-types",
+  "contract"
 ] }
 alloy-chains = "0.1.15"
 alloy-primitives = "0.7.2"

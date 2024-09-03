@@ -219,14 +219,24 @@ pub fn calculate_reward(
 #[cfg(test)]
 mod test {
     use alloy::{
+        contract::RawCallBuilder,
         network::EthereumWallet,
-        primitives::{address, Bytes, FixedBytes, Uint, U256},
+        primitives::{address, keccak256, Address, Bytes, Uint, B256, U160, U256},
         providers::ProviderBuilder,
         signers::local::PrivateKeySigner,
         sol,
-        sol_types::{SolCall, SolValue}
+        sol_types::SolValue
     };
-    use angstrom_types::matching::SqrtPriceX96;
+    use angstrom_types::{
+        contract_bindings::{
+            hookdeployer::HookDeployer::{self, HookDeployerInstance},
+            mockrewardsmanager::MockRewardsManager,
+            poolgate::PoolGate,
+            poolmanager::PoolManager
+        },
+        matching::SqrtPriceX96
+    };
+    use pade::PadeEncode;
     use pade_macro::PadeEncode;
     use rand::thread_rng;
     use testing_tools::type_generator::orders::generate_top_of_block_order;
@@ -344,9 +354,80 @@ mod test {
     }
 
     #[tokio::test]
-    async fn talks_to_contract() {
+    async fn deploys_uniswap_contract() {
+        let anvil = alloy::node_bindings::Anvil::new().try_spawn().unwrap();
+        let signer: PrivateKeySigner = anvil.keys()[0].clone().into();
+        let wallet = EthereumWallet::from(signer);
+
+        let rpc_url = anvil.endpoint().parse().unwrap();
+        let provider = ProviderBuilder::new()
+            .with_recommended_fillers()
+            .wallet(wallet)
+            .on_http(rpc_url);
+        println!("Anvil running at '{}'", anvil.endpoint());
+
+        let pool_manager = PoolManager::deploy(&provider, U256::from(50_000_u32))
+            .await
+            .unwrap();
+        println!("PoolManager deployed at address: {}", pool_manager.address());
+
+        let pool_gate = PoolGate::deploy(&provider, *pool_manager.address())
+            .await
+            .unwrap();
+        println!("PoolGate deployed at address: {}", pool_gate.address());
+
+        // Flags for our MockRewardsManager address
+        let before_swap = U160::from(1_u8) << 7;
+        let before_initialize = U160::from(1_u8) << 13;
+        let before_add_liquidity = U160::from(1_u8) << 11;
+        let after_remove_liquidity = U160::from(1_u8) << 8;
+
+        let flags = before_swap | before_initialize | before_add_liquidity | after_remove_liquidity;
+        let all_hook_mask: U160 = (U160::from(1_u8) << 14) - U160::from(1_u8);
+
+        let builder = MockRewardsManager::deploy_builder(&provider, *pool_manager.address());
+        let full_initcode = builder.calldata();
+
+        //    [MockRewardsManager::BYTECODE.to_vec(),
+        // pool_manager.address().abi_encode_packed()]        .concat();
+        let init_code_hash = keccak256(full_initcode);
+        let mut salt = U256::ZERO;
+        let create2_factory = address!("4e59b44847b379578588920cA78FbF26c0B4956C");
+        let mut counter: u128 = 0;
+        loop {
+            let target_address: Address = create2_factory.create2(B256::from(salt), init_code_hash);
+            let u_address: U160 = target_address.into();
+            if (u_address & all_hook_mask) == flags {
+                break;
+            }
+            salt += U256::from(1_u8);
+            counter += 1;
+            if counter > 100_000 {
+                panic!("We tried this too many times!")
+            }
+        }
+        let final_address = create2_factory.create2(B256::from(salt), init_code_hash);
+        println!("I found my address and it's {}", final_address);
+        let final_initcode = [salt.abi_encode(), full_initcode.to_vec()].concat();
+        let raw_deploy = RawCallBuilder::new_raw_deploy(&provider, final_initcode.into());
+        //let raw_address = raw_deploy.calculate_create_address().unwrap();
+        //println!("My raw address is:          {}", raw_address);
+        raw_deploy.call_raw().await.unwrap();
+        println!("MockRewardsManager deployed at address: {}", final_address);
+        // }
+
+        // #[tokio::test]
+        // async fn talks_to_contract() {
         // Define the contract and types
         sol! {
+            #[derive(PadeEncode)]
+            struct Asset {
+                address addr;
+                uint128 borrow;
+                uint128 save;
+                uint128 settle;
+            }
+
             #[derive(PadeEncode)]
             struct RewardsUpdate {
                 int24 startTick;
@@ -363,30 +444,8 @@ mod test {
 
             #[derive(PadeEncode)]
             struct MockContractMessage {
-                address[] addressList;
+                Asset[] addressList;
                 PoolRewardsUpdate update;
-            }
-
-            type PoolId is bytes32;
-
-            #[sol(rpc)]
-            contract MockRewardsManager {
-            constructor(address univ4);
-            #[derive(Debug)]
-            function reward(bytes calldata data) public;
-            #[derive(Debug)]
-            function getGrowthInsideTick(
-                bytes32 id,
-                int24 tick
-            ) public view returns (uint256);
-            #[derive(Debug)]
-            function consts()
-            external
-            pure
-            returns (int24 tickSpacing, uint24 poolFee);
-            // function consts();
-            // function getGrowthInsideTick(PoolId id, int24 tick);
-            // function getGrowthInsideRange();
             }
         }
 
@@ -422,27 +481,33 @@ mod test {
             quantities
         };
         let update = PoolRewardsUpdate { asset0: 0, asset1: 1, update };
-
+        println!("Encoded u16: {:?}", 1_u16.pade_encode());
         // ---- End of all that
 
         // Connect to our contract and send the ToBoutcome over
         //let signer = PrivateKeySigner::from_signing_key()
         //let wallet = EthereumWallet::from(signer);
-        let provider = ProviderBuilder::new().on_http("http://localhost:8545".parse().unwrap());
+        // let provider = ProviderBuilder::new().on_http("http://localhost:8545".parse().unwrap());
         // Currently the address of a local deploy that I'm running, not the right
         // address, should configure this to stand up on its own
-        let contract_address = address!("A0B6Dd0Bd209D2EF77A81248931e6804A8C82980");
-        let contract = MockRewardsManager::new(contract_address, &provider);
+        let contract_address = address!("4026bA349706b18b9dA081233cc20B3C5B4bE980");
         // let new_test =
         // contract.getGrowthInsideTick(FixedBytes::<32>::default(),12345);
         // let new_test_res = new_test.send().await.unwrap().;
         // println!("New test: {:?}", new_test_res);
-        let tob_mock_message = MockContractMessage { addressList: vec![asset0, asset1], update };
+        let address_list = [asset0, asset1]
+            .into_iter()
+            .map(|addr| Asset { addr, borrow: 0, save: 0, settle: 0 })
+            .collect();
+        let tob_mock_message = MockContractMessage { addressList: address_list, update };
         let tob_bytes = Bytes::from(pade::PadeEncode::pade_encode(&tob_mock_message));
+        println!("Full encoded message: {:?}", tob_mock_message.pade_encode());
+        let contract =
+            angstrom_types::contract_bindings::mockrewardsmanager::MockRewardsManager::new(
+                final_address,
+                &provider
+            );
         let call = contract.reward(tob_bytes);
-        // let reward_call =
-        // SolMockRewardsManager::rewardCall::new((Bytes::default(),)).abi_encode();
         let call_return = call.call().await.unwrap();
-        println!("{:?}", call_return);
     }
 }

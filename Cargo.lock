@@ -1291,6 +1291,7 @@ dependencies = [
 name = "angstrom-types"
 version = "0.1.0"
 dependencies = [
+ "alloy 0.2.1",
  "alloy-contract 0.2.1",
  "alloy-primitives",
  "alloy-rlp",

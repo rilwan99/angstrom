@@ -20,7 +20,7 @@ library AssetLib {
     using AssetLib for *;
     using BitPackLib for uint256;
 
-    function getIndexPair(Asset[] memory self, address assetA, address assetB)
+function getIndexPair(Asset[] memory self, address assetA, address assetB)
         internal
         pure
         returns (uint16 indexA, uint16 indexB)
@@ -28,13 +28,24 @@ library AssetLib {
         indexA = self.getIndex(assetA).toUint16();
         indexB = self.getIndex(assetB).toUint16();
     }
-
-    function encode(Asset memory asset) internal pure returns (bytes memory b) {
-        b = abi.encodePacked(asset.addr, asset.borrow, asset.save, asset.settle);
-        require(b.length == ActualAssetLib.ASSET_BYTES, "Assets unexpected length");
     }
 
-    function encode(Asset[] memory assets) internal pure returns (bytes memory b) {
+    function encode(Asset memory asset) internal pure returns (bytes memory b) {
+        b = abi.encodePacked(
+            asset.addr,
+            asset.borrow,
+            asset.save,
+            asset.settle
+        );
+        require(
+            b.length == ActualAssetLib.ASSET_BYTES,
+            "Assets unexpected length"
+        );
+    }
+
+    function encode(
+        Asset[] memory assets
+    ) internal pure returns (bytes memory b) {
         for (uint256 i = 0; i < assets.length; i++) {
             b = bytes.concat(b, assets[i].encode());
         }
@@ -45,12 +56,16 @@ library AssetLib {
         // Bubble sort because ain't nobody got time for that.
         for (uint256 i = 0; i < assets.length; i++) {
             for (uint256 j = i + 1; j < assets.length; j++) {
-                if (assets[i].addr > assets[j].addr) (assets[i], assets[j]) = (assets[j], assets[i]);
+                if (assets[i].addr > assets[j].addr)
+                    (assets[i], assets[j]) = (assets[j], assets[i]);
             }
         }
     }
 
-    function getIndex(Asset[] memory assets, address asset) internal pure returns (uint256) {
+    function getIndex(
+        Asset[] memory assets,
+        address asset
+    ) internal pure returns (uint256) {
         for (uint256 i = 0; i < assets.length; i++) {
             if (asset == assets[i].addr) return i;
         }
