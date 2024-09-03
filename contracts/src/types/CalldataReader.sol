@@ -222,7 +222,7 @@ library CalldataReaderLib {
         console.log(
             string.concat(
                 "[CALLDATAREADER] reading next ",
-                uint256(reading).toStr().lpad(" ", 2),
+                uint256(reading).toStr().lpad(" ", 6),
                 " byte(s) at ",
                 self.offset().toHexString(3),
                 " as %s -> %s"
