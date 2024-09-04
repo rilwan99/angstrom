@@ -10,9 +10,10 @@ use crate::common::lru_db::{BlockStateProviderFactory, RevmLRU};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct ValidationConfig {
-    pub approvals: Vec<TokenApprovalSlot>,
-    pub balances:  Vec<TokenBalanceSlot>,
-    pub pools:     Vec<PoolConfig>
+    pub approvals:               Vec<TokenApprovalSlot>,
+    pub balances:                Vec<TokenBalanceSlot>,
+    pub pools:                   Vec<PoolConfig>,
+    pub max_validation_per_user: usize
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -62,7 +63,7 @@ impl TokenBalanceSlot {
     pub fn load_balance<DB: BlockStateProviderFactory>(
         &self,
         of: Address,
-        db: Arc<RevmLRU<DB>>
+        db: &RevmLRU<DB>
     ) -> eyre::Result<U256> {
         Ok(db.storage_ref(self.token, self.generate_slot(of)?)?)
     }
@@ -95,7 +96,7 @@ impl TokenApprovalSlot {
         &self,
         user: Address,
         contract: Address,
-        db: Arc<RevmLRU<DB>>
+        db: &RevmLRU<DB>
     ) -> eyre::Result<U256> {
         if !self.hash_method.is_solidity() {
             return Err(eyre::eyre!("current type of contract hashing is not supported"))

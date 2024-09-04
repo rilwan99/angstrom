@@ -38,6 +38,7 @@ pub fn generate_limit_order(
     let order_id = generate_order_id(pool_id, order.hash());
     // Todo: Sign It, make this overall better
     OrderWithStorageData {
+        invalidates: vec![],
         order,
         priority_data,
         is_bid,
@@ -67,6 +68,7 @@ pub fn generate_top_of_block_order(
     let order_id = generate_order_id(pool_id, order.hash());
     // Todo: Sign It, make this overall better
     OrderWithStorageData {
+        invalidates: vec![],
         order,
         priority_data,
         is_bid,
@@ -127,6 +129,7 @@ impl DistributionParameters {
     }
 }
 
+#[rustfmt::skip]
 pub fn generate_order_distribution(
     is_bid: bool,
     order_count: usize,
@@ -155,6 +158,7 @@ pub fn generate_order_distribution(
             let order_id = generate_order_id(pool_id, order.hash());
 
             OrderWithStorageData {
+                invalidates: vec![],
                 order,
                 priority_data: OrderPriorityData { price, volume, gas: 10 },
                 is_bid,

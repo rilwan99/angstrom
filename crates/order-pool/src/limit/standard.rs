@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use angstrom_metrics::VanillaLimitOrderPoolMetricsWrapper;
 use angstrom_types::{
+    orders::OrderId,
     primitive::PoolId,
     sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
 };
@@ -77,5 +78,11 @@ impl LimitPool {
             .values()
             .flat_map(|p| p.get_all_orders())
             .collect()
+    }
+
+    pub fn park_order(&mut self, order_id: &OrderId) {
+        let Some(mut order) = self.remove_order(order_id.pool_id, order_id.hash) else { return };
+        order.is_currently_valid = false;
+        self.add_order(order).unwrap();
     }
 }

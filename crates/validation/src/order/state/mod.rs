@@ -1,33 +1,32 @@
 use std::{collections::HashMap, sync::Arc, task::Poll};
 
+use account::UserAccountProcessor;
 use alloy_primitives::{Address, B256, U256};
 use angstrom_types::sol_bindings::grouped_orders::{AllOrders, RawPoolOrder};
 use futures::{Stream, StreamExt};
 use futures_util::stream::FuturesUnordered;
 use parking_lot::RwLock;
+use pools::AngstromPoolsTracker;
 use revm::db::{AccountStatus, BundleState};
 use tokio::{
     sync::oneshot::Sender,
     task::{yield_now, JoinHandle}
 };
-use upkeepers::index_to_address::AssetIndexToAddressWrapper;
 
-use self::{
-    orders::UserOrders,
-    upkeepers::{Upkeepers, UserAccountDetails}
-};
-use super::OrderValidation;
+use self::db_state_utils::UserAccountDetails;
+use super::{OrderValidation, OrderValidationResults};
 use crate::{
     common::{
         executor::ThreadPool,
         lru_db::{BlockStateProviderFactory, RevmLRU}
     },
-    order::state::config::ValidationConfig
+    order::state::{config::ValidationConfig, pools::index_to_address::AssetIndexToAddressWrapper}
 };
 
+pub mod account;
 pub mod config;
-pub mod orders;
-pub mod upkeepers;
+pub mod db_state_utils;
+pub mod pools;
 
 type HookOverrides = HashMap<Address, HashMap<U256, U256>>;
 
@@ -40,78 +39,54 @@ type HookOverrides = HashMap<Address, HashMap<U256, U256>>;
 #[allow(dead_code)]
 #[derive(Clone)]
 pub struct StateValidation<DB> {
-    db:        Arc<RevmLRU<DB>>,
-    /// upkeeps all state specific checks.
-    upkeepers: Arc<RwLock<Upkeepers>>
+    db:                   Arc<RevmLRU<DB>>,
+    /// tracks everything user related.
+    user_account_tracker: Arc<UserAccountProcessor<DB>>,
+    /// tracks all info about the current angstrom pool state.
+    pool_tacker:          Arc<AngstromPoolsTracker>
 }
 
 impl<DB> StateValidation<DB>
 where
     DB: BlockStateProviderFactory + Unpin + 'static
 {
-    pub fn new(db: Arc<RevmLRU<DB>>, config: ValidationConfig) -> Self {
-        Self { db, upkeepers: Arc::new(RwLock::new(Upkeepers::new(config))) }
+    pub fn new(db: Arc<RevmLRU<DB>>, config: ValidationConfig, block: u64) -> Self {
+        todo!()
     }
 
     pub fn wrap_order<O: RawPoolOrder>(&self, order: O) -> Option<AssetIndexToAddressWrapper<O>> {
-        self.upkeepers.read().asset_to_address.wrap(order)
+        self.pool_tacker.asset_index_to_address.wrap(order)
     }
 
-    pub fn validate_regular_order(
+    fn handle_regular_order<O: RawPoolOrder + Into<AllOrders>>(
         &self,
-        order: OrderValidation
-    ) -> Option<(OrderValidation, UserAccountDetails)> {
-        let db = self.db.clone();
-        let keeper = self.upkeepers.clone();
+        order: O,
+        block: u64,
+        is_limit: bool
+    ) -> OrderValidationResults {
+        let order_hash = order.hash();
+        let Some((pool_info, wrapped_order)) = self.pool_tacker.fetch_pool_info_for_order(order)
+        else {
+            return OrderValidationResults::Invalid(order_hash)
+        };
 
-        match order {
-            OrderValidation::Limit(tx, o, origin) => {
-                let (details, order) = keeper.read().verify_order(o, db)?;
-                Some((OrderValidation::Limit(tx, order, origin), details))
-            }
-            OrderValidation::Searcher(tx, o, origin) => {
-                let (details, order) = keeper.read().verify_order(o, db)?;
-                Some((OrderValidation::Searcher(tx, order, origin), details))
-            }
-            _ => unreachable!()
-        }
+        self.user_account_tracker
+            .verify_order(wrapped_order, pool_info, block, is_limit)
+            .map(|o| {
+                OrderValidationResults::Valid(o.try_map_inner(|inner| Ok(inner.into())).unwrap())
+            })
+            .unwrap_or_else(|_| OrderValidationResults::Invalid(order_hash))
     }
 
-    pub fn validate_state_prehook(
-        &self,
-        order: OrderValidation,
-        prehook_state_deltas: &HookOverrides
-    ) -> Option<(OrderValidation, UserAccountDetails)> {
-        let db = self.db.clone();
-        let keeper = self.upkeepers.clone();
-
+    pub fn validate_state_of_regular_order(&self, order: OrderValidation, block: u64) {
         match order {
-            OrderValidation::LimitComposable(tx, o, origin) => {
-                let (details, order) =
-                    keeper
-                        .read()
-                        .verify_composable_order(o, db, prehook_state_deltas)?;
-                Some((OrderValidation::LimitComposable(tx, order, origin), details))
+            OrderValidation::Limit(tx, order, origin) => {
+                let results = self.handle_regular_order(order, block, true);
+                let _ = tx.send(results);
             }
-            _ => unreachable!()
-        }
-    }
-
-    pub fn validate_state_posthook(
-        &self,
-        order: OrderValidation,
-        prehook_state_deltas: &HookOverrides
-    ) -> Option<(OrderValidation, UserAccountDetails)> {
-        let db = self.db.clone();
-        let keeper = self.upkeepers.clone();
-
-        match order {
-            OrderValidation::LimitComposable(tx, o, origin) => {
-                let (details, order) =
-                    keeper
-                        .read()
-                        .verify_composable_order(o, db, prehook_state_deltas)?;
-                Some((OrderValidation::LimitComposable(tx, order, origin), details))
+            OrderValidation::Searcher(tx, order, origin) => {
+                let results = self.handle_regular_order(order, block, false);
+                let _ = tx.send(results);
             }
             _ => unreachable!()
         }

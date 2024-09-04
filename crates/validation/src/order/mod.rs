@@ -1,14 +1,17 @@
 use std::{fmt::Debug, future::Future, pin::Pin};
 
+use alloy_primitives::Address;
 use angstrom_types::{
-    orders::OrderOrigin,
+    orders::{OrderId, OrderOrigin},
     sol_bindings::{
         grouped_orders::{
-            AllOrders, GroupedComposableOrder, GroupedVanillaOrder, OrderWithStorageData
+            AllOrders, GroupedComposableOrder, GroupedVanillaOrder, OrderWithStorageData,
+            RawPoolOrder
         },
         sol::TopOfBlockOrder
     }
 };
+use reth_primitives::B256;
 use tokio::sync::oneshot::{channel, Sender};
 
 use crate::validator::ValidationRequest;
@@ -19,14 +22,14 @@ pub mod state;
 
 use crate::validator::ValidationClient;
 
-pub type ValidationFuture<'a, O> =
-    Pin<Box<dyn Future<Output = OrderWithStorageData<O>> + Send + Sync + 'a>>;
+pub type ValidationFuture<'a> =
+    Pin<Box<dyn Future<Output = OrderValidationResults> + Send + Sync + 'a>>;
 
-pub type ValidationsFuture<'a, O> =
-    Pin<Box<dyn Future<Output = Vec<OrderWithStorageData<O>>> + Send + Sync + 'a>>;
+pub type ValidationsFuture<'a> =
+    Pin<Box<dyn Future<Output = Vec<OrderValidationResults>> + Send + Sync + 'a>>;
 
 pub enum OrderValidationRequest {
-    ValidateOrder(Sender<OrderWithStorageData<AllOrders>>, AllOrders, OrderOrigin)
+    ValidateOrder(Sender<OrderValidationResults>, AllOrders, OrderOrigin)
 }
 
 /// TODO: not a fan of all the conversions. can def simplify
@@ -62,10 +65,26 @@ impl From<OrderValidationRequest> for OrderValidation {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum OrderValidationResults {
+    Valid(OrderWithStorageData<AllOrders>),
+    // the raw hash to be removed
+    Invalid(B256)
+}
+
 pub enum OrderValidation {
-    Limit(Sender<OrderWithStorageData<AllOrders>>, GroupedVanillaOrder, OrderOrigin),
-    LimitComposable(Sender<OrderWithStorageData<AllOrders>>, GroupedComposableOrder, OrderOrigin),
-    Searcher(Sender<OrderWithStorageData<AllOrders>>, TopOfBlockOrder, OrderOrigin)
+    Limit(Sender<OrderValidationResults>, GroupedVanillaOrder, OrderOrigin),
+    LimitComposable(Sender<OrderValidationResults>, GroupedComposableOrder, OrderOrigin),
+    Searcher(Sender<OrderValidationResults>, TopOfBlockOrder, OrderOrigin)
+}
+impl OrderValidation {
+    pub fn user(&self) -> Address {
+        match &self {
+            Self::Searcher(_, u, _) => u.from(),
+            Self::LimitComposable(_, u, _) => u.from(),
+            Self::Limit(_, u, _) => u.from()
+        }
+    }
 }
 
 /// Provides support for validating transaction at any given state of the chain
@@ -73,20 +92,13 @@ pub trait OrderValidatorHandle: Send + Sync + Clone + Debug + Unpin + 'static {
     /// The order type of the limit order pool
     type Order: Send + Sync;
 
-    fn validate_order(
-        &self,
-        origin: OrderOrigin,
-        transaction: Self::Order
-    ) -> ValidationFuture<Self::Order>;
+    fn validate_order(&self, origin: OrderOrigin, transaction: Self::Order) -> ValidationFuture;
 
     /// Validates a batch of orders.
     ///
     /// Must return all outcomes for the given orders in the same order.
 
-    fn validate_orders(
-        &self,
-        transactions: Vec<(OrderOrigin, Self::Order)>
-    ) -> ValidationsFuture<Self::Order> {
+    fn validate_orders(&self, transactions: Vec<(OrderOrigin, Self::Order)>) -> ValidationsFuture {
         Box::pin(futures_util::future::join_all(
             transactions
                 .into_iter()
@@ -98,11 +110,7 @@ pub trait OrderValidatorHandle: Send + Sync + Clone + Debug + Unpin + 'static {
 impl OrderValidatorHandle for ValidationClient {
     type Order = AllOrders;
 
-    fn validate_order(
-        &self,
-        origin: OrderOrigin,
-        transaction: Self::Order
-    ) -> ValidationFuture<Self::Order> {
+    fn validate_order(&self, origin: OrderOrigin, transaction: Self::Order) -> ValidationFuture {
         Box::pin(async move {
             let (tx, rx) = channel();
             let _ = self

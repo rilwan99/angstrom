@@ -1,3 +1,4 @@
+pub mod key_split_threadpool;
 pub mod macros;
 pub mod poll_ext;
 pub mod sync_pipeline;
