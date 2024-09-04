@@ -106,6 +106,21 @@ impl UserAccounts {
         });
     }
 
+    // removes any possible changed state along with the orders that need to be
+    // revalidated.
+    pub fn invalidate_last_known_state(
+        &self,
+        new_block: u64,
+        state_change_users: Vec<UserAddress>
+    ) {
+        state_change_users.iter().for_each(|user| {
+            self.last_known_state.remove(user);
+        });
+
+        self.current_block
+            .store(new_block, std::sync::atomic::Ordering::SeqCst);
+    }
+
     /// returns true if the order cancel has been processed successfully
     pub fn cancel_order(&mut self, user: &UserAddress, order_hash: B256) -> bool {
         let Some(mut inner_orders) = self.pending_actions.get_mut(user) else { return false };
