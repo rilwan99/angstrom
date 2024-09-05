@@ -6,7 +6,6 @@ import {Asset, AssetLib} from "./Asset.sol";
 import {RayMathLib} from "../libraries/RayMathLib.sol";
 import {PairLib as ActualPairLib} from "../types/Pair.sol";
 import {PriceAB} from "../types/Price.sol";
-import {AssetIndexPair} from "../types/AssetIndexPair.sol";
 
 import {console} from "forge-std/console.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
@@ -41,8 +40,8 @@ library PairLib {
 
     function encode(Pair memory self, Asset[] memory assets) internal pure returns (bytes memory) {
         self._checkOrdered();
-        AssetIndexPair indices = assets.getIndexPair(self.assetA, self.assetB);
-        return bytes.concat(bytes4(indices.into()), bytes32(self.priceAB.into()));
+        (uint16 indexA, uint16 indexB) = assets.getIndexPair(self.assetA, self.assetB);
+        return bytes.concat(bytes2(indexA), bytes2(indexB), bytes32(self.priceAB.into()));
     }
 
     function encode(Pair[] memory pairs, Asset[] memory assets) internal pure returns (bytes memory b) {

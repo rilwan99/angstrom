@@ -6,7 +6,6 @@ import {StructArrayLib} from "../libraries/StructArrayLib.sol";
 import {AssetArray} from "./Asset.sol";
 import {RayMathLib} from "../libraries/RayMathLib.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
-import {AssetIndexPair, AssetIndexPairLib} from "./AssetIndexPair.sol";
 
 import {console} from "forge-std/console.sol";
 
@@ -28,7 +27,8 @@ library PairLib {
 
     uint256 internal constant PAIR_BYTES = 36;
 
-    uint256 internal constant INDICES_OFFSET = 0;
+    uint256 internal constant INDEX_A_OFFSET = 0;
+    uint256 internal constant INDEX_B_OFFSET = 2;
     uint256 internal constant PRICE_AB_OFFSET = 4;
 
     function readFromAndValidate(CalldataReader reader) internal pure returns (CalldataReader, PairArray) {
@@ -53,9 +53,9 @@ library PairLib {
         uint256 length = self.len();
         if (length == 0) return self;
 
-        AssetIndexPair lastIndices = self.get(0).assetIndices();
+        uint32 lastIndices = self.get(0).assetIndices();
         for (uint256 i = 1; i < length; i++) {
-            AssetIndexPair indices = self.get(i).assetIndices();
+            uint32 indices = self.get(i).assetIndices();
             if (indices <= lastIndices) revert OutOfOrderOrDuplicatePairs();
             lastIndices = indices;
         }
@@ -68,9 +68,16 @@ library PairLib {
         return Pair.wrap(self.into().ptr() + index * PAIR_BYTES);
     }
 
-    function assetIndices(Pair self) internal pure returns (AssetIndexPair) {
-        uint32 data = self.into().readU32MemberFromPtr(INDICES_OFFSET);
-        return _validated(AssetIndexPair.wrap(data));
+    function assetIndices(Pair self) internal pure returns (uint32 packedIndicies) {
+        packedIndicies = self.into().readU32MemberFromPtr(INDEX_A_OFFSET);
+    }
+
+    function indexA(Pair self) internal pure returns (uint16 ia) {
+        ia = self.into().readU16MemberFromPtr(INDEX_A_OFFSET);
+    }
+
+    function indexB(Pair self) internal pure returns (uint16 ib) {
+        ib = self.into().readU16MemberFromPtr(INDEX_B_OFFSET);
     }
 
     function priceAB(Pair self) internal pure returns (uint256 priceAB_) {
@@ -87,17 +94,11 @@ library PairLib {
         Pair pair = self.get(pairIndex);
         uint256 pAB = pair.priceAB();
 
-        AssetIndexPair indices = pair.assetIndices();
-        address assetA = assets.get(indices.indexA()).addr();
-        address assetB = assets.get(indices.indexB()).addr();
+        address assetA = assets.get(pair.indexA()).addr();
+        address assetB = assets.get(pair.indexB()).addr();
 
         (assetIn, assetOut, priceOutVsIn) = aToB ? (assetA, assetB, pAB.invRay()) : (assetB, assetA, pAB);
 
         return (reader, assetIn, assetOut, priceOutVsIn);
-    }
-
-    function _validated(AssetIndexPair self) internal pure returns (AssetIndexPair) {
-        if (self.indexB() <= self.indexA()) revert UnsortedPair();
-        return self;
     }
 }

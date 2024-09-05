@@ -3,7 +3,6 @@ pragma solidity ^0.8.13;
 
 import {Asset, AssetLib} from "./Asset.sol";
 import {PoolSwapLib as ActualPoolSwapLib} from "../types/PoolSwap.sol";
-import {AssetIndexPair} from "../types/AssetIndexPair.sol";
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 
 struct PoolSwap {
@@ -20,10 +19,8 @@ library PoolSwapLib {
     using SafeCastLib for uint256;
 
     function encode(PoolSwap memory swap, Asset[] memory assets) internal pure returns (bytes memory b) {
-        b = bytes.concat(
-            bytes4(AssetIndexPair.unwrap(assets.getIndexPair({assetA: swap.assetIn, assetB: swap.assetOut}))),
-            bytes16(swap.amountIn)
-        );
+        (uint16 indexA, uint16 indexB) = assets.getIndexPair({assetA: swap.assetIn, assetB: swap.assetOut});
+        b = bytes.concat(bytes2(indexA), bytes2(indexB), bytes16(swap.amountIn));
         require(b.length == ActualPoolSwapLib.SWAP_BYTES);
     }
 

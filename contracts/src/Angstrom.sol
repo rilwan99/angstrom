@@ -14,7 +14,6 @@ import {TypedDataHasher} from "./types/TypedDataHasher.sol";
 
 import {PadeEncoded} from "./types/PadeEncoded.sol";
 import {AssetArray, AssetLib} from "./types/Asset.sol";
-import {AssetIndexPair} from "./types/AssetIndexPair.sol";
 import {PairArray, Pair, PairLib} from "./types/Pair.sol";
 import {ToBOrderBuffer} from "./types/ToBOrderBuffer.sol";
 import {UserOrderBuffer} from "./types/UserOrderBuffer.sol";
@@ -106,10 +105,12 @@ contract Angstrom is
         (reader, buffer.quantityOut) = reader.readU128();
 
         {
-            AssetIndexPair indices;
-            (reader, indices) = reader.readAssetIndexPair();
-            buffer.assetIn = assets.get(indices.indexA()).addr();
-            buffer.assetOut = assets.get(indices.indexB()).addr();
+            uint16 indexA;
+            (reader, indexA) = reader.readU16();
+            buffer.assetIn = assets.get(indexA).addr();
+            uint16 indexB;
+            (reader, indexB) = reader.readU16();
+            buffer.assetOut = assets.get(indexB).addr();
         }
 
         (reader, buffer.recipient) = variant.recipientIsSome() ? reader.readAddr() : (reader, address(0));

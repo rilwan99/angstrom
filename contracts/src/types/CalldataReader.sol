@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import {OrderVariantMap} from "./OrderVariantMap.sol";
-import {AssetIndexPair} from "./AssetIndexPair.sol";
 
 import {console} from "forge-std/console.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
@@ -168,15 +167,6 @@ library CalldataReaderLib {
             end := add(self, len)
         }
         return (self, end);
-    }
-
-    function readAssetIndexPair(CalldataReader self) internal pure returns (CalldataReader, AssetIndexPair pair) {
-        if (DEBUG_LOGS) self.logPos(4, "u32:AssetIndexPair");
-        assembly {
-            pair := shr(224, calldataload(self))
-            self := add(self, 4)
-        }
-        return (self, pair);
     }
 
     function readBytes(CalldataReader self) internal pure returns (CalldataReader, bytes calldata slice) {

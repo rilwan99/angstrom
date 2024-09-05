@@ -3,7 +3,6 @@ pragma solidity ^0.8.0;
 
 import {AssetLib as ActualAssetLib} from "../types/Asset.sol";
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
-import {AssetIndexPair, AssetIndexPairLib} from "../types/AssetIndexPair.sol";
 import {BitPackLib} from "./BitPackLib.sol";
 
 struct Asset {
@@ -21,16 +20,13 @@ library AssetLib {
     using AssetLib for *;
     using BitPackLib for uint256;
 
-    function getIndexPair(Asset[] memory assets, address assetA, address assetB)
+    function getIndexPair(Asset[] memory self, address assetA, address assetB)
         internal
         pure
-        returns (AssetIndexPair)
+        returns (uint16 indexA, uint16 indexB)
     {
-        require(assetA < assetB, "assetA < assetB in index pair");
-        uint256 indexAssetA = AssetIndexPairLib._index(assets.getIndex(assetA));
-        uint256 indexAssetB = AssetIndexPairLib._index(assets.getIndex(assetB));
-        require(indexAssetA < indexAssetB, "indexAssetA < indexAssetB in index pair");
-        return AssetIndexPair.wrap(uint24((indexAssetA << AssetIndexPairLib.INDEX_A_OFFSET).bitOverlay(indexAssetB)));
+        indexA = self.getIndex(assetA).toUint16();
+        indexB = self.getIndex(assetB).toUint16();
     }
 
     function encode(Asset memory asset) internal pure returns (bytes memory b) {
