@@ -10322,6 +10322,7 @@ dependencies = [
 name = "testing-tools"
 version = "0.1.0"
 dependencies = [
+ "alloy 0.2.1",
  "alloy-chains",
  "alloy-primitives",
  "alloy-provider 0.2.1",
