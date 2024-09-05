@@ -14,7 +14,7 @@ use matching_engine::cfmm::uniswap::{
 use num_bigfloat::BigFloat;
 use uniswap_v3_math::tick_math::MAX_SQRT_RATIO;
 
-use crate::order_generator::price_feed::{DepthUpdate, PriceFeed, PriceLevel};
+use crate::order_generator::price_feed::{PriceFeed, PriceLevel};
 
 pub struct ArbitrageGenerator<P, B, T, N> {
     pool_manager: UniswapPoolManager<P>,

@@ -1,24 +1,14 @@
 use std::{sync::Arc, time::Duration};
 
-use amms::amm::uniswap_v3::factory::IUniswapV3Factory::IUniswapV3FactoryCalls::parameters;
 use cex_exchanges::{
-    binance::{
-        rest_api::BinanceInstrument,
-        ws::{channels::BinanceBookTicker, BinanceWsMessage}
-    },
-    clients::ws::{MutliWsStream, WsStream},
+    binance::ws::BinanceWsMessage,
     normalized::{
         types::RawTradingPair,
-        ws::{
-            CombinedWsMessage, NormalizedExchangeBuilder, NormalizedWsChannelKinds,
-            NormalizedWsChannels
-        }
+        ws::{CombinedWsMessage, NormalizedExchangeBuilder, NormalizedWsChannelKinds}
     },
-    CexExchange, Exchange
+    CexExchange
 };
 use futures::StreamExt;
-use jsonrpsee::core::Serialize;
-use serde::Deserialize;
 use tokio::sync::{broadcast, RwLock};
 
 #[derive(Clone, Debug)]
@@ -114,7 +104,7 @@ impl PriceFeed {
                         last_update_time = tokio::time::Instant::now();
                     }
                 }
-                (e) => {
+                e => {
                     tracing::error!("unhandled message {:?}", e);
                 }
             }
