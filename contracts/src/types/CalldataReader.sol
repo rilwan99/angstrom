@@ -178,6 +178,7 @@ library CalldataReaderLib {
                 b.length.toStr().lpad(" ", 6),
                 postReader.offset().toHexString(3)
             );
+            console.logBytes(b);
         }
         return _readBytes(self);
     }
