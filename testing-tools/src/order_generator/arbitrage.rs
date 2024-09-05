@@ -7,6 +7,7 @@ use alloy::{
     transports::Transport
 };
 use amms::amm::consts::U256_1;
+use cex_exchanges::binance::ws::channels::BinanceBookTicker;
 use matching_engine::cfmm::uniswap::{
     pool::EnhancedUniswapV3Pool, pool_manager::UniswapPoolManager,
     pool_providers::PoolManagerProvider
@@ -14,7 +15,12 @@ use matching_engine::cfmm::uniswap::{
 use num_bigfloat::BigFloat;
 use uniswap_v3_math::tick_math::MAX_SQRT_RATIO;
 
-use crate::order_generator::price_feed::{PriceFeed, PriceLevel};
+use crate::order_generator::price_feed::{BinanceBookTicker, PriceFeed};
+#[derive(Clone, Debug)]
+pub struct PriceLevel {
+    pub price:    f64,
+    pub quantity: f64
+}
 
 pub struct ArbitrageGenerator<P, B, T, N> {
     pool_manager: UniswapPoolManager<P>,
@@ -49,96 +55,100 @@ where
             };
 
         let mut price_feed_rx = self.binance_feed.subscribe();
-
+        let mut price_feed: Option<BinanceBookTicker> = None;
         loop {
             tokio::select! {
                 Some((_address, _block_number)) = pool_update_rx.recv() => {
-                    self.check_arbitrage().await;
+                    self.check_arbitrage(price_feed.clone()).await;
                 }
-                Ok(_) = price_feed_rx.recv() => {
-                    self.check_arbitrage().await;
+                Ok(feed_udpate) = price_feed_rx.recv() => {
+                    price_feed = Some(feed_udpate);
+                    self.check_arbitrage(price_feed.clone()).await;
                 }
             }
         }
     }
 
-    async fn check_arbitrage(&self) {
+    async fn check_arbitrage(&self, price_feed: Option<BinanceBookTicker>) {
+        if price_feed.is_none() {
+            return;
+        }
+
         // do it once at the top
         let pool = self.pool_manager.pool().await;
+        let BinanceBookTicker {
+            best_ask_amt, best_ask_price, best_bid_amt, best_bid_price, ..
+        } = price_feed.unwrap();
+        let best_bid = PriceLevel { price: best_bid_price, quantity: best_bid_amt };
+        let best_ask = PriceLevel { price: best_ask_price, quantity: best_ask_amt };
 
-        let (mut bids, mut asks) = self.binance_feed.price_cache().await;
-        let best_bid = bids.pop();
-        let best_ask = asks.pop();
         tracing::debug!(
             "Best Bid on Binance: Price: {:.6} USDC, Quantity: {:.6} ETH | Best Ask on Binance: \
              Price: {:.6} USDC, Quantity: {:.6} ETH",
-            best_bid.as_ref().map_or(0.0, |bid| bid.price),
-            best_bid.as_ref().map_or(0.0, |bid| bid.quantity),
-            best_ask.as_ref().map_or(0.0, |ask| ask.price),
-            best_ask.as_ref().map_or(0.0, |ask| ask.quantity)
+            best_bid_price,
+            best_bid_amt,
+            best_ask_price,
+            best_ask_amt
         );
 
-        if let (Some(best_bid), Some(best_ask)) = (best_bid, best_ask) {
-            let (ask_profit, ask_binance_amount, ask_uniswap_fill_price, ask_uniswap_amount) =
-                self.try_sell_on_uniswap(&pool, &best_ask).await;
-            let (bid_profit, bid_binance_amount, bid_uniswap_fill_price, bid_uniswap_amount) =
-                self.try_buy_on_uniswap(&pool, &best_bid).await;
+        let (ask_profit, ask_binance_amount, ask_uniswap_fill_price, ask_uniswap_amount) =
+            self.try_sell_on_uniswap(&pool, &best_ask).await;
+        let (bid_profit, bid_binance_amount, bid_uniswap_fill_price, bid_uniswap_amount) =
+            self.try_buy_on_uniswap(&pool, &best_bid).await;
 
-            tracing::debug!(
-                "Ask Profit: {:.2} USDC vs Bid Profit: {:.2} USDC | Uniswap Ask Fill Price: {:.3} \
-                 USDC vs Bid Fill Price: {:.3} USDC | Ask Amount: {:.6} ETH vs Bid Amount: {:.6} \
-                 USDC",
+        tracing::debug!(
+            "Ask Profit: {:.2} USDC vs Bid Profit: {:.2} USDC | Uniswap Ask Fill Price: {:.3} \
+             USDC vs Bid Fill Price: {:.3} USDC | Ask Amount: {:.6} ETH vs Bid Amount: {:.6} USDC",
+            ask_profit,
+            bid_profit,
+            ask_uniswap_fill_price,
+            bid_uniswap_fill_price,
+            ask_uniswap_amount,
+            bid_uniswap_amount
+        );
+
+        let (
+            profit,
+            binance_trade_type,
+            binance_price,
+            binance_amount,
+            uniswap_fill_price,
+            uniswap_amount
+        ) = if ask_profit > bid_profit {
+            (
                 ask_profit,
-                bid_profit,
+                "BUY",
+                best_ask.price,
+                ask_binance_amount,
                 ask_uniswap_fill_price,
+                ask_uniswap_amount
+            )
+        } else {
+            (
+                bid_profit,
+                "SELL",
+                best_bid.price,
+                bid_binance_amount,
                 bid_uniswap_fill_price,
-                ask_uniswap_amount,
                 bid_uniswap_amount
-            );
+            )
+        };
 
-            let (
-                profit,
+        if profit > 0.01_f64 {
+            // let zero_for_one  = binance_trade_type == "SELL";
+            // self.execute_trade(&pool, zero_for_one, uniswap_amount).await;
+            tracing::info!(
+                "{} on Binance vs {} on Uniswap | Binance: Price: {:.2} USDC vs Uniswap: Fill \
+                 Price: {:.2} USDC | Binance: Amount: {:.6} ETH vs Uniswap: Amount: {:.6} ETH | \
+                 Profit: {:.2} USDC",
                 binance_trade_type,
+                if binance_trade_type == "SELL" { "BUY" } else { "SELL" },
                 binance_price,
-                binance_amount,
                 uniswap_fill_price,
-                uniswap_amount
-            ) = if ask_profit > bid_profit {
-                (
-                    ask_profit,
-                    "BUY",
-                    best_ask.price,
-                    ask_binance_amount,
-                    ask_uniswap_fill_price,
-                    ask_uniswap_amount
-                )
-            } else {
-                (
-                    bid_profit,
-                    "SELL",
-                    best_bid.price,
-                    bid_binance_amount,
-                    bid_uniswap_fill_price,
-                    bid_uniswap_amount
-                )
-            };
-
-            if profit > 0.01_f64 {
-                // let zero_for_one  = binance_trade_type == "SELL";
-                // self.execute_trade(&pool, zero_for_one, uniswap_amount).await;
-                tracing::info!(
-                    "{} on Binance vs {} on Uniswap | Binance: Price: {:.2} USDC vs Uniswap: Fill \
-                     Price: {:.2} USDC | Binance: Amount: {:.6} ETH vs Uniswap: Amount: {:.6} ETH \
-                     | Profit: {:.2} USDC",
-                    binance_trade_type,
-                    if binance_trade_type == "SELL" { "BUY" } else { "SELL" },
-                    binance_price,
-                    uniswap_fill_price,
-                    binance_amount,
-                    uniswap_amount,
-                    profit,
-                );
-            }
+                binance_amount,
+                uniswap_amount,
+                profit,
+            );
         }
     }
 
