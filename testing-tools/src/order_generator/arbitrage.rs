@@ -15,7 +15,7 @@ use matching_engine::cfmm::uniswap::{
 use num_bigfloat::BigFloat;
 use uniswap_v3_math::tick_math::MAX_SQRT_RATIO;
 
-use crate::order_generator::price_feed::{BinanceBookTicker, PriceFeed};
+use crate::order_generator::price_feed::PriceFeed;
 #[derive(Clone, Debug)]
 pub struct PriceLevel {
     pub price:    f64,
