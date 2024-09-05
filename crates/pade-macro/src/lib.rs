@@ -5,7 +5,7 @@ use syn::{
     Ident, Index
 };
 
-#[proc_macro_derive(PadeEncode)]
+#[proc_macro_derive(PadeEncode, attributes(pade_width))]
 pub fn pade_encode_fn(raw: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(raw as DeriveInput);
 
@@ -47,8 +47,30 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                         format_ident!("field_{}_variant_map_bytes", idx)
                     )
                 });
+            // See if we've been given an encoding width override
+            let encode_command = f
+                .attrs
+                .iter()
+                .find(|attr| attr.path().is_ident("pade_width"))
+                .map(|attr| {
+                    attr.parse_args::<Literal>()
+                        // If we find our literal, set it to do our encode with width
+                        .map(|w| {
+                            quote_spanned! { attr.span() =>
+                                let #encoded = #name.pade_encode_with_width(#w);
+                            }
+                        })
+                        .unwrap_or_else(|_| {
+                            syn::Error::new(
+                                attr.span(),
+                                "pade_width requires a single literal usize value"
+                            )
+                            .to_compile_error()
+                        })
+                })
+                .unwrap_or_else(|| quote! { let #encoded = #name.pade_encode(); });
             quote! {
-                let #encoded = #name.pade_encode();
+                #encode_command
                 let #variant_map_bytes = #name.pade_variant_map_bits().div_ceil(8);
                 output.extend(
                     if #variant_map_bytes > 0 {

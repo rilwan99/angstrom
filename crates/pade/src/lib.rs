@@ -1,4 +1,3 @@
-use alloy_sol_types::SolValue;
 // use angstrom_types::sol_bindings::sol::{
 //     SolMockContractMessage, SolPoolRewardsUpdate, SolRewardsUpdate
 // };
@@ -14,6 +13,22 @@ pub trait PadeEncode {
     const PADE_HEADER_BITS: usize = 0;
     const PADE_VARIANT_MAP_BITS: usize = 0;
     fn pade_encode(&self) -> Vec<u8>;
+
+    fn pade_encode_with_width(&self, width: usize) -> Vec<u8> {
+        let bytes = self.pade_encode();
+        let encoded_len = bytes.len();
+        match encoded_len.cmp(&width) {
+            std::cmp::Ordering::Less => {
+                let pad = width - encoded_len;
+                std::iter::repeat(0_u8).take(pad).chain(bytes).collect()
+            }
+            std::cmp::Ordering::Equal => bytes,
+            std::cmp::Ordering::Greater => {
+                let skip = encoded_len - width;
+                bytes.into_iter().skip(skip).collect()
+            }
+        }
+    }
     /// The number of bytes in the PADE-encoded output that represent header
     /// information.  0 for most encoding schemes but Enum and List both
     /// have header metadata that are added
@@ -33,6 +48,12 @@ impl<T: PadeEncode, const N: usize> PadeEncode for [T; N] {
     fn pade_encode(&self) -> Vec<u8> {
         self.iter().flat_map(|item| item.pade_encode()).collect()
     }
+
+    fn pade_encode_with_width(&self, width: usize) -> Vec<u8> {
+        self.iter()
+            .flat_map(|item| item.pade_encode_with_width(width))
+            .collect()
+    }
 }
 
 // Decided on a generic List<3> implementation - no variant bits because we
@@ -42,6 +63,16 @@ impl<T: PadeEncode> PadeEncode for Vec<T> {
 
     fn pade_encode(&self) -> Vec<u8> {
         let items: Vec<u8> = self.iter().flat_map(|i| i.pade_encode()).collect();
+        let len_bytes = items.len().to_be_bytes();
+        let len = vec![len_bytes[5], len_bytes[6], len_bytes[7]];
+        [len, items].concat()
+    }
+
+    fn pade_encode_with_width(&self, width: usize) -> Vec<u8> {
+        let items: Vec<u8> = self
+            .iter()
+            .flat_map(|i| i.pade_encode_with_width(width))
+            .collect();
         let len_bytes = items.len().to_be_bytes();
         let len = vec![len_bytes[5], len_bytes[6], len_bytes[7]];
         [len, items].concat()
