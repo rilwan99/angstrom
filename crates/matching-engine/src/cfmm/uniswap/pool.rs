@@ -163,9 +163,7 @@ impl EnhancedUniswapV3Pool {
         N: Network,
         P: Provider<T, N>
     {
-        self.populate_data(block_number, provider)
-            .await
-            .map_err(PoolError::from)
+        Ok(self.populate_data(block_number, provider).await?)
     }
 
     pub fn is_initialized(&self) -> bool {

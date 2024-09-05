@@ -11,7 +11,7 @@ use matching_engine::cfmm::uniswap::{
     pool::EnhancedUniswapV3Pool, pool_manager::UniswapPoolManager,
     pool_providers::provider_adapter::ProviderAdapter
 };
-use testing_tools::order_generator::{price_feed::PriceFeed, OrderGenerator};
+use testing_tools::order_generator::{ArbitrageGenerator, PriceFeed};
 use tokio::signal::unix::{signal, SignalKind};
 
 #[tokio::main]
@@ -42,7 +42,7 @@ async fn main() -> eyre::Result<()> {
 
     let binance_feed = PriceFeed::default();
     let order_generator =
-        OrderGenerator::new(pool_manager, binance_feed.clone(), ws_provider.clone()).await;
+        ArbitrageGenerator::new(pool_manager, binance_feed.clone(), ws_provider.clone()).await;
 
     let mut sigterm = signal(SignalKind::terminate())?;
     let mut sigint = signal(SignalKind::interrupt())?;

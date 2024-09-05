@@ -238,8 +238,7 @@ where
         block_number: BlockNumber
     ) -> Result<(), PoolManagerError> {
         for log in logs {
-            pool.sync_from_log(log)
-                .map_err(PoolManagerError::PoolError)?;
+            pool.sync_from_log(log)?;
         }
 
         let pool_clone = pool.clone();

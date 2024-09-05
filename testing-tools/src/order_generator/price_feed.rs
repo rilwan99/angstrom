@@ -1,30 +1,34 @@
 use std::{sync::Arc, time::Duration};
 
+use amms::amm::uniswap_v3::factory::IUniswapV3Factory::IUniswapV3FactoryCalls::parameters;
+use cex_exchanges::{
+    binance::{
+        rest_api::BinanceInstrument,
+        ws::{channels::BinanceBookTicker, BinanceWsMessage}
+    },
+    clients::ws::{MutliWsStream, WsStream},
+    normalized::{
+        types::RawTradingPair,
+        ws::{
+            CombinedWsMessage, NormalizedExchangeBuilder, NormalizedWsChannelKinds,
+            NormalizedWsChannels
+        }
+    },
+    CexExchange, Exchange
+};
 use futures::StreamExt;
 use jsonrpsee::core::Serialize;
 use serde::Deserialize;
 use tokio::sync::{broadcast, RwLock};
-use tokio_tungstenite::connect_async;
 
-fn string_to_f64<'de, D>(deserializer: D) -> Result<f64, D::Error>
-where
-    D: serde::Deserializer<'de>
-{
-    let s: String = serde::Deserialize::deserialize(deserializer)?;
-    s.parse::<f64>().map_err(serde::de::Error::custom)
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug)]
 pub struct PriceLevel {
-    #[serde(deserialize_with = "string_to_f64")]
     pub price:    f64,
-    #[serde(deserialize_with = "string_to_f64")]
     pub quantity: f64
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
+#[derive(Debug, Clone)]
 pub struct DepthUpdate {
-    #[serde(rename = "lastUpdateId")]
     pub last_updated_id: u64,
     pub bids:            Vec<PriceLevel>,
     pub asks:            Vec<PriceLevel>
@@ -32,10 +36,7 @@ pub struct DepthUpdate {
 
 #[derive(Debug, Clone)]
 pub struct PriceFeed {
-    base_url:  String,
     symbol:    String,
-    depth:     u32,
-    interval:  String,
     cache:     Arc<RwLock<DepthUpdate>>,
     update_tx: broadcast::Sender<DepthUpdate>
 }
@@ -44,10 +45,7 @@ impl Default for PriceFeed {
     fn default() -> Self {
         let (update_tx, _) = broadcast::channel(100);
         Self {
-            base_url: "wss://stream.binance.com:443/ws".to_string(),
             symbol: "ethusdc".to_string(),
-            depth: 5,
-            interval: "100ms".to_string(),
             cache: Arc::new(RwLock::new(DepthUpdate {
                 last_updated_id: 0,
                 bids:            Vec::new(),
@@ -59,18 +57,10 @@ impl Default for PriceFeed {
 }
 
 impl PriceFeed {
-    pub fn new(
-        base_url: Option<String>,
-        symbol: Option<String>,
-        depth: Option<u32>,
-        interval: Option<String>
-    ) -> Self {
+    pub fn new(symbol: String) -> Self {
         let (update_tx, _) = broadcast::channel(100);
         Self {
-            base_url: base_url.unwrap_or_else(|| "wss://stream.binance.com:443/ws".to_string()),
-            symbol: symbol.unwrap_or_else(|| "ethusdc".to_string()),
-            depth: depth.unwrap_or(5),
-            interval: interval.unwrap_or_else(|| "100ms".to_string()),
+            symbol,
             cache: Arc::new(RwLock::new(DepthUpdate {
                 last_updated_id: 0,
                 bids:            Vec::new(),
@@ -80,40 +70,52 @@ impl PriceFeed {
         }
     }
 
-    fn get_url(&self) -> String {
-        format!("{}/{}@depth{}@{}", self.base_url, self.symbol, self.depth, self.interval)
-    }
-
     pub async fn start(&self) -> Result<(), PriceFeedError> {
-        let url = self.get_url();
-        let (ws_stream, _) = connect_async(&url).await.expect("Failed to connect");
-        let (mut _write, mut read) = ws_stream.split();
+        let mut builder = NormalizedExchangeBuilder::new();
+        builder.add_pairs_single_channel_all_exchanges(
+            &[CexExchange::Binance],
+            NormalizedWsChannelKinds::Quotes,
+            &[RawTradingPair::RawNoDelim { pair: self.symbol.clone() }]
+        );
+        let mut stream = builder
+            .build_all_multistream(Some(3), Some(1))
+            .unwrap()
+            .unwrap();
 
         let mut last_update_time = tokio::time::Instant::now();
 
-        while let Some(message) = read.next().await {
-            if let Ok(text) = message.unwrap().to_text() {
-                match serde_json::from_str::<DepthUpdate>(text) {
-                    Ok(depth_update) => {
-                        tracing::trace!(
-                            "price update best bid: {:?} best ask: {:?}",
-                            depth_update.bids.first(),
-                            depth_update.asks.first()
-                        );
-                        let mut cache = self.cache.write().await;
-                        *cache = depth_update.clone();
+        while let Some(message) = stream.next().await {
+            match message {
+                CombinedWsMessage::Binance(BinanceWsMessage::BookTicker(book_ticker)) => {
+                    let depth_update = DepthUpdate {
+                        last_updated_id: book_ticker.orderbook_update_id,
+                        bids:            vec![PriceLevel {
+                            price:    book_ticker.best_bid_price,
+                            quantity: book_ticker.best_bid_amt
+                        }],
+                        asks:            vec![PriceLevel {
+                            price:    book_ticker.best_ask_price,
+                            quantity: book_ticker.best_ask_amt
+                        }]
+                    };
+                    tracing::trace!(
+                        "price update best bid: {:?} best ask: {:?}",
+                        depth_update.bids.first(),
+                        depth_update.asks.first()
+                    );
+                    let mut cache = self.cache.write().await;
+                    *cache = depth_update.clone();
 
-                        // intentionally throttled for testing
-                        if last_update_time.elapsed() >= Duration::from_secs(1) {
-                            self.update_tx
-                                .send(depth_update)
-                                .map_err(|_| PriceFeedError::UpdateSendError)?;
-                            last_update_time = tokio::time::Instant::now();
-                        }
+                    // intentionally throttled for testing
+                    if last_update_time.elapsed() >= Duration::from_secs(1) {
+                        self.update_tx
+                            .send(depth_update)
+                            .map_err(|_| PriceFeedError::UpdateSendError)?;
+                        last_update_time = tokio::time::Instant::now();
                     }
-                    Err(e) => {
-                        tracing::error!("Failed to parse depth update: {} text {}", e, text);
-                    }
+                }
+                (e) => {
+                    tracing::error!("unhandled message {:?}", e);
                 }
             }
         }

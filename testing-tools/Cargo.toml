@@ -94,4 +94,5 @@ tokio-tungstenite = "0.23.1"
 serde = { workspace = true, features = ["derive"]}
 serde_json.workspace = true
 amms = { git = "https://github.com/darkforestry/amms-rs.git", version="0.6.2"}
+cex-exchanges = { git = "https://github.com/SorellaLabs/cex-exchanges", branch = "main" }
 num-bigfloat = "1.7"
