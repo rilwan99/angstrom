@@ -106,4 +106,24 @@ contract BaseTest is Test {
     function __safeMod(uint256 x, uint256 y) external pure returns (uint256) {
         return x / y;
     }
+
+    function freePtr() internal pure returns (uint256 ptr) {
+        assembly ("memory-safe") {
+            ptr := mload(0x40)
+        }
+    }
+
+    function _brutalize(uint256 seed, uint256 freeWordsToBrutalize) internal pure {
+        assembly ("memory-safe") {
+            mstore(0x00, seed)
+            let free := mload(0x40)
+            for { let i := 0 } lt(i, freeWordsToBrutalize) { i := add(i, 1) } {
+                let newGarbage := keccak256(0x00, 0x20)
+                mstore(add(free, mul(i, 0x20)), newGarbage)
+                mstore(0x01, newGarbage)
+            }
+            mstore(0x20, keccak256(0x00, 0x20))
+            mstore(0x00, keccak256(0x10, 0x20))
+        }
+    }
 }
