@@ -2,7 +2,7 @@ use alloy::sol;
 use pade_macro::PadeEncode;
 
 sol! {
-    #[derive(PadeEncode)]
+    #[derive(PadeEncode, Debug)]
     struct Asset {
         address addr;
         uint128 borrow;
@@ -10,7 +10,7 @@ sol! {
         uint128 settle;
     }
 
-    #[derive(PadeEncode)]
+    #[derive(PadeEncode, Debug)]
     struct RewardsUpdate {
         #[pade_width(3)]
         int24 startTick;
@@ -18,14 +18,14 @@ sol! {
         uint128[] quantities;
     }
 
-    #[derive(PadeEncode)]
+    #[derive(PadeEncode, Debug)]
     struct PoolRewardsUpdate {
         uint16 asset0;
         uint16 asset1;
         RewardsUpdate update;
     }
 
-    #[derive(PadeEncode)]
+    #[derive(PadeEncode, Debug)]
     struct MockContractMessage {
         Asset[] addressList;
         PoolRewardsUpdate update;
