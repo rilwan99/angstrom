@@ -55,22 +55,22 @@ where
             };
 
         let mut price_feed_rx = self.binance_feed.subscribe();
-        let mut price_feed: Option<BinanceBookTicker> = None;
+        let mut price_update: Option<BinanceBookTicker> = None;
         loop {
             tokio::select! {
                 Some((_address, _block_number)) = pool_update_rx.recv() => {
-                    self.check_arbitrage(price_feed.clone()).await;
+                    self.check_arbitrage(price_update.clone()).await;
                 }
                 Ok(feed_udpate) = price_feed_rx.recv() => {
-                    price_feed = Some(feed_udpate);
-                    self.check_arbitrage(price_feed.clone()).await;
+                    price_update = Some(feed_udpate);
+                    self.check_arbitrage(price_update.clone()).await;
                 }
             }
         }
     }
 
-    async fn check_arbitrage(&self, price_feed: Option<BinanceBookTicker>) {
-        if price_feed.is_none() {
+    async fn check_arbitrage(&self, price_update: Option<BinanceBookTicker>) {
+        if price_update.is_none() {
             return;
         }
 
@@ -78,7 +78,7 @@ where
         let pool = self.pool_manager.pool().await;
         let BinanceBookTicker {
             best_ask_amt, best_ask_price, best_bid_amt, best_bid_price, ..
-        } = price_feed.unwrap();
+        } = price_update.unwrap();
         let best_bid = PriceLevel { price: best_bid_price, quantity: best_bid_amt };
         let best_ask = PriceLevel { price: best_ask_price, quantity: best_ask_amt };
 
