@@ -18,3 +18,6 @@ remappings = [
   "v4-core/src/=lib/v4-core/src/",
   "solmate/=lib/solmate/"
 ]
+
+[profile.dev-deopt]
+optimizer = false

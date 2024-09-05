@@ -89,6 +89,29 @@ contract AssetTest is Test {
         assertAssetsNotUniqueOrdered(assets);
     }
 
+    function test_fuzzing_revertsDuplicateAssets(
+        RefAsset[] memory assets,
+        uint256 duplicateFromIndex,
+        uint256 duplicateToIndex
+    ) public {
+        vm.assume(assets.length <= type(uint24).max / AssetLib.ASSET_BYTES);
+        vm.assume(assets.length >= 2);
+        assets.sort();
+        vm.assume(_uniqueAndOrdered(assets));
+        duplicateFromIndex = bound(duplicateFromIndex, 0, assets.length - 1);
+        duplicateToIndex = (bound(duplicateToIndex, 1, assets.length - 1) + duplicateFromIndex) % assets.length;
+        assertTrue(duplicateFromIndex != duplicateToIndex);
+
+        assets[duplicateToIndex].addr = assets[duplicateFromIndex].addr;
+        vm.expectRevert(AssetLib.AssetsOutOfOrderOrNotUnique.selector);
+        this._revertsDuplicateAssets(assets.encode());
+    }
+
+    function _revertsDuplicateAssets(bytes calldata data) external pure {
+        CalldataReader reader = CalldataReaderLib.from(data);
+        AssetLib.readFromAndValidate(reader);
+    }
+
     function assertAssetsNotUniqueOrdered(RefAsset[] memory assets) internal {
         bytes memory data = assets.encode();
         vm.expectRevert(AssetLib.AssetsOutOfOrderOrNotUnique.selector);
