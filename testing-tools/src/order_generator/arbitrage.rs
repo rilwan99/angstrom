@@ -1,7 +1,8 @@
 use std::time::Duration;
 
-use alloy::primitives::{address, Bytes, I256};
-use amms::amm::consts::U256_1;
+use alloy::primitives::I256;
+use alloy_primitives::U256;
+use angstrom_types::sol_bindings::sol::TopOfBlockOrder;
 use cex_exchanges::{
     binance::ws::{channels::BinanceBookTicker, BinanceWsMessage},
     clients::ws::MutliWsStream,
@@ -18,7 +19,6 @@ use matching_engine::cfmm::uniswap::{
 };
 use num_bigfloat::BigFloat;
 use tokio_stream::wrappers::ReceiverStream;
-use uniswap_v3_math::tick_math::MAX_SQRT_RATIO;
 
 #[derive(Clone, Debug)]
 pub struct PriceLevel {
@@ -84,7 +84,7 @@ where
         }
     }
 
-    pub async fn order_stream(&self) -> BoxStream<Option<Bytes>> {
+    pub async fn order_stream(&self) -> BoxStream<Option<TopOfBlockOrder>> {
         let (pool_update_rx, _) = self.pool_manager.subscribe_state_changes().await.unwrap();
         let pool_update_stream = ReceiverStream::new(pool_update_rx).map(|_| None);
         let price_feed = self.process_price_feed();
@@ -123,7 +123,7 @@ where
         &self,
         pool: &EnhancedUniswapV3Pool,
         price_update: Option<BinanceBookTicker>
-    ) -> Option<Bytes> {
+    ) -> Option<TopOfBlockOrder> {
         let price_update = price_update?;
         let BinanceBookTicker {
             best_ask_amt, best_ask_price, best_bid_amt, best_bid_price, ..
@@ -201,13 +201,15 @@ where
         );
 
         let zero_for_one = binance_trade_type == "SELL";
-        Some(Self::create_order(pool, zero_for_one, uniswap_amount))
+        Some(Self::create_order(zero_for_one, uniswap_amount))
     }
 
-    fn create_order(pool: &EnhancedUniswapV3Pool, zero_for_one: bool, amount: I256) -> Bytes {
-        let to_address = address!("4a18a50a8328b42773268B4b436254056b7d70CE");
-        pool.swap_calldata(to_address, zero_for_one, amount, MAX_SQRT_RATIO - U256_1, vec![])
-            .unwrap()
+    fn create_order(zero_for_one: bool, amount: I256) -> TopOfBlockOrder {
+        TopOfBlockOrder {
+            amountIn: if zero_for_one { U256::try_from(amount.abs()).unwrap() } else { U256::ZERO },
+            amountOut: if zero_for_one { U256::ZERO } else { U256::try_from(amount.abs()).unwrap() },
+            ..TopOfBlockOrder::default()
+        }
     }
 
     fn try_sell_on_uniswap(
