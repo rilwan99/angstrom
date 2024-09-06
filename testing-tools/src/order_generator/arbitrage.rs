@@ -207,7 +207,11 @@ where
     fn create_order(zero_for_one: bool, amount: I256) -> TopOfBlockOrder {
         TopOfBlockOrder {
             amountIn: if zero_for_one { U256::try_from(amount.abs()).unwrap() } else { U256::ZERO },
-            amountOut: if zero_for_one { U256::ZERO } else { U256::try_from(amount.abs()).unwrap() },
+            amountOut: if zero_for_one {
+                U256::ZERO
+            } else {
+                U256::try_from(amount.abs()).unwrap()
+            },
             ..TopOfBlockOrder::default()
         }
     }
