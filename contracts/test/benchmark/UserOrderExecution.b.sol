@@ -2,7 +2,6 @@
 pragma solidity ^0.8.24;
 
 import {BaseTest} from "../_helpers/BaseTest.sol";
-import {GasSnapshot} from "forge-gas-snapshot/GasSnapshot.sol";
 
 import {ConversionLib} from "../../src/libraries/ConversionLib.sol";
 import {UserOrder, UserOrderLib} from "../../src/reference/UserOrder.sol";
@@ -49,7 +48,7 @@ import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 import {console} from "forge-std/console.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract UserOrderExecution is BaseTest, HookDeployer, GasSnapshot {
+contract UserOrderExecution is BaseTest, HookDeployer {
     using AssetLib for *;
     using PairLib for *;
 
