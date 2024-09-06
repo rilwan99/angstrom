@@ -96,19 +96,19 @@ where
 
     pub async fn order_stream(&self) -> BoxStream<Option<Bytes>> {
         let (pool_update_rx, _) = self.pool_manager.subscribe_state_changes().await.unwrap();
-        let pool_update_stream = ReceiverStream::new(pool_update_rx);
+        let pool_update_stream = ReceiverStream::new(pool_update_rx).map(|_| None);
         let price_feed = self.process_price_feed();
-        let pool_and_price_stream =
-            futures::stream::select(pool_update_stream.map(|_| None), price_feed);
+        let pool_and_price_stream = futures::stream::select(pool_update_stream, price_feed);
+
         pool_and_price_stream
-            .scan(None::<BinanceBookTicker>, move |price_cache, message| match message {
-                Some(price_update) => {
+            .scan(None::<BinanceBookTicker>, |price_cache, message| {
+                if let Some(price_update) = message {
                     *price_cache = Some(price_update.clone());
-                    futures::future::ready(Some(price_update))
+                    return futures::future::ready(Some(price_update))
                 }
-                None => futures::future::ready(price_cache.clone())
+                futures::future::ready(price_cache.clone())
             })
-            .then(move |price_update| async {
+            .then(|price_update| async {
                 let pool = self.pool_manager.pool().await;
                 self.check_arbitrage(&pool, Some(price_update))
             })
