@@ -14,7 +14,6 @@ import {
 } from "../../src/reference/OrderTypes.sol";
 import {ExtAngstrom} from "../_view-ext/ExtAngstrom.sol";
 
-import {PadeEncoded} from "../../src/types/PadeEncoded.sol";
 import {ArrayLib} from "super-sol/libraries/ArrayLib.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {UniV4Inspector} from "../_view-ext/UniV4Inspector.sol";
@@ -375,7 +374,7 @@ contract UserOrderExecution is BaseTest, HookDeployer {
     /// memory allocation.
     function __doExecute(bytes calldata payload) external returns (uint256 cost) {
         vm.prank(node);
-        bytes memory execPayload = abi.encodeCall(angstrom.execute, PadeEncoded(payload));
+        bytes memory execPayload = abi.encodeCall(angstrom.execute, payload);
         address angstromAddr = address(angstrom);
         uint256 before = gasleft();
         assembly {
