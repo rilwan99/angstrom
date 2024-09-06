@@ -11,7 +11,7 @@ use matching_engine::cfmm::uniswap::{
     pool::EnhancedUniswapV3Pool, pool_manager::UniswapPoolManager,
     pool_providers::provider_adapter::ProviderAdapter
 };
-use testing_tools::order_generator::{ArbitrageGenerator, PriceFeed};
+use testing_tools::order_generator::ArbitrageGenerator;
 use tokio::signal::unix::{signal, SignalKind};
 
 #[tokio::main]
@@ -40,9 +40,8 @@ async fn main() -> eyre::Result<()> {
     let pool_manager =
         UniswapPoolManager::new(pool, block_number, state_change_buffer, Arc::new(pool_provider));
 
-    let binance_feed = PriceFeed::default();
-    let order_generator =
-        ArbitrageGenerator::new(pool_manager, binance_feed.clone(), ws_provider.clone()).await;
+    let symbol = "ethusdc".to_string();
+    let order_generator = ArbitrageGenerator::new(pool_manager, ws_provider.clone(), symbol);
 
     let mut sigterm = signal(SignalKind::terminate())?;
     let mut sigint = signal(SignalKind::interrupt())?;
@@ -50,8 +49,7 @@ async fn main() -> eyre::Result<()> {
     tokio::select! {
         _ = sigterm.recv() => {},
         _ = sigint.recv() => {},
-        _ = binance_feed.start() => {},
-        _ = order_generator.start() => {},
+        _ = order_generator.monitor() => {},
     }
 
     tracing::info!("Shutting down gracefully");
