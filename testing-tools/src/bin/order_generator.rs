@@ -41,7 +41,7 @@ async fn main() -> eyre::Result<()> {
         UniswapPoolManager::new(pool, block_number, state_change_buffer, Arc::new(pool_provider));
 
     let symbol = "ethusdc".to_string();
-    let order_generator = ArbitrageGenerator::new(pool_manager, ws_provider.clone(), symbol);
+    let order_generator = ArbitrageGenerator::new(pool_manager, symbol);
 
     let mut sigterm = signal(SignalKind::terminate())?;
     let mut sigint = signal(SignalKind::interrupt())?;

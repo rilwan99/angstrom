@@ -1,11 +1,6 @@
-use std::{marker::PhantomData, sync::Arc, time::Duration};
+use std::time::Duration;
 
-use alloy::{
-    network::{Network, TransactionBuilder},
-    primitives::{address, hex, Address, Bytes, I256},
-    providers::Provider,
-    transports::Transport
-};
+use alloy::primitives::{address, Bytes, I256};
 use amms::amm::consts::U256_1;
 use cex_exchanges::{
     binance::ws::{channels::BinanceBookTicker, BinanceWsMessage},
@@ -31,22 +26,17 @@ pub struct PriceLevel {
     pub quantity: f64
 }
 
-pub struct ArbitrageGenerator<P, B, T, N> {
+pub struct ArbitrageGenerator<P> {
     pool_manager: UniswapPoolManager<P>,
-    symbol:       String,
-    provider:     Arc<B>,
-    _phantom:     PhantomData<(T, N)>
+    symbol:       String
 }
 
-impl<P, B, T, N> ArbitrageGenerator<P, B, T, N>
+impl<P> ArbitrageGenerator<P>
 where
-    P: PoolManagerProvider + Send + Sync + 'static,
-    B: Provider<T, N> + Send + Sync,
-    T: Transport + Clone + Send + Sync,
-    N: Network + Send + Sync
+    P: PoolManagerProvider + Send + Sync + 'static
 {
-    pub fn new(pool_manager: UniswapPoolManager<P>, provider: Arc<B>, symbol: String) -> Self {
-        Self { pool_manager, provider, symbol, _phantom: PhantomData }
+    pub fn new(pool_manager: UniswapPoolManager<P>, symbol: String) -> Self {
+        Self { pool_manager, symbol }
     }
 
     fn create_price_feed_stream(&self) -> MutliWsStream {
@@ -214,15 +204,6 @@ where
         Some(Self::create_order(pool, zero_for_one, uniswap_amount))
     }
 
-    async fn execute_trade(&self, pool: &EnhancedUniswapV3Pool, zero_for_one: bool, amount: I256) {
-        let call_data = Self::create_order(pool, zero_for_one, amount);
-
-        match self.submit_eth_call(pool.address, call_data).await {
-            Ok(response) => tracing::info!("Transaction submitted successfully: {:?}", response),
-            Err(e) => tracing::error!("Failed to submit transaction: {}", e)
-        }
-    }
-
     fn create_order(pool: &EnhancedUniswapV3Pool, zero_for_one: bool, amount: I256) -> Bytes {
         let to_address = address!("4a18a50a8328b42773268B4b436254056b7d70CE");
         pool.swap_calldata(to_address, zero_for_one, amount, MAX_SQRT_RATIO - U256_1, vec![])
@@ -280,19 +261,6 @@ where
             - (bid_uniswap_fill_price.to_f64() * bid_uniswap_amount);
 
         (bid_profit, bid_binance_amount, bid_uniswap_fill_price.to_f64(), bid_amount_in)
-    }
-
-    async fn submit_eth_call(
-        &self,
-        to_address: Address,
-        call_data: Bytes
-    ) -> Result<Bytes, Box<dyn std::error::Error>> {
-        let mut tx = <N as Network>::TransactionRequest::default();
-        tx.set_input(call_data);
-        tx.set_to(to_address);
-        let res = self.provider.call(&tx).await?;
-        tracing::info!("eth_call response: {}", hex::encode(&res));
-        Ok(res)
     }
 
     fn calculate_uniswap_fill_price(
