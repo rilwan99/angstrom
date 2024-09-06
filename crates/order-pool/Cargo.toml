@@ -19,6 +19,7 @@ normal = [
 [dependencies]
 # angstrom 
 angstrom-types.workspace = true
+angstrom-metrics.workspace = true
 validation.workspace = true
 angstrom-eth.workspace = true
 angstrom-utils.workspace = true

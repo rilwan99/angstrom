@@ -29,6 +29,7 @@ alloy-chains.workspace = true
 angstrom-rpc.workspace = true
 angstrom-types.workspace = true
 angstrom-eth.workspace = true
+angstrom-metrics.workspace = true
 order-pool.workspace = true
 matching-engine.workspace = true
 angstrom-network.workspace = true

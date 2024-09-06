@@ -4,6 +4,7 @@ use std::{
     sync::{Arc, Mutex}
 };
 
+use angstrom_metrics::{initialize_prometheus_metrics, METRICS_ENABLED};
 use angstrom_network::manager::StromConsensusEvent;
 use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_node_builder::{FullNode, NodeHandle};
@@ -51,6 +52,13 @@ pub fn run() -> eyre::Result<()> {
     Cli::<AngstromConfig>::parse().run(|builder, args| async move {
         let executor = builder.task_executor().clone();
 
+        if args.metrics {
+            executor.spawn_critical("metrics", init_metrics(args.metrics_port));
+            METRICS_ENABLED.set(true).unwrap();
+        } else {
+            METRICS_ENABLED.set(false).unwrap();
+        }
+
         let secret_key = get_secret_key(&args.secret_key_location)?;
 
         let mut network = init_network_builder(secret_key)?;
@@ -60,7 +68,7 @@ pub fn run() -> eyre::Result<()> {
         // for rpc
         let pool = channels.get_pool_handle();
         // let consensus = channels.get_consensus_handle();
-        let Ok(NodeHandle { node, node_exit_future }) = builder
+        let NodeHandle { node, node_exit_future } = builder
             .with_types::<EthereumNode>()
             .with_components(
                 EthereumNode::default()
@@ -68,28 +76,23 @@ pub fn run() -> eyre::Result<()> {
                     .network(AngstromNetworkBuilder::new(protocol_handle))
             )
             .with_add_ons::<EthereumAddOns>()
-            .extend_rpc_modules(move |rpc_components| {
+            .extend_rpc_modules(move |rpc_context| {
                 let order_api = OrderApi { pool: pool.clone() };
                 // let quotes_api = QuotesApi { pool: pool.clone() };
                 // let consensus_api = ConsensusApi { consensus: consensus.clone() };
 
-                rpc_components
-                    .modules
-                    .merge_configured(order_api.into_rpc())?;
-                // rpc_components
+                rpc_context.modules.merge_configured(order_api.into_rpc())?;
+                // rpc_context
                 //     .modules
                 //     .merge_configured(quotes_api.into_rpc())?;
-                // rpc_components
+                // rpc_context
                 //     .modules
                 //     .merge_configured(consensus_api.into_rpc())?;
 
                 Ok(())
             })
             .launch()
-            .await
-        else {
-            todo!()
-        };
+            .await?;
 
         initialize_strom_components(args, secret_key, channels, network, node, &executor);
 
@@ -239,5 +242,18 @@ pub struct AngstromConfig {
     pub secret_key_location:   PathBuf,
     // default is 100mb
     #[clap(long, default_value = "1000000")]
-    pub validation_cache_size: usize
+    pub validation_cache_size: usize,
+    /// enables the metrics
+    #[clap(long, default_value = "false", global = true)]
+    pub metrics:               bool,
+    /// spawns the prometheus metrics exporter at the specified port
+    /// Default: 6969
+    #[clap(long, default_value = "6969", global = true)]
+    pub metrics_port:          u16
+}
+
+async fn init_metrics(metrics_port: u16) {
+    let _ = initialize_prometheus_metrics(metrics_port)
+        .await
+        .inspect_err(|e| eprintln!("failed to start metrics endpoint - {:?}", e));
 }

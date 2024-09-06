@@ -4,6 +4,7 @@ use std::{
 };
 
 use alloy_primitives::FixedBytes;
+use angstrom_metrics::OrderStorageMetricsWrapper;
 use angstrom_types::{
     orders::{OrderId, OrderSet},
     sol_bindings::{
@@ -24,7 +25,8 @@ use crate::{
 pub struct OrderStorage {
     pub limit_orders:                Arc<Mutex<LimitOrderPool>>,
     pub searcher_orders:             Arc<Mutex<SearcherPool>>,
-    pub pending_finalization_orders: Arc<Mutex<FinalizationPool>>
+    pub pending_finalization_orders: Arc<Mutex<FinalizationPool>>,
+    pub metrics:                     OrderStorageMetricsWrapper
 }
 
 impl Debug for OrderStorage {
@@ -46,7 +48,28 @@ impl OrderStorage {
         )));
         let pending_finalization_orders = Arc::new(Mutex::new(FinalizationPool::new()));
 
-        Self { limit_orders, searcher_orders, pending_finalization_orders }
+        Self {
+            limit_orders,
+            searcher_orders,
+            pending_finalization_orders,
+            metrics: OrderStorageMetricsWrapper::default()
+        }
+    }
+
+    /// moves all orders to the parked location if there not already.
+    pub fn park_orders(&self, order_info: Vec<&OrderId>) {
+        // take lock here so we don't drop between iterations.
+        let mut limit_lock = self.limit_orders.lock().unwrap();
+        order_info
+            .into_iter()
+            .for_each(|order| match order.location {
+                angstrom_types::orders::OrderLocation::Limit => {
+                    limit_lock.park_order(order);
+                }
+                angstrom_types::orders::OrderLocation::Searcher => {
+                    tracing::debug!("tried to park searcher order. this is not supported");
+                }
+            });
     }
 
     pub fn add_new_limit_order(
@@ -65,6 +88,7 @@ impl OrderStorage {
                 .lock()
                 .expect("lock poisoned")
                 .add_vanilla_order(mapped_order)?;
+            self.metrics.incr_vanilla_limit_orders(1);
         } else {
             let mapped_order = order.try_map_inner(|this| {
                 let GroupedUserOrder::Composable(order) = this else {
@@ -77,6 +101,7 @@ impl OrderStorage {
                 .lock()
                 .expect("lock poisoned")
                 .add_composable_order(mapped_order)?;
+            self.metrics.incr_composable_limit_orders(1);
         }
 
         Ok(())
@@ -91,6 +116,8 @@ impl OrderStorage {
             .expect("lock poisoned")
             .add_searcher_order(order)?;
 
+        self.metrics.incr_searcher_orders(1);
+
         Ok(())
     }
 
@@ -99,37 +126,70 @@ impl OrderStorage {
         block_number: u64,
         orders: Vec<OrderWithStorageData<AllOrders>>
     ) {
+        let num_orders = orders.len();
         self.pending_finalization_orders
             .lock()
             .expect("poisoned")
             .new_orders(block_number, orders);
+
+        self.metrics.incr_pending_finalization_orders(num_orders);
     }
 
     pub fn finalized_block(&self, block_number: u64) {
-        self.pending_finalization_orders
+        let orders = self
+            .pending_finalization_orders
             .lock()
             .expect("poisoned")
             .finalized(block_number);
+
+        self.metrics.decr_pending_finalization_orders(orders.len());
     }
 
     pub fn reorg(&self, order_hashes: Vec<FixedBytes<32>>) -> Vec<AllOrders> {
-        self.pending_finalization_orders
+        let orders = self
+            .pending_finalization_orders
             .lock()
             .expect("poisoned")
             .reorg(order_hashes)
-            .collect::<Vec<_>>()
+            .collect::<Vec<_>>();
+
+        self.metrics.decr_pending_finalization_orders(orders.len());
+        orders
     }
 
     pub fn remove_searcher_order(&self, id: &OrderId) -> Option<OrderWithStorageData<AllOrders>> {
-        self.searcher_orders
+        let order = self
+            .searcher_orders
             .lock()
             .expect("posioned")
             .remove_order(id)
-            .map(|value| value.try_map_inner(|v| Ok(AllOrders::TOB(v))).unwrap())
+            .map(|value| {
+                value
+                    .try_map_inner(|v| {
+                        self.metrics.decr_searcher_orders(1);
+                        Ok(AllOrders::TOB(v))
+                    })
+                    .unwrap()
+            });
+
+        order
     }
 
     pub fn remove_limit_order(&self, id: &OrderId) -> Option<OrderWithStorageData<AllOrders>> {
-        self.limit_orders.lock().expect("poisoned").remove_order(id)
+        self.limit_orders
+            .lock()
+            .expect("poisoned")
+            .remove_order(id)
+            .map(|order| {
+                if order.is_vanilla() {
+                    self.metrics.decr_vanilla_limit_orders(1);
+                } else if order.is_composable() {
+                    self.metrics.decr_composable_limit_orders(1);
+                }
+
+                order.try_map_inner(|inner| Ok(inner.into())).ok()
+            })
+            .flatten()
     }
 
     pub fn get_all_orders(&self) -> OrderSet<GroupedVanillaOrder, TopOfBlockOrder> {

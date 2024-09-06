@@ -11,6 +11,9 @@ exclude.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# angstrom
+angstrom-metrics.workspace = true
+
 bitmaps.workspace = true
 blsful.workspace = true
 tokio.workspace = true

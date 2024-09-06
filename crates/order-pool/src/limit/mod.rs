@@ -4,7 +4,7 @@ use angstrom_types::{
     orders::OrderId,
     primitive::PoolId,
     sol_bindings::grouped_orders::{
-        AllOrders, GroupedComposableOrder, GroupedVanillaOrder, OrderWithStorageData
+        GroupedComposableOrder, GroupedUserOrder, GroupedVanillaOrder, OrderWithStorageData
     }
 };
 
@@ -58,14 +58,22 @@ impl LimitOrderPool {
         self.limit_orders.add_order(order)
     }
 
-    pub fn remove_order(&mut self, id: &OrderId) -> Option<OrderWithStorageData<AllOrders>> {
+    pub fn remove_order(&mut self, id: &OrderId) -> Option<OrderWithStorageData<GroupedUserOrder>> {
         self.limit_orders
             .remove_order(id.pool_id, id.hash)
-            .and_then(|value| value.try_map_inner(|this| Ok(this.into())).ok())
+            .and_then(|value| {
+                value
+                    .try_map_inner(|this| Ok(GroupedUserOrder::Vanilla(this)))
+                    .ok()
+            })
             .or_else(|| {
                 self.composable_orders
                     .remove_order(id.pool_id, id.hash)
-                    .and_then(|value| value.try_map_inner(|this| Ok(this.into())).ok())
+                    .and_then(|value| {
+                        value
+                            .try_map_inner(|this| Ok(GroupedUserOrder::Composable(this)))
+                            .ok()
+                    })
             })
     }
 
@@ -73,9 +81,9 @@ impl LimitOrderPool {
         self.limit_orders.get_all_orders()
     }
 
-    // pub fn fetch_all_composable_orders(&self) -> Vec<BidsAndAsks<C>> {
-    //     self.composable_orders.fetch_bids_asks_per_pool()
-    // }
+    pub fn park_order(&mut self, id: &OrderId) {
+        self.limit_orders.park_order(id);
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
