@@ -45,7 +45,9 @@ library AssetLib {
         // Bubble sort because ain't nobody got time for that.
         for (uint256 i = 0; i < assets.length; i++) {
             for (uint256 j = i + 1; j < assets.length; j++) {
-                if (assets[i].addr > assets[j].addr) (assets[i], assets[j]) = (assets[j], assets[i]);
+                if (assets[i].addr > assets[j].addr) {
+                    (assets[i], assets[j]) = (assets[j], assets[i]);
+                }
             }
         }
     }
