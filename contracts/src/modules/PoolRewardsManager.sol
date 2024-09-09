@@ -116,12 +116,6 @@ abstract contract PoolRewardsManager is RewardsUpdater, ILiqChangeHooks, UniCons
         return (reader, asset0, total);
     }
 
-    function _toPosKey(address owner, int24 tickLower, int24 tickUpper) internal pure returns (uint208 key) {
-        key = uint208(
-            uint256(uint160(owner)) | (uint256(uint24(tickLower)) << 160) | (uint256(uint24(tickUpper)) << (160 + 24))
-        );
-    }
-
     function _getPoolBitmapInfo(PoolId id, int16 wordPos) internal view override returns (uint256) {
         return UNI_V4.getPoolBitmapInfo(id, wordPos);
     }
