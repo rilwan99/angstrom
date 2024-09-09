@@ -33,7 +33,7 @@ abstract contract PoolRewardsManager is RewardsUpdater, ILiqChangeHooks, UniCons
     }
 
     mapping(PoolId id => mapping(uint208 positionKey => Position)) positions;
-    mapping(PoolId id => PoolRewards) internal poolsRewards;
+    mapping(PoolId id => PoolRewards) internal poolRewards;
 
     constructor() {
         _checkHookPermissions(Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG);
@@ -111,7 +111,7 @@ abstract contract PoolRewardsManager is RewardsUpdater, ILiqChangeHooks, UniCons
         asset0 = assets.get(indexA).addr();
         id = ConversionLib.toPoolKey(address(this), asset0, assets.get(indexB).addr()).toId();
 
-        (reader, total) = _decodeAndReward(poolsRewards[id], id, reader);
+        (reader, total) = _decodeAndReward(poolRewards[id], id, reader);
 
         return (reader, asset0, total);
     }

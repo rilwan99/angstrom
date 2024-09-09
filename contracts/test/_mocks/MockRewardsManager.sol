@@ -47,13 +47,13 @@ contract MockRewardsManager is UniConsumer, PoolRewardsManager {
             (initialized, nextTickUp) = _findNextTickUp(id, tick);
         } while (!initialized);
         _checkTickReal(id, nextTickUp, "nextTickUp");
-        return poolsRewards[id].getGrowthInside(_getCurrentTick(id), tick, nextTickUp);
+        return poolRewards[id].getGrowthInside(_getCurrentTick(id), tick, nextTickUp);
     }
 
     function getGrowthInsideRange(PoolId id, int24 lowerTick, int24 upperTick) public view returns (uint256) {
         _checkTickReal(id, lowerTick, "lowerTick");
         _checkTickReal(id, upperTick, "upperTick");
-        return poolsRewards[id].getGrowthInside(_getCurrentTick(id), lowerTick, upperTick);
+        return poolRewards[id].getGrowthInside(_getCurrentTick(id), lowerTick, upperTick);
     }
 
     function _checkTickReal(PoolId id, int24 tick, string memory name) internal view {
