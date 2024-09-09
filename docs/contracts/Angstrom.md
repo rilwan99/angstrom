@@ -124,7 +124,7 @@ Note that to ensure pair uniqueness `.index_a` **must** be less than `.index_b`.
 |-----|-----------|
 |`index_a: u16`|Pair's asset A as index into the asset array|
 |`index_b: u16`|Pair's asset B as index into the asset array|
-|`price_AOverB: u256`|Unform clearing price of pair in asset A **over** asset B base units in Ray e.g. `13.2e27` represents 13.2 base units of A for every base unit of A.|
+|`price_AOverB: u256`|Uniform clearing price of pair in asset A **over** asset B base units in Ray e.g. `13.2e27` represents 13.2 base units of A for every base unit of A.|
 
 
 
