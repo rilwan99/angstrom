@@ -107,6 +107,7 @@ impl<DB: BlockStateProviderFactory + Unpin + 'static, S: StateFetchUtils>
             &self.fetch_utils,
             &self.db
         );
+        println!("live state got");
 
         // ensure that the current live state is enough to satisfy the order
         let (is_cur_valid, invalid_orders) = live_state
@@ -119,6 +120,7 @@ impl<DB: BlockStateProviderFactory + Unpin + 'static, S: StateFetchUtils>
                 )
             })
             .unwrap_or_default();
+        println!("got if we can support");
 
         Ok(order.into_order_storage_with_data(
             block,
@@ -236,7 +238,6 @@ pub mod tests {
         processor
             .verify_order(order, pool_info, 420, true)
             .expect("order should be valid");
-
     }
 
     #[test]
