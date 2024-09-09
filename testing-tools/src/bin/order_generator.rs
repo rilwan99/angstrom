@@ -16,7 +16,7 @@ use tokio::signal::unix::{signal, SignalKind};
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    std::env::set_var("RUST_LOG", "testing_tools=debug,matching_engine=debug,info");
+    std::env::set_var("RUST_LOG", "info");
     tracing_subscriber::fmt::init();
     let log_level = tracing::level_filters::LevelFilter::current();
     tracing::info!("Logging initialized at level: {}", log_level);

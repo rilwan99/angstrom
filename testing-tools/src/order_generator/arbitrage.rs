@@ -18,6 +18,7 @@ use matching_engine::cfmm::uniswap::{
     pool_providers::PoolManagerProvider
 };
 use num_bigfloat::BigFloat;
+use rand_distr::num_traits::Float;
 use tokio_stream::wrappers::ReceiverStream;
 
 #[derive(Clone, Debug)]
@@ -226,18 +227,20 @@ where
         let ask_amount_in =
             I256::from_dec_str(ask_amount.to_string().split('.').next().unwrap()).unwrap();
 
+
         let (ask_swap_amount_in, ask_swap_amount_out) =
             pool.simulate_swap(eth, ask_amount_in, None).unwrap();
 
         let ask_uniswap_fill_price =
             self.calculate_uniswap_fill_price(pool, ask_swap_amount_in, ask_swap_amount_out);
 
+        let token_b_scale = BigFloat::from(10).powi(pool.token_b_decimals as i32);
         let ask_binance_amount = best_ask.quantity;
         let ask_uniswap_amount =
-            ask_swap_amount_out.abs().as_u64() as f64 / 10_f64.powi(pool.token_b_decimals as i32);
+            BigFloat::from(u128::try_from(ask_swap_amount_out.abs()).unwrap()).div(&token_b_scale);
 
         let ask_profit = (ask_uniswap_fill_price.to_f64() * ask_binance_amount)
-            - (best_ask.price * ask_uniswap_amount);
+            - (best_ask.price * ask_uniswap_amount.to_f64());
 
         (ask_profit, ask_binance_amount, ask_uniswap_fill_price.to_f64(), ask_amount_in)
     }
@@ -259,12 +262,14 @@ where
         let bid_uniswap_fill_price =
             self.calculate_uniswap_fill_price(pool, bid_swap_amount_in, bid_swap_amount_out);
 
-        let bid_binance_amount = bid_amount / 10_f64.powi(pool.token_b_decimals as i32);
+        let token_b_scale = BigFloat::from(10).powi(pool.token_b_decimals as i32);
+        let bid_binance_amount =  BigFloat::from(bid_amount).div(&token_b_scale).to_f64();
         let bid_uniswap_amount =
-            bid_swap_amount_out.abs().as_u64() as f64 / 10_f64.powi(pool.token_b_decimals as i32);
+            BigFloat::from_u128(u128::try_from(bid_swap_amount_out.abs()).unwrap())
+                .div(&token_b_scale);
 
         let bid_profit = (best_bid.price * bid_binance_amount)
-            - (bid_uniswap_fill_price.to_f64() * bid_uniswap_amount);
+            - (bid_uniswap_fill_price.to_f64() * bid_uniswap_amount.to_f64());
 
         (bid_profit, bid_binance_amount, bid_uniswap_fill_price.to_f64(), bid_amount_in)
     }
