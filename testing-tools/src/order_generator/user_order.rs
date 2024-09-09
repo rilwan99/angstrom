@@ -42,11 +42,7 @@ impl PriceDistribution {
 impl Distribution<f64> for PriceDistribution {
     fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
         let mut value = self.exp.sample(rng);
-
-        // Scale to min-max range
         value = value * (self.max_amount - self.min_amount) / 10.0 + self.min_amount;
-
-        // Ensure within min-max range
         value.max(self.min_amount).min(self.max_amount)
     }
 }
