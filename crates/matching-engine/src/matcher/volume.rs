@@ -442,6 +442,13 @@ impl<'a> VolumeFillMatcher<'a> {
             )
             .map(|(id, outcome)| OrderOutcome { id, outcome: outcome.clone() })
             .collect();
-        PoolSolution { id: self.book.id(), amm_quantity: self.amm_outcome.clone(), searcher, limit }
+        let ucp = self.results.price.map(|p| *p).unwrap_or_default();
+        PoolSolution {
+            id: self.book.id(),
+            ucp,
+            amm_quantity: self.amm_outcome.clone(),
+            searcher,
+            limit
+        }
     }
 }

@@ -1343,6 +1343,7 @@ dependencies = [
  "itertools 0.12.1",
  "malachite",
  "modular-bitfield",
+ "num-traits",
  "open-fastrlp",
  "pade",
  "pade-macro",

@@ -70,18 +70,23 @@ impl MatchingManager {
         MatcherHandle { sender: tx }
     }
 
-    pub fn build_books(&self, preproposals: &[PreProposal]) -> Vec<OrderBook> {
+    pub fn orders_by_pool_id(
+        preproposals: &[PreProposal]
+    ) -> HashMap<usize, HashSet<OrderWithStorageData<GroupedVanillaOrder>>> {
+        preproposals
+            .iter()
+            .flat_map(|p| p.limit.iter())
+            .cloned()
+            .fold(HashMap::new(), |mut acc, order| {
+                acc.entry(order.pool_id).or_default().insert(order);
+                acc
+            })
+    }
+
+    pub fn build_books(preproposals: &[PreProposal]) -> Vec<OrderBook> {
         // Pull all the orders out of all the preproposals and build OrderPools out of
         // them.  This is ugly and inefficient right now
-        let book_sources: HashMap<usize, HashSet<OrderWithStorageData<GroupedVanillaOrder>>> =
-            preproposals
-                .iter()
-                .flat_map(|p| p.limit.iter())
-                .cloned()
-                .fold(HashMap::new(), |mut acc, order| {
-                    acc.entry(order.pool_id).or_default().insert(order);
-                    acc
-                });
+        let book_sources = Self::orders_by_pool_id(preproposals);
 
         book_sources
             .into_iter()
@@ -98,7 +103,7 @@ impl MatchingManager {
     ) -> Result<Vec<PoolSolution>, String> {
         // Pull all the orders out of all the preproposals and build OrderPools out of
         // them.  This is ugly and inefficient right now
-        let books = self.build_books(&preproposals);
+        let books = Self::build_books(&preproposals);
 
         let searcher_orders: HashMap<usize, OrderWithStorageData<TopOfBlockOrder>> = preproposals
             .iter()

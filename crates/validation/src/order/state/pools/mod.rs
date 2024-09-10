@@ -2,7 +2,10 @@ use std::collections::HashMap;
 
 use alloy_primitives::{Address, FixedBytes, U256};
 use angstrom_pools::AngstromPools;
-use angstrom_types::sol_bindings::grouped_orders::{PoolOrder, RawPoolOrder};
+use angstrom_types::{
+    primitive::PoolId,
+    sol_bindings::grouped_orders::{PoolOrder, RawPoolOrder}
+};
 use dashmap::DashMap;
 use index_to_address::{AssetIndexToAddress, AssetIndexToAddressWrapper};
 
@@ -24,7 +27,7 @@ pub struct UserOrderPoolInfo {
     // token in for pool
     pub token:   Address,
     pub is_bid:  bool,
-    pub pool_id: usize
+    pub pool_id: PoolId
 }
 
 #[derive(Clone)]
@@ -55,11 +58,7 @@ impl AngstromPoolsTracker {
         let pools = config
             .pools
             .iter()
-            .flat_map(|pool| {
-                let key0 = AngstromPools::get_key(pool.token0, pool.token1);
-                let key1 = AngstromPools::get_key(pool.token1, pool.token0);
-                [(key0, (true, pool.pool_id)), (key1, (false, pool.pool_id))]
-            })
+            .map(|pool| (AngstromPools::get_key(pool.token0, pool.token1), pool.pool_id))
             .collect::<DashMap<_, _>>();
         let angstrom_pools = AngstromPools::new(pools);
 
@@ -70,6 +69,10 @@ impl AngstromPoolsTracker {
         let assets = AssetIndexToAddress::new(assets);
 
         Self { pools: angstrom_pools, asset_index_to_address: assets }
+    }
+
+    pub fn get_pool_data(&self, poolid: PoolId) -> Option<(Address, Address)> {
+        self.pools.get_addresses(poolid)
     }
 }
 

@@ -1,6 +1,6 @@
 use std::{fmt, hash::Hash, ops::Deref};
 
-use alloy_primitives::{Address, FixedBytes, TxHash, U256};
+use alloy_primitives::{Address, Bytes, FixedBytes, TxHash, U256};
 use alloy_sol_types::SolStruct;
 use reth_primitives::B256;
 use serde::{Deserialize, Serialize};
@@ -208,6 +208,13 @@ impl GroupedVanillaOrder {
                 max_amount_in_or_out: o.max_amount_in_or_out - filled_quantity,
                 ..o.clone()
             })
+        }
+    }
+
+    pub fn signature(&self) -> Bytes {
+        match self {
+            Self::Partial(o) => o.signature.clone(),
+            Self::KillOrFill(o) => o.signature.clone()
         }
     }
 }

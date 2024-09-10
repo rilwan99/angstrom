@@ -67,6 +67,8 @@ pub struct OrderOutcome {
 pub struct PoolSolution {
     /// Id of this pool
     pub id:           PoolId,
+    /// Solution statistics from the matcher
+    pub ucp:          U256,
     /// Winning searcher order to be executed
     pub searcher:     Option<OrderWithStorageData<TopOfBlockOrder>>,
     /// Quantity to be bought or sold from the amm
