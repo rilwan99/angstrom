@@ -4,7 +4,6 @@ pragma solidity ^0.8.4;
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {Slot0} from "v4-core/src/types/Slot0.sol";
 import {PoolId} from "v4-core/src/types/PoolId.sol";
-import {ConversionLib} from "../libraries/ConversionLib.sol";
 
 library IUniV4 {
     using IUniV4 for IPoolManager;
