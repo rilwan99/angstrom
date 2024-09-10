@@ -2,7 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {PoolId} from "v4-core/src/types/PoolId.sol";
-import {PoolRewards} from "../types/PoolRewards.sol";
+import {PoolRewards, REWARD_GROWTH_SIZE} from "../types/PoolRewards.sol";
 import {CalldataReader} from "../types/CalldataReader.sol";
 
 import {TickLib} from "../libraries/TickLib.sol";
@@ -59,7 +59,7 @@ abstract contract RewardsUpdater {
     }
 
     function _rewardBelow(
-        mapping(int24 => uint256) storage rewardGrowthOutside,
+        uint256[REWARD_GROWTH_SIZE] storage rewardGrowthOutside,
         int24 endTick,
         CalldataReader reader,
         int24 tick,
@@ -95,7 +95,7 @@ abstract contract RewardsUpdater {
                 total += amount;
 
                 cumulativeGrowth += flatDivWad(amount, liquidity);
-                rewardGrowthOutside[tick] += cumulativeGrowth;
+                rewardGrowthOutside[uint24(tick)] += cumulativeGrowth;
 
                 liquidity = MixedSignLib.add(liquidity, _getNetTickLiquidity(id, tick));
 
@@ -136,7 +136,7 @@ abstract contract RewardsUpdater {
     }
 
     function _rewardAbove(
-        mapping(int24 => uint256) storage rewardGrowthOutside,
+        uint256[REWARD_GROWTH_SIZE] storage rewardGrowthOutside,
         int24 endTick,
         CalldataReader reader,
         int24 tick,
@@ -162,7 +162,7 @@ abstract contract RewardsUpdater {
                 total += amount;
 
                 cumulativeGrowth += flatDivWad(amount, liquidity);
-                rewardGrowthOutside[tick] += cumulativeGrowth;
+                rewardGrowthOutside[uint24(tick)] += cumulativeGrowth;
 
                 liquidity = MixedSignLib.sub(liquidity, _getNetTickLiquidity(id, tick));
 
