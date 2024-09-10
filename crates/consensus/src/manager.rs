@@ -194,7 +194,7 @@ impl ConsensusManager {
                 res
             });
             // We've passed basic validation so we can return true here
-            return true;
+            return true
         }
         false
     }
@@ -228,7 +228,7 @@ impl ConsensusManager {
                 // Match the solutions
                 if proposal.solutions != solutions {
                     warn!("Proposal for {} failed validation with non-matching signatures", height);
-                    return;
+                    return
                 }
                 // Prepare our commit messge
                 let commit = self.signer.sign_commit(proposal);

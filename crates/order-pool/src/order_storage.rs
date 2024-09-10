@@ -1,6 +1,8 @@
 use std::{
+    collections::HashMap,
     fmt::Debug,
-    sync::{Arc, Mutex}
+    sync::{Arc, Mutex},
+    time::Instant
 };
 
 use alloy_primitives::FixedBytes;
@@ -12,6 +14,7 @@ use angstrom_types::{
         sol::TopOfBlockOrder
     }
 };
+use reth_primitives::B256;
 
 use crate::{
     finalization_pool::FinalizationPool,
@@ -26,6 +29,9 @@ pub struct OrderStorage {
     pub limit_orders:                Arc<Mutex<LimitOrderPool>>,
     pub searcher_orders:             Arc<Mutex<SearcherPool>>,
     pub pending_finalization_orders: Arc<Mutex<FinalizationPool>>,
+    /// we store filled order hashes until they are expired time wise to ensure
+    /// we don't waste processing power in the validator.
+    pub filled_orders:               Arc<Mutex<HashMap<B256, Instant>>>,
     pub metrics:                     OrderStorageMetricsWrapper
 }
 
@@ -49,6 +55,7 @@ impl OrderStorage {
         let pending_finalization_orders = Arc::new(Mutex::new(FinalizationPool::new()));
 
         Self {
+            filled_orders: Arc::new(Mutex::new(HashMap::default())),
             limit_orders,
             searcher_orders,
             pending_finalization_orders,
@@ -180,7 +187,7 @@ impl OrderStorage {
             .lock()
             .expect("poisoned")
             .remove_order(id)
-            .map(|order| {
+            .and_then(|order| {
                 if order.is_vanilla() {
                     self.metrics.decr_vanilla_limit_orders(1);
                 } else if order.is_composable() {
@@ -189,7 +196,6 @@ impl OrderStorage {
 
                 order.try_map_inner(|inner| Ok(inner.into())).ok()
             })
-            .flatten()
     }
 
     pub fn get_all_orders(&self) -> OrderSet<GroupedVanillaOrder, TopOfBlockOrder> {

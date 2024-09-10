@@ -7,7 +7,7 @@ use std::{
     task::{Context, Poll}
 };
 
-use alloy_primitives::{Address, U256};
+use alloy_primitives::{Address, B256, U256};
 use angstrom_utils::{
     key_split_threadpool::KeySplitThreadpool,
     sync_pipeline::{
@@ -20,7 +20,10 @@ use tokio::{runtime::Handle, task::JoinHandle};
 
 use super::{
     sim::SimValidation,
-    state::{account::user::UserAddress, config::ValidationConfig, StateValidation},
+    state::{
+        account::user::UserAddress, config::ValidationConfig, db_state_utils::StateFetchUtils,
+        pools::PoolsTracker, StateValidation
+    },
     OrderValidationRequest
 };
 use crate::{
@@ -32,28 +35,33 @@ use crate::{
     validator::ValidationRequest
 };
 
-pub struct OrderValidator<DB> {
+pub struct OrderValidator<DB, Pools, Fetch> {
     sim:          SimValidation<DB>,
-    state:        StateValidation<DB>,
+    state:        StateValidation<DB, Pools, Fetch>,
     threadpool:   KeySplitThreadpool<UserAddress, Pin<Box<dyn Future<Output = ()> + Send>>, Handle>,
     block_number: Arc<AtomicU64>
 }
 
-impl<DB> OrderValidator<DB>
+impl<DB, Pools, Fetch> OrderValidator<DB, Pools, Fetch>
 where
-    DB: BlockStateProviderFactory + Unpin + Clone + 'static
+    DB: BlockStateProviderFactory + Unpin + Clone + 'static,
+    Pools: PoolsTracker + Sync + 'static,
+    Fetch: StateFetchUtils + Sync + 'static
 {
     pub fn new(
         db: Arc<RevmLRU<DB>>,
-        config: ValidationConfig,
         block_number: Arc<AtomicU64>,
+        max_validation_per_user: usize,
+        pools: Pools,
+        fetch: Fetch,
         handle: Handle
     ) -> Self {
-        let threadpool = KeySplitThreadpool::new(handle, config.max_validation_per_user);
+        let threadpool = KeySplitThreadpool::new(handle, max_validation_per_user);
         let state = StateValidation::new(
             db.clone(),
-            config,
-            block_number.load(std::sync::atomic::Ordering::SeqCst)
+            block_number.load(std::sync::atomic::Ordering::SeqCst),
+            pools,
+            fetch
         );
         let sim = SimValidation::new(db);
 
@@ -63,9 +71,16 @@ where
         Self { state, sim, block_number, threadpool }
     }
 
-    pub fn update_block_number(&mut self, number: u64) {
+    pub fn on_new_block(
+        &mut self,
+        number: u64,
+        completed_orders: Vec<B256>,
+        address_changes: Vec<Address>
+    ) {
         self.block_number
             .store(number, std::sync::atomic::Ordering::SeqCst);
+        self.state
+            .new_block(number, completed_orders, address_changes);
     }
 
     /// only checks state
@@ -84,9 +99,11 @@ where
     }
 }
 
-impl<DB> Future for OrderValidator<DB>
+impl<DB, Pools, Fetch> Future for OrderValidator<DB, Pools, Fetch>
 where
-    DB: BlockStateProviderFactory + Clone + Unpin + 'static
+    DB: BlockStateProviderFactory + Clone + Unpin + 'static,
+    Pools: PoolsTracker + Sync + Unpin + 'static,
+    Fetch: StateFetchUtils + Sync + Unpin + 'static
 {
     type Output = ();
 

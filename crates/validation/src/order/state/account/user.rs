@@ -6,13 +6,14 @@ use std::{
 use alloy_primitives::Address;
 use angstrom_types::sol_bindings::grouped_orders::{PoolOrder, RawPoolOrder};
 use dashmap::DashMap;
-use futures::pending;
 use parking_lot::RwLock;
-use reth_primitives::{B256, U256};
+use reth_primitives::{TxHash, B256, U256};
 
 use crate::{
     order::state::{
-        db_state_utils::FetchUtils, pools::UserOrderPoolInfo, AssetIndexToAddressWrapper
+        db_state_utils::{FetchUtils, StateFetchUtils},
+        pools::UserOrderPoolInfo,
+        AssetIndexToAddressWrapper
     },
     BlockStateProviderFactory, RevmLRU
 };
@@ -91,8 +92,18 @@ impl UserAccounts {
         }
     }
 
-    pub fn current_block(&self) -> u64 {
-        self.current_block.load(std::sync::atomic::Ordering::SeqCst)
+    pub fn new_block(&self, users: Vec<Address>, orders: Vec<B256>) {
+        // remove all user specific orders
+        users.iter().for_each(|user| {
+            self.pending_actions.remove(user);
+            self.last_known_state.remove(user);
+        });
+
+        // remove all singular orders
+        self.pending_actions.retain(|user, pending_orders| {
+            pending_orders.retain(|p| !orders.contains(&p.order_hash));
+            !pending_orders.is_empty()
+        });
     }
 
     /// returns true if the order cancel has been processed successfully
@@ -120,12 +131,12 @@ impl UserAccounts {
             .unwrap_or_default()
     }
 
-    pub fn get_live_state_for_order<DB: Send + BlockStateProviderFactory>(
+    pub fn get_live_state_for_order<DB: Send + BlockStateProviderFactory, S: StateFetchUtils>(
         &self,
         user: UserAddress,
         token: TokenAddress,
         nonce: U256,
-        utils: &FetchUtils,
+        utils: &S,
         db: &RevmLRU<DB>
     ) -> LiveState {
         self.try_fetch_live_pending_state(user, token, nonce)
@@ -139,19 +150,17 @@ impl UserAccounts {
             })
     }
 
-    fn load_state_for<DB: Send + BlockStateProviderFactory>(
+    fn load_state_for<DB: Send + BlockStateProviderFactory, S: StateFetchUtils>(
         &self,
         user: UserAddress,
         token: TokenAddress,
-        utils: &FetchUtils,
+        utils: &S,
         db: &RevmLRU<DB>
     ) {
         let approvals = utils
-            .approvals
             .fetch_approval_balance_for_token(user, token, db)
             .unwrap_or_default();
         let balances = utils
-            .balances
             .fetch_balance_for_token(user, token, db)
             .unwrap_or_default();
 
@@ -175,8 +184,10 @@ impl UserAccounts {
 
         value.push(action);
         value.sort_unstable_by_key(|k| k.nonce);
+        drop(entry);
 
         // iterate through all vales collected the orders that
+
         self.fetch_all_invalidated_orders(user, token)
     }
 

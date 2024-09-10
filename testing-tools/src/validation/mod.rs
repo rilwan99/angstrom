@@ -8,20 +8,18 @@ use std::{
 };
 
 use alloy_primitives::{Address, U256};
-use angstrom_eth::manager::EthEvent;
-use futures::{FutureExt, Stream};
+use futures::FutureExt;
 use reth_provider::StateProviderFactory;
 use tokio::sync::mpsc::unbounded_channel;
 use validation::{
     common::lru_db::RevmLRU,
     order::state::{
         config::{load_validation_config, ValidationConfig},
-        db_state_utils::nonces::Nonces
+        db_state_utils::{nonces::Nonces, FetchUtils},
+        pools::AngstromPoolsTracker
     },
     validator::{ValidationClient, Validator}
 };
-
-use crate::mocks::eth_events::MockEthEventHandle;
 
 type ValidatorOperation<DB, T> =
     dyn FnOnce(
@@ -34,16 +32,11 @@ pub struct TestOrderValidator<DB: StateProviderFactory + Clone + Unpin + 'static
     pub revm_lru:   Arc<RevmLRU<DB>>,
     pub config:     ValidationConfig,
     pub client:     ValidationClient,
-    pub underlying: Validator<DB>,
-    pub eth_handle: MockEthEventHandle
+    pub underlying: Validator<DB, AngstromPoolsTracker, FetchUtils>
 }
 
 impl<DB: StateProviderFactory + Clone + Unpin + 'static> TestOrderValidator<DB> {
-    pub fn new(
-        db: DB,
-        eth_stream: Pin<Box<dyn Stream<Item = EthEvent> + Send + Unpin>>,
-        eth_handle: MockEthEventHandle
-    ) -> Self {
+    pub fn new(db: DB) -> Self {
         let (tx, rx) = unbounded_channel();
         let config_path = Path::new("./state_config.toml");
         let config = load_validation_config(config_path).unwrap();
@@ -52,13 +45,22 @@ impl<DB: StateProviderFactory + Clone + Unpin + 'static> TestOrderValidator<DB> 
         let revm_lru = Arc::new(RevmLRU::new(10000000, Arc::new(db), current_block.clone()));
 
         let task_db = revm_lru.clone();
+        let fetch = FetchUtils::new(config.clone());
+        let pools = AngstromPoolsTracker::new(config.clone());
 
         let handle = tokio::runtime::Handle::current();
-        let val =
-            Validator::new(rx, eth_stream, task_db, config.clone(), current_block.clone(), handle);
+        let val = Validator::new(
+            rx,
+            task_db,
+            current_block.clone(),
+            config.max_validation_per_user,
+            pools,
+            fetch,
+            handle
+        );
         let client = ValidationClient(tx);
 
-        Self { revm_lru, client, underlying: val, config, eth_handle }
+        Self { revm_lru, client, underlying: val, config }
     }
 
     pub async fn poll_for(&mut self, duration: Duration) {
