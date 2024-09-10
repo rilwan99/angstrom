@@ -30,7 +30,7 @@ import {DEBUG_LOGS} from "./modules/DevFlags.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract Angstrom is ERC712, Accounter, InvalidationManager, PoolManager, NodeManager, HookManager, IUnlockCallback {
+contract Angstrom is ERC712, InvalidationManager, PoolManager, Accounter, NodeManager, HookManager, IUnlockCallback {
     using RayMathLib for uint256;
     // TODO: Remove
     using FormatLib for *;
