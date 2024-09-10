@@ -37,17 +37,17 @@ library PoolRewardsLib {
         }
     }
 
-    function updateAfterTickMove(PoolRewards storage self, IPoolManager uniV4, PoolId id, int24 lastTick, int24 newTick)
+    function updateAfterTickMove(PoolRewards storage self, PoolId id, IPoolManager uniV4, int24 lastTick, int24 newTick)
         internal
     {
         if (newTick > lastTick) {
-            _updateTickMoveUp(self, uniV4, id, lastTick, newTick);
+            _updateTickMoveUp(self, id, uniV4, lastTick, newTick);
         } else if (newTick < lastTick) {
-            _updateTickMoveDown(self, uniV4, id, lastTick, newTick);
+            _updateTickMoveDown(self, id, uniV4, lastTick, newTick);
         }
     }
 
-    function _updateTickMoveUp(PoolRewards storage self, IPoolManager uniV4, PoolId id, int24 tick, int24 newTick)
+    function _updateTickMoveUp(PoolRewards storage self, PoolId id, IPoolManager uniV4, int24 tick, int24 newTick)
         private
     {
         uint256 globalGrowth = self.globalGrowth;
@@ -63,7 +63,7 @@ library PoolRewardsLib {
         }
     }
 
-    function _updateTickMoveDown(PoolRewards storage self, IPoolManager uniV4, PoolId id, int24 tick, int24 newTick)
+    function _updateTickMoveDown(PoolRewards storage self, PoolId id, IPoolManager uniV4, int24 tick, int24 newTick)
         private
     {
         uint256 globalGrowth = self.globalGrowth;

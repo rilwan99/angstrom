@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {CalldataReader, CalldataReaderLib} from "../../src/types/CalldataReader.sol";
 import {Asset, AssetArray, AssetLib} from "../../src/types/Asset.sol";
-import {PoolRewardsManager} from "../../src/modules/PoolRewardsManager.sol";
+import {PoolManager} from "../../src/modules/PoolRewardsManager.sol";
 import {UniConsumer} from "../../src/modules/UniConsumer.sol";
 import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {TICK_SPACING, SET_POOL_FEE} from "../../src/Constants.sol";
@@ -13,7 +13,7 @@ import {MOCK_LOGS} from "../../src/modules/DevFlags.sol";
 import {console} from "forge-std/console.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract MockRewardsManager is UniConsumer, PoolRewardsManager {
+contract MockRewardsManager is UniConsumer, PoolManager {
     using IUniV4 for IPoolManager;
 
     constructor(address uniV4PoolManager) UniConsumer(uniV4PoolManager) {
@@ -32,6 +32,10 @@ contract MockRewardsManager is UniConsumer, PoolRewardsManager {
         (reader,,) = _rewardPool(reader, assets);
 
         reader.requireAtEndOf(encoded);
+    }
+
+    function updateAfterTickMove(PoolId id, int24 lastTick, int24 newTick) external {
+        poolRewards[id].updateAfterTickMove(id, UNI_V4, lastTick, newTick);
     }
 
     function consts() external pure returns (int24 tickSpacing, uint24 poolFee) {
