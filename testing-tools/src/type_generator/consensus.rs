@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
+use alloy_primitives::FixedBytes;
 use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
+    primitive::PoolId,
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
         sol::TopOfBlockOrder
@@ -32,7 +34,7 @@ pub fn generate_limit_order_set(
 
 pub fn generate_limit_order_distribution(
     count: usize,
-    pool_id: usize,
+    pool_id: PoolId,
     block: u64
 ) -> Vec<OrderWithStorageData<GroupedVanillaOrder>> {
     let mut res = Vec::with_capacity(count * 2);
@@ -54,12 +56,15 @@ pub fn generate_random_preproposal(count: usize, pool_count: usize, block: u64) 
     let pk = sk.public_key(&secp);
     // Grab the source ID from the secret/public keypair
     let source = pk2id(&pk);
-    let limit = (0..pool_count)
-        .flat_map(|pool_id| generate_limit_order_distribution(count, pool_id, block))
+    let pools: Vec<FixedBytes<32>> = (0..pool_count).map(|_| FixedBytes::random()).collect();
+    let limit = pools
+        .iter()
+        .flat_map(|pool_id| generate_limit_order_distribution(count, *pool_id, block))
         .collect();
 
-    let searcher = (0..pool_count)
-        .map(|pool_id| generate_top_of_block_order(&mut rng, true, Some(pool_id), Some(block)))
+    let searcher = pools
+        .iter()
+        .map(|pool_id| generate_top_of_block_order(&mut rng, true, Some(*pool_id), Some(block)))
         .collect();
 
     PreProposal::generate_pre_proposal(block, source, limit, searcher, &sk)
@@ -76,9 +81,8 @@ pub fn generate_random_proposal(count: usize, pool_count: usize, block: u64) -> 
     let preproposals = (0..5)
         .map(|_| generate_random_preproposal(count, pool_count, block))
         .collect::<Vec<_>>();
-    let manager = MatchingManager {};
-    let books = manager.build_books(&preproposals);
-    let searcher_orders: HashMap<usize, OrderWithStorageData<TopOfBlockOrder>> = preproposals
+    let books = MatchingManager::build_books(&preproposals);
+    let searcher_orders: HashMap<PoolId, OrderWithStorageData<TopOfBlockOrder>> = preproposals
         .iter()
         .flat_map(|p| p.searcher.iter())
         .fold(HashMap::new(), |mut acc, order| {

@@ -2,11 +2,9 @@ use std::collections::HashMap;
 
 use alloy::primitives::{I256, U256};
 use angstrom_types::{
+    contract_payloads::tob::{PoolRewardsUpdate, RewardsUpdate},
     matching::{Ray, SqrtPriceX96},
-    sol_bindings::{
-        grouped_orders::OrderWithStorageData,
-        sol::{SolPoolRewardsUpdate, SolRewardsUpdate, TopOfBlockOrder}
-    }
+    sol_bindings::{grouped_orders::OrderWithStorageData, sol::TopOfBlockOrder}
 };
 use eyre::{eyre, Context, OptionExt};
 use uniswap_v3_math::{swap_math::compute_swap_step, tick_math::get_sqrt_ratio_at_tick};
@@ -35,7 +33,7 @@ impl ToBOutcome {
         self.total_donations() + self.tribute
     }
 
-    pub fn to_donate(&self, a0_idx: u16, a1_idx: u16) -> SolPoolRewardsUpdate {
+    pub fn to_donate(&self, a0_idx: u16, a1_idx: u16) -> PoolRewardsUpdate {
         let mut donations = self.tick_donations.iter().collect::<Vec<_>>();
         // Will sort from lowest to highest (donations[0] will be the lowest tick
         // number)
@@ -48,17 +46,17 @@ impl ToBOutcome {
                 Some(u128::try_from(*state).unwrap())
             })
             .collect::<Vec<_>>();
-        let update = SolRewardsUpdate {
+        let update = RewardsUpdate {
             startTick: *donations[0].0 + 1,
             startLiquidity: self.start_liquidity,
             quantities
         };
-        SolPoolRewardsUpdate { asset0: a0_idx, asset1: a1_idx, update }
+        PoolRewardsUpdate { asset0: a0_idx, asset1: a1_idx, update }
     }
 }
 
 pub fn calculate_reward(
-    tob: OrderWithStorageData<TopOfBlockOrder>,
+    tob: &OrderWithStorageData<TopOfBlockOrder>,
     amm: MarketSnapshot
 ) -> eyre::Result<ToBOutcome> {
     // This implies that a bid will be purchasing T0 out of the pool, therefore
@@ -254,7 +252,7 @@ mod test {
         let total_payment = Uint::from(10_000_000_000_000_u128);
         order.order.amountIn = total_payment;
         order.order.amountOut = Uint::from(100000000);
-        let result = calculate_reward(order, amm).expect("Error calculating tick donations");
+        let result = calculate_reward(&order, amm).expect("Error calculating tick donations");
         let total_donations = result.total_donations();
         assert_eq!(
             total_donations + result.total_cost + result.tribute,
@@ -271,7 +269,7 @@ mod test {
         order.is_bid = true;
         order.order.amountOut = Uint::from(10_000_000_000_000_u128);
         order.order.amountIn = Uint::from(100000000);
-        let result = calculate_reward(order, amm);
+        let result = calculate_reward(&order, amm);
         assert!(result.is_err_and(|e| {
             e.to_string()
                 .starts_with("Total cost greater than amount offered")
@@ -286,7 +284,7 @@ mod test {
         let total_payment = Uint::from(2_203_194_246_001_u128);
         order.order.amountIn = total_payment;
         order.order.amountOut = Uint::from(100000000);
-        let result = calculate_reward(order, amm).expect("Error calculating tick donations");
+        let result = calculate_reward(&order, amm).expect("Error calculating tick donations");
         let total_donations = result.total_donations();
         assert!(
             result.tick_donations.is_empty(),
@@ -307,7 +305,7 @@ mod test {
         let total_payment = Uint::from(2_203_371_417_593_u128);
         order.order.amountIn = total_payment;
         order.order.amountOut = Uint::from(100000000);
-        let result = calculate_reward(order, amm).expect("Error calculating tick donations");
+        let result = calculate_reward(&order, amm).expect("Error calculating tick donations");
         let total_donations = result.total_donations();
         assert!(result.tick_donations.contains_key(&100000), "Donation to first tick missing");
         assert!(result.tick_donations.contains_key(&100001), "Donation to second tick missing");
@@ -330,7 +328,7 @@ mod test {
         order.is_bid = true;
         order.order.amountIn = Uint::from(10_000_000_000_000_u128);
         order.order.amountOut = Uint::from(100000000);
-        let result = calculate_reward(order, amm);
+        let result = calculate_reward(&order, amm);
         assert!(result.is_ok());
     }
 
@@ -342,7 +340,7 @@ mod test {
         order.is_bid = false;
         order.order.amountOut = Uint::from(10_000_000_000_000_u128);
         order.order.amountIn = Uint::from(800000000);
-        let result = calculate_reward(order, amm);
+        let result = calculate_reward(&order, amm);
         assert!(result.is_ok());
     }
 
@@ -366,7 +364,7 @@ mod test {
         let total_payment = Uint::from(10_000_000_000_000_u128);
         order.order.amountIn = total_payment;
         order.order.amountOut = Uint::from(100000000);
-        let tob_outcome = calculate_reward(order, amm).expect("Error calculating tick donations");
+        let tob_outcome = calculate_reward(&order, amm).expect("Error calculating tick donations");
         println!("Outcome: {:?}", tob_outcome);
         // ---- Manually do to_donate to be in our new structs
         let mut donations = tob_outcome.tick_donations.iter().collect::<Vec<_>>();
@@ -437,7 +435,7 @@ mod test {
         let total_payment = Uint::from(10_000_000_000_000_u128);
         order.order.amountIn = total_payment;
         order.order.amountOut = Uint::from(100000000);
-        let tob_outcome = calculate_reward(order, amm).expect("Error calculating tick donations");
+        let tob_outcome = calculate_reward(&order, amm).expect("Error calculating tick donations");
         println!("Outcome: {:?}", tob_outcome);
         // ---- Manually do to_donate to be in our new structs
         let mut donations = tob_outcome.tick_donations.iter().collect::<Vec<_>>();

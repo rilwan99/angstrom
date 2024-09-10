@@ -81,6 +81,7 @@ impl OrderBook {
 
 #[cfg(test)]
 mod test {
+    use alloy::primitives::FixedBytes;
     use angstrom_types::matching::SqrtPriceX96;
 
     use super::*;
@@ -91,6 +92,6 @@ mod test {
         let bids = vec![];
         let asks = vec![];
         let amm = MarketSnapshot::new(vec![], SqrtPriceX96::from_float_price(0.0)).unwrap();
-        OrderBook::new(10, Some(amm), bids, asks, None);
+        OrderBook::new(FixedBytes::<32>::random(), Some(amm), bids, asks, None);
     }
 }

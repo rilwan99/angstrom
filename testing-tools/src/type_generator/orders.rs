@@ -2,6 +2,7 @@ use alloy_primitives::{Address, FixedBytes, Uint};
 use angstrom_types::{
     matching::Ray,
     orders::{OrderId, OrderPriorityData},
+    primitive::PoolId,
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData, RawPoolOrder},
         sol::{FlashOrder, StandingOrder, TopOfBlockOrder}
@@ -14,7 +15,7 @@ use rand_distr::{num_traits::ToPrimitive, Distribution, SkewNormal};
 //     OrderPriorityData { price: order.price().into(), volume: order.quantity()
 // as u128, gas: 10 } }
 
-fn generate_order_id(pool_id: usize, hash: FixedBytes<32>) -> OrderId {
+fn generate_order_id(pool_id: PoolId, hash: FixedBytes<32>) -> OrderId {
     let address = Address::random();
     OrderId { address, pool_id, hash, ..Default::default() }
 }
@@ -23,7 +24,7 @@ pub fn generate_limit_order(
     rng: &mut ThreadRng,
     kof: bool,
     is_bid: bool,
-    pool_id: Option<usize>,
+    pool_id: Option<PoolId>,
     valid_block: Option<u64>,
     asset_in: Option<u16>,
     asset_out: Option<u16>,
@@ -66,7 +67,7 @@ pub fn generate_limit_order(
 pub fn generate_top_of_block_order(
     rng: &mut ThreadRng,
     is_bid: bool,
-    pool_id: Option<usize>,
+    pool_id: Option<PoolId>,
     valid_block: Option<u64>
 ) -> OrderWithStorageData<TopOfBlockOrder> {
     let pool_id = pool_id.unwrap_or_default();
@@ -159,7 +160,7 @@ pub fn generate_order_distribution(
     order_count: usize,
     priceparams: DistributionParameters,
     volumeparams: DistributionParameters,
-    pool_id: usize,
+    pool_id: PoolId,
     valid_block: u64
 ) -> Result<Vec<OrderWithStorageData<GroupedVanillaOrder>>, String> {
     let DistributionParameters { location: price_location, scale: price_scale, shape: price_shape } =

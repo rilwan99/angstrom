@@ -21,14 +21,7 @@ impl AngstromPools {
     }
 
     pub fn get_poolid(&self, addr1: Address, addr2: Address) -> Option<PoolId> {
-        // Uniswap pools are always sorted in ascending order
-        let key = match addr1.cmp(&addr2) {
-            std::cmp::Ordering::Greater => FixedBytes::concat_const(addr2.0, addr1.0),
-            std::cmp::Ordering::Less => FixedBytes::concat_const(addr1.0, addr2.0),
-            // No such thing as a pool between the same token, although I suppose we could also
-            // still assemble the key and just fail to find it
-            std::cmp::Ordering::Equal => return None
-        };
+        let key = Self::build_key(addr1, addr2);
         self.key_to_id.get(&key).map(|inner| *inner)
     }
 
@@ -44,10 +37,13 @@ impl AngstromPools {
         // know it's t1 and therefore this order is a bid.
         let is_bid = currency_in > currency_out;
         self.key_to_id
-            .get(&Self::get_key(currency_in, currency_out))
+            .get(&Self::build_key(currency_in, currency_out))
             .map(|inner| (is_bid, *inner))
     }
 
+    /// Get the asset addresses of a pool from the Uniswap PoolId.  By Uniswap
+    /// convention, these addresses will always be sorted, therefore the return
+    /// type here is `Option<(t0, t1)>`
     pub fn get_addresses(&self, poolid: PoolId) -> Option<(Address, Address)> {
         self.id_to_key.get(&poolid).map(|bytes| {
             // We know these sizes so it's OK
@@ -59,7 +55,7 @@ impl AngstromPools {
     }
 
     #[inline(always)]
-    pub fn get_key(addr1: Address, addr2: Address) -> FixedBytes<40> {
+    pub fn build_key(addr1: Address, addr2: Address) -> FixedBytes<40> {
         match addr1.cmp(&addr2) {
             std::cmp::Ordering::Greater => FixedBytes::concat_const(addr2.0, addr1.0),
             std::cmp::Ordering::Less => FixedBytes::concat_const(addr1.0, addr2.0),

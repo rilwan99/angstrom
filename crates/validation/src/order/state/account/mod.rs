@@ -142,7 +142,7 @@ pub mod tests {
         sync::{atomic::AtomicU64, Arc}
     };
 
-    use alloy_primitives::U256;
+    use alloy_primitives::{FixedBytes, U256};
     use angstrom_types::sol_bindings::grouped_orders::{GroupedVanillaOrder, PoolOrder};
     use dashmap::DashSet;
     use rand::thread_rng;
@@ -184,11 +184,10 @@ pub mod tests {
 
         let token0 = Address::random();
         let token1 = Address::random();
-        let pool = 10;
 
         let mut mock_pool = MockPoolTracker::default();
 
-        mock_pool.add_pool(token0, token1, pool);
+        let pool = mock_pool.add_pool(token0, token1);
         mock_pool.add_asset(asset0, token0);
         mock_pool.add_asset(asset1, token1);
 
@@ -197,7 +196,7 @@ pub mod tests {
             &mut rng,
             false,
             true,
-            Some(pool as usize),
+            Some(pool),
             None,
             Some(asset0),
             Some(asset1),
@@ -236,11 +235,10 @@ pub mod tests {
 
         let token0 = Address::random();
         let token1 = Address::random();
-        let pool = 10;
 
         let mut mock_pool = MockPoolTracker::default();
 
-        mock_pool.add_pool(token0, token1, pool);
+        let pool = mock_pool.add_pool(token0, token1);
         mock_pool.add_asset(asset0, token0);
         mock_pool.add_asset(asset1, token1);
 
@@ -249,7 +247,7 @@ pub mod tests {
             &mut rng,
             false,
             true,
-            Some(pool as usize),
+            Some(pool),
             None,
             Some(asset0),
             Some(asset1),
@@ -299,11 +297,10 @@ pub mod tests {
 
         let token0 = Address::random();
         let token1 = Address::random();
-        let pool = 10;
 
         let mut mock_pool = MockPoolTracker::default();
 
-        mock_pool.add_pool(token0, token1, pool);
+        let pool = mock_pool.add_pool(token0, token1);
         mock_pool.add_asset(asset0, token0);
         mock_pool.add_asset(asset1, token1);
 
@@ -312,7 +309,7 @@ pub mod tests {
             &mut rng,
             false,
             true,
-            Some(pool as usize),
+            Some(pool),
             None,
             Some(asset0),
             Some(asset1),
@@ -325,7 +322,7 @@ pub mod tests {
             &mut rng,
             false,
             true,
-            Some(pool as usize),
+            Some(pool),
             None,
             Some(asset0),
             Some(asset1),
@@ -377,11 +374,10 @@ pub mod tests {
 
         let token0 = Address::random();
         let token1 = Address::random();
-        let pool = 10;
 
         let mut mock_pool = MockPoolTracker::default();
 
-        mock_pool.add_pool(token0, token1, pool);
+        let pool = mock_pool.add_pool(token0, token1);
         mock_pool.add_asset(asset0, token0);
         mock_pool.add_asset(asset1, token1);
 
@@ -390,7 +386,7 @@ pub mod tests {
             &mut rng,
             false,
             true,
-            Some(pool as usize),
+            Some(pool),
             None,
             Some(asset0),
             Some(asset1),

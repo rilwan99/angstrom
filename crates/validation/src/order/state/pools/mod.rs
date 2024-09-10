@@ -58,7 +58,7 @@ impl AngstromPoolsTracker {
         let pools = config
             .pools
             .iter()
-            .map(|pool| (AngstromPools::get_key(pool.token0, pool.token1), pool.pool_id))
+            .map(|pool| (AngstromPools::build_key(pool.token0, pool.token1), pool.pool_id))
             .collect::<DashMap<_, _>>();
         let angstrom_pools = AngstromPools::new(pools);
 
@@ -71,7 +71,10 @@ impl AngstromPoolsTracker {
         Self { pools: angstrom_pools, asset_index_to_address: assets }
     }
 
-    pub fn get_pool_data(&self, poolid: PoolId) -> Option<(Address, Address)> {
+    /// Get the token addresses for a pool specified by Uniswap PoolId.  By
+    /// Uniswap convention, these token addresses will be sorted, therefore the
+    /// return from this method is `Option<(t0, t1)>`
+    pub fn get_pool_addresses(&self, poolid: PoolId) -> Option<(Address, Address)> {
         self.pools.get_addresses(poolid)
     }
 }
@@ -81,12 +84,12 @@ pub mod pool_tracker_mock {
     use alloy_primitives::{Address, FixedBytes};
     use dashmap::DashMap;
 
-    use super::{angstrom_pools::PoolIdWithDirection, *};
+    use super::*;
 
     #[derive(Clone, Default)]
     pub struct MockPoolTracker {
         asset_index_to_address: DashMap<u16, Address>,
-        pools:                  DashMap<(Address, Address), PoolIdWithDirection>
+        pools:                  DashMap<(Address, Address), PoolId>
     }
 
     impl MockPoolTracker {
@@ -94,9 +97,24 @@ pub mod pool_tracker_mock {
             self.asset_index_to_address.insert(index, address);
         }
 
-        pub fn add_pool(&self, token0: Address, token1: Address, pool: u16) {
-            self.pools.insert((token0, token1), (true, pool as usize));
-            self.pools.insert((token1, token0), (false, pool as usize));
+        pub fn get_key(token0: Address, token1: Address) -> (Address, Address) {
+            match token0.cmp(&token1) {
+                std::cmp::Ordering::Greater => (token1, token0),
+                std::cmp::Ordering::Less => (token0, token1),
+                std::cmp::Ordering::Equal => panic!("Can't have a pool with equal tokens")
+            }
+        }
+
+        pub fn add_pool(&self, token0: Address, token1: Address) -> PoolId {
+            let key = Self::get_key(token0, token1);
+            let pool_id = FixedBytes::random();
+            match self.pools.entry(key) {
+                dashmap::Entry::Occupied(_) => panic!("Tried to double-add a pool entry"),
+                dashmap::Entry::Vacant(e) => {
+                    e.insert(pool_id);
+                }
+            }
+            pool_id
         }
     }
 
@@ -114,10 +132,12 @@ pub mod pool_tracker_mock {
                 .get(&order.get_token_out())?
                 .value();
 
-            let value = self.pools.get(&(token_in, token_out))?;
-            let (is_bid, pool_id) = value.value();
+            let key = Self::get_key(token_in, token_out);
+            let value = self.pools.get(&(key))?;
+            let is_bid = token_in > token_out;
+            let pool_id = value.value();
             let wrapped = AssetIndexToAddressWrapper { token_out, token_in, order };
-            let info = UserOrderPoolInfo { pool_id: *pool_id, is_bid: *is_bid, token: token_in };
+            let info = UserOrderPoolInfo { pool_id: *pool_id, is_bid, token: token_in };
 
             Some((info, wrapped))
         }

@@ -6,7 +6,7 @@ use pade_macro::PadeEncode;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    contract_payloads::tob::{Asset, PoolRewardsUpdate},
+    contract_payloads::tob::{Asset, RewardsUpdate},
     sol_bindings::sol::TopOfBlockOrder as InternalTopOfBlockOrder
 };
 
@@ -83,32 +83,31 @@ sol! {
     }
 
     #[derive(PadeEncode)]
-    struct PoolSwap {
+    struct PoolUpdate {
         uint16 asset_in_index;
         uint16 asset_out_index;
-        uint128 quantity_in;
+        uint128 swap_in_quantity;
+        RewardsUpdate rewards_update;
     }
 }
 
 #[derive(PadeEncode)]
 pub struct AngstromBundle {
-    assets:       Vec<Asset>,
-    pairs:        Vec<Pair>,
-    swaps:        Vec<PoolSwap>,
-    tob_orders:   Vec<TopOfBlockOrder>,
-    user_orders:  Vec<UserOrder>,
-    pool_rewards: Vec<PoolRewardsUpdate>
+    assets:              Vec<Asset>,
+    pairs:               Vec<Pair>,
+    pool_updates:        Vec<PoolUpdate>,
+    top_of_block_orders: Vec<TopOfBlockOrder>,
+    user_orders:         Vec<UserOrder>
 }
 
 impl AngstromBundle {
     pub fn new(
         assets: Vec<Asset>,
         pairs: Vec<Pair>,
-        swaps: Vec<PoolSwap>,
-        tob_orders: Vec<TopOfBlockOrder>,
-        user_orders: Vec<UserOrder>,
-        pool_rewards: Vec<PoolRewardsUpdate>
+        pool_updates: Vec<PoolUpdate>,
+        top_of_block_orders: Vec<TopOfBlockOrder>,
+        user_orders: Vec<UserOrder>
     ) -> Self {
-        Self { assets, pairs, swaps, tob_orders, user_orders, pool_rewards }
+        Self { assets, pairs, pool_updates, top_of_block_orders, user_orders }
     }
 }
