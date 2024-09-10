@@ -139,9 +139,8 @@ encoding (`src/reference/PoolSwap.sol`)](../../contracts/src/reference/PoolSwap.
 struct PoolUpdate {
     asset_in_index: u16,
     asset_out_index: u16,
-    before_swap_rewards: Option<RewardsUpdate>,
     swap_in_quantity: u128,
-    after_swap_rewards: Option<RewardsUpdate>
+    rewards_update: RewardsUpdate
 }
 ```
 
@@ -154,9 +153,8 @@ recommended to net out multiple swaps against the same pool into one to save on 
 |-----|-----------|
 |`asset_in_index: u16`|Swap's input asset as index into the assets array|
 |`asset_out_index: u16`|Swap's output asset as index into the assets array|
-|`before_swap_rewards: Option<RewardsUpdate>`| The pool's LP rewards to distribute *before* the pool swap is executed  |
 |`swap_in_quantity: u128`|The swap input quantity in the input asset's base units.|
-|`after_swap_rewards: Option<RewardsUpdate>`| The pool's LP rewards to distribute *after* the pool swap is executed  |
+|`rewards_update: RewardsUpdate`| The pool's LP rewards to distribute *after* the pool swap is executed  |
 
 **Rewards Update**
 
