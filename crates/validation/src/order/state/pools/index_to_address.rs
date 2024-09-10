@@ -6,6 +6,7 @@ use std::{
 use alloy_primitives::{Address, TxHash, U256};
 use angstrom_types::{
     orders::OrderLocation,
+    primitive::NewInitializedPool,
     sol_bindings::{
         grouped_orders::{OrderWithStorageData, PoolOrder, RawPoolOrder},
         sol::AssetIndex,
@@ -19,6 +20,20 @@ use super::UserOrderPoolInfo;
 
 #[derive(Debug, Default)]
 pub struct AssetIndexToAddress(DashMap<u16, Address>);
+
+impl AssetIndexToAddress {
+    pub fn try_set_new_pool_assets(&mut self, pool: NewInitializedPool) {
+        self.try_set_new_asset(pool.currency_in, pool.currency_in_index);
+        self.try_set_new_asset(pool.currency_out, pool.currency_out_index);
+    }
+
+    fn try_set_new_asset(&mut self, asset: Address, idx: u16) {
+        if let Some(removed_asset) = self.0.insert(idx, asset) {
+            // are the asset indices static once set?
+            assert_eq!(removed_asset, asset);
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct AssetIndexToAddressWrapper<Order: RawPoolOrder> {

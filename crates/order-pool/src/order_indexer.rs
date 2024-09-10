@@ -10,7 +10,7 @@ use std::{
 use alloy_primitives::{B256, U256};
 use angstrom_types::{
     orders::{OrderId, OrderOrigin, OrderSet},
-    primitive::PoolId,
+    primitive::{NewInitializedPool, PoolId},
     sol_bindings::{
         grouped_orders::{
             AllOrders, GroupedComposableOrder, GroupedVanillaOrder, OrderWithStorageData, *
@@ -299,6 +299,10 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
 
     pub fn get_all_orders(&self) -> OrderSet<GroupedVanillaOrder, TopOfBlockOrder> {
         self.order_storage.get_all_orders()
+    }
+
+    pub fn new_pool(&self, pool: NewInitializedPool) {
+        self.order_storage.new_pool(pool);
     }
 }
 

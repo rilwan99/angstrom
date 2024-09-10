@@ -16,7 +16,9 @@ use tokio::{
 use crate::{
     common::lru_db::{BlockStateProviderFactory, RevmLRU},
     order::{
-        order_validator::OrderValidator, state::config::ValidationConfig, OrderValidationRequest
+        order_validator::OrderValidator,
+        state::{config::ValidationConfig, pools::AngstromPoolsTracker},
+        OrderValidationRequest
     }
 };
 
@@ -44,11 +46,13 @@ where
         rx: UnboundedReceiver<ValidationRequest>,
         new_block_stream: Pin<Box<dyn Stream<Item = EthEvent> + Send>>,
         db: Arc<RevmLRU<DB>>,
+        pool_tracker: AngstromPoolsTracker,
         config: ValidationConfig,
         block_number: Arc<AtomicU64>,
         handle: Handle
     ) -> Self {
-        let order_validator = OrderValidator::new(db.clone(), config, block_number, handle);
+        let order_validator =
+            OrderValidator::new(db.clone(), pool_tracker, config, block_number, handle);
         Self { new_block_stream, db, order_validator, rx }
     }
 

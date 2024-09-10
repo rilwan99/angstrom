@@ -17,7 +17,7 @@ use std::{
 use angstrom_eth::manager::EthEvent;
 use common::lru_db::{BlockStateProviderFactory, RevmLRU};
 use futures::Stream;
-use order::state::config::load_validation_config;
+use order::state::{config::load_validation_config, pools::AngstromPoolsTracker};
 use reth_provider::StateProviderFactory;
 use tokio::sync::mpsc::unbounded_channel;
 use validator::Validator;
@@ -36,6 +36,7 @@ pub fn init_validation<DB: BlockStateProviderFactory + Unpin + Clone + 'static>(
     let config = load_validation_config(config_path).unwrap();
     let current_block = Arc::new(AtomicU64::new(db.best_block_number().unwrap()));
     let revm_lru = Arc::new(RevmLRU::new(cache_max_bytes, Arc::new(db), current_block.clone()));
+    let pool_tracker = AngstromPoolsTracker::new(config.clone());
 
     std::thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -46,7 +47,16 @@ pub fn init_validation<DB: BlockStateProviderFactory + Unpin + Clone + 'static>(
         let handle = rt.handle().clone();
 
         rt.block_on(async {
-            Validator::new(rx, block_stream, revm_lru, config, current_block.clone(), handle).await
+            Validator::new(
+                rx,
+                block_stream,
+                revm_lru,
+                pool_tracker,
+                config,
+                current_block.clone(),
+                handle
+            )
+            .await
         })
     });
 
@@ -63,6 +73,7 @@ pub fn init_validation_tests<DB: BlockStateProviderFactory + Unpin + Clone + 'st
     let config = load_validation_config(config_path).unwrap();
     let current_block = Arc::new(AtomicU64::new(db.best_block_number().unwrap()));
     let revm_lru = Arc::new(RevmLRU::new(cache_max_bytes, Arc::new(db), current_block.clone()));
+    let pool_tracker = AngstromPoolsTracker::new(config.clone());
 
     let task_db = revm_lru.clone();
     std::thread::spawn(move || {
@@ -77,6 +88,7 @@ pub fn init_validation_tests<DB: BlockStateProviderFactory + Unpin + Clone + 'st
             rx,
             block_stream,
             task_db,
+            pool_tracker,
             config,
             current_block.clone(),
             handle

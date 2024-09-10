@@ -2,7 +2,10 @@ use std::{collections::HashMap, sync::Arc, task::Poll};
 
 use account::UserAccountProcessor;
 use alloy_primitives::{Address, B256, U256};
-use angstrom_types::sol_bindings::grouped_orders::{AllOrders, RawPoolOrder};
+use angstrom_types::{
+    primitive::{NewInitializedPool, PoolIdWithDirection},
+    sol_bindings::grouped_orders::{AllOrders, RawPoolOrder}
+};
 use futures::{Stream, StreamExt};
 use futures_util::stream::FuturesUnordered;
 use parking_lot::RwLock;
@@ -43,19 +46,25 @@ pub struct StateValidation<DB> {
     /// tracks everything user related.
     user_account_tracker: Arc<UserAccountProcessor<DB>>,
     /// tracks all info about the current angstrom pool state.
-    pool_tacker:          Arc<AngstromPoolsTracker>
+    pool_tacker:          AngstromPoolsTracker
 }
 
 impl<DB> StateValidation<DB>
 where
     DB: BlockStateProviderFactory + Unpin + 'static
 {
-    pub fn new(db: Arc<RevmLRU<DB>>, config: ValidationConfig, block: u64) -> Self {
+    pub fn new(
+        db: Arc<RevmLRU<DB>>,
+        pool_tacker: AngstromPoolsTracker,
+        config: ValidationConfig,
+        block: u64
+    ) -> Self {
         todo!()
     }
 
     pub fn wrap_order<O: RawPoolOrder>(&self, order: O) -> Option<AssetIndexToAddressWrapper<O>> {
-        self.pool_tacker.asset_index_to_address.wrap(order)
+        self.pool_tacker
+            .read_with(|inner| inner.asset_index_to_address.wrap(order))
     }
 
     fn handle_regular_order<O: RawPoolOrder + Into<AllOrders>>(
@@ -65,7 +74,9 @@ where
         is_limit: bool
     ) -> OrderValidationResults {
         let order_hash = order.hash();
-        let Some((pool_info, wrapped_order)) = self.pool_tacker.fetch_pool_info_for_order(order)
+        let Some((pool_info, wrapped_order)) = self
+            .pool_tacker
+            .read_with(|inner| inner.fetch_pool_info_for_order(order))
         else {
             return OrderValidationResults::Invalid(order_hash)
         };
@@ -90,5 +101,10 @@ where
             }
             _ => unreachable!()
         }
+    }
+
+    pub fn index_new_pool(&mut self, pool: NewInitializedPool) {
+        self.pool_tacker
+            .write_with(|inner| inner.index_new_pool(pool));
     }
 }

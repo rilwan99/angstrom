@@ -249,7 +249,8 @@ where
             EthEvent::FinalizedBlock(block) => {
                 self.order_sorter.finalized_block(block);
             }
-            EthEvent::NewBlock(block) => self.order_sorter.new_block(block)
+            EthEvent::NewBlock(block) => self.order_sorter.new_block(block),
+            EthEvent::NewPool(pool) => self.order_sorter.new_pool(pool)
         }
     }
 

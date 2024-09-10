@@ -8,6 +8,7 @@ use std::{
 };
 
 use alloy_primitives::{Address, U256};
+use angstrom_types::primitive::{NewInitializedPool, PoolIdWithDirection};
 use angstrom_utils::{
     key_split_threadpool::KeySplitThreadpool,
     sync_pipeline::{
@@ -20,7 +21,10 @@ use tokio::{runtime::Handle, task::JoinHandle};
 
 use super::{
     sim::SimValidation,
-    state::{account::user::UserAddress, config::ValidationConfig, StateValidation},
+    state::{
+        account::user::UserAddress, config::ValidationConfig, pools::AngstromPoolsTracker,
+        StateValidation
+    },
     OrderValidationRequest
 };
 use crate::{
@@ -45,6 +49,7 @@ where
 {
     pub fn new(
         db: Arc<RevmLRU<DB>>,
+        pool_tacker: AngstromPoolsTracker,
         config: ValidationConfig,
         block_number: Arc<AtomicU64>,
         handle: Handle
@@ -52,6 +57,7 @@ where
         let threadpool = KeySplitThreadpool::new(handle, config.max_validation_per_user);
         let state = StateValidation::new(
             db.clone(),
+            pool_tacker,
             config,
             block_number.load(std::sync::atomic::Ordering::SeqCst)
         );
@@ -81,6 +87,10 @@ where
                 cloned_state.validate_state_of_regular_order(order_validation, block_number)
             })
         );
+    }
+
+    pub fn index_new_pool(&mut self, pool: NewInitializedPool) {
+        self.state.index_new_pool(pool);
     }
 }
 

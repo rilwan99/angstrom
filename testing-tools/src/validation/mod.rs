@@ -16,7 +16,8 @@ use validation::{
     common::lru_db::RevmLRU,
     order::state::{
         config::{load_validation_config, ValidationConfig},
-        db_state_utils::nonces::Nonces
+        db_state_utils::nonces::Nonces,
+        pools::AngstromPoolsTracker
     },
     validator::{ValidationClient, Validator}
 };
@@ -50,12 +51,20 @@ impl<DB: StateProviderFactory + Clone + Unpin + 'static> TestOrderValidator<DB> 
         tracing::debug!(?config);
         let current_block = Arc::new(AtomicU64::new(db.best_block_number().unwrap()));
         let revm_lru = Arc::new(RevmLRU::new(10000000, Arc::new(db), current_block.clone()));
+        let pool_tracker = AngstromPoolsTracker::new(config.clone());
 
         let task_db = revm_lru.clone();
 
         let handle = tokio::runtime::Handle::current();
-        let val =
-            Validator::new(rx, eth_stream, task_db, config.clone(), current_block.clone(), handle);
+        let val = Validator::new(
+            rx,
+            eth_stream,
+            task_db,
+            pool_tracker,
+            config.clone(),
+            current_block.clone(),
+            handle
+        );
         let client = ValidationClient(tx);
 
         Self { revm_lru, client, underlying: val, config, eth_handle }
