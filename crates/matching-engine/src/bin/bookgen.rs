@@ -1,4 +1,5 @@
-use angstrom_types::matching::SqrtPriceX96;
+use alloy::primitives::FixedBytes;
+use angstrom_types::{matching::SqrtPriceX96, primitive::PoolId};
 use clap::Parser;
 use matching_engine::{
     book::{sort::SortStrategy, OrderBook},
@@ -45,6 +46,7 @@ struct Args {
 }
 
 fn main() {
+    let id: PoolId = FixedBytes::default();
     let args = Args::parse();
 
     let asks = order_distribution(
@@ -75,7 +77,7 @@ fn main() {
         get_tick_at_sqrt_ratio(SqrtPriceX96::from_float_price(args.price).into()).unwrap();
     let amm = single_position_amm(middle_tick, 10000, 2e36 as u128).unwrap();
 
-    let book = OrderBook::new(10, Some(amm), bids, asks, Some(SortStrategy::ByPriceByVolume));
+    let book = OrderBook::new(id, Some(amm), bids, asks, Some(SortStrategy::ByPriceByVolume));
 
     //println!("Orderbook\n{:?}", book.amm());
     //return;

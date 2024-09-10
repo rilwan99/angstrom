@@ -1,4 +1,4 @@
-use alloy::primitives::U256;
+use alloy::primitives::{FixedBytes, U256};
 use angstrom_types::{
     matching::Ray,
     orders::{OrderId, OrderPriorityData},
@@ -47,7 +47,7 @@ pub fn order_distribution(
                 is_valid: true,
                 is_currently_valid: true,
                 order_id: OrderId::default(),
-                pool_id: 0,
+                pool_id: FixedBytes::default(),
                 valid_block: 0
             }
         })

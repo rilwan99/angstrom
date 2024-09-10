@@ -1,3 +1,4 @@
+use angstrom_types::primitive::PoolId;
 use prometheus::{IntGauge, IntGaugeVec};
 
 use crate::METRICS_ENABLED;
@@ -38,7 +39,7 @@ impl SearcherOrderPoolMetrics {
         self.total_orders.sub(count as i64);
     }
 
-    pub fn incr_all_orders(&self, pool_id: usize, count: usize) {
+    pub fn incr_all_orders(&self, pool_id: PoolId, count: usize) {
         self.all_orders
             .get_metric_with_label_values(&[&pool_id.to_string()])
             .unwrap()
@@ -47,7 +48,7 @@ impl SearcherOrderPoolMetrics {
         self.incr_total_orders(count);
     }
 
-    pub fn decr_all_orders(&self, pool_id: usize, count: usize) {
+    pub fn decr_all_orders(&self, pool_id: PoolId, count: usize) {
         self.all_orders
             .get_metric_with_label_values(&[&pool_id.to_string()])
             .unwrap()
@@ -89,13 +90,13 @@ impl SearcherOrderPoolMetricsWrapper {
         }
     }
 
-    pub fn incr_all_orders(&self, pool_id: usize, count: usize) {
+    pub fn incr_all_orders(&self, pool_id: PoolId, count: usize) {
         if let Some(this) = self.0.as_ref() {
             this.incr_all_orders(pool_id, count)
         }
     }
 
-    pub fn decr_all_orders(&self, pool_id: usize, count: usize) {
+    pub fn decr_all_orders(&self, pool_id: PoolId, count: usize) {
         if let Some(this) = self.0.as_ref() {
             this.decr_all_orders(pool_id, count)
         }

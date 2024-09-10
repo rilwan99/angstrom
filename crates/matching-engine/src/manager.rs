@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use angstrom_types::{
     consensus::PreProposal,
     orders::PoolSolution,
+    primitive::PoolId,
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
         sol::TopOfBlockOrder
@@ -72,7 +73,7 @@ impl MatchingManager {
 
     pub fn orders_by_pool_id(
         preproposals: &[PreProposal]
-    ) -> HashMap<usize, HashSet<OrderWithStorageData<GroupedVanillaOrder>>> {
+    ) -> HashMap<PoolId, HashSet<OrderWithStorageData<GroupedVanillaOrder>>> {
         preproposals
             .iter()
             .flat_map(|p| p.limit.iter())
@@ -105,7 +106,7 @@ impl MatchingManager {
         // them.  This is ugly and inefficient right now
         let books = Self::build_books(&preproposals);
 
-        let searcher_orders: HashMap<usize, OrderWithStorageData<TopOfBlockOrder>> = preproposals
+        let searcher_orders: HashMap<PoolId, OrderWithStorageData<TopOfBlockOrder>> = preproposals
             .iter()
             .flat_map(|p| p.searcher.iter())
             .fold(HashMap::new(), |mut acc, order| {
