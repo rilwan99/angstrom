@@ -23,7 +23,7 @@ import {console} from "forge-std/console.sol";
 import {DEBUG_LOGS} from "./DevFlags.sol";
 
 /// @author philogy <https://github.com/philogy>
-abstract contract PoolRewardsManager is RewardsUpdater, ILiqChangeHooks, UniConsumer {
+abstract contract PoolManager is RewardsUpdater, ILiqChangeHooks, UniConsumer {
     using PoolIdLibrary for PoolKey;
     using IUniV4 for IPoolManager;
     using MixedSignLib for uint128;

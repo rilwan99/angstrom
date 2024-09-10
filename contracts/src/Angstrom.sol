@@ -4,7 +4,7 @@ pragma solidity 0.8.26;
 import {ERC712} from "./modules/ERC712.sol";
 import {NodeManager} from "./modules/NodeManager.sol";
 import {Accounter, PoolSwap} from "./modules/Accounter.sol";
-import {PoolRewardsManager} from "./modules/PoolRewardsManager.sol";
+import {PoolManager} from "./modules/PoolManager.sol";
 import {InvalidationManager} from "./modules/InvalidationManager.sol";
 import {HookManager} from "./modules/HookManager.sol";
 import {UniConsumer} from "./modules/UniConsumer.sol";
@@ -30,15 +30,7 @@ import {DEBUG_LOGS} from "./modules/DevFlags.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract Angstrom is
-    ERC712,
-    Accounter,
-    InvalidationManager,
-    PoolRewardsManager,
-    NodeManager,
-    HookManager,
-    IUnlockCallback
-{
+contract Angstrom is ERC712, Accounter, InvalidationManager, PoolManager, NodeManager, HookManager, IUnlockCallback {
     using RayMathLib for uint256;
     // TODO: Remove
     using FormatLib for *;

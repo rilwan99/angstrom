@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {CalldataReader, CalldataReaderLib} from "../../src/types/CalldataReader.sol";
 import {Asset, AssetArray, AssetLib} from "../../src/types/Asset.sol";
-import {PoolManager} from "../../src/modules/PoolRewardsManager.sol";
+import {PoolManager} from "../../src/modules/PoolManager.sol";
 import {UniConsumer} from "../../src/modules/UniConsumer.sol";
 import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {TICK_SPACING, SET_POOL_FEE} from "../../src/Constants.sol";
