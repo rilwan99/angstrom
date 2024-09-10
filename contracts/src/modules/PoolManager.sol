@@ -39,17 +39,6 @@ abstract contract PoolManager is RewardsUpdater, ILiqChangeHooks, UniConsumer {
         _checkHookPermissions(Hooks.BEFORE_ADD_LIQUIDITY_FLAG | Hooks.AFTER_REMOVE_LIQUIDITY_FLAG);
     }
 
-    // function beforeAddLiquidity(
-    //     address sender,
-    //     PoolKey calldata key,
-    //     IPoolManager.ModifyLiquidityParams calldata params,
-    //     bytes calldata hookData
-    // ) external override onlyUniV4 returns (bytes4) {
-    //     assert(false); // TODO
-    //     PoolId id = key.toId();
-    //     Position storage position = pools[id].positions[sender][params.tickLower][params.tickUpper];
-    //     return this.beforeAddLiquidity.selector;
-    // }
     function beforeAddLiquidity(address, PoolKey calldata, IPoolManager.ModifyLiquidityParams calldata, bytes calldata)
         external
         view
@@ -60,15 +49,6 @@ abstract contract PoolManager is RewardsUpdater, ILiqChangeHooks, UniConsumer {
         return this.beforeAddLiquidity.selector;
     }
 
-    // function afterRemoveLiquidity(
-    //     address sender,
-    //     PoolKey calldata key,
-    //     IPoolManager.ModifyLiquidityParams calldata params,
-    //     BalanceDelta delta,
-    //     bytes calldata hookData
-    // ) external returns (bytes4, BalanceDelta) {
-    //     assert(false); // TODO
-    // }
     function afterRemoveLiquidity(
         address,
         PoolKey calldata,
