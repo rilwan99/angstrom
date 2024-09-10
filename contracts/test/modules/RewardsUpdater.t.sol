@@ -9,7 +9,7 @@ import {CalldataReader, CalldataReaderLib} from "src/types/CalldataReader.sol";
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
-import {RewardsUpdate} from "../../src/reference/PoolRewardsUpdate.sol";
+import {RewardsUpdate} from "../../src/reference/PoolUpdate.sol";
 import {TICK_SPACING} from "../../src/Constants.sol";
 import {UniV4Inspector} from "../_view-ext/UniV4Inspector.sol";
 import {MockERC20} from "super-sol/mocks/MockERC20.sol";
