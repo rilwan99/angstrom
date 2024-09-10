@@ -39,7 +39,7 @@ abstract contract Accounter is UniConsumer {
     function _borrowAssets(AssetArray assets) internal {
         uint256 length = assets.len();
         for (uint256 i = 0; i < length; i++) {
-            Asset asset = assets.get(i);
+            Asset asset = assets.getUnchecked(i);
             uint256 amount = asset.borrow();
             address addr = asset.addr();
             UNI_V4.take(addr.intoC(), address(this), amount);
@@ -74,7 +74,7 @@ abstract contract Accounter is UniConsumer {
     function _saveAndSettle(AssetArray assets) internal {
         uint256 length = assets.len();
         for (uint256 i = 0; i < length; i++) {
-            Asset asset = assets.get(i);
+            Asset asset = assets.getUnchecked(i);
             address addr = asset.addr();
             uint256 saving = asset.save();
             uint256 settle = asset.settle();

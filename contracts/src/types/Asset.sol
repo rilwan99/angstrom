@@ -74,6 +74,13 @@ library AssetLib {
         return Asset.wrap(self.into().ptr() + index * ASSET_BYTES);
     }
 
+    function getUnchecked(AssetArray self, uint256 index) internal pure returns (Asset asset) {
+        if (DEBUG_LOGS) console.log("[Asset] Retrieving asset[%s] from array", index);
+        unchecked {
+            return Asset.wrap(self.into().ptr() + index * ASSET_BYTES);
+        }
+    }
+
     function addr(Asset self) internal pure returns (address) {
         return self.into().readAddressMemberFromPtr(ADDR_OFFSET);
     }
