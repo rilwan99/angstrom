@@ -102,14 +102,8 @@ pub mod pool_tracker_mock {
             &self,
             order: O
         ) -> Option<(UserOrderPoolInfo, AssetIndexToAddressWrapper<O>)> {
-            let asset_in = *self
-                .asset_index_to_address
-                .get(&order.token_in())?
-                .value();
-            let asset_out= *self
-                .asset_index_to_address
-                .get(&order.token_out())?
-                .value();
+            let asset_in = *self.asset_index_to_address.get(&order.token_in())?.value();
+            let asset_out = *self.asset_index_to_address.get(&order.token_out())?.value();
 
             let value = self.pools.get(&(token_in, token_out))?;
             let (is_bid, pool_id) = value.value();

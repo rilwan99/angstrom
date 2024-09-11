@@ -150,7 +150,7 @@ impl UserAccounts {
         self.try_fetch_live_pending_state(user, token, respend)
             .unwrap_or_else(|| {
                 self.load_state_for(user, token, utils, db);
-                self.try_fetch_live_pending_state(user, token,respend)
+                self.try_fetch_live_pending_state(user, token, respend)
                     .expect(
                         "after loading state for a address, the state wasn't found. this should \
                          be impossible"

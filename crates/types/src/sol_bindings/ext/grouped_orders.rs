@@ -89,7 +89,7 @@ impl AllOrders {
     }
 }
 
-#[derive(Debug, Clone,  PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrderWithStorageData<Order> {
     /// raw order
     pub order:              Order,
@@ -109,7 +109,11 @@ pub struct OrderWithStorageData<Order> {
     /// the block the order was validated for
     pub valid_block:        u64,
     /// holds expiry data
-    pub order_id:           OrderId
+    pub order_id:           OrderId,
+    /// encoding data of asset in
+    pub asset_in:           u16,
+    /// encoding data of asset out
+    pub asset_out:          u16
 }
 
 impl<Order> Hash for OrderWithStorageData<Order> {
@@ -162,7 +166,9 @@ impl<Order> OrderWithStorageData<Order> {
             priority_data:      self.priority_data,
             is_currently_valid: self.is_currently_valid,
             is_valid:           self.is_valid,
-            order_id:           self.order_id
+            order_id:           self.order_id,
+            asset_in:           self.asset_in,
+            asset_out:          self.asset_out
         })
     }
 }

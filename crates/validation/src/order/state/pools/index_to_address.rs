@@ -71,6 +71,8 @@ impl<Order: RawPoolOrder> AssetIndexToAddressWrapper<Order> {
                 }
             },
             invalidates,
+            asset_out: self.asset_out,
+            asset_in: self.asset_in,
             order: self.order
         }
     }
