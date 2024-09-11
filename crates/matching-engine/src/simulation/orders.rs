@@ -7,6 +7,7 @@ use angstrom_types::{
         rpc_orders::PartialFlashOrder
     }
 };
+use pade::bitvec::ptr::null;
 use rand_distr::{Distribution, SkewNormal};
 
 #[allow(clippy::too_many_arguments)]
@@ -53,6 +54,7 @@ pub fn order_distribution(
                 is_valid: true,
                 is_currently_valid: true,
                 order_id: OrderId {
+                    flash_block:     None,
                     reuse_avoidance: angstrom_types::sol_bindings::RespendAvoidanceMethod::Block(0),
                     hash:            Default::default(),
                     address:         Default::default(),
