@@ -1,20 +1,15 @@
 //! keeps track of account state for orders
-use std::{
-    collections::HashSet,
-    sync::{atomic::AtomicU64, Arc}
-};
+use std::sync::Arc;
 
 use alloy_primitives::{Address, B256};
 use angstrom_types::sol_bindings::{ext::RawPoolOrder, grouped_orders::OrderWithStorageData};
 use dashmap::DashSet;
-use parking_lot::RwLock;
 use thiserror::Error;
 use user::UserAccounts;
 
 use super::{
-    db_state_utils::{FetchUtils, StateFetchUtils},
-    pools::{index_to_address::AssetIndexToAddressWrapper, UserOrderPoolInfo},
-    ValidationConfig
+    db_state_utils::StateFetchUtils,
+    pools::{index_to_address::AssetIndexToAddressWrapper, UserOrderPoolInfo}
 };
 use crate::{common::lru_db::BlockStateProviderFactory, RevmLRU};
 
@@ -99,7 +94,6 @@ impl<DB: BlockStateProviderFactory + Unpin + 'static, S: StateFetchUtils>
             return Err(UserAccountVerificationError::OrderIsCancelled(order_hash))
         }
 
-        println!("getting live state");
         let live_state = self.user_accounts.get_live_state_for_order(
             user,
             pool_info.token,
@@ -107,13 +101,11 @@ impl<DB: BlockStateProviderFactory + Unpin + 'static, S: StateFetchUtils>
             &self.fetch_utils,
             &self.db
         );
-        println!("live state got");
 
         // ensure that the current live state is enough to satisfy the order
         let (is_cur_valid, invalid_orders) = live_state
             .can_support_order(&order, &pool_info)
             .map(|pending_user_action| {
-                println!("can support order map");
                 (
                     true,
                     self.user_accounts
@@ -121,7 +113,6 @@ impl<DB: BlockStateProviderFactory + Unpin + 'static, S: StateFetchUtils>
                 )
             })
             .unwrap_or_default();
-        println!("got if we can support");
 
         Ok(order.into_order_storage_with_data(
             block,

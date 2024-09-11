@@ -1282,7 +1282,6 @@ name = "angstrom-rpc"
 version = "0.1.0"
 dependencies = [
  "alloy-primitives",
- "alloy-rlp",
  "alloy-sol-types",
  "angstrom-network",
  "angstrom-types",

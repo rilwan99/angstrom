@@ -30,7 +30,6 @@ serde_json.workspace = true
 serde.workspace = true
 alloy-primitives = { workspace = true, features = ["serde"] }
 alloy-sol-types.workspace = true
-alloy-rlp.workspace = true
 async-trait.workspace = true
 thiserror.workspace = true
 rand = "0.8.5"

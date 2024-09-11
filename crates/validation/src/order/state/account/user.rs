@@ -1,17 +1,16 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     sync::{atomic::AtomicU64, Arc}
 };
 
 use alloy_primitives::Address;
 use angstrom_types::sol_bindings::{ext::RawPoolOrder, RespendAvoidanceMethod};
 use dashmap::DashMap;
-use parking_lot::RwLock;
-use reth_primitives::{TxHash, B256, U256};
+use reth_primitives::{B256, U256};
 
 use crate::{
     order::state::{
-        db_state_utils::{FetchUtils, StateFetchUtils},
+        db_state_utils::StateFetchUtils,
         pools::UserOrderPoolInfo,
         AssetIndexToAddressWrapper
     },
@@ -104,21 +103,6 @@ impl UserAccounts {
             pending_orders.retain(|p| !orders.contains(&p.order_hash));
             !pending_orders.is_empty()
         });
-    }
-
-    // removes any possible changed state along with the orders that need to be
-    // revalidated.
-    pub fn invalidate_last_known_state(
-        &self,
-        new_block: u64,
-        state_change_users: Vec<UserAddress>
-    ) {
-        state_change_users.iter().for_each(|user| {
-            self.last_known_state.remove(user);
-        });
-
-        self.current_block
-            .store(new_block, std::sync::atomic::Ordering::SeqCst);
     }
 
     /// returns true if the order cancel has been processed successfully

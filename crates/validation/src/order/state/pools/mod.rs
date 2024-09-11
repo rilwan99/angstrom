@@ -1,12 +1,10 @@
-use std::collections::HashMap;
-
-use alloy_primitives::{Address, FixedBytes, U256};
+use alloy_primitives::Address;
 use angstrom_pools::AngstromPools;
 use angstrom_types::sol_bindings::ext::RawPoolOrder;
 use dashmap::DashMap;
 use index_to_address::{AssetIndexToAddress, AssetIndexToAddressWrapper};
 
-use super::config::{HashMethod, ValidationConfig};
+use super::config::ValidationConfig;
 
 pub mod angstrom_pools;
 pub mod index_to_address;
@@ -75,7 +73,7 @@ impl AngstromPoolsTracker {
 
 #[cfg(test)]
 pub mod pool_tracker_mock {
-    use alloy_primitives::{Address, FixedBytes};
+    use alloy_primitives::Address;
     use dashmap::DashMap;
 
     use super::{angstrom_pools::PoolIdWithDirection, *};
@@ -109,53 +107,6 @@ pub mod pool_tracker_mock {
             let (is_bid, pool_id) = value.value();
             let wrapped = AssetIndexToAddressWrapper { asset_out, asset_in, order };
             let info = UserOrderPoolInfo { pool_id: *pool_id, is_bid: *is_bid, token: token_in };
-
-            Some((info, wrapped))
-        }
-    }
-}
-
-#[cfg(test)]
-pub mod pool_tracker_mock {
-    use alloy_primitives::{Address, FixedBytes};
-    use dashmap::DashMap;
-
-    use super::{angstrom_pools::PoolIdWithDirection, *};
-
-    #[derive(Clone)]
-    pub struct MockPoolTracker {
-        asset_index_to_address: DashMap<u16, Address>,
-        pools:                  DashMap<(Address, Address), PoolIdWithDirection>
-    }
-
-    impl MockPoolTracker {
-        pub fn add_asset(&self, index: u16, address: Address) {
-            self.asset_index_to_address.insert(index, address);
-        }
-
-        pub fn add_pool(&self, token0: Address, token1: Address, info: PoolIdWithDirection) {
-            self.pools.insert((token0, token1), info);
-        }
-    }
-
-    impl PoolsTracker for MockPoolTracker {
-        fn fetch_pool_info_for_order<O: RawPoolOrder>(
-            &self,
-            order: O
-        ) -> Option<(UserOrderPoolInfo, AssetIndexToAddressWrapper<O>)> {
-            let token_in = *self
-                .asset_index_to_address
-                .get(&order.get_token_in())?
-                .value();
-            let token_out = *self
-                .asset_index_to_address
-                .get(&order.get_token_out())?
-                .value();
-
-            let value = self.pools.get(&(token_in, token_out))?;
-            let (is_bid, pool_id) = value.value();
-            let wrapped = AssetIndexToAddressWrapper { token_out, token_in, order };
-            let info = UserOrderPoolInfo { pool_id, is_bid, token: token_in };
 
             Some((info, wrapped))
         }
