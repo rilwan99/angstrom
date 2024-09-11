@@ -24,7 +24,7 @@ library AssetLib {
     uint256 internal constant ASSET_BYTES = 68;
 
     uint256 internal constant ADDR_OFFSET = 0;
-    uint256 internal constant BORROW_OFFSET = 20;
+    uint256 internal constant TAKE_OFFSET = 20;
     uint256 internal constant SAVE_OFFSET = 36;
     uint256 internal constant SETTLE_OFFSET = 52;
 
@@ -85,8 +85,8 @@ library AssetLib {
         return self.into().readAddressMemberFromPtr(ADDR_OFFSET);
     }
 
-    function borrow(Asset self) internal pure returns (uint256) {
-        return self.into().readU128MemberFromPtr(BORROW_OFFSET);
+    function take(Asset self) internal pure returns (uint256) {
+        return self.into().readU128MemberFromPtr(TAKE_OFFSET);
     }
 
     function save(Asset self) internal pure returns (uint256) {

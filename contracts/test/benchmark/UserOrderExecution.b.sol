@@ -344,7 +344,7 @@ contract UserOrderExecution is BaseTest, HookDeployer {
             address addr = assets[i];
             Asset memory asset = v.b.assets[i];
             asset.addr = addr;
-            asset.borrow = totalOuts[addr].toUint128();
+            asset.take = totalOuts[addr].toUint128();
             asset.save = 0;
             asset.settle = totalOuts[addr].toUint128();
             gate.mint(addr, totalOuts[addr]);

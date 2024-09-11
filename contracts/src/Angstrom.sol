@@ -52,7 +52,7 @@ contract Angstrom is ERC712, InvalidationManager, PoolManager, Accounter, NodeMa
         PairArray pairs;
         (reader, pairs) = PairLib.readFromAndValidate(reader);
 
-        _borrowAssets(assets);
+        _takeAssets(assets);
         reader = _execPoolSwaps(reader, assets);
         reader = _validateAndExecuteToBs(reader, assets);
         reader = _validateAndExecuteOrders(reader, assets, pairs);

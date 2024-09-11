@@ -42,11 +42,11 @@ abstract contract Accounter is UniConsumer, PoolManager {
 
     mapping(address => mapping(address => uint256)) internal _angstromReserves;
 
-    function _borrowAssets(AssetArray assets) internal {
+    function _takeAssets(AssetArray assets) internal {
         uint256 length = assets.len();
         for (uint256 i = 0; i < length; i++) {
             Asset asset = assets.getUnchecked(i);
-            uint256 amount = asset.borrow();
+            uint256 amount = asset.take();
             address addr = asset.addr();
             UNI_V4.take(addr.intoC(), address(this), amount);
             freeBalance[addr].inc(amount);
