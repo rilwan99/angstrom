@@ -1,4 +1,6 @@
-use alloy_primitives::Bytes;
+use angstrom_types::rpc::{
+    FlashOrderRequest, SignedOrder, StandingOrderRequest, TopOfBlockOrderRequest
+};
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 use crate::types::OrderSubscriptionKind;
@@ -8,14 +10,20 @@ use crate::types::OrderSubscriptionKind;
 #[async_trait::async_trait]
 pub trait OrderApi {
     /// Users send the rlp encoded signature and order bytes
-    #[method(name = "sendLimitOrder")]
-    async fn send_limit_order(&self, order: Bytes) -> RpcResult<bool>;
+    #[method(name = "sendStandingOrder")]
+    async fn send_standing_order(
+        &self,
+        order: SignedOrder<StandingOrderRequest>
+    ) -> RpcResult<bool>;
 
     #[method(name = "sendSearcherOrder")]
-    async fn send_searcher_order(&self, order: Bytes) -> RpcResult<bool>;
+    async fn send_searcher_order(
+        &self,
+        order: SignedOrder<TopOfBlockOrderRequest>
+    ) -> RpcResult<bool>;
 
     #[method(name = "sendFlashOrder")]
-    async fn send_flash_order(&self, order: Bytes) -> RpcResult<bool>;
+    async fn send_flash_order(&self, order: SignedOrder<FlashOrderRequest>) -> RpcResult<bool>;
 
     #[subscription(
         name = "subscribeOrders",

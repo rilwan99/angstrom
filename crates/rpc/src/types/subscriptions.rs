@@ -39,7 +39,7 @@ pub enum OrderSubscriptionKind {
     /// Any new orders
     NewOrders,
     /// Any new filled orders
-    FilledOrders,
+    FilledOrders
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]

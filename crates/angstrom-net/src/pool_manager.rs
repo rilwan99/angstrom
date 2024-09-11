@@ -12,7 +12,6 @@ use angstrom_eth::manager::EthEvent;
 use angstrom_types::{
     contract_bindings::poolmanager::PoolManager::PoolManagerCalls::updateDynamicLPFee,
     orders::{OrderOrigin, OrderPriorityData, OrderSet},
-    primitive::OrderType,
     rpc::*,
     sol_bindings::{
         grouped_orders::{AllOrders, GroupedVanillaOrder, OrderWithStorageData, RawPoolOrder},
