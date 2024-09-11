@@ -4,8 +4,7 @@ use angstrom_types::{
     orders::{OrderId, OrderPriorityData},
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
-        rpc_orders::PartialFlashOrder,
-        sol::FlashOrder
+        rpc_orders::PartialFlashOrder
     }
 };
 use rand_distr::{Distribution, SkewNormal};
@@ -41,17 +40,26 @@ pub fn order_distribution(
                 )
             );
             OrderWithStorageData {
+                asset_in: 0,
+                asset_out: 0,
                 invalidates: vec![],
                 order,
                 priority_data: OrderPriorityData {
-                    price:  p as u128,
+                    price:  U256::from(p as u128),
                     volume: q as u128,
                     gas:    0
                 },
                 is_bid,
                 is_valid: true,
                 is_currently_valid: true,
-                order_id: OrderId::default(),
+                order_id: OrderId {
+                    reuse_avoidance: angstrom_types::sol_bindings::RespendAvoidanceMethod::Block(0),
+                    hash:            Default::default(),
+                    address:         Default::default(),
+                    deadline:        None,
+                    pool_id:         0,
+                    location:        angstrom_types::orders::OrderLocation::Limit
+                },
                 pool_id: 0,
                 valid_block: 0
             }
