@@ -359,7 +359,7 @@ impl GroupedVanillaOrder {
             Self::Partial(p) => match p {
                 StandingVariants::Partial(part) => {
                     Self::Partial(StandingVariants::Partial(PartialStandingOrder {
-                        amountFilled: part.amountFilled,
+                        amountFilled: filled_quantity.to(),
                         ..part.clone()
                     }))
                 }
@@ -368,7 +368,7 @@ impl GroupedVanillaOrder {
             Self::KillOrFill(kof) => match kof {
                 FlashVariants::Partial(part) => {
                     Self::KillOrFill(FlashVariants::Partial(PartialFlashOrder {
-                        amountFilled: part.amountFilled,
+                        amountFilled: filled_quantity.to(),
                         ..part.clone()
                     }))
                 }
