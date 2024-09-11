@@ -29,31 +29,47 @@ pub struct OrderSet<Limit, Searcher> {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NetAmmOrder {
-    Buy(U256),
-    Sell(U256)
+    Buy(U256, U256),
+    Sell(U256, U256)
 }
 
 impl Default for NetAmmOrder {
     fn default() -> Self {
-        Self::Buy(U256::ZERO)
+        Self::Buy(U256::ZERO, U256::ZERO)
     }
 }
 
 impl NetAmmOrder {
     pub fn new(is_bid: bool) -> Self {
         if is_bid {
-            Self::Sell(U256::ZERO)
+            Self::Sell(U256::ZERO, U256::ZERO)
         } else {
-            Self::Buy(U256::ZERO)
+            Self::Buy(U256::ZERO, U256::ZERO)
         }
     }
 
-    pub fn add_quantity(&mut self, quantity: U256) {
-        let my_quantity = match self {
-            Self::Buy(q) => q,
-            Self::Sell(q) => q
+    pub fn add_quantity(&mut self, quantity: U256, cost: U256) {
+        let (my_quantity, my_cost) = match self {
+            Self::Buy(q, c) => (q, c),
+            Self::Sell(q, c) => (q, c)
         };
-        *my_quantity += quantity
+        *my_cost += cost;
+        *my_quantity += quantity;
+    }
+
+    fn get_directions(&self) -> (U256, U256) {
+        match self {
+            Self::Buy(amount_out, amount_in) => (*amount_in, *amount_out),
+            Self::Sell(amount_in, amount_out) => (*amount_in, *amount_out)
+        }
+    }
+
+    pub fn amount_in(&self) -> U256 {
+        self.get_directions().0
+    }
+
+    pub fn amount_out(&self) -> U256 {
+        self.get_directions().1
     }
 }
 

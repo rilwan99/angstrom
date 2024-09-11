@@ -128,8 +128,8 @@ pub fn to_contract_format(proposal: &Proposal, pools: &AngstromPoolsTracker) -> 
             .as_ref()
             .map(|amm_o| {
                 let (asset_in_index, asset_out_index, quantity) = match amm_o {
-                    NetAmmOrder::Buy(q) => (t1_idx, t0_idx, q),
-                    NetAmmOrder::Sell(q) => (t0_idx, t1_idx, q)
+                    NetAmmOrder::Buy(q, c) => (t1_idx, t0_idx, q),
+                    NetAmmOrder::Sell(q, c) => (t0_idx, t1_idx, q)
                 };
                 let swap_quantity_in: u128 = quantity.to();
                 (asset_in_index, asset_out_index, swap_quantity_in)

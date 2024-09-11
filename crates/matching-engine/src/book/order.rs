@@ -111,7 +111,7 @@ impl<'a, 'b> OrderContainer<'a, 'b> {
         match self {
             Self::BookOrder(o) => o.quantity(),
             Self::Partial(o) => o.quantity(),
-            Self::AMM(ammo) => ammo.quantity(limit_price)
+            Self::AMM(ammo) => ammo.quantity(limit_price).0
         }
     }
 
@@ -175,7 +175,7 @@ impl<'a> Order<'a> {
         match self {
             Self::KillOrFill(lo) => lo.max_amount_in_or_out,
             Self::PartialFill(lo) => lo.max_amount_in_or_out,
-            Self::AMM(ammo) => ammo.quantity(limit_price)
+            Self::AMM(ammo) => ammo.quantity(limit_price).0
         }
     }
 

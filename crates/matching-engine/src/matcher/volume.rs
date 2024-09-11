@@ -314,7 +314,7 @@ impl<'a> VolumeFillMatcher<'a> {
                     let amm_out = self
                         .amm_outcome
                         .get_or_insert_with(|| NetAmmOrder::new(bid.is_amm()));
-                    amm_out.add_quantity(matched);
+                    amm_out.add_quantity(final_amm_order.d_t0, final_amm_order.d_t1);
                 }
 
                 // Then we see what else we need to do
