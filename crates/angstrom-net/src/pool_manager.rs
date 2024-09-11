@@ -13,7 +13,8 @@ use angstrom_types::{
     orders::{OrderOrigin, OrderPriorityData, OrderSet},
     rpc::*,
     sol_bindings::{
-        grouped_orders::{AllOrders, GroupedVanillaOrder, OrderWithStorageData, RawPoolOrder},
+        ext::RawPoolOrder,
+        grouped_orders::{AllOrders, GroupedVanillaOrder, OrderWithStorageData},
         sol::TopOfBlockOrder
     }
 };
@@ -260,7 +261,7 @@ where
                 orders.into_iter().for_each(|order| {
                     self.peers
                         .get_mut(&peer_id)
-                        .map(|peer| peer.orders.insert(order.hash()));
+                        .map(|peer| peer.orders.insert(order.order_hash()));
                     // match order {
                     //     PooledOrder::Limit(order) => {
                     //         if let Ok(order) = <L as
