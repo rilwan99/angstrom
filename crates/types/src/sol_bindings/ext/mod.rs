@@ -38,8 +38,15 @@ pub trait RawPoolOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
     fn token_out(&self) -> Address;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, Copy)]
 pub enum RespendAvoidanceMethod {
     Nonce(u64),
     Block(u64)
+}
+
+impl RespendAvoidanceMethod {
+    pub fn get_ord_for_pending_orders(&self) -> u64 {
+        let Self::Nonce(n) = self else { return 0 };
+        *n
+    }
 }

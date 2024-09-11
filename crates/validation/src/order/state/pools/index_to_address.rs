@@ -59,12 +59,16 @@ impl<Order: RawPoolOrder> AssetIndexToAddressWrapper<Order> {
             is_valid,
             valid_block: block,
             order_id: angstrom_types::orders::OrderId {
-                address:  self.from(),
-                pool_id:  pool_info.pool_id,
-                hash:     self.hash(),
-                nonce:    self.nonce(),
-                deadline: self.deadline(),
-                location: if is_limit { OrderLocation::Limit } else { OrderLocation::Searcher }
+                address:         self.from(),
+                pool_id:         pool_info.pool_id,
+                hash:            self.order_hash(),
+                reuse_avoidance: self.respend_avoidance_strategy(),
+                deadline:        self.deadline(),
+                location:        if is_limit {
+                    OrderLocation::Limit
+                } else {
+                    OrderLocation::Searcher
+                }
             },
             invalidates,
             order: self.order
@@ -73,7 +77,7 @@ impl<Order: RawPoolOrder> AssetIndexToAddressWrapper<Order> {
 }
 
 impl AssetIndexToAddress {
-    pub fn new(map: DashMap<u16, Address>) -> Self {
+    pub fn new(map: DashMap<Address, u16>) -> Self {
         Self(map)
     }
 

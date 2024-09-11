@@ -4,26 +4,26 @@ use alloy_primitives::{Address, B256, U256};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::primitive::PoolId;
+use crate::{primitive::PoolId, sol_bindings::ext::RespendAvoidanceMethod};
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct OrderId {
-    pub address:  Address,
+    pub address:         Address,
     /// Pool id
-    pub pool_id:  PoolId,
+    pub pool_id:         PoolId,
     /// Hash of the order. Needed to check for inclusion
-    pub hash:     B256,
-    /// Nonce of the order
-    pub nonce:    U256,
+    pub hash:            B256,
+    /// reuse avoidance
+    pub reuse_avoidance: RespendAvoidanceMethod,
     /// when the order expires
-    pub deadline: U256,
+    pub deadline:        Option<U256>,
     /// Order Location
-    pub location: OrderLocation
+    pub location:        OrderLocation
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrderPriorityData {
-    pub price:  u128,
+    pub price:  U256,
     pub volume: u128,
     pub gas:    u128
 }

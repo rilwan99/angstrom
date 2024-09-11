@@ -67,20 +67,30 @@ impl<DB: BlockStateProviderFactory + Unpin + 'static, S: StateFetchUtils>
         block: u64,
         is_limit: bool
     ) -> Result<OrderWithStorageData<O>, UserAccountVerificationError<O>> {
-        let nonce = order.nonce();
         let user = order.from();
-        let order_hash = order.hash();
+        let order_hash = order.order_hash();
 
         // very nonce hasn't been used historically
-        if !self
-            .fetch_utils
-            .is_valid_nonce(user, nonce.to(), self.db.clone())
-        {
-            return Err(UserAccountVerificationError::DuplicateNonce(order_hash))
+        //
+        let respend = order.respend_avoidance_strategy();
+        match respend {
+            angstrom_types::sol_bindings::RespendAvoidanceMethod::Nonce(nonce) => {
+                if !self
+                    .fetch_utils
+                    .is_valid_nonce(user, nonce, self.db.clone())
+                {
+                    return Err(UserAccountVerificationError::DuplicateNonce(order_hash))
+                }
+            }
+            angstrom_types::sol_bindings::RespendAvoidanceMethod::Block(order_block) => {
+                if block != order_block {
+                    return Err(UserAccountVerificationError::BadBlock)
+                }
+            }
         }
 
-        // very we don't have a pending nonce conflict
-        if self.user_accounts.has_nonce_conflict(user, nonce) {
+        // very we don't have a respend conflict
+        if self.user_accounts.has_respend_conflict(user, respend) {
             return Err(UserAccountVerificationError::DuplicateNonce(order_hash))
         }
 
@@ -92,7 +102,7 @@ impl<DB: BlockStateProviderFactory + Unpin + 'static, S: StateFetchUtils>
         let live_state = self.user_accounts.get_live_state_for_order(
             user,
             pool_info.token,
-            nonce,
+            respend,
             &self.fetch_utils,
             &self.db
         );
@@ -132,7 +142,9 @@ pub enum UserAccountVerificationError<O: RawPoolOrder> {
     #[error("order hash has been cancelled {0:?}")]
     OrderIsCancelled(B256),
     #[error("Nonce exists for a current order hash: {0:?}")]
-    DuplicateNonce(B256)
+    DuplicateNonce(B256),
+    #[error("block for flash order is not current block")]
+    BadBlock
 }
 
 #[cfg(test)]

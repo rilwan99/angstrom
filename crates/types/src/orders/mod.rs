@@ -57,7 +57,7 @@ impl NetAmmOrder {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone,  PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrderOutcome {
     pub id:      OrderId,
     pub outcome: OrderFillState
