@@ -259,6 +259,10 @@ impl RawPoolOrder for StandingVariants {
             StandingVariants::Partial(p) => p.amount_out_min()
         }
     }
+
+    fn flash_block(&self) -> Option<u64> {
+        None
+    }
 }
 
 impl RawPoolOrder for FlashVariants {
@@ -322,6 +326,13 @@ impl RawPoolOrder for FlashVariants {
         match self {
             FlashVariants::Exact(e) => e.token_in(),
             FlashVariants::Partial(p) => p.token_in()
+        }
+    }
+
+    fn flash_block(&self) -> Option<u64> {
+        match self {
+            FlashVariants::Exact(e) => e.flash_block(),
+            FlashVariants::Partial(p) => p.flash_block()
         }
     }
 }
@@ -407,6 +418,10 @@ impl GroupedComposableOrder {
 }
 
 impl RawPoolOrder for TopOfBlockOrder {
+    fn flash_block(&self) -> Option<u64> {
+        Some(self.validForBlock)
+    }
+
     fn from(&self) -> Address {
         self.meta.from
     }
@@ -444,6 +459,10 @@ impl RawPoolOrder for TopOfBlockOrder {
     }
 }
 impl RawPoolOrder for PartialStandingOrder {
+    fn flash_block(&self) -> Option<u64> {
+        None
+    }
+
     fn respend_avoidance_strategy(&self) -> RespendAvoidanceMethod {
         RespendAvoidanceMethod::Nonce(self.nonce)
     }
@@ -482,6 +501,10 @@ impl RawPoolOrder for PartialStandingOrder {
 }
 
 impl RawPoolOrder for ExactStandingOrder {
+    fn flash_block(&self) -> Option<u64> {
+        None
+    }
+
     fn respend_avoidance_strategy(&self) -> RespendAvoidanceMethod {
         RespendAvoidanceMethod::Nonce(self.nonce)
     }
@@ -520,6 +543,10 @@ impl RawPoolOrder for ExactStandingOrder {
 }
 
 impl RawPoolOrder for PartialFlashOrder {
+    fn flash_block(&self) -> Option<u64> {
+        Some(self.validForBlock)
+    }
+
     fn order_hash(&self) -> TxHash {
         self.eip712_hash_struct()
     }
@@ -558,6 +585,10 @@ impl RawPoolOrder for PartialFlashOrder {
 }
 
 impl RawPoolOrder for ExactFlashOrder {
+    fn flash_block(&self) -> Option<u64> {
+        Some(self.validForBlock)
+    }
+
     fn token_in(&self) -> Address {
         self.assetIn
     }
@@ -667,6 +698,14 @@ impl RawPoolOrder for AllOrders {
             AllOrders::TOB(tob) => tob.token_in()
         }
     }
+
+    fn flash_block(&self) -> Option<u64> {
+        match self {
+            AllOrders::Standing(_) => None,
+            AllOrders::Flash(kof) => kof.flash_block(),
+            AllOrders::TOB(tob) => tob.flash_block()
+        }
+    }
 }
 
 impl RawPoolOrder for GroupedVanillaOrder {
@@ -674,6 +713,13 @@ impl RawPoolOrder for GroupedVanillaOrder {
         match self {
             GroupedVanillaOrder::Partial(p) => p.respend_avoidance_strategy(),
             GroupedVanillaOrder::KillOrFill(kof) => kof.respend_avoidance_strategy()
+        }
+    }
+
+    fn flash_block(&self) -> Option<u64> {
+        match self {
+            GroupedVanillaOrder::Partial(_) => None,
+            GroupedVanillaOrder::KillOrFill(kof) => kof.flash_block()
         }
     }
 
@@ -735,6 +781,13 @@ impl RawPoolOrder for GroupedVanillaOrder {
 }
 
 impl RawPoolOrder for GroupedComposableOrder {
+    fn flash_block(&self) -> Option<u64> {
+        match self {
+            GroupedComposableOrder::Partial(_) => None,
+            GroupedComposableOrder::KillOrFill(kof) => kof.flash_block()
+        }
+    }
+
     fn respend_avoidance_strategy(&self) -> RespendAvoidanceMethod {
         match self {
             GroupedComposableOrder::Partial(p) => p.respend_avoidance_strategy(),

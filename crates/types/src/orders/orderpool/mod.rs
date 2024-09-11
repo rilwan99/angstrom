@@ -17,6 +17,7 @@ pub struct OrderId {
     pub reuse_avoidance: RespendAvoidanceMethod,
     /// when the order expires
     pub deadline:        Option<U256>,
+    pub flash_block:     Option<u64>,
     /// Order Location
     pub location:        OrderLocation
 }

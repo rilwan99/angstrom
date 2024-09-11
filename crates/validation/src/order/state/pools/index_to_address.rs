@@ -59,6 +59,7 @@ impl<Order: RawPoolOrder> AssetIndexToAddressWrapper<Order> {
             is_valid,
             valid_block: block,
             order_id: angstrom_types::orders::OrderId {
+                flash_block:     self.flash_block(),
                 address:         self.from(),
                 pool_id:         pool_info.pool_id,
                 hash:            self.order_hash(),

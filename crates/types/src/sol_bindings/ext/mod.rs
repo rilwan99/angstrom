@@ -28,6 +28,8 @@ pub trait RawPoolOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
 
     /// Order deadline
     fn deadline(&self) -> Option<U256>;
+    /// order flash block
+    fn flash_block(&self) -> Option<u64>;
 
     /// the way in which we avoid a respend attack
     fn respend_avoidance_strategy(&self) -> RespendAvoidanceMethod;

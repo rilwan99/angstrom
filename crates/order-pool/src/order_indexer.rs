@@ -102,7 +102,10 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         let hashes = self
             .hash_to_order_id
             .iter()
-            .filter(|(_, v)| v.deadline <= expiry_deadline)
+            .filter(|(_, v)| {
+                v.deadline.map(|i| i <= expiry_deadline).unwrap_or_default()
+                    || v.flash_block.map(|b| b != block_number).unwrap_or_default()
+            })
             .map(|(k, _)| *k)
             .collect::<Vec<_>>();
 
