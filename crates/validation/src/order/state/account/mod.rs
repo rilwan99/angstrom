@@ -5,7 +5,7 @@ use std::{
 };
 
 use alloy_primitives::{Address, B256};
-use angstrom_types::sol_bindings::grouped_orders::{OrderWithStorageData, PoolOrder, RawPoolOrder};
+use angstrom_types::sol_bindings::{ext::RawPoolOrder, grouped_orders::OrderWithStorageData};
 use dashmap::DashSet;
 use parking_lot::RwLock;
 use thiserror::Error;
@@ -143,7 +143,7 @@ pub mod tests {
     };
 
     use alloy_primitives::U256;
-    use angstrom_types::sol_bindings::grouped_orders::{GroupedVanillaOrder, PoolOrder};
+    use angstrom_types::sol_bindings::grouped_orders::GroupedVanillaOrder;
     use dashmap::DashSet;
     use rand::thread_rng;
     use reth_primitives::Address;

@@ -4,11 +4,11 @@ use alloy_primitives::Address;
 use angstrom_types::{
     orders::{OrderId, OrderOrigin},
     sol_bindings::{
+        ext::RawPoolOrder,
         grouped_orders::{
-            AllOrders, GroupedComposableOrder, GroupedVanillaOrder, OrderWithStorageData,
-            RawPoolOrder
+            AllOrders, GroupedComposableOrder, GroupedVanillaOrder, OrderWithStorageData
         },
-        sol::TopOfBlockOrder
+        rpc_orders::TopOfBlockOrder
     }
 };
 use reth_primitives::B256;

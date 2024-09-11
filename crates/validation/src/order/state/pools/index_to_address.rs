@@ -6,11 +6,7 @@ use std::{
 use alloy_primitives::{Address, TxHash, U256};
 use angstrom_types::{
     orders::OrderLocation,
-    sol_bindings::{
-        grouped_orders::{OrderWithStorageData, PoolOrder, RawPoolOrder},
-        sol::AssetIndex,
-        FetchAssetIndexes
-    }
+    sol_bindings::{ext::RawPoolOrder, grouped_orders::OrderWithStorageData, sol::AssetIndex}
 };
 use dashmap::DashMap;
 use reth_primitives::B256;
@@ -18,13 +14,27 @@ use reth_primitives::B256;
 use super::UserOrderPoolInfo;
 
 #[derive(Clone, Debug, Default)]
-pub struct AssetIndexToAddress(DashMap<u16, Address>);
+pub struct AssetIndexToAddress(DashMap<Address, u16>);
 
 #[derive(Debug, Clone)]
 pub struct AssetIndexToAddressWrapper<Order: RawPoolOrder> {
-    pub token_in:  Address,
-    pub token_out: Address,
+    pub asset_in:  u16,
+    pub asset_out: u16,
     pub order:     Order
+}
+
+impl<Order: RawPoolOrder> Deref for AssetIndexToAddressWrapper<Order> {
+    type Target = Order;
+
+    fn deref(&self) -> &Self::Target {
+        &self.order
+    }
+}
+
+impl<Order: RawPoolOrder> DerefMut for AssetIndexToAddressWrapper<Order> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.order
+    }
 }
 
 impl<Order: RawPoolOrder> AssetIndexToAddressWrapper<Order> {
@@ -62,73 +72,22 @@ impl<Order: RawPoolOrder> AssetIndexToAddressWrapper<Order> {
     }
 }
 
-impl<Order: RawPoolOrder> PoolOrder for AssetIndexToAddressWrapper<Order> {
-    fn from(&self) -> Address {
-        self.order.from()
-    }
-
-    fn token_out(&self) -> Address {
-        self.token_out
-    }
-
-    fn token_in(&self) -> Address {
-        self.token_in
-    }
-
-    fn hash(&self) -> TxHash {
-        self.order.hash()
-    }
-
-    fn nonce(&self) -> U256 {
-        self.order.nonce()
-    }
-
-    fn deadline(&self) -> U256 {
-        self.order.deadline()
-    }
-
-    fn amount_in(&self) -> u128 {
-        self.order.amount_in()
-    }
-
-    fn limit_price(&self) -> u128 {
-        self.order.limit_price()
-    }
-
-    fn amount_out_min(&self) -> u128 {
-        self.order.amount_out_min()
-    }
-}
-
-impl<Order: RawPoolOrder> Deref for AssetIndexToAddressWrapper<Order> {
-    type Target = Order;
-
-    fn deref(&self) -> &Self::Target {
-        &self.order
-    }
-}
-impl<Order: RawPoolOrder> DerefMut for AssetIndexToAddressWrapper<Order> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.order
-    }
-}
-
 impl AssetIndexToAddress {
     pub fn new(map: DashMap<u16, Address>) -> Self {
         Self(map)
     }
 
-    pub fn get_address(&self, asset_index: &u16) -> Option<Address> {
-        self.0.get(asset_index).map(|f| *f)
+    pub fn get_index(&self, address: &Address) -> Option<u16> {
+        self.0.get(address).map(|f| *f)
     }
 
     pub fn wrap<Order: RawPoolOrder>(
         &self,
         order: Order
     ) -> Option<AssetIndexToAddressWrapper<Order>> {
-        let token_in = self.get_address(&order.get_token_in())?;
-        let token_out = self.get_address(&order.get_token_out())?;
+        let asset_in = self.get_index(&order.token_in())?;
+        let asset_out = self.get_index(&order.token_out())?;
 
-        Some(AssetIndexToAddressWrapper { token_in, token_out, order })
+        Some(AssetIndexToAddressWrapper { asset_in, asset_out, order })
     }
 }

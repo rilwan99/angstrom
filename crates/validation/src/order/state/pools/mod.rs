@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use alloy_primitives::{Address, FixedBytes, U256};
 use angstrom_pools::AngstromPools;
-use angstrom_types::sol_bindings::grouped_orders::{PoolOrder, RawPoolOrder};
+use angstrom_types::sol_bindings::ext::RawPoolOrder;
 use dashmap::DashMap;
 use index_to_address::{AssetIndexToAddress, AssetIndexToAddressWrapper};
 

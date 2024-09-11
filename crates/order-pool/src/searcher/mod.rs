@@ -4,7 +4,7 @@ use angstrom_metrics::SearcherOrderPoolMetricsWrapper;
 use angstrom_types::{
     orders::OrderId,
     primitive::PoolId,
-    sol_bindings::{grouped_orders::OrderWithStorageData, sol::TopOfBlockOrder}
+    sol_bindings::{grouped_orders::OrderWithStorageData, rpc_orders::TopOfBlockOrder}
 };
 use angstrom_utils::map::OwnedMap;
 use pending::PendingPool;

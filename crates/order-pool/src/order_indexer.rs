@@ -15,7 +15,7 @@ use angstrom_types::{
         grouped_orders::{
             AllOrders, GroupedComposableOrder, GroupedVanillaOrder, OrderWithStorageData, *
         },
-        sol::TopOfBlockOrder
+        rpc_orders::TopOfBlockOrder
     }
 };
 use futures_util::{Stream, StreamExt};

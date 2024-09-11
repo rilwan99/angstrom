@@ -4,7 +4,7 @@ use std::{
 };
 
 use alloy_primitives::Address;
-use angstrom_types::sol_bindings::grouped_orders::{PoolOrder, RawPoolOrder};
+use angstrom_types::sol_bindings::ext::RawPoolOrder;
 use dashmap::DashMap;
 use parking_lot::RwLock;
 use reth_primitives::{TxHash, B256, U256};

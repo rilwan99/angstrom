@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc, task::Poll};
 
 use account::UserAccountProcessor;
 use alloy_primitives::{Address, B256, U256};
-use angstrom_types::sol_bindings::grouped_orders::{AllOrders, RawPoolOrder};
+use angstrom_types::sol_bindings::{ext::RawPoolOrder, grouped_orders::AllOrders};
 use db_state_utils::StateFetchUtils;
 use futures::{Stream, StreamExt};
 use futures_util::stream::FuturesUnordered;
