@@ -12,9 +12,7 @@ use angstrom_types::{
     orders::{OrderId, OrderOrigin, OrderSet},
     primitive::PoolId,
     sol_bindings::{
-        grouped_orders::{
-            AllOrders, GroupedComposableOrder, GroupedVanillaOrder, OrderWithStorageData, *
-        },
+        grouped_orders::{AllOrders, OrderWithStorageData, *},
         rpc_orders::TopOfBlockOrder
     }
 };
@@ -239,25 +237,26 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
                     self.order_storage.add_new_limit_order(
                         res.try_map_inner(|inner| {
                             Ok(match inner {
-                                AllOrders::Partial(p) => {
-                                    if p.hook_data.is_empty() {
-                                        GroupedUserOrder::Vanilla(GroupedVanillaOrder::Partial(p))
-                                    } else {
-                                        GroupedUserOrder::Composable(
-                                            GroupedComposableOrder::Partial(p)
-                                        )
-                                    }
+                                // TODO: will rewire when we have composable orders. good chance we
+                                // will just trait this so we can get rid of match statement
+                                AllOrders::Standing(p) => {
+                                    // if p.hook_data.is_empty() {
+                                    GroupedUserOrder::Vanilla(GroupedVanillaOrder::Partial(p))
+                                    // } else {
+                                    //     GroupedUserOrder::Composable(
+                                    //         GroupedComposableOrder::Partial(p)
+                                    //     )
+                                    // }
                                 }
-                                AllOrders::KillOrFill(kof) => {
-                                    if kof.hook_data.is_empty() {
-                                        GroupedUserOrder::Vanilla(GroupedVanillaOrder::KillOrFill(
-                                            kof
-                                        ))
-                                    } else {
-                                        GroupedUserOrder::Composable(
-                                            GroupedComposableOrder::KillOrFill(kof)
-                                        )
-                                    }
+                                // TODO: will rewire when we have composable orders. good chance we
+                                AllOrders::Flash(kof) => {
+                                    // if kof.hook_data.is_empty() {
+                                    GroupedUserOrder::Vanilla(GroupedVanillaOrder::KillOrFill(kof))
+                                    // } else {
+                                    //     GroupedUserOrder::Composable(
+                                    //         GroupedComposableOrder::KillOrFill(kof)
+                                    //     )
+                                    // }
                                 }
                                 _ => eyre::bail!("unreachable")
                             })
