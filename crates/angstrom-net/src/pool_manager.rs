@@ -10,28 +10,36 @@ use std::{
 
 use angstrom_eth::manager::EthEvent;
 use angstrom_types::{
+    contract_bindings::poolmanager::PoolManager::PoolManagerCalls::updateDynamicLPFee,
     orders::{OrderOrigin, OrderPriorityData, OrderSet},
+    primitive::OrderType,
     rpc::*,
     sol_bindings::{
-        ext::RawPoolOrder,
-        grouped_orders::{AllOrders, GroupedVanillaOrder, OrderWithStorageData},
+        grouped_orders::{AllOrders, GroupedVanillaOrder, OrderWithStorageData, RawPoolOrder},
         sol::TopOfBlockOrder
     }
 };
-use futures::{future::BoxFuture, stream::FuturesUnordered, Future, StreamExt};
+use futures::{
+    future::BoxFuture,
+    stream::{BoxStream, FuturesUnordered},
+    Future, Stream, StreamExt
+};
 use order_pool::{
-    order_storage::OrderStorage, OrderIndexer, OrderPoolHandle, PoolConfig, PoolInnerEvent
+    order_storage::OrderStorage, OrderIndexer, OrderPoolHandle, PoolConfig, PoolInnerEvent,
+    PoolManagerUpdate
 };
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_network_peers::PeerId;
 use reth_primitives::{TxHash, B256};
 use reth_tasks::TaskSpawner;
 use tokio::sync::{
+    broadcast,
+    broadcast::Receiver,
     mpsc,
-    mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender},
+    mpsc::{error::SendError, unbounded_channel, UnboundedReceiver, UnboundedSender},
     oneshot
 };
-use tokio_stream::wrappers::{ReceiverStream, UnboundedReceiverStream};
+use tokio_stream::wrappers::{BroadcastStream, ReceiverStream, UnboundedReceiverStream};
 use validation::order::{self, OrderValidatorHandle};
 
 use crate::{
@@ -45,7 +53,8 @@ const PEER_ORDER_CACHE_LIMIT: usize = 1024 * 10;
 /// Api to interact with [`PoolManager`] task.
 #[derive(Debug, Clone)]
 pub struct PoolHandle {
-    pub manager_tx: UnboundedSender<OrderCommand>
+    pub manager_tx:      UnboundedSender<OrderCommand>,
+    pub pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>
 }
 
 #[derive(Debug)]
@@ -55,8 +64,8 @@ pub enum OrderCommand {
 }
 
 impl PoolHandle {
-    fn send(&self, cmd: OrderCommand) {
-        let _ = self.manager_tx.send(cmd);
+    fn send(&self, cmd: OrderCommand) -> Result<(), SendError<OrderCommand>> {
+        self.manager_tx.send(cmd)
     }
 
     async fn send_request<T>(&self, rx: oneshot::Receiver<T>, cmd: OrderCommand) -> T {
@@ -66,8 +75,12 @@ impl PoolHandle {
 }
 
 impl OrderPoolHandle for PoolHandle {
-    fn new_order(&self, origin: OrderOrigin, order: AllOrders) {
-        self.send(OrderCommand::NewOrder(origin, order))
+    fn new_order(&self, origin: OrderOrigin, order: AllOrders) -> bool {
+        self.send(OrderCommand::NewOrder(origin, order)).is_ok()
+    }
+
+    fn subscribe_orders(&self) -> Receiver<PoolManagerUpdate> {
+        self.pool_manager_tx.subscribe()
     }
 }
 
@@ -120,13 +133,15 @@ where
         self,
         task_spawner: TP,
         tx: UnboundedSender<OrderCommand>,
-        rx: UnboundedReceiver<OrderCommand>
+        rx: UnboundedReceiver<OrderCommand>,
+        pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>
     ) -> PoolHandle {
         let rx = UnboundedReceiverStream::new(rx);
         let order_storage = self
             .order_storage
             .unwrap_or_else(|| Arc::new(OrderStorage::new(&self.config)));
-        let handle = PoolHandle { manager_tx: tx.clone() };
+        let handle =
+            PoolHandle { manager_tx: tx.clone(), pool_manager_tx: pool_manager_tx.clone() };
         let inner = OrderIndexer::new(self.validator, order_storage.clone(), 0);
 
         task_spawner.spawn_critical(
@@ -135,12 +150,11 @@ where
                 eth_network_events: self.eth_network_events,
                 strom_network_events: self.strom_network_events,
                 order_events: self.order_events,
-                order_storage,
                 peers: HashMap::default(),
                 order_sorter: inner,
                 network: self.network_handle,
-                _command_tx: tx,
-                command_rx: rx
+                command_rx: rx,
+                pool_manager_tx
             })
         );
 
@@ -153,7 +167,9 @@ where
         let order_storage = self
             .order_storage
             .unwrap_or_else(|| Arc::new(OrderStorage::new(&self.config)));
-        let handle = PoolHandle { manager_tx: tx.clone() };
+        let (pool_manager_tx, _) = broadcast::channel(100);
+        let handle =
+            PoolHandle { manager_tx: tx.clone(), pool_manager_tx: pool_manager_tx.clone() };
         let inner = OrderIndexer::new(self.validator, order_storage.clone(), 0);
 
         task_spawner.spawn_critical(
@@ -162,12 +178,11 @@ where
                 eth_network_events: self.eth_network_events,
                 strom_network_events: self.strom_network_events,
                 order_events: self.order_events,
-                order_storage,
                 peers: HashMap::default(),
                 order_sorter: inner,
                 network: self.network_handle,
-                _command_tx: tx,
-                command_rx: rx
+                command_rx: rx,
+                pool_manager_tx
             })
         );
 
@@ -181,8 +196,6 @@ where
 {
     /// access to validation and sorted storage of orders.
     order_sorter:         OrderIndexer<V>,
-    /// Shared order storage object
-    order_storage:        Arc<OrderStorage>,
     /// Network access.
     network:              StromNetworkHandle,
     /// Subscriptions to all the strom-network related events.
@@ -192,14 +205,14 @@ where
     /// Ethereum updates stream that tells the pool manager about orders that
     /// have been filled  
     eth_network_events:   UnboundedReceiverStream<EthEvent>,
-    /// Send half for the command channel. Used to generate new handles
-    _command_tx:          UnboundedSender<OrderCommand>,
     /// receiver half of the commands to the pool manager
     command_rx:           UnboundedReceiverStream<OrderCommand>,
     /// Incoming events from the ProtocolManager.
     order_events:         UnboundedMeteredReceiver<NetworkOrderEvent>,
     /// All the connected peers.
-    peers:                HashMap<PeerId, StromPeer>
+    peers:                HashMap<PeerId, StromPeer>,
+    /// Broadcast channel for orders.
+    pool_manager_tx:      broadcast::Sender<PoolManagerUpdate>
 }
 
 impl<V> PoolManager<V>
@@ -215,18 +228,18 @@ where
         _command_tx: UnboundedSender<OrderCommand>,
         command_rx: UnboundedReceiverStream<OrderCommand>,
         order_events: UnboundedMeteredReceiver<NetworkOrderEvent>,
-        order_storage: Arc<OrderStorage>
+        order_storage: Arc<OrderStorage>,
+        pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>
     ) -> Self {
         Self {
             strom_network_events,
             network,
             order_sorter,
-            order_storage,
             peers: HashMap::new(),
             order_events,
             command_rx,
-            _command_tx,
-            eth_network_events
+            eth_network_events,
+            pool_manager_tx
         }
     }
 
@@ -262,64 +275,36 @@ where
                     self.peers
                         .get_mut(&peer_id)
                         .map(|peer| peer.orders.insert(order.order_hash()));
-                    // match order {
-                    //     PooledOrder::Limit(order) => {
-                    //         if let Ok(order) = <L as
-                    // OrderConversion>::try_from_order(order) {
-                    //             self.pool
-                    //                 .new_limit_order(peer_id,
-                    // OrderOrigin::External, order);
-                    //         } else {
-                    //             self.network.peer_reputation_change(
-                    //                 peer_id,
-                    //                 ReputationChangeKind::BadOrder
-                    //             );
-                    //         }
-                    //     }
-                    //     PooledOrder::Searcher(order) => {
-                    //         if let Ok(order) = <S as
-                    // OrderConversion>::try_from_order(order) {
-                    //             self.pool
-                    //                 .new_searcher_order(peer_id,
-                    // OrderOrigin::External, order);
-                    //         } else {
-                    //             self.network.peer_reputation_change(
-                    //                 peer_id,
-                    //                 ReputationChangeKind::BadOrder
-                    //             );
-                    //         }
-                    //     }
-                    //     PooledOrder::ComposableLimit(order) => {
-                    //         if let Ok(order) = <CL as
-                    // OrderConversion>::try_from_order(order) {
-                    //             self.pool.new_composable_limit(
-                    //                 peer_id,
-                    //                 OrderOrigin::External,
-                    //                 order
-                    //             );
-                    //         } else {
-                    //             self.network.peer_reputation_change(
-                    //                 peer_id,
-                    //                 ReputationChangeKind::BadComposableOrder
-                    //             );
-                    //         }
-                    //     }
-                    //     PooledOrder::ComposableSearcher(order) => {
-                    //         if let Ok(order) = <CS as
-                    // OrderConversion>::try_from_order(order) {
-                    //             self.pool.new_composable_searcher_order(
-                    //                 peer_id,
-                    //                 OrderOrigin::External,
-                    //                 order
-                    //             );
-                    //         } else {
-                    //             self.network.peer_reputation_change(
-                    //                 peer_id,
-                    //                 ReputationChangeKind::BadComposableOrder
-                    //             );
-                    //         }
-                    //     }
-                    // }
+
+                    match &order {
+                        AllOrders::Partial(standing_order) => {
+                            self.order_sorter.new_order(
+                                peer_id,
+                                OrderOrigin::External,
+                                AllOrders::Partial(standing_order.clone())
+                            );
+                        }
+                        AllOrders::KillOrFill(flash_order) => {
+                            self.order_sorter.new_order(
+                                peer_id,
+                                OrderOrigin::External,
+                                AllOrders::KillOrFill(flash_order.clone())
+                            );
+                        }
+                        AllOrders::TOB(top_of_block_order) => {
+                            self.order_sorter.new_order(
+                                peer_id,
+                                OrderOrigin::External,
+                                AllOrders::TOB(top_of_block_order.clone())
+                            );
+                        }
+                    }
+
+                    // TODO: add an "await" for the new_order() to complete
+                    if !self.order_sorter.is_valid_order(&order) {
+                        self.network
+                            .peer_reputation_change(peer_id, ReputationChangeKind::BadOrder);
+                    }
                 });
             }
         }
@@ -372,9 +357,13 @@ where
             })
             .collect::<Vec<_>>();
 
+        broadcast_orders.iter().for_each(|order| {
+            self.pool_manager_tx
+                .send(PoolManagerUpdate::NewOrder(order.clone()));
+        });
         // need to update network types for this
-        // self.network
-        //     .broadcast_tx(StromMessage::PropagatePooledOrders(orders))
+        self.network
+            .broadcast_tx(StromMessage::PropagatePooledOrders(broadcast_orders));
     }
 }
 

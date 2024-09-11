@@ -462,7 +462,7 @@ mod tests {
         let order_storage = Arc::new(OrderStorage::default());
         let manager =
             ConsensusManager::new(globalstate, netdeps, Signer::default(), order_storage, None);
-        let thread = tokio::spawn(manager.message_loop());
+let thread = aq /*  */(manager.message_loop());
         thread.abort();
     }
 
