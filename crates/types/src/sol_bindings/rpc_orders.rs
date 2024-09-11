@@ -9,7 +9,7 @@ sol! {
         bytes signature;
     }
 
-    #[derive(Debug, Default, PartialEq, Eq,Hash,Serialize, Deserialize)]
+    #[derive(Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
     struct PartialStandingOrder {
         uint128 minAmountIn;
         uint128 maxAmountIn;
@@ -26,7 +26,7 @@ sol! {
         OrderMeta meta;
     }
 
-    #[derive(Debug, Default, PartialEq, Eq,Hash,Serialize, Deserialize)]
+    #[derive(Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
     struct ExactStandingOrder {
         bool exactIn;
         uint128 amount;
@@ -42,7 +42,7 @@ sol! {
         OrderMeta meta;
     }
 
-    #[derive(Debug, Default, PartialEq, Eq,Hash,Serialize, Deserialize)]
+    #[derive(Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
     struct PartialFlashOrder {
         uint128 minAmountIn;
         uint128 maxAmountIn;
@@ -58,7 +58,7 @@ sol! {
         OrderMeta meta;
     }
 
-    #[derive(Debug, Default, PartialEq, Eq,Hash,Serialize, Deserialize)]
+    #[derive(Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
     struct ExactFlashOrder {
         bool exactIn;
         uint128 amount;
@@ -73,7 +73,7 @@ sol! {
         OrderMeta meta;
     }
 
-    #[derive(Debug, Default, PartialEq, Eq,Hash,Serialize, Deserialize)]
+    #[derive(Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
     struct TopOfBlockOrder {
         uint128 quantityIn;
         uint128 quantityOut;
