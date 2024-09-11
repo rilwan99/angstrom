@@ -18,7 +18,7 @@ pub type OrderPrice = MatchingPrice;
 use crate::{
     matching::MatchingPrice,
     primitive::PoolId,
-    sol_bindings::{grouped_orders::OrderWithStorageData, sol::TopOfBlockOrder}
+    sol_bindings::{grouped_orders::OrderWithStorageData, rpc_orders::TopOfBlockOrder}
 };
 
 #[derive(Debug)]
