@@ -4,6 +4,7 @@ use angstrom_types::{
     orders::{OrderId, OrderPriorityData},
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
+        rpc_orders::PartialFlashOrder,
         sol::FlashOrder
     }
 };
@@ -30,11 +31,15 @@ pub fn order_distribution(
         .sample_iter(&mut rng)
         .zip(quantity_gen.sample_iter(&mut rng2))
         .map(|(p, q)| {
-            let order = GroupedVanillaOrder::KillOrFill(FlashOrder {
-                max_amount_in_or_out: U256::from(q.floor()),
-                min_price: Ray::from(p).into(),
-                ..FlashOrder::default()
-            });
+            let order = GroupedVanillaOrder::KillOrFill(
+                angstrom_types::sol_bindings::grouped_orders::FlashVariants::Partial(
+                    PartialFlashOrder {
+                        maxAmountIn: q.floor() as u128,
+                        minPrice: Ray::from(p).into(),
+                        ..Default::default()
+                    }
+                )
+            );
             OrderWithStorageData {
                 invalidates: vec![],
                 order,
