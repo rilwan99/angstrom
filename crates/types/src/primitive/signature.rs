@@ -3,7 +3,7 @@ use std::{
     ops::{Deref, DerefMut}
 };
 
-use alloy_primitives::{Address, FixedBytes, U256};
+use alloy_primitives::{Address, FixedBytes, B256, U256};
 use alloy_rlp::{Decodable, Encodable, Error};
 use reth_network_peers::{pk2id, PeerId};
 use reth_primitives::Signature as ESignature;
@@ -20,6 +20,16 @@ use thiserror::Error;
 pub struct Signature(pub ESignature);
 
 impl Signature {
+    pub fn new_from_bytes(bytes: &[u8]) -> eyre::Result<Self> {
+        if bytes.len() != 65 {
+            eyre::bail!("invalid sig size");
+        }
+        let r = U256::from_be_slice(&bytes[0..32]);
+        let s = U256::from_be_slice(&bytes[32..64]);
+        let odd_y_parity = bytes[65] != 0;
+        Ok(Self(ESignature { r, s, odd_y_parity }))
+    }
+
     pub fn recover_signer_full_public_key(
         &self,
         message: FixedBytes<32>

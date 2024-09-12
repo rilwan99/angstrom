@@ -76,6 +76,10 @@ where
         is_limit: bool
     ) -> OrderValidationResults {
         let order_hash = order.order_hash();
+        if !order.is_valid_signature() {
+            return OrderValidationResults::Invalid(order_hash)
+        }
+
         let Some((pool_info, wrapped_order)) = self.pool_tacker.fetch_pool_info_for_order(order)
         else {
             return OrderValidationResults::Invalid(order_hash)

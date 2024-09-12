@@ -38,6 +38,8 @@ pub trait RawPoolOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
     fn token_in(&self) -> Address;
     /// token out
     fn token_out(&self) -> Address;
+
+    fn is_valid_signature(&self) -> bool;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, Copy)]

@@ -1,7 +1,6 @@
 use std::{hash::Hash, ops::Deref};
 
 use alloy_primitives::{Address, FixedBytes, TxHash, U256};
-use alloy_sol_types::SolStruct;
 use reth_primitives::B256;
 use serde::{Deserialize, Serialize};
 
@@ -9,10 +8,10 @@ use super::{RawPoolOrder, RespendAvoidanceMethod};
 use crate::{
     matching::Ray,
     orders::{OrderId, OrderPriorityData},
-    primitive::PoolId,
+    primitive::{PoolId, Signature, ANGSTROM_DOMAIN},
     sol_bindings::rpc_orders::{
-        ExactFlashOrder, ExactStandingOrder, PartialFlashOrder, PartialStandingOrder,
-        TopOfBlockOrder
+        ExactFlashOrder, ExactStandingOrder, OmitOrderMeta, PartialFlashOrder,
+        PartialStandingOrder, TopOfBlockOrder
     }
 };
 
@@ -263,9 +262,23 @@ impl RawPoolOrder for StandingVariants {
     fn flash_block(&self) -> Option<u64> {
         None
     }
+
+    fn is_valid_signature(&self) -> bool {
+        match self {
+            StandingVariants::Exact(e) => e.is_valid_signature(),
+            StandingVariants::Partial(p) => p.is_valid_signature()
+        }
+    }
 }
 
 impl RawPoolOrder for FlashVariants {
+    fn is_valid_signature(&self) -> bool {
+        match self {
+            FlashVariants::Exact(e) => e.is_valid_signature(),
+            FlashVariants::Partial(p) => p.is_valid_signature()
+        }
+    }
+
     fn order_hash(&self) -> TxHash {
         match self {
             FlashVariants::Exact(e) => e.order_hash(),
@@ -457,8 +470,24 @@ impl RawPoolOrder for TopOfBlockOrder {
     fn token_out(&self) -> Address {
         self.assetOut
     }
+
+    fn is_valid_signature(&self) -> bool {
+        let Ok(sig) = Signature::new_from_bytes(&self.meta.signature) else { return false };
+        let hash = self.no_meta_eip712_signing_hash(&ANGSTROM_DOMAIN);
+        sig.recover_signer(hash)
+            .filter(|recovered_addr| recovered_addr == &self.meta.from)
+            .is_some()
+    }
 }
 impl RawPoolOrder for PartialStandingOrder {
+    fn is_valid_signature(&self) -> bool {
+        let Ok(sig) = Signature::new_from_bytes(&self.meta.signature) else { return false };
+        let hash = self.no_meta_eip712_signing_hash(&ANGSTROM_DOMAIN);
+        sig.recover_signer(hash)
+            .filter(|recovered_addr| recovered_addr == &self.meta.from)
+            .is_some()
+    }
+
     fn flash_block(&self) -> Option<u64> {
         None
     }
@@ -501,6 +530,14 @@ impl RawPoolOrder for PartialStandingOrder {
 }
 
 impl RawPoolOrder for ExactStandingOrder {
+    fn is_valid_signature(&self) -> bool {
+        let Ok(sig) = Signature::new_from_bytes(&self.meta.signature) else { return false };
+        let hash = self.no_meta_eip712_signing_hash(&ANGSTROM_DOMAIN);
+        sig.recover_signer(hash)
+            .filter(|recovered_addr| recovered_addr == &self.meta.from)
+            .is_some()
+    }
+
     fn flash_block(&self) -> Option<u64> {
         None
     }
@@ -543,6 +580,14 @@ impl RawPoolOrder for ExactStandingOrder {
 }
 
 impl RawPoolOrder for PartialFlashOrder {
+    fn is_valid_signature(&self) -> bool {
+        let Ok(sig) = Signature::new_from_bytes(&self.meta.signature) else { return false };
+        let hash = self.no_meta_eip712_signing_hash(&ANGSTROM_DOMAIN);
+        sig.recover_signer(hash)
+            .filter(|recovered_addr| recovered_addr == &self.meta.from)
+            .is_some()
+    }
+
     fn flash_block(&self) -> Option<u64> {
         Some(self.validForBlock)
     }
@@ -585,6 +630,14 @@ impl RawPoolOrder for PartialFlashOrder {
 }
 
 impl RawPoolOrder for ExactFlashOrder {
+    fn is_valid_signature(&self) -> bool {
+        let Ok(sig) = Signature::new_from_bytes(&self.meta.signature) else { return false };
+        let hash = self.no_meta_eip712_signing_hash(&ANGSTROM_DOMAIN);
+        sig.recover_signer(hash)
+            .filter(|recovered_addr| recovered_addr == &self.meta.from)
+            .is_some()
+    }
+
     fn flash_block(&self) -> Option<u64> {
         Some(self.validForBlock)
     }
@@ -627,6 +680,14 @@ impl RawPoolOrder for ExactFlashOrder {
 }
 
 impl RawPoolOrder for AllOrders {
+    fn is_valid_signature(&self) -> bool {
+        match self {
+            AllOrders::Standing(p) => p.is_valid_signature(),
+            AllOrders::Flash(kof) => kof.is_valid_signature(),
+            AllOrders::TOB(tob) => tob.is_valid_signature()
+        }
+    }
+
     fn from(&self) -> Address {
         match self {
             AllOrders::Standing(p) => p.from(),
@@ -709,6 +770,13 @@ impl RawPoolOrder for AllOrders {
 }
 
 impl RawPoolOrder for GroupedVanillaOrder {
+    fn is_valid_signature(&self) -> bool {
+        match self {
+            GroupedVanillaOrder::Partial(p) => p.is_valid_signature(),
+            GroupedVanillaOrder::KillOrFill(kof) => kof.is_valid_signature()
+        }
+    }
+
     fn respend_avoidance_strategy(&self) -> RespendAvoidanceMethod {
         match self {
             GroupedVanillaOrder::Partial(p) => p.respend_avoidance_strategy(),
@@ -848,6 +916,13 @@ impl RawPoolOrder for GroupedComposableOrder {
         match self {
             GroupedComposableOrder::Partial(p) => p.amount_out_min(),
             GroupedComposableOrder::KillOrFill(kof) => kof.amount_out_min()
+        }
+    }
+
+    fn is_valid_signature(&self) -> bool {
+        match self {
+            GroupedComposableOrder::Partial(p) => p.is_valid_signature(),
+            GroupedComposableOrder::KillOrFill(kof) => kof.is_valid_signature()
         }
     }
 }
