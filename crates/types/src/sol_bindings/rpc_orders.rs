@@ -143,17 +143,11 @@ pub trait OmitOrderMeta: SolStruct {
         )
     }
 
-    /// Calculates the [EIP-712 `typeHash`](https://eips.ethereum.org/EIPS/eip-712#rationale-for-typehash)
-    /// for this struct.
-    ///
-    /// This is defined as the Keccak-256 hash of the
-    /// [`encodeType`](Self::eip712_encode_type) string.
     #[inline]
     fn eip712_type_hash(&self) -> B256 {
         keccak256(<Self as OmitOrderMeta>::eip712_encode_type(self).as_bytes())
     }
 
-    /// Hashes this struct according to [EIP-712 `hashStruct`](https://eips.ethereum.org/EIPS/eip-712#definition-of-hashstruct).
     #[inline]
     fn eip712_hash_struct(&self) -> B256 {
         let mut hasher = alloy_primitives::Keccak256::new();
@@ -162,8 +156,6 @@ pub trait OmitOrderMeta: SolStruct {
         hasher.finalize()
     }
 
-    /// Does something.
-    ///
     /// See [EIP-712 `signTypedData`](https://eips.ethereum.org/EIPS/eip-712#specification-of-the-eth_signtypeddata-json-rpc).
     #[inline]
     fn no_meta_eip712_signing_hash(&self, domain: &Eip712Domain) -> B256 {
@@ -224,6 +216,11 @@ pub mod test {
         // check encode data
         let s_e = <PartialStandingOrder as OmitOrderMeta>::eip712_encode_data(&standard_order);
         let d_e = default_omit.eip712_encode_data();
+        assert_eq!(s_e, d_e);
+
+        // test hash struct
+        let s_e = <PartialStandingOrder as OmitOrderMeta>::eip712_hash_struct(&standard_order);
+        let d_e = default_omit.eip712_hash_struct();
         assert_eq!(s_e, d_e);
 
         let result = standard_order.no_meta_eip712_signing_hash(&TEST_DOMAIN);
