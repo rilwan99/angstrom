@@ -173,7 +173,7 @@ contract RewardsUpdaterTest is BaseTest, RewardsUpdater {
 
     function __reward(bytes calldata encodedRewardUpdate) external returns (uint256 total) {
         CalldataReader reader = CalldataReaderLib.from(encodedRewardUpdate);
-        (reader, total) = _decodeAndReward(mainRewards, mainId, reader);
+        (reader, total) = _decodeAndReward(reader, mainRewards, mainId);
         reader.requireAtEndOf(encodedRewardUpdate);
     }
 

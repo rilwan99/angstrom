@@ -1,15 +1,16 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.0;
 
 import {RewardsUpdater} from "./RewardsUpdater.sol";
 import {UniConsumer} from "./UniConsumer.sol";
 import {ILiqChangeHooks} from "../interfaces/ILiqChangeHooks.sol";
 
-import {tuint256} from "transient-goodies/TransientPrimitives.sol";
+import {DeltaTracker} from "../types/DeltaTracker.sol";
 import {AssetArray} from "../types/Asset.sol";
 import {CalldataReader} from "../types/CalldataReader.sol";
 import {PoolRewards} from "../types/PoolRewards.sol";
 
+import {SignedUnsignedLib} from "super-sol/libraries/SignedUnsignedLib.sol";
 import {IUniV4} from "../interfaces/IUniV4.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {ConversionLib} from "../libraries/ConversionLib.sol";
@@ -23,14 +24,20 @@ import {console} from "forge-std/console.sol";
 import {DEBUG_LOGS} from "./DevFlags.sol";
 
 /// @author philogy <https://github.com/philogy>
-abstract contract PoolManager is RewardsUpdater, ILiqChangeHooks, UniConsumer {
+abstract contract PoolUpdateManager is RewardsUpdater, ILiqChangeHooks, UniConsumer {
     using PoolIdLibrary for PoolKey;
     using IUniV4 for IPoolManager;
     using MixedSignLib for uint128;
+    using SignedUnsignedLib for uint256;
 
     struct Position {
         uint256 rewardDebt;
     }
+
+    /// @dev Uniswap's `MIN_SQRT_RATIO + 1` to pass the limit check.
+    uint160 internal constant MIN_SQRT_RATIO = 4295128740;
+    /// @dev Uniswap's `MAX_SQRT_RATIO - 1` to pass the limit check.
+    uint160 internal constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970341;
 
     mapping(PoolId id => mapping(uint208 positionKey => Position)) positions;
     mapping(PoolId id => PoolRewards) internal poolRewards;
@@ -59,41 +66,60 @@ abstract contract PoolManager is RewardsUpdater, ILiqChangeHooks, UniConsumer {
         return (bytes4(0), BalanceDelta.wrap(0));
     }
 
-    function _rewardPools(CalldataReader reader, AssetArray assets, mapping(address => tuint256) storage freeBalance)
+    function _updatePools(CalldataReader reader, DeltaTracker storage deltas, AssetArray assets)
         internal
         returns (CalldataReader)
     {
         CalldataReader end;
         (reader, end) = reader.readU24End();
         while (reader != end) {
-            address asset;
-            uint256 total;
-            (reader, asset, total) = _rewardPool(reader, assets);
-            freeBalance[asset].dec(total);
+            reader = _updatePool(reader, deltas, assets);
         }
 
         return reader;
     }
 
-    function _rewardPool(CalldataReader reader, AssetArray assets)
+    function _updatePool(CalldataReader reader, DeltaTracker storage deltas, AssetArray assets)
         internal
-        returns (CalldataReader, address, uint256 total)
+        returns (CalldataReader)
     {
-        if (DEBUG_LOGS) console.log("[PoolRewardsManager] entering _rewardPool");
         address asset0;
-        PoolId id;
-        if (DEBUG_LOGS) console.log("[PoolRewardsManager] decoding asset indices");
-        uint16 indexA;
-        (reader, indexA) = reader.readU16();
-        uint16 indexB;
-        (reader, indexB) = reader.readU16();
-        if (DEBUG_LOGS) console.log("[PoolRewardsManager] retrieving assets, building pool id");
-        asset0 = assets.get(indexA).addr();
-        id = ConversionLib.toPoolKey(address(this), asset0, assets.get(indexB).addr()).toId();
+        address asset1;
+        bool zeroForOne;
+        {
+            uint16 assetIndex;
+            (reader, assetIndex) = reader.readU16();
+            address assetIn = assets.get(assetIndex).addr();
+            (reader, assetIndex) = reader.readU16();
+            address assetOut = assets.get(assetIndex).addr();
+            zeroForOne = assetIn < assetOut;
+            (asset0, asset1) = zeroForOne ? (assetIn, assetOut) : (assetOut, assetIn);
+        }
+        PoolKey memory poolKey = ConversionLib.toPoolKey(address(this), asset0, asset1);
+        PoolId id = PoolIdLibrary.toId(poolKey);
+        uint256 amountIn;
+        (reader, amountIn) = reader.readU128();
 
-        (reader, total) = _decodeAndReward(poolRewards[id], id, reader);
+        if (amountIn > 0) {
+            int24 tickBefore = UNI_V4.getSlot0(id).tick();
+            UNI_V4.swap(
+                poolKey,
+                IPoolManager.SwapParams({
+                    zeroForOne: zeroForOne,
+                    amountSpecified: amountIn.neg(),
+                    sqrtPriceLimitX96: zeroForOne ? MIN_SQRT_RATIO : MAX_SQRT_RATIO
+                }),
+                ""
+            );
+            int24 tickAfter = UNI_V4.getSlot0(id).tick();
+            poolRewards[id].updateAfterTickMove(id, UNI_V4, tickBefore, tickAfter);
+        }
 
-        return (reader, asset0, total);
+        uint256 rewardTotal;
+        (reader, rewardTotal) = _decodeAndReward(reader, poolRewards[id], id);
+        deltas.sub(asset0, rewardTotal);
+
+        return reader;
     }
 
     function _getPoolBitmapInfo(PoolId id, int16 wordPos) internal view override returns (uint256) {

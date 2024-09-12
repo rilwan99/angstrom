@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
 import {PoolId} from "v4-core/src/types/PoolId.sol";
@@ -21,7 +21,7 @@ abstract contract RewardsUpdater {
 
     error WrongEndLiquidity(uint128, uint128);
 
-    function _decodeAndReward(PoolRewards storage poolRewards, PoolId id, CalldataReader reader)
+    function _decodeAndReward(CalldataReader reader, PoolRewards storage poolRewards, PoolId id)
         internal
         returns (CalldataReader, uint256 total)
     {

@@ -3,8 +3,8 @@ pragma solidity 0.8.26;
 
 import {ERC712} from "./modules/ERC712.sol";
 import {NodeManager} from "./modules/NodeManager.sol";
-import {Accounter, PoolSwap} from "./modules/Accounter.sol";
-import {PoolManager} from "./modules/PoolManager.sol";
+import {SettlementManager} from "./modules/SettlementManager.sol";
+import {PoolUpdateManager} from "./modules/PoolUpdateManager.sol";
 import {InvalidationManager} from "./modules/InvalidationManager.sol";
 import {HookManager} from "./modules/HookManager.sol";
 import {UniConsumer} from "./modules/UniConsumer.sol";
@@ -30,7 +30,15 @@ import {DEBUG_LOGS} from "./modules/DevFlags.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract Angstrom is ERC712, InvalidationManager, PoolManager, Accounter, NodeManager, HookManager, IUnlockCallback {
+contract Angstrom is
+    ERC712,
+    InvalidationManager,
+    PoolUpdateManager,
+    SettlementManager,
+    NodeManager,
+    HookManager,
+    IUnlockCallback
+{
     using RayMathLib for uint256;
     // TODO: Remove
     using FormatLib for *;
@@ -53,10 +61,9 @@ contract Angstrom is ERC712, InvalidationManager, PoolManager, Accounter, NodeMa
         (reader, pairs) = PairLib.readFromAndValidate(reader);
 
         _takeAssets(assets);
-        reader = _execPoolSwaps(reader, assets);
+        reader = _updatePools(reader, tBundleDeltas, assets);
         reader = _validateAndExecuteToBs(reader, assets);
         reader = _validateAndExecuteOrders(reader, assets, pairs);
-        reader = _rewardPools(reader, assets, freeBalance);
         _saveAndSettle(assets);
 
         reader.requireAtEndOf(data);
@@ -121,9 +128,9 @@ contract Angstrom is ERC712, InvalidationManager, PoolManager, Accounter, NodeMa
 
         hook.tryTrigger(from);
 
-        _accountIn(from, buffer.assetIn, AmountIn.wrap(buffer.quantityIn), variant.useInternal());
+        _settleOrderIn(from, buffer.assetIn, AmountIn.wrap(buffer.quantityIn), variant.useInternal());
         address to = _defaultOr(buffer.recipient, from);
-        _accountOut(to, buffer.assetOut, AmountOut.wrap(buffer.quantityOut), variant.useInternal());
+        _settleOrderOut(to, buffer.assetOut, AmountOut.wrap(buffer.quantityOut), variant.useInternal());
         return reader;
     }
 
@@ -209,9 +216,9 @@ contract Angstrom is ERC712, InvalidationManager, PoolManager, Accounter, NodeMa
 
         hook.tryTrigger(from);
 
-        _accountIn(from, buffer.assetIn, amountIn, variant.useInternal());
+        _settleOrderIn(from, buffer.assetIn, amountIn, variant.useInternal());
         address to = _defaultOr(buffer.recipient, from);
-        _accountOut(to, buffer.assetOut, amountOut, variant.useInternal());
+        _settleOrderOut(to, buffer.assetOut, amountOut, variant.useInternal());
 
         return reader;
     }

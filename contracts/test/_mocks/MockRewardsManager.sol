@@ -3,7 +3,8 @@ pragma solidity ^0.8.0;
 
 import {CalldataReader, CalldataReaderLib} from "../../src/types/CalldataReader.sol";
 import {Asset, AssetArray, AssetLib} from "../../src/types/Asset.sol";
-import {PoolManager} from "../../src/modules/PoolManager.sol";
+import {PoolUpdateManager} from "../../src/modules/PoolUpdateManager.sol";
+import {SettlementManager} from "../../src/modules/SettlementManager.sol";
 import {UniConsumer} from "../../src/modules/UniConsumer.sol";
 import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {TICK_SPACING, SET_POOL_FEE} from "../../src/Constants.sol";
@@ -13,14 +14,14 @@ import {MOCK_LOGS} from "../../src/modules/DevFlags.sol";
 import {console} from "forge-std/console.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract MockRewardsManager is UniConsumer, PoolManager {
+contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager {
     using IUniV4 for IPoolManager;
 
     constructor(address uniV4PoolManager) UniConsumer(uniV4PoolManager) {
         console.log("rewards manager deployed");
     }
 
-    /// @param encoded PADE `(List<Asset>, PoolRewardsUpdate)`.
+    /// @param encoded PADE `(List<Asset>, PoolUpdate)`.
     function reward(bytes calldata encoded) public {
         CalldataReader reader = CalldataReaderLib.from(encoded);
 
@@ -29,7 +30,7 @@ contract MockRewardsManager is UniConsumer, PoolManager {
         (reader, assets) = AssetLib.readFromAndValidate(reader);
 
         if (MOCK_LOGS) console.log("[MockRewardsManager] rewarding pool");
-        (reader,,) = _rewardPool(reader, assets);
+        reader = _updatePool(reader, tBundleDeltas, assets);
 
         reader.requireAtEndOf(encoded);
     }
