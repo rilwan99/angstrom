@@ -328,10 +328,10 @@ where
                     self.order_sorter
                         .new_order(peer_id, OrderOrigin::External, order.clone());
                     // TODO: add an "await" for the new_order() to complete
-                    if !self.order_sorter.is_valid_order(&order) {
-                        self.network
-                            .peer_reputation_change(peer_id, ReputationChangeKind::BadOrder);
-                    }
+                    // if !self.order_sorter.is_valid_order(&order) {
+                    //     self.network
+                    //         .peer_reputation_change(peer_id, ReputationChangeKind::BadOrder);
+                    // }
                 });
             }
         }
