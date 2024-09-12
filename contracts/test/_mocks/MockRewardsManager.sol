@@ -22,7 +22,7 @@ contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager
     }
 
     /// @param encoded PADE `(List<Asset>, PoolUpdate)`.
-    function reward(bytes calldata encoded) public {
+    function update(bytes calldata encoded) public {
         CalldataReader reader = CalldataReaderLib.from(encoded);
 
         AssetArray assets;
