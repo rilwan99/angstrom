@@ -1,10 +1,12 @@
-use alloy_primitives::{Address, FixedBytes, Uint};
+use alloy_primitives::{Address, FixedBytes, Uint, U256};
 use angstrom_types::{
     matching::Ray,
     orders::{OrderId, OrderPriorityData},
     sol_bindings::{
-        grouped_orders::{GroupedVanillaOrder, OrderWithStorageData, RawPoolOrder},
-        sol::{FlashOrder, StandingOrder, TopOfBlockOrder}
+        ext::RawPoolOrder,
+        grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
+        rpc_orders::TopOfBlockOrder,
+        sol::{FlashOrder, StandingOrder}
     }
 };
 use rand::{rngs::ThreadRng, Rng};
@@ -16,7 +18,15 @@ use rand_distr::{num_traits::ToPrimitive, Distribution, SkewNormal};
 
 fn generate_order_id(pool_id: usize, hash: FixedBytes<32>) -> OrderId {
     let address = Address::random();
-    OrderId { address, pool_id, hash, ..Default::default() }
+    OrderId {
+        address,
+        pool_id,
+        hash,
+        flash_block: None,
+        location: Default::default(),
+        deadline: None,
+        reuse_avoidance: angstrom_types::sol_bindings::RespendAvoidanceMethod::Block(0)
+    }
 }
 
 pub fn generate_limit_order(
@@ -47,10 +57,12 @@ pub fn generate_limit_order(
         from.unwrap_or_else(|| rng.gen())
     );
 
-    let priority_data = OrderPriorityData { price, volume, gas };
+    let priority_data = OrderPriorityData { price: U256::from(price), volume, gas };
     let order_id = generate_order_id(pool_id, order.hash());
     // Todo: Sign It, make this overall better
     OrderWithStorageData {
+        asset_out: asset_out.unwrap_or_default(),
+        asset_in: asset_in.unwrap_or_default(),
         invalidates: vec![],
         order,
         priority_data,
@@ -77,10 +89,12 @@ pub fn generate_top_of_block_order(
     let gas: u128 = rng.gen();
     let order = build_top_of_block_order();
 
-    let priority_data = OrderPriorityData { price, volume, gas };
-    let order_id = generate_order_id(pool_id, order.hash());
+    let priority_data = OrderPriorityData { price: U256::from(price), volume, gas };
+    let order_id = generate_order_id(pool_id, order.order_hash());
     // Todo: Sign It, make this overall better
     OrderWithStorageData {
+        asset_out: 0,
+        asset_in: 0,
         invalidates: vec![],
         order,
         priority_data,
@@ -183,8 +197,10 @@ pub fn generate_order_distribution(
 
             OrderWithStorageData {
                 invalidates: vec![],
+                asset_in: 0,
+                asset_out: 0,
                 order,
-                priority_data: OrderPriorityData { price, volume, gas: 10 },
+                priority_data: OrderPriorityData { price: U256::from(price), volume, gas: 10 },
                 is_bid,
                 is_valid: true,
                 is_currently_valid: true,
