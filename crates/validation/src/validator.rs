@@ -4,6 +4,7 @@ use std::{
     task::Poll
 };
 
+use alloy_primitives::{Address, B256};
 use angstrom_eth::manager::EthEvent;
 use futures::{Stream, StreamExt};
 use futures_util::{Future, FutureExt};
@@ -17,55 +18,79 @@ use crate::{
     common::lru_db::{BlockStateProviderFactory, RevmLRU},
     order::{
         order_validator::OrderValidator,
-        state::{config::ValidationConfig, pools::AngstromPoolsTracker},
-        OrderValidationRequest
+        state::{
+            config::ValidationConfig,
+            db_state_utils::StateFetchUtils,
+            pools::{AngstromPoolsTracker, PoolsTracker}
+        },
+        OrderValidationRequest, OrderValidationResults
     }
 };
 
 pub enum ValidationRequest {
-    Order(OrderValidationRequest)
+    Order(OrderValidationRequest),
+    NewBlock {
+        sender:       tokio::sync::oneshot::Sender<OrderValidationResults>,
+        block_number: u64,
+        orders:       Vec<B256>,
+        addresses:    Vec<Address>
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct ValidationClient(pub UnboundedSender<ValidationRequest>);
 
-pub struct Validator<DB> {
-    rx:               UnboundedReceiver<ValidationRequest>,
-    /// used to update state
-    new_block_stream: Pin<Box<dyn Stream<Item = EthEvent> + Send>>,
-    db:               Arc<RevmLRU<DB>>,
-
-    order_validator: OrderValidator<DB>
+pub struct Validator<DB, Pools, Fetch> {
+    rx:              UnboundedReceiver<ValidationRequest>,
+    db:              Arc<RevmLRU<DB>>,
+    order_validator: OrderValidator<DB, Pools, Fetch>
 }
 
-impl<DB> Validator<DB>
+impl<DB, Pools, Fetch> Validator<DB, Pools, Fetch>
 where
-    DB: BlockStateProviderFactory + Clone + Unpin + 'static
+    DB: BlockStateProviderFactory + Unpin + Clone + 'static,
+    Pools: PoolsTracker + Sync + 'static,
+    Fetch: StateFetchUtils + Sync + 'static
 {
     pub fn new(
         rx: UnboundedReceiver<ValidationRequest>,
-        new_block_stream: Pin<Box<dyn Stream<Item = EthEvent> + Send>>,
         db: Arc<RevmLRU<DB>>,
-        pool_tracker: AngstromPoolsTracker,
-        config: ValidationConfig,
         block_number: Arc<AtomicU64>,
+        max_validation_per_user: usize,
+        pools: Pools,
+        fetch: Fetch,
         handle: Handle
     ) -> Self {
-        let order_validator =
-            OrderValidator::new(db.clone(), pool_tracker, config, block_number, handle);
-        Self { new_block_stream, db, order_validator, rx }
+        let order_validator = OrderValidator::new(
+            db.clone(),
+            block_number,
+            max_validation_per_user,
+            pools,
+            fetch,
+            handle
+        );
+        Self { db, order_validator, rx }
     }
 
     fn on_new_validation_request(&mut self, req: ValidationRequest) {
         match req {
-            ValidationRequest::Order(order) => self.order_validator.validate_order(order)
+            ValidationRequest::Order(order) => self.order_validator.validate_order(order),
+            ValidationRequest::NewBlock { sender, block_number, orders, addresses } => {
+                self.order_validator
+                    .on_new_block(block_number, orders, addresses);
+                sender
+                    .send(OrderValidationResults::TransitionedToBlock)
+                    .unwrap();
+            }
         }
     }
 }
 
-impl<DB> Future for Validator<DB>
+impl<DB, Pools, Fetch> Future for Validator<DB, Pools, Fetch>
 where
-    DB: BlockStateProviderFactory + Clone + Unpin + 'static
+    DB: BlockStateProviderFactory + Unpin + Clone + 'static,
+    Pools: PoolsTracker + Sync + Unpin + 'static,
+    Fetch: StateFetchUtils + Sync + Unpin + 'static
 {
     type Output = ();
 

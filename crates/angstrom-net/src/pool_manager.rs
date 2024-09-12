@@ -237,20 +237,21 @@ where
 
     fn on_eth_event(&mut self, eth: EthEvent) {
         match eth {
-            EthEvent::FilledOrders(orders, block) => {
-                self.order_sorter.filled_orders(block, &orders);
+            EthEvent::NewBlockTransitions { block_number, filled_orders, address_changeset } => {
+                self.order_sorter.start_new_block_processing(
+                    block_number,
+                    filled_orders,
+                    address_changeset
+                );
             }
             EthEvent::ReorgedOrders(orders) => {
                 self.order_sorter.reorg(orders);
             }
-            EthEvent::EOAStateChanges(state_changes) => {
-                self.order_sorter.eoa_state_change(state_changes);
-            }
             EthEvent::FinalizedBlock(block) => {
                 self.order_sorter.finalized_block(block);
             }
-            EthEvent::NewBlock(block) => self.order_sorter.new_block(block),
-            EthEvent::NewPool(pool) => self.order_sorter.new_pool(pool)
+            EthEvent::NewPool(pool) => self.order_sorter.new_pool(pool),
+            EthEvent::NewBlock(block) => {}
         }
     }
 
@@ -367,6 +368,7 @@ where
                     });
                     None
                 }
+                PoolInnerEvent::None => None
             })
             .collect::<Vec<_>>();
 

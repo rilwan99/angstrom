@@ -17,7 +17,11 @@ use std::{
 use angstrom_eth::manager::EthEvent;
 use common::lru_db::{BlockStateProviderFactory, RevmLRU};
 use futures::Stream;
-use order::state::{config::load_validation_config, pools::AngstromPoolsTracker};
+use order::state::{
+    config::load_validation_config,
+    db_state_utils::{FetchUtils, StateFetchUtils},
+    pools::{AngstromPoolsTracker, PoolsTracker}
+};
 use reth_provider::StateProviderFactory;
 use tokio::sync::mpsc::unbounded_channel;
 use validator::Validator;
@@ -28,8 +32,7 @@ pub const TOKEN_CONFIG_FILE: &str = "./crates/validation/state_config.toml";
 
 pub fn init_validation<DB: BlockStateProviderFactory + Unpin + Clone + 'static>(
     db: DB,
-    cache_max_bytes: usize,
-    block_stream: Pin<Box<dyn Stream<Item = EthEvent> + Send>>
+    cache_max_bytes: usize
 ) -> ValidationClient {
     let (tx, rx) = unbounded_channel();
     let config_path = Path::new(TOKEN_CONFIG_FILE);
@@ -46,14 +49,18 @@ pub fn init_validation<DB: BlockStateProviderFactory + Unpin + Clone + 'static>(
             .unwrap();
         let handle = rt.handle().clone();
 
+        // load storage slot state + pools
+        let fetch = FetchUtils::new(config.clone());
+        let pools = AngstromPoolsTracker::new(config.clone());
+
         rt.block_on(async {
             Validator::new(
                 rx,
-                block_stream,
                 revm_lru,
-                pool_tracker,
-                config,
                 current_block.clone(),
+                config.max_validation_per_user,
+                pools,
+                fetch,
                 handle
             )
             .await
@@ -63,10 +70,15 @@ pub fn init_validation<DB: BlockStateProviderFactory + Unpin + Clone + 'static>(
     ValidationClient(tx)
 }
 
-pub fn init_validation_tests<DB: BlockStateProviderFactory + Unpin + Clone + 'static>(
+pub fn init_validation_tests<
+    DB: BlockStateProviderFactory + Unpin + Clone + 'static,
+    State: StateFetchUtils + Sync + 'static,
+    Pool: PoolsTracker + Sync + 'static
+>(
     db: DB,
     cache_max_bytes: usize,
-    block_stream: Pin<Box<dyn Stream<Item = EthEvent> + Send>>
+    state: State,
+    pool: Pool
 ) -> (ValidationClient, Arc<RevmLRU<DB>>) {
     let (tx, rx) = unbounded_channel();
     let config_path = Path::new(TOKEN_CONFIG_FILE);
@@ -86,11 +98,11 @@ pub fn init_validation_tests<DB: BlockStateProviderFactory + Unpin + Clone + 'st
 
         rt.block_on(Validator::new(
             rx,
-            block_stream,
             task_db,
-            pool_tracker,
-            config,
             current_block.clone(),
+            config.max_validation_per_user,
+            pool,
+            state,
             handle
         ))
     });
