@@ -8,23 +8,22 @@ use std::{
     task::{Context, Poll}
 };
 
-use crate::{
-    LruCache, NetworkOrderEvent, ReputationChangeKind, StromMessage, StromNetworkEvent,
-    StromNetworkHandle
-};
 use angstrom_eth::manager::EthEvent;
-use angstrom_types::primitive::Order;
-use angstrom_types::sol_bindings::grouped_orders::{FlashVariants, StandingVariants};
 use angstrom_types::{
     contract_bindings::poolmanager::PoolManager::PoolManagerCalls::updateDynamicLPFee,
     orders::{OrderOrigin, OrderPriorityData, OrderSet},
+    primitive::Order,
     sol_bindings::{
-        grouped_orders::{AllOrders, GroupedVanillaOrder, OrderWithStorageData},
+        grouped_orders::{
+            AllOrders, FlashVariants, GroupedVanillaOrder, OrderWithStorageData, StandingVariants
+        },
         sol::TopOfBlockOrder
     }
 };
 use futures::{
-    future::BoxFuture, stream::{BoxStream, FuturesUnordered}, Future, FutureExt, Stream, StreamExt
+    future::BoxFuture,
+    stream::{BoxStream, FuturesUnordered},
+    Future, FutureExt, Stream, StreamExt
 };
 use order_pool::{
     order_storage::OrderStorage, OrderIndexer, OrderPoolHandle, PoolConfig, PoolInnerEvent,
@@ -36,18 +35,26 @@ use reth_network_peers::PeerId;
 use reth_primitives::{TxHash, B256};
 use reth_rpc_types::txpool::TxpoolStatus;
 use reth_tasks::TaskSpawner;
-use tokio::sync::broadcast::Sender;
 use tokio::sync::{
     broadcast,
-    broadcast::Receiver,
+    broadcast::{Receiver, Sender},
     mpsc,
     mpsc::{error::SendError, unbounded_channel, UnboundedReceiver, UnboundedSender},
     oneshot
 };
 use tokio_stream::wrappers::{BroadcastStream, ReceiverStream, UnboundedReceiverStream};
-use validation::order::order_validator::OrderValidator;
-use validation::order::{self, OrderValidationRequest, OrderValidationResults, OrderValidatorHandle, ValidationFuture};
-use validation::validator::ValidationRequest;
+use validation::{
+    order::{
+        self, order_validator::OrderValidator, OrderValidationRequest, OrderValidationResults,
+        OrderValidatorHandle, ValidationFuture
+    },
+    validator::ValidationRequest
+};
+
+use crate::{
+    LruCache, NetworkOrderEvent, ReputationChangeKind, StromMessage, StromNetworkEvent,
+    StromNetworkHandle
+};
 
 /// Cache limit of transactions to keep track of for a single peer.
 const PEER_ORDER_CACHE_LIMIT: usize = 1024 * 10;
@@ -55,9 +62,9 @@ const PEER_ORDER_CACHE_LIMIT: usize = 1024 * 10;
 /// Api to interact with [`PoolManager`] task.
 #[derive(Debug, Clone)]
 pub struct PoolHandle {
-    pub manager_tx: UnboundedSender<OrderCommand>,
+    pub manager_tx:      UnboundedSender<OrderCommand>,
     pub pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>,
-    pub validator_tx: UnboundedSender<ValidationRequest>,
+    pub validator_tx:    UnboundedSender<ValidationRequest>
 }
 
 #[derive(Debug)]
@@ -76,7 +83,11 @@ impl PoolHandle {
         rx.await.unwrap()
     }
 
-    async fn send_validation_request<T>(&self, rx: oneshot::Receiver<T>, cmd: ValidationRequest) -> T {
+    async fn send_validation_request<T>(
+        &self,
+        rx: oneshot::Receiver<T>,
+        cmd: ValidationRequest
+    ) -> T {
         self.validator_tx.send(cmd);
         rx.await.unwrap()
     }
@@ -90,16 +101,25 @@ impl OrderPoolHandle for PoolHandle {
     fn subscribe_orders(&self) -> Receiver<PoolManagerUpdate> {
         self.pool_manager_tx.subscribe()
     }
-    
-    fn validate_order(&self, order_origin: OrderOrigin, order: AllOrders) -> impl Future<Output = bool> + Send {
+
+    fn validate_order(
+        &self,
+        order_origin: OrderOrigin,
+        order: AllOrders
+    ) -> impl Future<Output = bool> + Send {
         let (tx, rx) = oneshot::channel::<OrderValidationResults>();
-        self.send_validation_request(rx, ValidationRequest::Order(OrderValidationRequest::ValidateOrder(tx, order, order_origin)))
-            .map(|result| {
-            match result {
-                OrderValidationResults::Valid(_) => true,
-                OrderValidationResults::Invalid(_) => false,
-                OrderValidationResults::TransitionedToBlock => false,
-            }
+        self.send_validation_request(
+            rx,
+            ValidationRequest::Order(OrderValidationRequest::ValidateOrder(
+                tx,
+                order,
+                order_origin
+            ))
+        )
+        .map(|result| match result {
+            OrderValidationResults::Valid(_) => true,
+            OrderValidationResults::Invalid(_) => false,
+            OrderValidationResults::TransitionedToBlock => false
         })
     }
 }
@@ -162,9 +182,9 @@ where
             .order_storage
             .unwrap_or_else(|| Arc::new(OrderStorage::new(&self.config)));
         let handle = PoolHandle {
-            manager_tx: tx.clone(),
+            manager_tx:      tx.clone(),
             pool_manager_tx: pool_manager_tx.clone(),
-            validator_tx: validator_tx.clone(),
+            validator_tx:    validator_tx.clone()
         };
         let inner = OrderIndexer::new(self.validator.clone(), order_storage.clone(), 0);
 
@@ -178,7 +198,7 @@ where
                 order_sorter: inner,
                 network: self.network_handle,
                 command_rx: rx,
-                pool_manager_tx,
+                pool_manager_tx
             })
         );
 
@@ -195,9 +215,9 @@ where
             .unwrap_or_else(|| Arc::new(OrderStorage::new(&self.config)));
         let (pool_manager_tx, _) = broadcast::channel(100);
         let handle = PoolHandle {
-            manager_tx: tx.clone(),
+            manager_tx:      tx.clone(),
             pool_manager_tx: pool_manager_tx.clone(),
-            validator_tx: validator_tx.clone(),
+            validator_tx:    validator_tx.clone()
         };
         let inner = OrderIndexer::new(self.validator.clone(), order_storage.clone(), 0);
 
@@ -211,7 +231,7 @@ where
                 order_sorter: inner,
                 network: self.network_handle,
                 command_rx: rx,
-                pool_manager_tx,
+                pool_manager_tx
             })
         );
 
@@ -268,13 +288,13 @@ where
             order_events,
             command_rx,
             eth_network_events,
-            pool_manager_tx,
+            pool_manager_tx
         }
     }
 
     fn on_command(&mut self, cmd: OrderCommand) {
         match cmd {
-            OrderCommand::NewOrder(origin, order) => {},
+            OrderCommand::NewOrder(origin, order) => {}
         }
     }
 
@@ -305,11 +325,8 @@ where
                         .get_mut(&peer_id)
                         .map(|peer| peer.orders.insert(order.order_hash()));
 
-                    self.order_sorter.new_order(
-                        peer_id,
-                        OrderOrigin::External,
-                        order.clone(),
-                    );
+                    self.order_sorter
+                        .new_order(peer_id, OrderOrigin::External, order.clone());
                     // TODO: add an "await" for the new_order() to complete
                     if !self.order_sorter.is_valid_order(&order) {
                         self.network
