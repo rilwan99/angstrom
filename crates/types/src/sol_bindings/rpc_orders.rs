@@ -192,30 +192,43 @@ pub mod test {
         version: "0.61.0",
     };
 
-    alloy_sol_macro::sol! {
-        #[derive(Default)]
-        struct TestPartialStandingOrder {
-            uint128 minAmountIn;
-            uint128 maxAmountIn;
-            uint256 minPrice;
-            bool useInternal;
-            address assetIn;
-            address assetOut;
-            address recipient;
-            address hook;
-            bytes hookPayload;
-            uint64 nonce;
-            uint40 deadline;
-            uint128 amountFilled;
+    mod a {
+        alloy_sol_macro::sol! {
+            #[derive(Default)]
+            struct PartialStandingOrder {
+                uint128 minAmountIn;
+                uint128 maxAmountIn;
+                uint256 minPrice;
+                bool useInternal;
+                address assetIn;
+                address assetOut;
+                address recipient;
+                address hook;
+                bytes hookPayload;
+                uint64 nonce;
+                uint40 deadline;
+                uint128 amountFilled;
+            }
         }
     }
     #[test]
     fn ensure_eip712_omit_works() {
-        let default_omit = TestPartialStandingOrder::default();
+        let default_omit = a::PartialStandingOrder::default();
         let standard_order = PartialStandingOrder::default();
+
+        // check type hash
+        let d_typehash = default_omit.eip712_type_hash();
+        let s_typehash = <PartialStandingOrder as OmitOrderMeta>::eip712_type_hash(&standard_order);
+        assert_eq!(d_typehash, s_typehash);
+
+        // check encode data
+        let s_e = <PartialStandingOrder as OmitOrderMeta>::eip712_encode_data(&standard_order);
+        let d_e = default_omit.eip712_encode_data();
+        assert_eq!(s_e, d_e);
 
         let result = standard_order.no_meta_eip712_signing_hash(&TEST_DOMAIN);
         let expected = default_omit.eip712_signing_hash(&TEST_DOMAIN);
+
         assert_eq!(expected, result)
     }
 }
