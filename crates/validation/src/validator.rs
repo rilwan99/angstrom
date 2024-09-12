@@ -18,11 +18,7 @@ use crate::{
     common::lru_db::{BlockStateProviderFactory, RevmLRU},
     order::{
         order_validator::OrderValidator,
-        state::{
-            config::ValidationConfig,
-            db_state_utils::StateFetchUtils,
-            pools::{AngstromPoolsTracker, PoolsTracker}
-        },
+        state::{config::ValidationConfig, db_state_utils::StateFetchUtils, pools::PoolsTracker},
         OrderValidationRequest, OrderValidationResults
     }
 };

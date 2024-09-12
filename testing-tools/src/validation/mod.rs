@@ -43,7 +43,6 @@ impl<DB: StateProviderFactory + Clone + Unpin + 'static> TestOrderValidator<DB> 
         tracing::debug!(?config);
         let current_block = Arc::new(AtomicU64::new(db.best_block_number().unwrap()));
         let revm_lru = Arc::new(RevmLRU::new(10000000, Arc::new(db), current_block.clone()));
-        let pool_tracker = AngstromPoolsTracker::new(config.clone());
 
         let task_db = revm_lru.clone();
         let fetch = FetchUtils::new(config.clone());

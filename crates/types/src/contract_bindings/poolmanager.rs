@@ -3717,9 +3717,9 @@ pub mod PoolManager {
         #[allow(missing_docs)]
         pub id:           alloy::sol_types::private::FixedBytes<32>,
         #[allow(missing_docs)]
-        pub currency0:    alloy::sol_types::private::FixedBytes<32>,
+        pub currency0:    alloy::sol_types::private::Address,
         #[allow(missing_docs)]
-        pub currency1:    alloy::sol_types::private::FixedBytes<32>,
+        pub currency1:    alloy::sol_types::private::Address,
         #[allow(missing_docs)]
         pub fee: <alloy::sol_types::sol_data::Uint<24> as alloy::sol_types::SolType>::RustType,
         #[allow(missing_docs)]
@@ -3749,8 +3749,8 @@ pub mod PoolManager {
             type TopicList = (
                 alloy_sol_types::sol_data::FixedBytes<32>,
                 alloy::sol_types::sol_data::FixedBytes<32>,
-                alloy::sol_types::sol_data::FixedBytes<32>,
-                alloy::sol_types::sol_data::FixedBytes<32>
+                alloy::sol_types::sol_data::Address,
+                alloy::sol_types::sol_data::Address,
             );
 
             const ANONYMOUS: bool = false;
@@ -3824,12 +3824,8 @@ pub mod PoolManager {
                 out[1usize] = <alloy_sol_types::sol_data::FixedBytes<
                     32,
                 > as alloy_sol_types::EventTopic>::encode_topic(&self.id);
-                out[2usize] = <alloy_sol_types::sol_data::FixedBytes<
-                    32,
-                > as alloy_sol_types::EventTopic>::encode_topic(&self.currency0);
-                out[3usize] = <alloy_sol_types::sol_data::FixedBytes<
-                    32,
-                > as alloy_sol_types::EventTopic>::encode_topic(&self.currency1);
+                out[2usize] = <alloy_sol_types::sol_data::Address as alloy_sol_types::EventTopic>::encode_topic(&self.currency0);
+                out[3usize] = <alloy_sol_types::sol_data::Address as alloy_sol_types::EventTopic>::encode_topic(&self.currency1);
                 Ok(())
             }
         }

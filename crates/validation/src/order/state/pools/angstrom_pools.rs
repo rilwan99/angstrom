@@ -4,8 +4,6 @@ use alloy_primitives::{Address, FixedBytes};
 use angstrom_types::primitive::{NewInitializedPool, PoolId, PoolIdWithDirection};
 use dashmap::DashMap;
 
-pub type PoolIdWithDirection = (bool, PoolId);
-
 #[derive(Clone)]
 pub struct AngstromPools(DashMap<FixedBytes<40>, PoolIdWithDirection>);
 
@@ -32,6 +30,6 @@ impl AngstromPools {
 
     pub fn new_pool(&mut self, pool: NewInitializedPool) {
         self.0
-            .insert(self.get_key(pool.currency_in, pool.currency_out), pool.id);
+            .insert(AngstromPools::get_key(pool.currency_in, pool.currency_out), pool.id);
     }
 }

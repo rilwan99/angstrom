@@ -8,6 +8,7 @@ use std::{
 };
 
 use alloy_primitives::{Address, B256, U256};
+use angstrom_types::primitive::NewInitializedPool;
 use angstrom_utils::{
     key_split_threadpool::KeySplitThreadpool,
     sync_pipeline::{

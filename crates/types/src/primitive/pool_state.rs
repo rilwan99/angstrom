@@ -18,8 +18,15 @@ pub struct NewInitializedPool {
 }
 
 impl From<Log<Initialize>> for NewInitializedPool {
-    fn from(_value: Log<Initialize>) -> Self {
-        // waiting on a bug fix from the alloy team
-        todo!()
+    fn from(value: Log<Initialize>) -> Self {
+        // tf do the indexes come from
+        Self {
+            currency_in:        value.currency0,
+            currency_in_index:  0,
+            currency_out:       value.currency1,
+            currency_out_index: 0,
+            // where is this generated
+            id:                 (true, 0)
+        }
     }
 }

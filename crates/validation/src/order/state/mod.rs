@@ -2,7 +2,10 @@ use std::{collections::HashMap, sync::Arc, task::Poll};
 
 use account::UserAccountProcessor;
 use alloy_primitives::{Address, B256, U256};
-use angstrom_types::sol_bindings::grouped_orders::{AllOrders, RawPoolOrder};
+use angstrom_types::{
+    primitive::NewInitializedPool,
+    sol_bindings::grouped_orders::{AllOrders, RawPoolOrder}
+};
 use db_state_utils::StateFetchUtils;
 use futures::{Stream, StreamExt};
 use futures_util::stream::FuturesUnordered;
@@ -44,7 +47,7 @@ pub struct StateValidation<DB, Pools, Fetch> {
     /// tracks everything user related.
     user_account_tracker: Arc<UserAccountProcessor<DB, Fetch>>,
     /// tracks all info about the current angstrom pool state.
-    pool_tacker:          Arc<Pools>
+    pool_tacker:          Arc<RwLock<Pools>>
 }
 
 impl<DB, Pools: PoolsTracker, Fetch: StateFetchUtils> StateValidation<DB, Pools, Fetch>
@@ -54,7 +57,7 @@ where
     pub fn new(db: Arc<RevmLRU<DB>>, block: u64, pools: Pools, fetch: Fetch) -> Self {
         Self {
             db:                   db.clone(),
-            pool_tacker:          Arc::new(pools),
+            pool_tacker:          Arc::new(RwLock::new(pools)),
             user_account_tracker: Arc::new(UserAccountProcessor::new(db, block, fetch))
         }
     }
@@ -76,9 +79,8 @@ where
         is_limit: bool
     ) -> OrderValidationResults {
         let order_hash = order.hash();
-        let Some((pool_info, wrapped_order)) = self
-            .pool_tacker
-            .read_with(|inner| inner.fetch_pool_info_for_order(order))
+        let Some((pool_info, wrapped_order)) =
+            self.pool_tacker.read_arc().fetch_pool_info_for_order(order)
         else {
             return OrderValidationResults::Invalid(order_hash)
         };
@@ -106,7 +108,6 @@ where
     }
 
     pub fn index_new_pool(&mut self, pool: NewInitializedPool) {
-        self.pool_tacker
-            .write_with(|inner| inner.index_new_pool(pool));
+        self.pool_tacker.write_arc().index_new_pool(pool);
     }
 }
