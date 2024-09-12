@@ -10,9 +10,7 @@ use reth_primitives::{B256, U256};
 
 use crate::{
     order::state::{
-        db_state_utils::StateFetchUtils,
-        pools::UserOrderPoolInfo,
-        AssetIndexToAddressWrapper
+        db_state_utils::StateFetchUtils, pools::UserOrderPoolInfo, AssetIndexToAddressWrapper
     },
     BlockStateProviderFactory, RevmLRU
 };

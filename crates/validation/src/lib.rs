@@ -10,11 +10,9 @@ pub mod validator;
 
 use std::{
     path::Path,
-    pin::Pin,
     sync::{atomic::AtomicU64, Arc}
 };
 
-use angstrom_eth::manager::EthEvent;
 use common::lru_db::{BlockStateProviderFactory, RevmLRU};
 use futures::Stream;
 use order::state::{
@@ -23,18 +21,19 @@ use order::state::{
     pools::{AngstromPoolsTracker, PoolsTracker}
 };
 use reth_provider::StateProviderFactory;
-use tokio::sync::mpsc::unbounded_channel;
+use tokio::sync::mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender};
 use validator::Validator;
 
-use crate::validator::ValidationClient;
+use crate::validator::{ValidationClient, ValidationRequest};
 
 pub const TOKEN_CONFIG_FILE: &str = "./crates/validation/state_config.toml";
 
 pub fn init_validation<DB: BlockStateProviderFactory + Unpin + Clone + 'static>(
     db: DB,
-    cache_max_bytes: usize
+    cache_max_bytes: usize,
+    validator_tx: UnboundedSender<ValidationRequest>,
+    validator_rx: UnboundedReceiver<ValidationRequest>
 ) -> ValidationClient {
-    let (tx, rx) = unbounded_channel();
     let config_path = Path::new(TOKEN_CONFIG_FILE);
     let config = load_validation_config(config_path).unwrap();
     let current_block = Arc::new(AtomicU64::new(db.best_block_number().unwrap()));
@@ -54,7 +53,7 @@ pub fn init_validation<DB: BlockStateProviderFactory + Unpin + Clone + 'static>(
 
         rt.block_on(async {
             Validator::new(
-                rx,
+                validator_rx,
                 revm_lru,
                 current_block.clone(),
                 config.max_validation_per_user,
@@ -66,7 +65,7 @@ pub fn init_validation<DB: BlockStateProviderFactory + Unpin + Clone + 'static>(
         })
     });
 
-    ValidationClient(tx)
+    ValidationClient(validator_tx)
 }
 
 pub fn init_validation_tests<

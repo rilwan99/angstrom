@@ -19,6 +19,7 @@ angstrom-utils.workspace = true
 angstrom-network.workspace = true
 consensus.workspace = true
 order-pool.workspace = true
+validation.workspace =  true
 
 reth-primitives.workspace = true
 reth-tasks.workspace = true

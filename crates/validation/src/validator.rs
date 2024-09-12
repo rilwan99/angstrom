@@ -1,14 +1,10 @@
 use std::{
-    pin::Pin,
     sync::{atomic::AtomicU64, Arc},
     task::Poll
 };
 
 use alloy_primitives::{Address, B256};
-use angstrom_eth::manager::EthEvent;
-use futures::{Stream, StreamExt};
 use futures_util::{Future, FutureExt};
-use reth_revm::db::BundleState;
 use tokio::{
     runtime::Handle,
     sync::mpsc::{UnboundedReceiver, UnboundedSender}
@@ -18,7 +14,7 @@ use crate::{
     common::lru_db::{BlockStateProviderFactory, RevmLRU},
     order::{
         order_validator::OrderValidator,
-        state::{config::ValidationConfig, db_state_utils::StateFetchUtils, pools::PoolsTracker},
+        state::{db_state_utils::StateFetchUtils, pools::PoolsTracker},
         OrderValidationRequest, OrderValidationResults
     }
 };

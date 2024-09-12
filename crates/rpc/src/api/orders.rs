@@ -1,5 +1,5 @@
-use angstrom_types::rpc::{
-    FlashOrderRequest, SignedOrder, StandingOrderRequest, TopOfBlockOrderRequest
+use angstrom_types::sol_bindings::rpc_orders::{
+    ExactFlashOrder, ExactStandingOrder, PartialFlashOrder, PartialStandingOrder, TopOfBlockOrder
 };
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
@@ -10,20 +10,20 @@ use crate::types::OrderSubscriptionKind;
 #[async_trait::async_trait]
 pub trait OrderApi {
     /// Users send the rlp encoded signature and order bytes
-    #[method(name = "sendStandingOrder")]
-    async fn send_standing_order(
-        &self,
-        order: SignedOrder<StandingOrderRequest>
-    ) -> RpcResult<bool>;
+    #[method(name = "sendPartialStandingOrder")]
+    async fn send_partial_standing_order(&self, order: PartialStandingOrder) -> RpcResult<bool>;
+
+    #[method(name = "sendExactStandingOrder")]
+    async fn send_exact_standing_order(&self, order: ExactStandingOrder) -> RpcResult<bool>;
 
     #[method(name = "sendSearcherOrder")]
-    async fn send_searcher_order(
-        &self,
-        order: SignedOrder<TopOfBlockOrderRequest>
-    ) -> RpcResult<bool>;
+    async fn send_searcher_order(&self, order: TopOfBlockOrder) -> RpcResult<bool>;
 
-    #[method(name = "sendFlashOrder")]
-    async fn send_flash_order(&self, order: SignedOrder<FlashOrderRequest>) -> RpcResult<bool>;
+    #[method(name = "sendPartialFlashOrder")]
+    async fn send_partial_flash_order(&self, order: PartialFlashOrder) -> RpcResult<bool>;
+
+    #[method(name = "sendExactFlashOrder")]
+    async fn send_exact_flash_order(&self, order: ExactFlashOrder) -> RpcResult<bool>;
 
     #[subscription(
         name = "subscribeOrders",

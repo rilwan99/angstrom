@@ -547,7 +547,8 @@ impl RawPoolOrder for ExactStandingOrder {
     }
 
     fn amount_out_min(&self) -> u128 {
-        self.amount * self.minPrice.to::<u128>()
+        todo!();
+        // self.amount * self.minPrice.to::<u128>()
     }
 
     fn limit_price(&self) -> U256 {
@@ -555,7 +556,8 @@ impl RawPoolOrder for ExactStandingOrder {
     }
 
     fn amount_in(&self) -> u128 {
-        self.amount
+        todo!();
+        // self.amount
     }
 
     fn deadline(&self) -> Option<U256> {

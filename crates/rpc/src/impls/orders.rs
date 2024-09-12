@@ -1,11 +1,12 @@
-use alloy_sol_types::SolStruct;
 use angstrom_types::{
     orders::OrderOrigin,
-    rpc::{
-        FlashOrderRequest, SignedOrder, StandingOrderRequest, TopOfBlockOrderRequest,
-        ANGSTROM_DOMAIN
-    },
-    sol_bindings::grouped_orders::AllOrders
+    sol_bindings::{
+        grouped_orders::{AllOrders, FlashVariants, StandingVariants},
+        rpc_orders::{
+            ExactFlashOrder, ExactStandingOrder, PartialFlashOrder, PartialStandingOrder,
+            TopOfBlockOrder
+        }
+    }
 };
 use jsonrpsee::{core::RpcResult, PendingSubscriptionSink, SubscriptionMessage};
 use order_pool::OrderPoolHandle;
@@ -30,46 +31,29 @@ where
     OrderPool: OrderPoolHandle,
     Spawner: TaskSpawner + 'static
 {
-    async fn send_standing_order(
-        &self,
-        request: SignedOrder<StandingOrderRequest>
-    ) -> RpcResult<bool> {
-        let eip_hash = request.order.eip712_signing_hash(&ANGSTROM_DOMAIN);
-        let signature = request.signature;
-        signature
-            .recover_from_msg(eip_hash)
-            .map(|order| {
-                self.pool
-                    .new_order(OrderOrigin::External, AllOrders::Partial(request.order.into()))
-            })
-            .map_or(Ok(false), Ok)
+    async fn send_partial_standing_order(&self, order: PartialStandingOrder) -> RpcResult<bool> {
+        let order = AllOrders::Standing(StandingVariants::Partial(order));
+        Ok(self.validate_and_send_order(order).await)
     }
 
-    async fn send_searcher_order(
-        &self,
-        request: SignedOrder<TopOfBlockOrderRequest>
-    ) -> RpcResult<bool> {
-        let eip_hash = request.order.eip712_signing_hash(&ANGSTROM_DOMAIN);
-        let signature = request.signature;
-        signature
-            .recover_from_msg(eip_hash)
-            .map(|order| {
-                self.pool
-                    .new_order(OrderOrigin::External, AllOrders::TOB(request.order.into()))
-            })
-            .map_or(Ok(false), Ok)
+    async fn send_exact_standing_order(&self, order: ExactStandingOrder) -> RpcResult<bool> {
+        let order = AllOrders::Standing(StandingVariants::Exact(order));
+        Ok(self.validate_and_send_order(order).await)
     }
 
-    async fn send_flash_order(&self, request: SignedOrder<FlashOrderRequest>) -> RpcResult<bool> {
-        let eip_hash = request.order.eip712_signing_hash(&ANGSTROM_DOMAIN);
-        let signature = request.signature;
-        signature
-            .recover_from_msg(eip_hash)
-            .map(|order| {
-                self.pool
-                    .new_order(OrderOrigin::External, AllOrders::KillOrFill(request.order.into()))
-            })
-            .map_or(Ok(false), Ok)
+    async fn send_searcher_order(&self, order: TopOfBlockOrder) -> RpcResult<bool> {
+        let order = AllOrders::TOB(order);
+        Ok(self.validate_and_send_order(order).await)
+    }
+
+    async fn send_partial_flash_order(&self, order: PartialFlashOrder) -> RpcResult<bool> {
+        let order = AllOrders::Flash(FlashVariants::Partial(order));
+        Ok(self.validate_and_send_order(order).await)
+    }
+
+    async fn send_exact_flash_order(&self, order: ExactFlashOrder) -> RpcResult<bool> {
+        let order = AllOrders::Flash(FlashVariants::Exact(order));
+        Ok(self.validate_and_send_order(order).await)
     }
 
     async fn subscribe_orders(
@@ -110,13 +94,28 @@ where
     }
 }
 
+impl<OrderPool, Spawner> OrderApi<OrderPool, Spawner>
+where
+    OrderPool: OrderPoolHandle,
+    Spawner: TaskSpawner + 'static
+{
+    async fn validate_and_send_order(&self, order: AllOrders) -> bool {
+        self.pool
+            .validate_order(OrderOrigin::External, order.clone())
+            .await
+            && self.pool.new_order(OrderOrigin::External, order)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use std::{assert_matches::assert_matches, str::FromStr};
+    use std::future::{ready, Future};
 
-    use alloy_primitives::{Address, Signature, U256};
     use angstrom_network::pool_manager::OrderCommand;
-    use angstrom_types::rpc::{SignedOrder, StandingOrderRequest};
+    use angstrom_types::sol_bindings::rpc_orders::{
+        ExactFlashOrder, ExactStandingOrder, PartialFlashOrder, PartialStandingOrder,
+        TopOfBlockOrder
+    };
     use order_pool::PoolManagerUpdate;
     use reth_tasks::TokioTaskExecutor;
     use tokio::sync::{
@@ -127,109 +126,54 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_send_standing_order() {
-        let (mut handle, api) = setup_order_api();
-
-        let order_request = StandingOrderRequest {
-            exactIn:     false,
-            amount:      1000000u128,
-            minPrice:    U256::from(1000),
-            useInternal: true,
-            assetIn:     Address::random(),
-            assetOut:    Address::random(),
-            recipient:   Address::random(),
-            hook:        Address::random(),
-            hookPayload: vec![1, 2, 3, 4].into(),
-            nonce:       12345u64,
-            deadline:    1000000u64
-        };
-        let standing_order = SignedOrder{
-            order: order_request.clone(),
-            signature: Signature::from_str("48b55bfa915ac795c431978d8a6a992b628d557da5ff759b307d495a36649353efffd310ac743f371de3b9f7f9cb56c0b28ad43601b4ab949f53faa07bd2c8041b").unwrap()
-        } ;
-
-        let res = api.send_standing_order(standing_order).await;
-        assert!(res.is_ok());
-        assert!(res.unwrap());
-        let received_order = handle
-            .from_api
-            .recv()
+    async fn test_send_partial_standing_order() {
+        let (_handle, api) = setup_order_api();
+        let order = PartialStandingOrder::default();
+        assert!(api
+            .send_partial_standing_order(order)
             .await
-            .expect("Should receive an order");
-        assert_matches!(
-            received_order,
-            OrderCommand::NewOrder(OrderOrigin::External, AllOrders::Partial(_))
-        );
-        if let OrderCommand::NewOrder(OrderOrigin::External, AllOrders::Partial(order)) =
-            received_order
-        {
-            assert_eq!(order, order_request.into());
-        };
+            .expect("to not throw error"));
     }
-    //
-    // #[tokio::test]
-    // async fn test_send_flash_order() {
-    //     let (mut handle, api) = setup_order_api();
-    //
-    //     let flash_order = FlashOrder {
-    //         mode: "market".to_string(),
-    //         max_amount_in_or_out: U256::from(500000),
-    //         min_price: U256::from(50),
-    //         asset_in: 3u16,
-    //         asset_in_form: SolAssetForm::Liquid,
-    //         asset_out: 4u16,
-    //         asset_out_form: SolAssetForm::Liquid,
-    //         recipient: Address::random(),
-    //         hook_data: vec![9, 10, 11, 12].into(),
-    //         valid_for_block: 1000,
-    //         signature: vec![13, 14, 15, 16].into(),
-    //     };
-    //     let signed_order = SignedOrder {
-    //         order: flash_order.clone(),
-    //         signature: vec![13, 14, 15, 16].into(),
-    //     };
-    //
-    //     let res = api.send_flash_order(signed_order).await;
-    //     assert!(res.is_ok());
-    //     let received_order = handle.from_api.recv().await.expect("Should receive
-    // an order");     assert_matches!(received_order,
-    // OrderCommand::NewOrder(OrderOrigin::External, AllOrders::KillOrFill(_)));
-    //     if let OrderCommand::NewOrder(OrderOrigin::External,
-    // AllOrders::KillOrFill(order)) = received_order {         assert_eq!
-    // (order, flash_order);     };
-    // }
-    //
-    // #[tokio::test]
-    // async fn test_send_top_of_block_order() {
-    //     let (mut handle, api) = setup_order_api();
-    //
-    //     let top_of_block_order = TopOfBlockOrder {
-    //         amountIn: U256::from(100000),
-    //         amountOut: U256::from(90000),
-    //         assetInIndex: 5,
-    //         assetInForm: SolAssetForm::Liquid,
-    //         assetOutIndex: 6,
-    //         assetOutForm: SolAssetForm::Liquid,
-    //         recipient: Address::random(),
-    //         hook: Address::random(),
-    //         hookPayload: vec![17, 18, 19, 20].into(),
-    //         from: Address::random(),
-    //         signature: vec![1,2,3,4].into(),
-    //     };
-    //     let signed_order = SignedOrder {
-    //         order: top_of_block_order.clone(),
-    //         signature: vec![1,2,3,4].into(),
-    //     };
-    //
-    //     let res = api.send_searcher_order(signed_order).await;
-    //     assert!(res.is_ok());
-    //     let received_order = handle.from_api.recv().await.expect("Should receive
-    // an order");     assert_matches!(received_order,
-    // OrderCommand::NewOrder(OrderOrigin::External, AllOrders::TOB(_)));     if
-    // let OrderCommand::NewOrder(OrderOrigin::External, AllOrders::TOB(order)) =
-    // received_order {         assert_eq!(order, top_of_block_order);
-    //     };
-    // }
+
+    #[tokio::test]
+    async fn test_send_exact_standing_order() {
+        let (_handle, api) = setup_order_api();
+        let order = ExactStandingOrder::default();
+        assert!(api
+            .send_exact_standing_order(order)
+            .await
+            .expect("to not throw error"));
+    }
+
+    #[tokio::test]
+    async fn test_send_searcher_order() {
+        let (_handle, api) = setup_order_api();
+        let order = TopOfBlockOrder::default();
+        assert!(api
+            .send_searcher_order(order)
+            .await
+            .expect("to not throw error"));
+    }
+
+    #[tokio::test]
+    async fn test_send_partial_flash_order() {
+        let (_handle, api) = setup_order_api();
+        let order = PartialFlashOrder::default();
+        assert!(api
+            .send_partial_flash_order(order)
+            .await
+            .expect("to not throw error"));
+    }
+
+    #[tokio::test]
+    async fn test_send_exact_flash_order() {
+        let (_handle, api) = setup_order_api();
+        let order = ExactFlashOrder::default();
+        assert!(api
+            .send_exact_flash_order(order)
+            .await
+            .expect("to not throw error"));
+    }
 
     fn setup_order_api() -> (OrderApiTestHandle, OrderApi<MockOrderPoolHandle, TokioTaskExecutor>) {
         let (to_pool, pool_rx) = unbounded_channel();
@@ -258,6 +202,14 @@ mod tests {
 
         fn subscribe_orders(&self) -> Receiver<PoolManagerUpdate> {
             unimplemented!("Not needed for this test")
+        }
+
+        fn validate_order(
+            &self,
+            order_origin: OrderOrigin,
+            order: AllOrders
+        ) -> impl Future<Output = bool> + Send {
+            ready(true)
         }
     }
 }
