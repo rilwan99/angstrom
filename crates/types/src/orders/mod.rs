@@ -16,7 +16,7 @@ pub type OrderPrice = MatchingPrice;
 // mod pooled;
 // pub use pooled::*;
 use crate::{
-    matching::MatchingPrice,
+    matching::{MatchingPrice, Ray},
     primitive::PoolId,
     sol_bindings::{grouped_orders::OrderWithStorageData, sol::TopOfBlockOrder}
 };
@@ -97,7 +97,7 @@ pub struct PoolSolution {
     /// Id of this pool
     pub id:           PoolId,
     /// Uniform clearing price in Ray format
-    pub ucp:          U256,
+    pub ucp:          Ray,
     /// Winning searcher order to be executed
     pub searcher:     Option<OrderWithStorageData<TopOfBlockOrder>>,
     /// Quantity to be bought or sold from the amm

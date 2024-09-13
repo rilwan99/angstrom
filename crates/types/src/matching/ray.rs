@@ -9,6 +9,7 @@ use malachite::{
     rounding_modes::RoundingMode,
     Natural, Rational
 };
+use serde::{Deserialize, Serialize};
 
 use super::{const_2_192, MatchingPrice, SqrtPriceX96};
 use crate::matching::const_1e27;
@@ -111,6 +112,25 @@ impl From<SqrtPriceX96> for Ray {
 impl From<MatchingPrice> for Ray {
     fn from(value: MatchingPrice) -> Self {
         Self(*value)
+    }
+}
+
+impl Serialize for Ray {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer
+    {
+        self.0.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Ray {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>
+    {
+        let inner = U256::deserialize(deserializer)?;
+        Ok(Self(inner))
     }
 }
 

@@ -45,7 +45,7 @@ pub fn to_contract_format(proposal: &Proposal, pools: &AngstromPoolsTracker) -> 
         let t1_idx = asset_builder.add_or_get_asset(t1) as u16;
         // Build our Pair featuring our uniform clearing price
         // This price is in Ray format as requested.
-        let uniswap_price = solution.ucp;
+        let uniswap_price: U256 = *solution.ucp;
         pairs.push(Pair { t0_idx, t1_idx, uniswap_price });
         let pair_idx = pairs.len() - 1;
 
