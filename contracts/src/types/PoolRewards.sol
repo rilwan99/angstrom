@@ -41,21 +41,19 @@ library PoolRewardsLib {
         internal
     {
         if (newTick > lastTick) {
-            _updateTickMoveUp(self, id, uniV4, lastTick, newTick);
+            _updateTickMoveUp(self, uniV4, id, lastTick, newTick);
         } else if (newTick < lastTick) {
-            _updateTickMoveDown(self, id, uniV4, lastTick, newTick);
+            _updateTickMoveDown(self, uniV4, id, lastTick, newTick);
         }
     }
 
-    function _updateTickMoveUp(PoolRewards storage self, PoolId id, IPoolManager uniV4, int24 tick, int24 newTick)
+    function _updateTickMoveUp(PoolRewards storage self, IPoolManager uniV4, PoolId id, int24 tick, int24 newTick)
         private
     {
         uint256 globalGrowth = self.globalGrowth;
         while (tick < newTick) {
-            (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick) + 1);
             bool initialized;
-            (initialized, bitPos) = uniV4.getPoolBitmapInfo(id, wordPos).nextBitPosGte(bitPos);
-            tick = TickLib.toTick(wordPos, bitPos);
+            (initialized, tick) = uniV4.getNextTickUp(id, tick);
 
             if (initialized) {
                 self.rewardGrowthOutside[uint24(tick)] = globalGrowth - self.rewardGrowthOutside[uint24(tick)];
@@ -63,15 +61,13 @@ library PoolRewardsLib {
         }
     }
 
-    function _updateTickMoveDown(PoolRewards storage self, PoolId id, IPoolManager uniV4, int24 tick, int24 newTick)
+    function _updateTickMoveDown(PoolRewards storage self, IPoolManager uniV4, PoolId id, int24 tick, int24 newTick)
         private
     {
         uint256 globalGrowth = self.globalGrowth;
         while (tick > newTick) {
-            (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick) - 1);
             bool initialized;
-            (initialized, bitPos) = uniV4.getPoolBitmapInfo(id, wordPos).nextBitPosLte(bitPos);
-            tick = TickLib.toTick(wordPos, bitPos);
+            (initialized, tick) = uniV4.getNextTickDown(id, tick);
 
             if (initialized) {
                 self.rewardGrowthOutside[uint24(tick)] = globalGrowth - self.rewardGrowthOutside[uint24(tick)];

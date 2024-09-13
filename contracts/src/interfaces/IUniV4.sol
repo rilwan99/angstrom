@@ -4,9 +4,11 @@ pragma solidity ^0.8.4;
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {Slot0} from "v4-core/src/types/Slot0.sol";
 import {PoolId} from "v4-core/src/types/PoolId.sol";
+import {TickLib} from "../libraries/TickLib.sol";
 
 library IUniV4 {
     using IUniV4 for IPoolManager;
+    using TickLib for uint256;
 
     uint256 internal constant _OWNER_SLOT = 0;
     uint256 internal constant _PROTOCOL_FEES_SLOT = 1;
@@ -117,5 +119,25 @@ library IUniV4 {
             // Direct type cast.
             delta := value
         }
+    }
+
+    function getNextTickDown(IPoolManager self, PoolId id, int24 tick)
+        internal
+        view
+        returns (bool initialized, int24 nextTick)
+    {
+        (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick) - 1);
+        (initialized, bitPos) = self.getPoolBitmapInfo(id, wordPos).nextBitPosLte(bitPos);
+        nextTick = TickLib.toTick(wordPos, bitPos);
+    }
+
+    function getNextTickUp(IPoolManager self, PoolId id, int24 tick)
+        internal
+        view
+        returns (bool initialized, int24 nextTick)
+    {
+        (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick) + 1);
+        (initialized, bitPos) = self.getPoolBitmapInfo(id, wordPos).nextBitPosGte(bitPos);
+        nextTick = TickLib.toTick(wordPos, bitPos);
     }
 }
