@@ -7,7 +7,7 @@ use secp256k1::{Secp256k1, SecretKey as Secp256SecretKey};
 use super::generate_limit_order_distribution;
 use crate::type_generator::orders::generate_top_of_block_order;
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub struct PreproposalBuilder {
     order_count: Option<usize>,
     block:       Option<u64>,

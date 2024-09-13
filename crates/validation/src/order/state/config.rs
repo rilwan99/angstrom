@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use crate::common::lru_db::{BlockStateProviderFactory, RevmLRU};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Default, Clone, Deserialize)]
 pub struct ValidationConfig {
     pub approvals:               Vec<TokenApprovalSlot>,
     pub balances:                Vec<TokenBalanceSlot>,

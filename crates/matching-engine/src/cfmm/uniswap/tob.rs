@@ -47,8 +47,9 @@ impl ToBOutcome {
                 Some(u128::try_from(*state).unwrap())
             })
             .collect::<Vec<_>>();
+        let start_tick = donations.first().map(|(a, _)| *a + 1).unwrap_or_default();
         let update = RewardsUpdate {
-            startTick: *donations[0].0 + 1,
+            startTick: start_tick,
             startLiquidity: self.start_liquidity,
             quantities
         };

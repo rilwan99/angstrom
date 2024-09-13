@@ -13,7 +13,10 @@ use angstrom_types::{
 };
 use builder::{AssetBuilder, AssetBuilderStage};
 use matching_engine::{
-    cfmm::uniswap::{tob::calculate_reward, MarketSnapshot},
+    cfmm::uniswap::{
+        tob::{calculate_reward, ToBOutcome},
+        MarketSnapshot
+    },
     MatchingManager
 };
 use reth_primitives::U256;
@@ -36,6 +39,7 @@ pub fn to_contract_format(proposal: &Proposal, pools: &AngstromPoolsTracker) -> 
         // pool for it
         let Some((t0, t1)) = pools.get_pool_addresses(solution.id) else {
             // This should never happen but let's handle it as gracefully as possible
+            println!("SKIPPED");
             warn!("Skipped a solution as we couldn't find a pool for it: {:?}", solution);
             continue;
         };
@@ -64,8 +68,9 @@ pub fn to_contract_format(proposal: &Proposal, pools: &AngstromPoolsTracker) -> 
                 } else {
                     (t0_idx, t1_idx, tob.quantityIn, tob.quantityOut)
                 };
-                let amm = MarketSnapshot::new(vec![], SqrtPriceX96::default()).unwrap();
-                let rewards = calculate_reward(tob, amm).unwrap();
+                // let amm = MarketSnapshot::new(vec![], SqrtPriceX96::default()).unwrap();
+                //let rewards = calculate_reward(tob, amm).unwrap();
+                let rewards = ToBOutcome::default();
                 (Some(swap), Some(rewards))
             })
             .unwrap_or_default();
@@ -217,14 +222,32 @@ pub fn to_contract_order(
 
 #[cfg(test)]
 mod tests {
-    use validation::order::state::pools::AngstromPoolsTracker;
+    use alloy_primitives::FixedBytes;
+    use angstrom_types::primitive::PoolId;
+    use reth_primitives::Address;
+    use testing_tools::type_generator::consensus::proposal::ProposalBuilder;
+    use validation::order::state::{
+        config::{PoolConfig, ValidationConfig},
+        pools::AngstromPoolsTracker
+    };
 
     use super::to_contract_format;
 
     #[test]
     fn basic_test() {
-        // let proposal = generate_random_proposal(10, 10, 10);
-        // let pools = AngstromPoolsTracker::new(config);
-        // to_contract_format(&proposal, &pools);
+        let token0 = Address::random();
+        let token1 = Address::random();
+        let pool_id: PoolId = FixedBytes::random();
+        let poolconfig = PoolConfig { token0, token1, pool_id };
+        let mut config = ValidationConfig::default();
+        config.pools = vec![poolconfig.clone()];
+        let proposal_pools = vec![poolconfig.pool_id];
+        let proposal = ProposalBuilder::new()
+            .order_count(10)
+            .for_pools(proposal_pools)
+            .build();
+        let pools = AngstromPoolsTracker::new(config);
+        println!("{:?}", to_contract_format(&proposal, &pools));
+        panic!("Butts!");
     }
 }
