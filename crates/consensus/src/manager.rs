@@ -423,7 +423,6 @@ impl ConsensusListener for ConsensusHandle {
 
 #[cfg(test)]
 mod tests {
-
     use std::{
         collections::HashSet,
         sync::{Arc, Mutex}

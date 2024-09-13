@@ -1,19 +1,16 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     sync::{atomic::AtomicU64, Arc}
 };
 
 use alloy_primitives::Address;
 use angstrom_types::sol_bindings::{ext::RawPoolOrder, RespendAvoidanceMethod};
 use dashmap::DashMap;
-use parking_lot::RwLock;
-use reth_primitives::{TxHash, B256, U256};
+use reth_primitives::{B256, U256};
 
 use crate::{
     order::state::{
-        db_state_utils::{FetchUtils, StateFetchUtils},
-        pools::UserOrderPoolInfo,
-        AssetIndexToAddressWrapper
+        db_state_utils::StateFetchUtils, pools::UserOrderPoolInfo, AssetIndexToAddressWrapper
     },
     BlockStateProviderFactory, RevmLRU
 };

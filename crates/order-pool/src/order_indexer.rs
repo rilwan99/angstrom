@@ -66,6 +66,11 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         }
     }
 
+    pub fn is_valid_order(&self, order: &AllOrders) -> bool {
+        let hash = order.order_hash();
+        self.hash_to_order_id.contains_key(&hash)
+    }
+
     pub fn new_order(&mut self, peer_id: PeerId, origin: OrderOrigin, order: AllOrders) {
         if self.is_duplicate(&order) {
             return

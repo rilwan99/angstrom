@@ -1,12 +1,10 @@
-use std::collections::HashMap;
-
-use alloy_primitives::{Address, FixedBytes, U256};
+use alloy_primitives::Address;
 use angstrom_pools::AngstromPools;
 use angstrom_types::sol_bindings::ext::RawPoolOrder;
 use dashmap::DashMap;
 use index_to_address::{AssetIndexToAddress, AssetIndexToAddressWrapper};
 
-use super::config::{HashMethod, ValidationConfig};
+use super::config::ValidationConfig;
 
 pub mod angstrom_pools;
 pub mod index_to_address;
@@ -75,7 +73,7 @@ impl AngstromPoolsTracker {
 
 #[cfg(test)]
 pub mod pool_tracker_mock {
-    use alloy_primitives::{Address, FixedBytes};
+    use alloy_primitives::Address;
     use dashmap::DashMap;
 
     use super::{angstrom_pools::PoolIdWithDirection, *};

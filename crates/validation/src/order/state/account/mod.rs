@@ -1,20 +1,15 @@
 //! keeps track of account state for orders
-use std::{
-    collections::HashSet,
-    sync::{atomic::AtomicU64, Arc}
-};
+use std::sync::Arc;
 
 use alloy_primitives::{Address, B256};
 use angstrom_types::sol_bindings::{ext::RawPoolOrder, grouped_orders::OrderWithStorageData};
 use dashmap::DashSet;
-use parking_lot::RwLock;
 use thiserror::Error;
 use user::UserAccounts;
 
 use super::{
-    db_state_utils::{FetchUtils, StateFetchUtils},
-    pools::{index_to_address::AssetIndexToAddressWrapper, UserOrderPoolInfo},
-    ValidationConfig
+    db_state_utils::StateFetchUtils,
+    pools::{index_to_address::AssetIndexToAddressWrapper, UserOrderPoolInfo}
 };
 use crate::{common::lru_db::BlockStateProviderFactory, RevmLRU};
 
