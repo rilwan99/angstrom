@@ -18,7 +18,7 @@ pub type OrderPrice = MatchingPrice;
 use crate::{
     matching::{MatchingPrice, Ray},
     primitive::PoolId,
-    sol_bindings::{grouped_orders::OrderWithStorageData, sol::TopOfBlockOrder}
+    sol_bindings::{grouped_orders::OrderWithStorageData, rpc_orders::TopOfBlockOrder}
 };
 
 #[derive(Debug)]
@@ -72,15 +72,15 @@ impl NetAmmOrder {
         self.get_directions().1
     }
 
-    pub fn to_order_tuple(&self, t0_idx: u16, t1_idx: u16) -> (u16, u16, U256, U256) {
+    pub fn to_order_tuple(&self, t0_idx: u16, t1_idx: u16) -> (u16, u16, u128, u128) {
         match self {
-            NetAmmOrder::Buy(q, c) => (t1_idx, t0_idx, *c, *q),
-            NetAmmOrder::Sell(q, c) => (t0_idx, t1_idx, *q, *c)
+            NetAmmOrder::Buy(q, c) => (t1_idx, t0_idx, c.to(), q.to()),
+            NetAmmOrder::Sell(q, c) => (t0_idx, t1_idx, q.to(), c.to())
         }
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrderOutcome {
     pub id:      OrderId,
     pub outcome: OrderFillState

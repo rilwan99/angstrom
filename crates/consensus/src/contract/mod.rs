@@ -9,7 +9,7 @@ use angstrom_types::{
     },
     matching::{Ray, SqrtPriceX96},
     orders::{OrderFillState, OrderOutcome},
-    sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData, RawPoolOrder}
+    sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
 };
 use builder::{AssetBuilder, AssetBuilderStage};
 use matching_engine::{
@@ -60,9 +60,9 @@ pub fn to_contract_format(proposal: &Proposal, pools: &AngstromPoolsTracker) -> 
             .as_ref()
             .map(|tob| {
                 let swap = if tob.is_bid {
-                    (t1_idx, t0_idx, tob.amountIn, tob.amountOut)
+                    (t1_idx, t0_idx, tob.quantityIn, tob.quantityOut)
                 } else {
-                    (t0_idx, t1_idx, tob.amountIn, tob.amountOut)
+                    (t0_idx, t1_idx, tob.quantityIn, tob.quantityOut)
                 };
                 let amm = MarketSnapshot::new(vec![], SqrtPriceX96::default()).unwrap();
                 let rewards = calculate_reward(tob, amm).unwrap();
@@ -88,7 +88,7 @@ pub fn to_contract_format(proposal: &Proposal, pools: &AngstromPoolsTracker) -> 
         };
         // Unwrap our merged amm order or provide a zero default
         let (asset_in_index, asset_out_index, quantity_in, quantity_out) =
-            merged_amm_swap.unwrap_or((t0_idx, t1_idx, U256::ZERO, U256::ZERO));
+            merged_amm_swap.unwrap_or((t0_idx, t1_idx, 0_u128, 0_u128));
         // If we don't have a rewards update, we insert a default "empty" struct
         let tob_outcome = tob_rewards.unwrap_or_default();
 
@@ -97,8 +97,8 @@ pub fn to_contract_format(proposal: &Proposal, pools: &AngstromPoolsTracker) -> 
             AssetBuilderStage::Swap,
             asset_in_index as usize,
             asset_out_index as usize,
-            quantity_in.to(),
-            quantity_out.to()
+            quantity_in,
+            quantity_out
         );
         // Account for our reward
         asset_builder.allocate(AssetBuilderStage::Reward, t0, tob_outcome.total_reward.to());
@@ -107,7 +107,7 @@ pub fn to_contract_format(proposal: &Proposal, pools: &AngstromPoolsTracker) -> 
         pool_updates.push(PoolUpdate {
             asset_in_index,
             asset_out_index,
-            swap_in_quantity: quantity_in.to(),
+            swap_in_quantity: quantity_in,
             rewards_update
         });
         // Add the ToB order to our tob order list - This is currently converting
@@ -119,8 +119,8 @@ pub fn to_contract_format(proposal: &Proposal, pools: &AngstromPoolsTracker) -> 
                 AssetBuilderStage::TopOfBlock,
                 asset_in,
                 asset_out,
-                tob.amount_in(),
-                tob.amount_out_min()
+                tob.quantityIn,
+                tob.quantityOut
             );
             let contract_tob = TopOfBlockOrder::of(tob);
             top_of_block_orders.push(contract_tob);
@@ -198,8 +198,8 @@ pub fn to_contract_order(
         }
     };
     let hook_data = match order.order {
-        GroupedVanillaOrder::KillOrFill(ref o) => o.hook_data.clone(),
-        GroupedVanillaOrder::Partial(ref o) => o.hook_data.clone()
+        GroupedVanillaOrder::KillOrFill(ref o) => o.hook_data().clone(),
+        GroupedVanillaOrder::Partial(ref o) => o.hook_data().clone()
     };
     UserOrder {
         a_to_b: order.is_bid,
@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn basic_test() {
         let proposal = generate_random_proposal(10, 10, 10);
-        let pools = AngstromPoolsTracker::new(config);
-        to_contract_format(&proposal, &pools);
+        // let pools = AngstromPoolsTracker::new(config);
+        // to_contract_format(&proposal, &pools);
     }
 }

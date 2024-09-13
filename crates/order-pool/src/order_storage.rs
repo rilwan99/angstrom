@@ -11,7 +11,7 @@ use angstrom_types::{
     orders::{OrderId, OrderSet},
     sol_bindings::{
         grouped_orders::{AllOrders, GroupedUserOrder, GroupedVanillaOrder, OrderWithStorageData},
-        sol::TopOfBlockOrder
+        rpc_orders::TopOfBlockOrder
     }
 };
 use reth_primitives::B256;

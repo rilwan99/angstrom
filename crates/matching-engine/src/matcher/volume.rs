@@ -6,7 +6,7 @@ use angstrom_types::{
     orders::{NetAmmOrder, OrderFillState, OrderOutcome, PoolSolution},
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
-        sol::TopOfBlockOrder
+        rpc_orders::TopOfBlockOrder
     }
 };
 
@@ -127,11 +127,8 @@ impl<'a> VolumeFillMatcher<'a> {
 
         // Vivify our live orders if they're dead
         for coord in local_outcomes.live().iter() {
-            let (direction, idx) = if let Some((d, i)) = self.book.find_coordinate(coord) {
-                (d, i)
-            } else {
-                continue;
-            };
+            let (direction, idx) =
+                if let Some((d, i)) = self.book.find_coordinate(coord) { (d, i) } else { continue };
             let pool = match direction {
                 OrderDirection::Bid => &mut new_bid_xpool,
                 OrderDirection::Ask => &mut new_ask_xpool
@@ -147,11 +144,8 @@ impl<'a> VolumeFillMatcher<'a> {
 
         // Kill our dead orders if they're alive
         for coord in local_outcomes.dead().iter() {
-            let (direction, idx) = if let Some((d, i)) = self.book.find_coordinate(coord) {
-                (d, i)
-            } else {
-                continue;
-            };
+            let (direction, idx) =
+                if let Some((d, i)) = self.book.find_coordinate(coord) { (d, i) } else { continue };
             let pool = match direction {
                 OrderDirection::Bid => &mut new_bid_xpool,
                 OrderDirection::Ask => &mut new_ask_xpool
@@ -270,12 +264,12 @@ impl<'a> VolumeFillMatcher<'a> {
 
                 // If we're talking to the AMM on both sides, we're done
                 if bid.is_amm() && ask.is_amm() {
-                    break;
+                    break
                 }
 
                 // If our prices no longer cross, we're done
                 if ask.price() > bid.price() {
-                    break;
+                    break
                 }
 
                 // Limit to price so that AMM orders will only offer the quantity they can
@@ -286,7 +280,7 @@ impl<'a> VolumeFillMatcher<'a> {
                 // If either quantity is zero maybe we should break here? (could be a
                 // replacement for price cross checking if we implement that)
                 if ask_q == U256::ZERO || bid_q == U256::ZERO {
-                    break;
+                    break
                 }
 
                 let matched = ask_q.min(bid_q);

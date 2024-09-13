@@ -6,7 +6,7 @@ use std::{
 
 use angstrom_metrics::{initialize_prometheus_metrics, METRICS_ENABLED};
 use angstrom_network::manager::StromConsensusEvent;
-use order_pool::{order_storage::OrderStorage, PoolConfig};
+use order_pool::{order_storage::OrderStorage, PoolConfig, PoolManagerUpdate};
 use reth_node_builder::{FullNode, NodeHandle};
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use tokio::sync::mpsc::{
@@ -14,6 +14,7 @@ use tokio::sync::mpsc::{
 };
 
 mod network_builder;
+use crate::cli::network_builder::AngstromNetworkBuilder;
 use alloy_chains::Chain;
 use angstrom_eth::{
     handle::{Eth, EthCommand},
@@ -24,7 +25,8 @@ use angstrom_network::{
     NetworkBuilder as StromNetworkBuilder, NetworkOrderEvent, PoolManagerBuilder, StatusState,
     VerificationSidecar
 };
-use angstrom_rpc::{api::OrderApiServer, OrderApi};
+use angstrom_rpc::api::OrderApiServer;
+use angstrom_rpc::OrderApi;
 use clap::Parser;
 use consensus::{
     ConsensusCommand, ConsensusHandle, ConsensusManager, GlobalConsensusState, ManagerNetworkDeps,
@@ -42,8 +44,7 @@ use reth_metrics::common::mpsc::{UnboundedMeteredReceiver, UnboundedMeteredSende
 use reth_network_peers::pk2id;
 use reth_node_ethereum::{node::EthereumAddOns, EthereumNode};
 use validation::init_validation;
-
-use crate::cli::network_builder::AngstromNetworkBuilder;
+use validation::validator::ValidationRequest;
 
 /// Convenience function for parsing CLI options, set up logging and run the
 /// chosen command.
@@ -67,6 +68,7 @@ pub fn run() -> eyre::Result<()> {
 
         // for rpc
         let pool = channels.get_pool_handle();
+        let executor_clone  = executor.clone();
         // let consensus = channels.get_consensus_handle();
         let NodeHandle { node, node_exit_future } = builder
             .with_types::<EthereumNode>()
@@ -77,7 +79,7 @@ pub fn run() -> eyre::Result<()> {
             )
             .with_add_ons::<EthereumAddOns>()
             .extend_rpc_modules(move |rpc_context| {
-                let order_api = OrderApi { pool: pool.clone() };
+                let order_api = OrderApi::new(pool.clone(), executor_clone);
                 // let quotes_api = QuotesApi { pool: pool.clone() };
                 // let consensus_api = ConsensusApi { consensus: consensus.clone() };
 
@@ -129,6 +131,10 @@ pub struct StromHandles {
 
     pub orderpool_tx: UnboundedSender<DefaultOrderCommand>,
     pub orderpool_rx: UnboundedReceiver<DefaultOrderCommand>,
+    pub validator_tx: UnboundedSender<ValidationRequest>,
+    pub validator_rx: UnboundedReceiver<ValidationRequest>,
+
+    pub pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>,
 
     pub consensus_tx:    Sender<ConsensusCommand>,
     pub consensus_rx:    Receiver<ConsensusCommand>,
@@ -138,7 +144,7 @@ pub struct StromHandles {
 
 impl StromHandles {
     pub fn get_pool_handle(&self) -> DefaultPoolHandle {
-        PoolHandle { manager_tx: self.orderpool_tx.clone() }
+        PoolHandle { manager_tx: self.orderpool_tx.clone(), pool_manager_tx: self.pool_manager_tx.clone(), validator_tx: self.validator_tx.clone() }
     }
 
     pub fn get_consensus_handle(&self) -> ConsensusHandle {
@@ -148,9 +154,11 @@ impl StromHandles {
 
 pub fn initialize_strom_handles() -> StromHandles {
     let (eth_tx, eth_rx) = channel(100);
+    let (pool_manager_tx, _) = tokio::sync::broadcast::channel(100);
     let (consensus_tx, consensus_rx) = channel(100);
     let (pool_tx, pool_rx) = reth_metrics::common::mpsc::metered_unbounded_channel("orderpool");
     let (orderpool_tx, orderpool_rx) = unbounded_channel();
+    let (validator_tx, validator_rx) = unbounded_channel();
     let (consensus_tx_op, consensus_rx_op) =
         reth_metrics::common::mpsc::metered_unbounded_channel("orderpool");
 
@@ -160,7 +168,10 @@ pub fn initialize_strom_handles() -> StromHandles {
         pool_tx,
         pool_rx,
         orderpool_tx,
+        pool_manager_tx,
         orderpool_rx,
+        validator_tx,
+        validator_rx,
         consensus_tx,
         consensus_rx,
         consensus_tx_op,
@@ -190,7 +201,7 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
         .with_consensus_manager(handles.consensus_tx_op)
         .build_handle(executor.clone(), node.provider.clone());
 
-    let validator = init_validation(node.provider.clone(), config.validation_cache_size);
+    let validator = init_validation(node.provider.clone(), config.validation_cache_size, handles.validator_tx.clone(), handles.validator_rx);
 
     // Create our pool config
     let pool_config = PoolConfig::default();
@@ -208,7 +219,7 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
         handles.pool_rx
     )
     .with_config(pool_config)
-    .build_with_channels(executor.clone(), handles.orderpool_tx, handles.orderpool_rx);
+    .build_with_channels(executor.clone(), handles.orderpool_tx, handles.orderpool_rx, handles.validator_tx, handles.pool_manager_tx);
 
     let signer = Signer::new(secret_key);
 

@@ -5,7 +5,7 @@ pub mod nonces;
 use std::{cmp::Ordering, collections::HashMap, sync::Arc};
 
 use alloy_primitives::{keccak256, Address, Bytes, FixedBytes, B256, U256};
-use angstrom_types::sol_bindings::grouped_orders::{PoolOrder, RawPoolOrder};
+use angstrom_types::sol_bindings::ext::RawPoolOrder;
 use reth_primitives::revm_primitives::{Env, TransactTo, TxEnv};
 use reth_revm::EvmBuilder;
 use revm::{db::WrapDatabaseRef, interpreter::opcode, Database, Inspector};

@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     contract_payloads::tob::{Asset, RewardsUpdate},
-    sol_bindings::sol::TopOfBlockOrder as InternalTopOfBlockOrder
+    sol_bindings::{
+        grouped_orders::OrderWithStorageData, rpc_orders::TopOfBlockOrder as RpcTopOfBlockOrder
+    }
 };
 
 // This currently exists in types::sol_bindings as well, but that one is
@@ -25,14 +27,15 @@ pub struct TopOfBlockOrder {
 }
 
 impl TopOfBlockOrder {
-    pub fn of(internal: &InternalTopOfBlockOrder) -> Self {
-        let quantity_in = u128::from_le_bytes(internal.amountIn.to_le_bytes());
-        let quantity_out = u128::from_le_bytes(internal.amountOut.to_le_bytes());
-        let asset_in_index = internal.assetInIndex;
-        let asset_out_index = internal.assetOutIndex;
+    pub fn of(internal: &OrderWithStorageData<RpcTopOfBlockOrder>) -> Self {
+        let quantity_in = internal.quantityIn;
+        let quantity_out = internal.quantityOut;
+        // TODO:  Is this right, this might not be right
+        let asset_in_index = internal.asset_in;
+        let asset_out_index = internal.asset_out;
         let recipient = Some(internal.recipient);
         let hook_data = Some(internal.hookPayload.clone());
-        let signature = internal.signature.clone();
+        let signature = internal.meta.signature.clone();
         Self {
             use_internal: false,
             quantity_in,

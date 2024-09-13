@@ -13,7 +13,7 @@ pub struct ValidationConfig {
     pub approvals:               Vec<TokenApprovalSlot>,
     pub balances:                Vec<TokenBalanceSlot>,
     pub pools:                   Vec<PoolConfig>,
-    pub asset_to_indexes:        HashMap<u16, Address>,
+    pub asset_to_indexes:        HashMap<Address, u16>,
     pub max_validation_per_user: usize
 }
 

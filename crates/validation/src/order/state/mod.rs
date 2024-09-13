@@ -2,7 +2,7 @@ use std::{collections::HashMap, sync::Arc, task::Poll};
 
 use account::UserAccountProcessor;
 use alloy_primitives::{Address, B256, U256};
-use angstrom_types::sol_bindings::grouped_orders::{AllOrders, RawPoolOrder};
+use angstrom_types::sol_bindings::{ext::RawPoolOrder, grouped_orders::AllOrders};
 use db_state_utils::StateFetchUtils;
 use futures::{Stream, StreamExt};
 use futures_util::stream::FuturesUnordered;
@@ -75,7 +75,11 @@ where
         block: u64,
         is_limit: bool
     ) -> OrderValidationResults {
-        let order_hash = order.hash();
+        let order_hash = order.order_hash();
+        if !order.is_valid_signature() {
+            return OrderValidationResults::Invalid(order_hash)
+        }
+
         let Some((pool_info, wrapped_order)) = self.pool_tacker.fetch_pool_info_for_order(order)
         else {
             return OrderValidationResults::Invalid(order_hash)

@@ -6,7 +6,7 @@ use angstrom_types::{
     primitive::PoolId,
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
-        sol::TopOfBlockOrder
+        rpc_orders::TopOfBlockOrder
     }
 };
 use blsful::{Bls12381G1Impl, SecretKey};
@@ -64,7 +64,9 @@ pub fn generate_random_preproposal(count: usize, pool_count: usize, block: u64) 
 
     let searcher = pools
         .iter()
-        .map(|pool_id| generate_top_of_block_order(&mut rng, true, Some(*pool_id), Some(block)))
+        .map(|pool_id| {
+            generate_top_of_block_order(&mut rng, true, Some(*pool_id), Some(block), None, None)
+        })
         .collect();
 
     PreProposal::generate_pre_proposal(block, source, limit, searcher, &sk)

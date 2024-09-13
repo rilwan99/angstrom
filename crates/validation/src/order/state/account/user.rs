@@ -1,19 +1,16 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     sync::{atomic::AtomicU64, Arc}
 };
 
 use alloy_primitives::Address;
-use angstrom_types::sol_bindings::grouped_orders::{PoolOrder, RawPoolOrder};
+use angstrom_types::sol_bindings::{ext::RawPoolOrder, RespendAvoidanceMethod};
 use dashmap::DashMap;
-use parking_lot::RwLock;
-use reth_primitives::{TxHash, B256, U256};
+use reth_primitives::{B256, U256};
 
 use crate::{
     order::state::{
-        db_state_utils::{FetchUtils, StateFetchUtils},
-        pools::UserOrderPoolInfo,
-        AssetIndexToAddressWrapper
+        db_state_utils::StateFetchUtils, pools::UserOrderPoolInfo, AssetIndexToAddressWrapper
     },
     BlockStateProviderFactory, RevmLRU
 };
@@ -47,8 +44,8 @@ impl LiveState {
         }
 
         Some(PendingUserAction {
-            order_hash:     order.hash(),
-            nonce:          order.nonce(),
+            order_hash:     order.order_hash(),
+            respend:        order.respend_avoidance_strategy(),
             token_address:  pool_info.token,
             token_delta:    amount_in,
             token_approval: amount_in,
@@ -61,7 +58,7 @@ impl LiveState {
 pub struct PendingUserAction {
     /// hash of order
     pub order_hash:     B256,
-    pub nonce:          U256,
+    pub respend:        RespendAvoidanceMethod,
     // for each order, there will be two different deltas
     pub token_address:  TokenAddress,
     // although we have deltas for two tokens, we only
@@ -120,29 +117,37 @@ impl UserAccounts {
         res
     }
 
-    pub fn has_nonce_conflict(&self, user: UserAddress, nonce: U256) -> bool {
-        self.pending_actions
-            .get(&user)
-            .map(|v| {
-                v.value()
-                    .iter()
-                    .any(|pending_order| pending_order.nonce == nonce)
-            })
-            .unwrap_or_default()
+    pub fn has_respend_conflict(
+        &self,
+        user: UserAddress,
+        avoidance: RespendAvoidanceMethod
+    ) -> bool {
+        match avoidance {
+            nonce @ RespendAvoidanceMethod::Nonce(_) => self
+                .pending_actions
+                .get(&user)
+                .map(|v| {
+                    v.value()
+                        .iter()
+                        .any(|pending_order| pending_order.respend == nonce)
+                })
+                .unwrap_or_default(),
+            RespendAvoidanceMethod::Block(_) => false
+        }
     }
 
     pub fn get_live_state_for_order<DB: Send + BlockStateProviderFactory, S: StateFetchUtils>(
         &self,
         user: UserAddress,
         token: TokenAddress,
-        nonce: U256,
+        respend: RespendAvoidanceMethod,
         utils: &S,
         db: &RevmLRU<DB>
     ) -> LiveState {
-        self.try_fetch_live_pending_state(user, token, nonce)
+        self.try_fetch_live_pending_state(user, token, respend)
             .unwrap_or_else(|| {
                 self.load_state_for(user, token, utils, db);
-                self.try_fetch_live_pending_state(user, token, nonce)
+                self.try_fetch_live_pending_state(user, token, respend)
                     .expect(
                         "after loading state for a address, the state wasn't found. this should \
                          be impossible"
@@ -183,7 +188,7 @@ impl UserAccounts {
         let mut value = entry.value_mut();
 
         value.push(action);
-        value.sort_unstable_by_key(|k| k.nonce);
+        value.sort_unstable_by_key(|k| k.respend.get_ord_for_pending_orders());
         drop(entry);
 
         // iterate through all vales collected the orders that
@@ -230,7 +235,7 @@ impl UserAccounts {
         &self,
         user: UserAddress,
         token: TokenAddress,
-        nonce: U256
+        respend: RespendAvoidanceMethod
     ) -> Option<LiveState> {
         let baseline = self.last_known_state.get(&user)?;
         let mut baseline_approval = *baseline.token_approval.get(&token)?;
@@ -243,7 +248,10 @@ impl UserAccounts {
             .map(|val| {
                 val.iter()
                     .filter(|state| state.token_address == token)
-                    .take_while(|state| state.nonce < nonce)
+                    .take_while(|state| {
+                        state.respend.get_ord_for_pending_orders()
+                            <= respend.get_ord_for_pending_orders()
+                    })
                     .fold((Amount::default(), Amount::default()), |(mut approvals, mut bal), x| {
                         approvals += x.token_approval;
                         bal += x.token_delta;

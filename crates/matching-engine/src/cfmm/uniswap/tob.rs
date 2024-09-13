@@ -4,7 +4,7 @@ use alloy::primitives::{I256, U256};
 use angstrom_types::{
     contract_payloads::tob::{PoolRewardsUpdate, RewardsUpdate},
     matching::{Ray, SqrtPriceX96},
-    sol_bindings::{grouped_orders::OrderWithStorageData, sol::TopOfBlockOrder}
+    sol_bindings::{grouped_orders::OrderWithStorageData, rpc_orders::TopOfBlockOrder}
 };
 use eyre::{eyre, Context, OptionExt};
 use uniswap_v3_math::{swap_math::compute_swap_step, tick_math::get_sqrt_ratio_at_tick};
@@ -73,10 +73,11 @@ pub fn calculate_reward(
 
     // Turn our output into a negative number so compute_swap_step knows we're
     // looking to get an exact amount out
-    let mut expected_out = I256::try_from(tob.order.amountOut).wrap_err_with(|| {
+    let mut expected_out = I256::try_from(tob.order.quantityOut).wrap_err_with(|| {
         format!(
-            "Expected ToB order output too large to convert U256 -> I256: {}",
-            tob.order.amountOut
+            // This should be impossible
+            "Expected ToB order output too large to convert u128 -> I256: {}",
+            tob.order.quantityOut
         )
     })? * I256::MINUS_ONE;
 
@@ -135,11 +136,13 @@ pub fn calculate_reward(
         current_price = SqrtPriceX96::from(fin_price);
     }
 
-    // Determine how much extra amountIn we have that will be used as tribute to the
-    // LPs
-    let bribe = tob.amountIn.checked_sub(total_cost).ok_or_else(|| {
-        eyre!("Total cost greater than amount offered: {} > {}", total_cost, tob.amountIn)
-    })?;
+    // Determine how much extra quantityIn we have that will be used as tribute to
+    // the LPs
+    let bribe = U256::from(tob.quantityIn)
+        .checked_sub(total_cost)
+        .ok_or_else(|| {
+            eyre!("Total cost greater than amount offered: {} > {}", total_cost, tob.quantityIn)
+        })?;
 
     if stakes.is_empty() {
         // TODO: Maybe this should just be a big donation to the current tick?
@@ -250,15 +253,20 @@ mod test {
     fn calculates_reward() {
         let mut rng = thread_rng();
         let amm = generate_amm_market(100000);
-        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
-        let total_payment = Uint::from(10_000_000_000_000_u128);
-        order.order.amountIn = total_payment;
-        order.order.amountOut = Uint::from(100000000);
+        let total_payment = 10_000_000_000_000_u128;
+        let order = generate_top_of_block_order(
+            &mut rng,
+            true,
+            None,
+            None,
+            Some(total_payment),
+            Some(100000000_u128)
+        );
         let result = calculate_reward(&order, amm).expect("Error calculating tick donations");
         let total_donations = result.total_donations();
         assert_eq!(
             total_donations + result.total_cost + result.tribute,
-            total_payment,
+            Uint::from(total_payment),
             "Total allocations do not add up to input payment"
         );
     }
@@ -267,10 +275,15 @@ mod test {
     fn handles_insufficient_funds() {
         let mut rng = thread_rng();
         let amm = generate_amm_market(-100000);
-        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
+        let mut order = generate_top_of_block_order(
+            &mut rng,
+            true,
+            None,
+            None,
+            Some(10_000_000_000_000_u128),
+            Some(100000000_u128)
+        );
         order.is_bid = true;
-        order.order.amountOut = Uint::from(10_000_000_000_000_u128);
-        order.order.amountIn = Uint::from(100000000);
         let result = calculate_reward(&order, amm);
         assert!(result.is_err_and(|e| {
             e.to_string()
@@ -282,10 +295,15 @@ mod test {
     fn handles_precisely_zero_donation() {
         let mut rng = thread_rng();
         let amm = generate_amm_market(100000);
-        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
-        let total_payment = Uint::from(2_203_194_246_001_u128);
-        order.order.amountIn = total_payment;
-        order.order.amountOut = Uint::from(100000000);
+        let total_payment = 2_203_194_246_001_u128;
+        let order = generate_top_of_block_order(
+            &mut rng,
+            true,
+            None,
+            None,
+            Some(total_payment),
+            Some(100000000_u128)
+        );
         let result = calculate_reward(&order, amm).expect("Error calculating tick donations");
         let total_donations = result.total_donations();
         assert!(
@@ -294,7 +312,7 @@ mod test {
         );
         assert_eq!(
             total_donations + result.total_cost + result.tribute,
-            total_payment,
+            Uint::from(total_payment),
             "Total allocations do not add up to input payment"
         );
     }
@@ -303,10 +321,15 @@ mod test {
     fn handles_partial_donation() {
         let mut rng = thread_rng();
         let amm = generate_amm_market(100000);
-        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
-        let total_payment = Uint::from(2_203_371_417_593_u128);
-        order.order.amountIn = total_payment;
-        order.order.amountOut = Uint::from(100000000);
+        let total_payment = 2_203_371_417_593_u128;
+        let order = generate_top_of_block_order(
+            &mut rng,
+            true,
+            None,
+            None,
+            Some(total_payment),
+            Some(100000000_u128)
+        );
         let result = calculate_reward(&order, amm).expect("Error calculating tick donations");
         let total_donations = result.total_donations();
         assert!(result.tick_donations.contains_key(&100000), "Donation to first tick missing");
@@ -317,7 +340,7 @@ mod test {
         );
         assert_eq!(
             total_donations + result.total_cost + result.tribute,
-            total_payment,
+            Uint::from(total_payment),
             "Total allocations do not add up to input payment"
         );
     }
@@ -326,10 +349,15 @@ mod test {
     fn handles_bid_order() {
         let mut rng = thread_rng();
         let amm = generate_amm_market(100000);
-        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
+        let mut order = generate_top_of_block_order(
+            &mut rng,
+            true,
+            None,
+            None,
+            Some(10_000_000_000_000_u128),
+            Some(100000000_u128)
+        );
         order.is_bid = true;
-        order.order.amountIn = Uint::from(10_000_000_000_000_u128);
-        order.order.amountOut = Uint::from(100000000);
         let result = calculate_reward(&order, amm);
         assert!(result.is_ok());
     }
@@ -338,10 +366,15 @@ mod test {
     fn handles_ask_order() {
         let mut rng = thread_rng();
         let amm = generate_amm_market(100000);
-        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
+        let mut order = generate_top_of_block_order(
+            &mut rng,
+            true,
+            None,
+            None,
+            Some(10_000_000_000_000_u128),
+            Some(800000000_u128)
+        );
         order.is_bid = false;
-        order.order.amountOut = Uint::from(10_000_000_000_000_u128);
-        order.order.amountIn = Uint::from(800000000);
         let result = calculate_reward(&order, amm);
         assert!(result.is_ok());
     }
@@ -362,10 +395,15 @@ mod test {
         // Build a ToB outcome that we care about
         let mut rng = thread_rng();
         let amm = generate_amm_market(100000);
-        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
-        let total_payment = Uint::from(10_000_000_000_000_u128);
-        order.order.amountIn = total_payment;
-        order.order.amountOut = Uint::from(100000000);
+        let total_payment = 10_000_000_000_000_u128;
+        let order = generate_top_of_block_order(
+            &mut rng,
+            true,
+            None,
+            None,
+            Some(total_payment),
+            Some(100000000_u128)
+        );
         let tob_outcome = calculate_reward(&order, amm).expect("Error calculating tick donations");
         println!("Outcome: {:?}", tob_outcome);
         // ---- Manually do to_donate to be in our new structs
@@ -433,10 +471,15 @@ mod test {
         // Build a ToB outcome that we care about
         let mut rng = thread_rng();
         let amm = generate_amm_market(100000);
-        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
-        let total_payment = Uint::from(10_000_000_000_000_u128);
-        order.order.amountIn = total_payment;
-        order.order.amountOut = Uint::from(100000000);
+        let total_payment = 10_000_000_000_000_u128;
+        let order = generate_top_of_block_order(
+            &mut rng,
+            true,
+            None,
+            None,
+            Some(total_payment),
+            Some(100000000_u128)
+        );
         let tob_outcome = calculate_reward(&order, amm).expect("Error calculating tick donations");
         println!("Outcome: {:?}", tob_outcome);
         // ---- Manually do to_donate to be in our new structs

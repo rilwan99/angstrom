@@ -1282,6 +1282,7 @@ name = "angstrom-rpc"
 version = "0.1.0"
 dependencies = [
  "alloy-primitives",
+ "alloy-sol-types",
  "angstrom-network",
  "angstrom-types",
  "angstrom-utils",
@@ -1295,13 +1296,16 @@ dependencies = [
  "rand 0.8.5",
  "reth-metrics",
  "reth-primitives",
+ "reth-tasks",
  "serde",
  "serde_json",
  "strum",
  "thiserror",
+ "tokio",
  "tower",
  "tower-http",
  "tracing",
+ "validation",
 ]
 
 [[package]]

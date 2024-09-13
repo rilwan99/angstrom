@@ -6,7 +6,7 @@ use angstrom_types::{
     primitive::PoolId,
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
-        sol::TopOfBlockOrder
+        rpc_orders::TopOfBlockOrder
     }
 };
 use futures_util::FutureExt;
