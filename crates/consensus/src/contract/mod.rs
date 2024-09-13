@@ -217,14 +217,13 @@ pub fn to_contract_order(
 
 #[cfg(test)]
 mod tests {
-    use testing_tools::type_generator::consensus::generate_random_proposal;
     use validation::order::state::pools::AngstromPoolsTracker;
 
     use super::to_contract_format;
 
     #[test]
     fn basic_test() {
-        let proposal = generate_random_proposal(10, 10, 10);
+        // let proposal = generate_random_proposal(10, 10, 10);
         // let pools = AngstromPoolsTracker::new(config);
         // to_contract_format(&proposal, &pools);
     }

@@ -429,12 +429,12 @@ mod tests {
     };
 
     use alloy_primitives::FixedBytes;
-    use angstrom_types::{consensus::Proposal, sol_bindings::grouped_orders::GroupedUserOrder};
+    use angstrom_types::sol_bindings::grouped_orders::GroupedUserOrder;
     use order_pool::{order_storage::OrderStorage, PoolConfig};
     use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
     use testing_tools::{
         mocks::network_events::MockNetworkHandle,
-        type_generator::consensus::{generate_limit_order_distribution, generate_random_proposal}
+        type_generator::consensus::{generate_limit_order_distribution, proposal::ProposalBuilder}
     };
     use tokio::sync::mpsc::{channel, unbounded_channel};
     use tokio_stream::StreamExt;
@@ -520,7 +520,11 @@ mod tests {
         );
         let (tx, mut rx) = channel(100);
         manager.on_command(crate::ConsensusCommand::Subscribe(tx));
-        let proposal: Proposal = generate_random_proposal(100, 1, 10);
+        let proposal = ProposalBuilder::new()
+            .order_count(100)
+            .for_random_pools(1)
+            .for_block(0)
+            .build();
         manager
             .cache
             .set(proposal.ethereum_height, proposal.clone());
