@@ -27,7 +27,7 @@ fn const_2_192() -> &'static Natural {
 
 /// MatchingPrice is the internal price representation used in the matching
 /// engine.  We'll make sure all the various price representations we work with
-/// can be converted to/from this standard so our Math is sane
+/// can be converted to/from this standard so our Math is sane.  This is a Ray.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MatchingPrice(U256);
 

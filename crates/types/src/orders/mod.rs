@@ -71,6 +71,13 @@ impl NetAmmOrder {
     pub fn amount_out(&self) -> U256 {
         self.get_directions().1
     }
+
+    pub fn to_order_tuple(&self, t0_idx: u16, t1_idx: u16) -> (u16, u16, U256, U256) {
+        match self {
+            NetAmmOrder::Buy(q, c) => (t1_idx, t0_idx, *c, *q),
+            NetAmmOrder::Sell(q, c) => (t0_idx, t1_idx, *q, *c)
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -79,11 +86,17 @@ pub struct OrderOutcome {
     pub outcome: OrderFillState
 }
 
+impl OrderOutcome {
+    pub fn is_filled(&self) -> bool {
+        self.outcome.is_filled()
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PoolSolution {
     /// Id of this pool
     pub id:           PoolId,
-    /// Solution statistics from the matcher
+    /// Uniform clearing price in Ray format
     pub ucp:          U256,
     /// Winning searcher order to be executed
     pub searcher:     Option<OrderWithStorageData<TopOfBlockOrder>>,

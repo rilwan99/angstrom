@@ -11,12 +11,13 @@ use uniswap_v3_math::{swap_math::compute_swap_step, tick_math::get_sqrt_ratio_at
 
 use super::{MarketSnapshot, Tick};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ToBOutcome {
     pub start_tick:      i32,
     pub start_liquidity: u128,
     pub tribute:         U256,
     pub total_cost:      U256,
+    pub total_reward:    U256,
     pub tick_donations:  HashMap<Tick, U256>
 }
 
@@ -210,6 +211,7 @@ pub fn calculate_reward(
         start_liquidity: amm.current_position().liquidity(),
         tribute,
         total_cost,
+        total_reward: reward_t,
         tick_donations
     })
 }

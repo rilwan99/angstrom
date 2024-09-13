@@ -10,7 +10,7 @@ use malachite::{
     Natural, Rational
 };
 
-use super::{const_2_192, SqrtPriceX96};
+use super::{const_2_192, MatchingPrice, SqrtPriceX96};
 use crate::matching::const_1e27;
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Ray(U256);
@@ -108,6 +108,12 @@ impl From<SqrtPriceX96> for Ray {
     }
 }
 
+impl From<MatchingPrice> for Ray {
+    fn from(value: MatchingPrice) -> Self {
+        Self(*value)
+    }
+}
+
 impl Ray {
     /// Uses malachite.rs to approximate this value as a floating point number.
     /// Converts from the internal U256 representation to an approximated f64
@@ -137,6 +143,16 @@ impl Ray {
             numerator.div_round(const_1e27(), malachite::rounding_modes::RoundingMode::Ceiling);
         let reslimbs = res.into_limbs_asc();
         Uint::from_limbs_slice(&reslimbs)
+    }
+
+    /// Given a price ratio t0/t1 calculates how much t1 would be needed to
+    /// output the provided amount of t0 (q)
+    pub fn inverse_quantity(&self, q: U256) -> U256 {
+        let numerator = Natural::from_limbs_asc(q.as_limbs()) * const_1e27();
+        let denominator = Natural::from_limbs_asc(self.0.as_limbs());
+        let output = Rational::from_naturals(numerator, denominator);
+        let (natout, _): (Natural, _) = output.rounding_into(RoundingMode::Ceiling);
+        U256::from_limbs_slice(&natout.to_limbs_asc())
     }
 }
 
