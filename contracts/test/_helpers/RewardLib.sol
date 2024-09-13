@@ -42,31 +42,29 @@ library RewardLib {
         return rewards.length;
     }
 
-    function toUpdates(IPoolManager uni, TickReward[] memory rewards, PoolId id)
+    function toUpdates(IPoolManager uni, PoolId id, TickReward[] memory rewards)
         internal
         view
         returns (RewardsUpdate[] memory updates)
     {
         if (rewards.length == 0) return updates;
 
-        for (uint256 i = 0; i < rewards.length; i++) {
-            int24 tick = rewards[i].tick;
-            (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick));
-            require(uni.getPoolBitmapInfo(id, wordPos).isInitialized(bitPos), "Tick not initialized");
-        }
-
-        rewards.sort();
-
-        {
-            int24 lastTick = type(int24).min;
-            for (uint256 i = 0; i < rewards.length; i++) {
-                int24 tick = rewards[i].tick;
-                require(tick > lastTick, "Duplicate tick");
-                lastTick = tick;
-            }
-        }
+        _checkTicksInitialized(uni, id, rewards);
+        _checkSortedUnique(rewards);
 
         int24 currentTick = uni.getSlot0(id).tick();
+
+        // Ensure current tick update doesn't get separated into its own update.
+        if (rewards[0].tick == currentTick) {
+            updates = new RewardsUpdate[](1);
+            updates[0] = _createRewardUpdateAbove(uni, id, rewards, currentTick);
+            return updates;
+        } else if (rewards[rewards.length - 1].tick == currentTick) {
+            updates = new RewardsUpdate[](1);
+            updates[0] = _createRewardUpdateBelow(uni, id, rewards, currentTick);
+            return updates;
+        }
+
         uint256 index = rewards.findTickGte(currentTick);
         TickReward[] memory rewardsBelow = new TickReward[](index);
         TickReward[] memory rewardsAbove = new TickReward[](rewards.length - index);
@@ -91,6 +89,26 @@ library RewardLib {
             updates[0] = _createRewardUpdateAbove(uni, id, rewardsAbove, currentTick);
             updates[1] = _createRewardUpdateBelow(uni, id, rewardsBelow, currentTick);
             return updates;
+        }
+    }
+
+    function _checkTicksInitialized(IPoolManager uni, PoolId id, TickReward[] memory rewards) private view {
+        for (uint256 i = 0; i < rewards.length; i++) {
+            int24 tick = rewards[i].tick;
+            (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick));
+            require(uni.getPoolBitmapInfo(id, wordPos).isInitialized(bitPos), "Tick not initialized");
+        }
+    }
+
+    function _checkSortedUnique(TickReward[] memory rewards) private pure {
+        rewards.sort();
+        {
+            int24 lastTick = type(int24).min;
+            for (uint256 i = 0; i < rewards.length; i++) {
+                int24 tick = rewards[i].tick;
+                require(tick > lastTick, "Duplicate tick");
+                lastTick = tick;
+            }
         }
     }
 
@@ -147,8 +165,46 @@ library RewardLib {
     function _createRewardUpdateAbove(IPoolManager uni, PoolId id, TickReward[] memory rewards, int24 currentTick)
         private
         view
-        returns (RewardsUpdate memory)
+        returns (RewardsUpdate memory update)
     {
         require(rewards.length > 0, "No rewards");
+
+        UintVec memory amounts = VecLib.uint_with_cap(rewards.length * 2);
+
+        uint256 i = 0;
+        int24 tick = update.startTick = rewards[rewards.length - 1].tick;
+        bool initialized = true;
+        int128 cumNetLiquidity = 0;
+
+        while (currentTick < tick) {
+            if (initialized) {
+                (, int128 liquidityNet) = uni.getTickLiquidity(id, tick);
+                cumNetLiquidity += liquidityNet;
+                if (i < rewards.length) {
+                    TickReward memory reward = rewards[rewards.length - i - 1];
+
+                    if (tick == reward.tick) {
+                        amounts.push(reward.amount);
+                        i++;
+                    } else {
+                        amounts.push(0);
+                    }
+                }
+            }
+            (initialized, tick) = uni.getNextTickDown(id, tick);
+        }
+
+        if (i < rewards.length) {
+            require(
+                i + 1 == rewards.length && rewards[0].tick == currentTick, "Donating above in _createRewardUpdateBelow"
+            );
+            amounts.push(rewards[0].amount);
+        }
+
+        update.startLiquidity = MixedSignLib.add(uni.getPoolLiquidity(id), cumNetLiquidity);
+        update.quantities = new uint128[](amounts.length);
+        for (i = 0; i < amounts.length; i++) {
+            update.quantities[i] = uint128(amounts.get(i));
+        }
     }
 }
