@@ -368,7 +368,7 @@ impl<'a> VolumeFillMatcher<'a> {
                 let good_state = self
                     .current_partial
                     .as_ref()
-                    .map(|o| matches!(o.order, GroupedVanillaOrder::Partial(_)))
+                    .map(|o| matches!(o.order, GroupedVanillaOrder::Standing(_)))
                     .unwrap_or(true); // None is a good state
                 if good_state {
                     self.save_checkpoint();

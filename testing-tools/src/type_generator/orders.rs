@@ -144,7 +144,7 @@ pub fn build_limit_order(
                * } */
         ))
     } else {
-        GroupedVanillaOrder::Partial(
+        GroupedVanillaOrder::Standing(
             StandingVariants::Partial(PartialStandingOrder {
                 maxAmountIn: volume,
                 minPrice: Ray::from(Uint::from(price)).into(),

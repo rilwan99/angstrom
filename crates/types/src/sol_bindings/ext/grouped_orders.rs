@@ -83,7 +83,7 @@ impl From<GroupedComposableOrder> for AllOrders {
 impl From<GroupedVanillaOrder> for AllOrders {
     fn from(value: GroupedVanillaOrder) -> Self {
         match value {
-            GroupedVanillaOrder::Partial(p) => AllOrders::Standing(p),
+            GroupedVanillaOrder::Standing(p) => AllOrders::Standing(p),
             GroupedVanillaOrder::KillOrFill(kof) => AllOrders::Flash(kof)
         }
     }
@@ -93,7 +93,7 @@ impl From<GroupedUserOrder> for AllOrders {
     fn from(value: GroupedUserOrder) -> Self {
         match value {
             GroupedUserOrder::Vanilla(v) => match v {
-                GroupedVanillaOrder::Partial(p) => AllOrders::Standing(p),
+                GroupedVanillaOrder::Standing(p) => AllOrders::Standing(p),
                 GroupedVanillaOrder::KillOrFill(kof) => AllOrders::Flash(kof)
             },
             GroupedUserOrder::Composable(v) => match v {
@@ -384,49 +384,49 @@ impl RawPoolOrder for FlashVariants {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GroupedVanillaOrder {
-    Partial(StandingVariants),
+    Standing(StandingVariants),
     KillOrFill(FlashVariants)
 }
 
 impl GroupedVanillaOrder {
     pub fn hash(&self) -> FixedBytes<32> {
         match self {
-            GroupedVanillaOrder::Partial(p) => p.order_hash(),
+            GroupedVanillaOrder::Standing(p) => p.order_hash(),
             GroupedVanillaOrder::KillOrFill(p) => p.order_hash()
         }
     }
 
     pub fn float_price(&self) -> f64 {
         match self {
-            Self::Partial(o) => Ray::from(o.limit_price()).as_f64(),
+            Self::Standing(o) => Ray::from(o.limit_price()).as_f64(),
             Self::KillOrFill(o) => Ray::from(o.limit_price()).as_f64()
         }
     }
 
     pub fn price(&self) -> Ray {
         match self {
-            Self::Partial(o) => o.limit_price().into(),
+            Self::Standing(o) => o.limit_price().into(),
             Self::KillOrFill(o) => o.limit_price().into()
         }
     }
 
     pub fn quantity(&self) -> U256 {
         match self {
-            Self::Partial(o) => U256::from(o.amount_out_min()),
+            Self::Standing(o) => U256::from(o.amount_out_min()),
             Self::KillOrFill(o) => U256::from(o.amount_out_min())
         }
     }
 
     pub fn fill(&self, filled_quantity: U256) -> Self {
         match self {
-            Self::Partial(p) => match p {
+            Self::Standing(p) => match p {
                 StandingVariants::Partial(part) => {
-                    Self::Partial(StandingVariants::Partial(PartialStandingOrder {
+                    Self::Standing(StandingVariants::Partial(PartialStandingOrder {
                         amountFilled: filled_quantity.to(),
                         ..part.clone()
                     }))
                 }
-                v => Self::Partial(v.clone())
+                v => Self::Standing(v.clone())
             },
             Self::KillOrFill(kof) => match kof {
                 FlashVariants::Partial(part) => {
@@ -442,7 +442,7 @@ impl GroupedVanillaOrder {
 
     pub fn signature(&self) -> &Bytes {
         match self {
-            Self::Partial(o) => o.signature(),
+            Self::Standing(o) => o.signature(),
             Self::KillOrFill(o) => o.signature()
         }
     }
@@ -813,77 +813,77 @@ impl RawPoolOrder for AllOrders {
 impl RawPoolOrder for GroupedVanillaOrder {
     fn is_valid_signature(&self) -> bool {
         match self {
-            GroupedVanillaOrder::Partial(p) => p.is_valid_signature(),
+            GroupedVanillaOrder::Standing(p) => p.is_valid_signature(),
             GroupedVanillaOrder::KillOrFill(kof) => kof.is_valid_signature()
         }
     }
 
     fn respend_avoidance_strategy(&self) -> RespendAvoidanceMethod {
         match self {
-            GroupedVanillaOrder::Partial(p) => p.respend_avoidance_strategy(),
+            GroupedVanillaOrder::Standing(p) => p.respend_avoidance_strategy(),
             GroupedVanillaOrder::KillOrFill(kof) => kof.respend_avoidance_strategy()
         }
     }
 
     fn flash_block(&self) -> Option<u64> {
         match self {
-            GroupedVanillaOrder::Partial(_) => None,
+            GroupedVanillaOrder::Standing(_) => None,
             GroupedVanillaOrder::KillOrFill(kof) => kof.flash_block()
         }
     }
 
     fn token_in(&self) -> Address {
         match self {
-            GroupedVanillaOrder::Partial(p) => p.token_in(),
+            GroupedVanillaOrder::Standing(p) => p.token_in(),
             GroupedVanillaOrder::KillOrFill(kof) => kof.token_in()
         }
     }
 
     fn token_out(&self) -> Address {
         match self {
-            GroupedVanillaOrder::Partial(p) => p.token_out(),
+            GroupedVanillaOrder::Standing(p) => p.token_out(),
             GroupedVanillaOrder::KillOrFill(kof) => kof.token_out()
         }
     }
 
     fn from(&self) -> Address {
         match self {
-            GroupedVanillaOrder::Partial(p) => p.from(),
+            GroupedVanillaOrder::Standing(p) => p.from(),
             GroupedVanillaOrder::KillOrFill(kof) => kof.from()
         }
     }
 
     fn order_hash(&self) -> TxHash {
         match self {
-            GroupedVanillaOrder::Partial(p) => p.order_hash(),
+            GroupedVanillaOrder::Standing(p) => p.order_hash(),
             GroupedVanillaOrder::KillOrFill(kof) => kof.order_hash()
         }
     }
 
     fn deadline(&self) -> Option<U256> {
         match self {
-            GroupedVanillaOrder::Partial(p) => p.deadline(),
+            GroupedVanillaOrder::Standing(p) => p.deadline(),
             GroupedVanillaOrder::KillOrFill(kof) => kof.deadline()
         }
     }
 
     fn amount_in(&self) -> u128 {
         match self {
-            GroupedVanillaOrder::Partial(p) => p.amount_in(),
+            GroupedVanillaOrder::Standing(p) => p.amount_in(),
             GroupedVanillaOrder::KillOrFill(kof) => kof.amount_in()
         }
     }
 
     fn limit_price(&self) -> U256 {
         match self {
-            GroupedVanillaOrder::Partial(p) => p.limit_price(),
+            GroupedVanillaOrder::Standing(p) => p.limit_price(),
             GroupedVanillaOrder::KillOrFill(p) => p.limit_price()
         }
     }
 
     fn amount_out_min(&self) -> u128 {
         match self {
-            GroupedVanillaOrder::Partial(p) => p.amount_out_min(),
+            GroupedVanillaOrder::Standing(p) => p.amount_out_min(),
             GroupedVanillaOrder::KillOrFill(kof) => kof.amount_out_min()
         }
     }

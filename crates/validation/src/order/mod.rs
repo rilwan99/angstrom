@@ -41,7 +41,7 @@ impl From<OrderValidationRequest> for OrderValidation {
                 AllOrders::Standing(p) => {
                     // TODO: check hook data and deal with composable
                     // if p.hook_data.is_empty() {
-                    OrderValidation::Limit(tx, GroupedVanillaOrder::Partial(p), orign)
+                    OrderValidation::Limit(tx, GroupedVanillaOrder::Standing(p), orign)
                     // } else {
                     //
                     //     OrderValidation::LimitComposable(

@@ -187,7 +187,7 @@ pub fn to_contract_order(
         GroupedVanillaOrder::KillOrFill(_) => {
             OrderQuantities::Exact { quantity: order.quantity().to() }
         }
-        GroupedVanillaOrder::Partial(_) => {
+        GroupedVanillaOrder::Standing(_) => {
             let max_quantity_in: u128 = order.quantity().to();
             let filled_quantity = match outcome.outcome {
                 OrderFillState::CompleteFill => max_quantity_in,
@@ -199,7 +199,7 @@ pub fn to_contract_order(
     };
     let hook_data = match order.order {
         GroupedVanillaOrder::KillOrFill(ref o) => o.hook_data().clone(),
-        GroupedVanillaOrder::Partial(ref o) => o.hook_data().clone()
+        GroupedVanillaOrder::Standing(ref o) => o.hook_data().clone()
     };
     UserOrder {
         a_to_b: order.is_bid,

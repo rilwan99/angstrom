@@ -97,10 +97,10 @@ impl<'a, 'b> OrderContainer<'a, 'b> {
     pub fn is_partial(&self) -> bool {
         match self {
             Self::BookOrder(o) => {
-                matches!(o.order, GroupedVanillaOrder::Partial(_))
+                matches!(o.order, GroupedVanillaOrder::Standing(_))
             }
             Self::Partial(o) => {
-                matches!(o.order, GroupedVanillaOrder::Partial(_))
+                matches!(o.order, GroupedVanillaOrder::Standing(_))
             }
             Self::AMM(_) => false
         }

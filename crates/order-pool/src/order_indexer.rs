@@ -246,7 +246,7 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
                                 // will just trait this so we can get rid of match statement
                                 AllOrders::Standing(p) => {
                                     // if p.hook_data.is_empty() {
-                                    GroupedUserOrder::Vanilla(GroupedVanillaOrder::Partial(p))
+                                    GroupedUserOrder::Vanilla(GroupedVanillaOrder::Standing(p))
                                     // } else {
                                     //     GroupedUserOrder::Composable(
                                     //         GroupedComposableOrder::Partial(p)
