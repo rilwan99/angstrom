@@ -4,9 +4,9 @@ use reth_primitives::Address;
 
 #[derive(Default, Debug, Clone)]
 pub struct BorrowStateTracker {
-    take:            u128,
-    contract_liquid: u128,
-    settle:          u128
+    pub take:            u128,
+    pub contract_liquid: u128,
+    pub settle:          u128
 }
 
 impl BorrowStateTracker {
@@ -68,6 +68,10 @@ pub struct StageTracker {
 impl StageTracker {
     pub fn new() -> Self {
         Self { ..Default::default() }
+    }
+
+    pub fn get_asset(&self, asset: &Address) -> Option<&BorrowStateTracker> {
+        self.map.get(asset)
     }
 
     #[inline]

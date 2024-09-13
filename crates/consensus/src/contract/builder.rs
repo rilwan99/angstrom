@@ -79,6 +79,21 @@ impl AssetBuilder {
     }
 
     pub fn get_asset_array(&self) -> Vec<Asset> {
-        self.assets.get_asset_array()
+        let combined_assets = self
+            .swaps
+            .and_then(&self.top_of_block)
+            .and_then(&self.user_orders)
+            .and_then(&self.rewards);
+        self.assets
+            .get_asset_array()
+            .into_iter()
+            .map(|mut asset| {
+                if let Some(tracker) = combined_assets.get_asset(&asset.addr) {
+                    asset.borrow = tracker.take;
+                    asset.settle = tracker.settle;
+                }
+                asset
+            })
+            .collect()
     }
 }
