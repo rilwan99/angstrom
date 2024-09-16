@@ -1,5 +1,7 @@
 use angstrom_types::matching::SqrtPriceX96;
+use eyre::{eyre, Context, Error};
 use matching_engine::cfmm::uniswap::{MarketSnapshot, PoolRange};
+use rand_distr::{Distribution, SkewNormal};
 use uniswap_v3_math::tick_math::{get_sqrt_ratio_at_tick, get_tick_at_sqrt_ratio};
 
 #[derive(Debug, Default)]
@@ -10,6 +12,7 @@ pub struct AMMSnapshotBuilder {
     upper_tick: i32,
     default_position_width: Option<i32>,
     default_position_liquidity: Option<u128>,
+    liquidity_distribution: Option<LiquidityDistributionParameters>,
     positions: Option<Vec<PoolRange>>
 }
 
@@ -37,6 +40,13 @@ impl AMMSnapshotBuilder {
         Self { lower_tick, upper_tick, positions: Some(positions), ..self }
     }
 
+    pub fn with_positions_from_distribution(
+        self,
+        liquidity_distribution: LiquidityDistributionParameters
+    ) -> Self {
+        Self { liquidity_distribution: Some(liquidity_distribution), ..self }
+    }
+
     pub fn with_single_position(self, width: i32, liquidity: u128) -> Self {
         Self {
             default_position_width: Some(width),
@@ -46,14 +56,19 @@ impl AMMSnapshotBuilder {
     }
 
     pub fn build(self) -> MarketSnapshot {
-        // Maybe we should automatically make sure our price is within our PoolRanges
-        let ranges = self.positions.unwrap_or_else(|| {
+        // If you've givien me explicit positions
+        let ranges = if let Some(positions) = self.positions {
+            positions
+        } else if let Some(liquidity_distribution) = self.liquidity_distribution {
+            generate_pool_distribution(self.lower_tick, self.upper_tick, liquidity_distribution)
+                .unwrap()
+        } else {
             let width = self.default_position_width.unwrap_or_default();
             let lower_tick = self.lower_tick.saturating_sub(width);
             let upper_tick = self.upper_tick.saturating_add(width);
             let liquidity = self.default_position_liquidity.unwrap_or_default();
             vec![PoolRange::new(lower_tick, upper_tick, liquidity).unwrap()]
-        });
+        };
         MarketSnapshot::new(ranges, self.price).unwrap()
     }
 }
@@ -75,4 +90,39 @@ pub fn generate_amm_market(target_tick: i32) -> MarketSnapshot {
     let ranges = vec![range];
     let sqrt_price_x96 = SqrtPriceX96::from(get_sqrt_ratio_at_tick(target_tick).unwrap());
     MarketSnapshot::new(ranges, sqrt_price_x96).unwrap()
+}
+
+#[derive(Debug, Default)]
+pub struct LiquidityDistributionParameters {
+    pub liquidity: u128,
+    pub scale:     f64,
+    pub shape:     f64
+}
+
+fn generate_pool_distribution(
+    start_tick: i32,
+    end_tick: i32,
+    liquidity: LiquidityDistributionParameters
+) -> Result<Vec<PoolRange>, Error> {
+    if end_tick < start_tick {
+        return Err(eyre!("End tick greater than start tick, invalid"))
+    }
+    let tick_count = end_tick - start_tick;
+    let LiquidityDistributionParameters {
+        liquidity: liq_location,
+        scale: liq_scale,
+        shape: liq_shape
+    } = liquidity;
+    let liquidity_gen = SkewNormal::new(liq_location as f64, liq_scale, liq_shape)
+        .wrap_err("Error creating liquidity distribution")?;
+    let mut rng = rand::thread_rng();
+    let liq_values: Vec<u128> = liquidity_gen
+        .sample_iter(&mut rng)
+        .take(tick_count as usize)
+        .map(|item| item as u128)
+        .collect();
+    (0..tick_count)
+        .zip(liq_values)
+        .map(|(count, l)| PoolRange::new(start_tick + count, start_tick + count + 1, l))
+        .collect()
 }
