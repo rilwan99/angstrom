@@ -23,7 +23,10 @@ use reth_primitives::U256;
 use tracing::warn;
 use validation::order::state::pools::AngstromPoolsTracker;
 
-pub fn to_contract_format(proposal: &Proposal, pools: &AngstromPoolsTracker) -> AngstromBundle {
+pub fn to_contract_format(
+    proposal: &Proposal,
+    pools: &AngstromPoolsTracker
+) -> Result<AngstromBundle, eyre::Error> {
     let mut top_of_block_orders = Vec::new();
     let mut pool_updates = Vec::new();
     let mut pairs = Vec::new();
@@ -38,8 +41,8 @@ pub fn to_contract_format(proposal: &Proposal, pools: &AngstromPoolsTracker) -> 
         // Get the information for the pool or skip this solution if we can't find a
         // pool for it
         let Some((t0, t1)) = pools.get_pool_addresses(solution.id) else {
-            // This should never happen but let's handle it as gracefully as possible
-            println!("SKIPPED");
+            // This should never happen but let's handle it as gracefully as possible -
+            // right now will skip the pool, not produce an error
             warn!("Skipped a solution as we couldn't find a pool for it: {:?}", solution);
             continue;
         };
@@ -174,13 +177,13 @@ pub fn to_contract_format(proposal: &Proposal, pools: &AngstromPoolsTracker) -> 
             user_orders.push(to_contract_order(order, outcome, pair_idx as u16));
         }
     }
-    AngstromBundle::new(
+    Ok(AngstromBundle::new(
         asset_builder.get_asset_array(),
         pairs,
         pool_updates,
         top_of_block_orders,
         user_orders
-    )
+    ))
 }
 
 pub fn to_contract_order(

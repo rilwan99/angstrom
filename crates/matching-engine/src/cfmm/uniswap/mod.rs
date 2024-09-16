@@ -55,6 +55,18 @@ impl PoolRange {
         }
         Ok(Self { lower_tick, upper_tick, liquidity })
     }
+
+    pub fn lower_tick(&self) -> i32 {
+        self.lower_tick
+    }
+
+    pub fn upper_tick(&self) -> i32 {
+        self.upper_tick
+    }
+
+    pub fn liquidity(&self) -> u128 {
+        self.liquidity
+    }
 }
 
 /// Snapshot of a particular Uniswap contract and its liquidity.  A contract has
