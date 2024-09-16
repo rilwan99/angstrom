@@ -9,6 +9,7 @@ use angstrom_types::{
     matching::{Ray, SqrtPriceX96},
     orders::OrderPrice
 };
+use eyre::{eyre, Context, Error};
 use uniswap_v3_math::{
     sqrt_price_math::{
         _get_amount_0_delta, _get_amount_1_delta, get_next_sqrt_price_from_input,
@@ -39,19 +40,20 @@ pub struct PoolRange {
 }
 
 impl PoolRange {
-    pub fn new(lower_tick: Tick, upper_tick: Tick, liquidity: u128) -> Result<Self, String> {
+    pub fn new(lower_tick: Tick, upper_tick: Tick, liquidity: u128) -> Result<Self, Error> {
         // Validate our inputs
         if upper_tick <= lower_tick {
-            return Err(format!(
+            return Err(eyre!(
                 "Upper tick bound less than or equal to lower tick bound for range ({}, {})",
-                lower_tick, upper_tick
+                lower_tick,
+                upper_tick
             ));
         }
         if upper_tick > MAX_TICK {
-            return Err(format!("Proposed upper tick '{}' out of valid tick range", upper_tick));
+            return Err(eyre!("Proposed upper tick '{}' out of valid tick range", upper_tick));
         }
         if lower_tick < MIN_TICK {
-            return Err(format!("Proposed lower tick '{}' out of valid tick range", lower_tick));
+            return Err(eyre!("Proposed lower tick '{}' out of valid tick range", lower_tick));
         }
         Ok(Self { lower_tick, upper_tick, liquidity })
     }
@@ -90,7 +92,7 @@ pub struct MarketSnapshot {
 }
 
 impl MarketSnapshot {
-    pub fn new(mut ranges: Vec<PoolRange>, sqrt_price_x96: SqrtPriceX96) -> Result<Self, String> {
+    pub fn new(mut ranges: Vec<PoolRange>, sqrt_price_x96: SqrtPriceX96) -> Result<Self, Error> {
         // Sort our ranges
         ranges.sort_by(|a, b| a.lower_tick.cmp(&b.lower_tick));
 
@@ -99,12 +101,12 @@ impl MarketSnapshot {
             .windows(2)
             .all(|w| w[0].upper_tick == w[1].lower_tick)
         {
-            return Err("Tick windows not contiguous, cannot create snapshot".to_string());
+            return Err(eyre!("Tick windows not contiguous, cannot create snapshot"));
         }
 
         // Get our current tick from our current price
-        let current_tick = get_tick_at_sqrt_ratio(sqrt_price_x96.into()).map_err(|_| {
-            format!("Unable to get a tick from our current price '{:?}'", sqrt_price_x96)
+        let current_tick = get_tick_at_sqrt_ratio(sqrt_price_x96.into()).wrap_err_with(|| {
+            eyre!("Unable to get a tick from our current price '{:?}'", sqrt_price_x96)
         })?;
 
         // Find the tick range that our current tick lies within
@@ -112,10 +114,7 @@ impl MarketSnapshot {
             .iter()
             .position(|r| r.lower_tick <= current_tick && current_tick < r.upper_tick)
         else {
-            return Err(format!(
-                "Unable to find initialized tick window for tick '{}'",
-                current_tick
-            ));
+            return Err(eyre!("Unable to find initialized tick window for tick '{}'", current_tick));
         };
 
         Ok(Self { ranges, sqrt_price_x96, current_tick, cur_tick_idx })
