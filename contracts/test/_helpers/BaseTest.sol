@@ -6,6 +6,7 @@ import {Trader} from "./types/Trader.sol";
 import {console2 as console} from "forge-std/console2.sol";
 import {HookDeployer} from "./HookDeployer.sol";
 import {stdError} from "forge-std/StdError.sol";
+import {OrderMeta} from "src/reference/OrderTypes.sol";
 
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
@@ -125,5 +126,12 @@ contract BaseTest is Test {
             mstore(0x20, keccak256(0x00, 0x20))
             mstore(0x00, keccak256(0x10, 0x20))
         }
+    }
+
+    function sign(Account memory account, OrderMeta memory targetMeta, bytes32 hash) internal pure {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(account.key, hash);
+        targetMeta.isEcdsa = true;
+        targetMeta.from = account.addr;
+        targetMeta.signature = abi.encodePacked(v, r, s);
     }
 }

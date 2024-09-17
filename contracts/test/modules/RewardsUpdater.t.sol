@@ -15,6 +15,7 @@ import {UniV4Inspector} from "../_view-ext/UniV4Inspector.sol";
 import {MockERC20} from "super-sol/mocks/MockERC20.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {TickRangeMap} from "../_helpers/TickRangeMap.sol";
+import {IUniV4, IPoolManager} from "../../src/interfaces/IUniV4.sol";
 
 import {PoolGate} from "../_helpers/PoolGate.sol";
 import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
@@ -27,6 +28,7 @@ import {console2 as console} from "forge-std/console2.sol";
 /// @author philogy <https://github.com/philogy>
 contract RewardsUpdaterTest is BaseTest, RewardsUpdater {
     using TickMath for int24;
+    using IUniV4 for IPoolManager;
 
     using FormatLib for *;
     using FixedPointMathLib for *;
@@ -76,7 +78,15 @@ contract RewardsUpdaterTest is BaseTest, RewardsUpdater {
         uint256 realTotal;
     }
 
-    function test_reward(int256 input_startCompressedTick, uint256 seed) public {
+    function test_reward() public {
+        int24 startTick = 0;
+
+        gate.initializePool(asset0, asset1, startTick.getSqrtPriceAtTick());
+        gate.addLiquidity(asset0, asset1, -2 * TICK_SPACING, startTick, 1e21);
+        gate.addLiquidity(asset0, asset1, startTick, 2 * TICK_SPACING, 1e21);
+    }
+
+    function test_fuzzing_reward(int256 input_startCompressedTick, uint256 seed) public {
         Vars memory v;
         PRNG memory rng = PRNG(seed);
 

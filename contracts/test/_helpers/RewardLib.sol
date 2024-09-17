@@ -42,7 +42,7 @@ library RewardLib {
         return rewards.length;
     }
 
-    function toUpdates(IPoolManager uni, PoolId id, TickReward[] memory rewards)
+    function toUpdates(TickReward[] memory rewards, IPoolManager uni, PoolId id)
         internal
         view
         returns (RewardsUpdate[] memory updates)

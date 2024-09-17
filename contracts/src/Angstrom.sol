@@ -24,7 +24,7 @@ import {PriceAB as PriceOutVsIn, AmountA as AmountOut, AmountB as AmountIn} from
 
 import {RayMathLib} from "./libraries/RayMathLib.sol";
 
-import {safeconsole as console} from "forge-std/safeconsole.sol";
+import {console} from "forge-std/console.sol";
 import {DEBUG_LOGS} from "./modules/DevFlags.sol";
 // TODO: Remove
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
@@ -55,15 +55,22 @@ contract Angstrom is
     function unlockCallback(bytes calldata data) external override onlyUniV4 returns (bytes memory) {
         CalldataReader reader = CalldataReaderLib.from(data);
 
+        if (DEBUG_LOGS) console.log("[Angstrom] Reading & Validating assets");
         AssetArray assets;
         (reader, assets) = AssetLib.readFromAndValidate(reader);
+        if (DEBUG_LOGS) console.log("[Angstrom] Reading & Validating pairs");
         PairArray pairs;
         (reader, pairs) = PairLib.readFromAndValidate(reader);
 
+        if (DEBUG_LOGS) console.log("[Angstrom] Executing takes");
         _takeAssets(assets);
+        if (DEBUG_LOGS) console.log("[Angstrom] Updating pools");
         reader = _updatePools(reader, tBundleDeltas, assets);
-        reader = _validateAndExecuteToBs(reader, assets);
-        reader = _validateAndExecuteOrders(reader, assets, pairs);
+        if (DEBUG_LOGS) console.log("[Angstrom] Executing ToB Orders");
+        reader = _validateAndExecuteToBOrders(reader, assets);
+        if (DEBUG_LOGS) console.log("[Angstrom] Executing User orders");
+        reader = _validateAndExecuteUserOrders(reader, assets, pairs);
+        if (DEBUG_LOGS) console.log("[Angstrom] Saving & Settling");
         _saveAndSettle(assets);
 
         reader.requireAtEndOf(data);
@@ -71,7 +78,7 @@ contract Angstrom is
         return new bytes(0);
     }
 
-    function _validateAndExecuteToBs(CalldataReader reader, AssetArray assets) internal returns (CalldataReader) {
+    function _validateAndExecuteToBOrders(CalldataReader reader, AssetArray assets) internal returns (CalldataReader) {
         CalldataReader end;
         (reader, end) = reader.readU24End();
 
@@ -83,13 +90,13 @@ contract Angstrom is
         // Purposefully devolve into an endless loop if the specified length isn't exactly used s.t.
         // `reader == end` at some point.
         while (reader != end) {
-            reader = _validateAndExecuteToB(reader, buffer, typedHasher, assets);
+            reader = _validateAndExecuteToBOrder(reader, buffer, typedHasher, assets);
         }
 
         return reader;
     }
 
-    function _validateAndExecuteToB(
+    function _validateAndExecuteToBOrder(
         CalldataReader reader,
         ToBOrderBuffer memory buffer,
         TypedDataHasher typedHasher,
@@ -97,6 +104,7 @@ contract Angstrom is
     ) internal returns (CalldataReader) {
         OrderVariantMap variant;
         (reader, variant) = reader.readVariant();
+
         buffer.useInternal = variant.useInternal();
 
         (reader, buffer.quantityIn) = reader.readU128();
@@ -136,7 +144,7 @@ contract Angstrom is
 
     uint256 debug_orderCounter;
 
-    function _validateAndExecuteOrders(CalldataReader reader, AssetArray assets, PairArray pairs)
+    function _validateAndExecuteUserOrders(CalldataReader reader, AssetArray assets, PairArray pairs)
         internal
         returns (CalldataReader)
     {
@@ -152,13 +160,13 @@ contract Angstrom is
         // `reader == end` at some point.
         while (reader != end) {
             if (DEBUG_LOGS) console.log("[%s]", debug_orderCounter++);
-            reader = _validateAndExecuteUser(reader, buffer, typedHasher, assets, pairs);
+            reader = _validateAndExecuteUserOrder(reader, buffer, typedHasher, assets, pairs);
         }
 
         return reader;
     }
 
-    function _validateAndExecuteUser(
+    function _validateAndExecuteUserOrder(
         CalldataReader reader,
         UserOrderBuffer memory buffer,
         TypedDataHasher typedHasher,
@@ -167,8 +175,6 @@ contract Angstrom is
     ) internal returns (CalldataReader) {
         OrderVariantMap variant;
         (reader, variant) = reader.readVariant();
-
-        if (DEBUG_LOGS) console.log("  variant: %s", variant.asB32());
 
         buffer.setTypeHash(variant);
         buffer.useInternal = variant.useInternal();

@@ -8,7 +8,7 @@ struct PoolUpdate {
     address assetIn;
     address assetOut;
     uint128 amountIn;
-    RewardsUpdate rewardsUpdate;
+    RewardsUpdate rewardUpdate;
 }
 
 struct RewardsUpdate {
@@ -33,8 +33,8 @@ library PoolUpdateLib {
     }
 
     function encode(PoolUpdate memory self, Asset[] memory assets) internal pure returns (bytes memory) {
-        (uint16 indexA, uint16 indexB) = assets.getIndexPair({assetA: self.assetIn, assetB: self.assetIn});
-        return bytes.concat(bytes2(indexA), bytes2(indexB), bytes16(self.amountIn), self.rewardsUpdate.encode());
+        (uint16 indexA, uint16 indexB) = assets.getIndexPair({assetA: self.assetIn, assetB: self.assetOut});
+        return bytes.concat(bytes2(indexA), bytes2(indexB), bytes16(self.amountIn), self.rewardUpdate.encode());
     }
 
     function encode(RewardsUpdate memory self) internal pure returns (bytes memory) {

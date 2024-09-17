@@ -22,6 +22,7 @@ import {MixedSignLib} from "../libraries/MixedSignLib.sol";
 
 import {console} from "forge-std/console.sol";
 import {DEBUG_LOGS} from "./DevFlags.sol";
+import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 /// @author philogy <https://github.com/philogy>
 abstract contract PoolUpdateManager is
@@ -30,6 +31,8 @@ abstract contract PoolUpdateManager is
     IBeforeAddLiquidityHook,
     IAfterRemoveLiquidityHook
 {
+    using FormatLib for *;
+
     using PoolIdLibrary for PoolKey;
     using IUniV4 for IPoolManager;
     using MixedSignLib for uint128;
@@ -94,16 +97,25 @@ abstract contract PoolUpdateManager is
         {
             uint16 assetIndex;
             (reader, assetIndex) = reader.readU16();
+            if (DEBUG_LOGS) console.log("[PoolUpdateManager] assetIndex: %s", assetIndex);
             address assetIn = assets.get(assetIndex).addr();
             (reader, assetIndex) = reader.readU16();
+            if (DEBUG_LOGS) console.log("[PoolUpdateManager] assetIndex: %s", assetIndex);
             address assetOut = assets.get(assetIndex).addr();
             zeroForOne = assetIn < assetOut;
             (asset0, asset1) = zeroForOne ? (assetIn, assetOut) : (assetOut, assetIn);
+        }
+        if (DEBUG_LOGS) {
+            console.log("[PoolUpdateManager] address(this): %s", address(this));
+            console.log("[PoolUpdateManager] asset0: %s", asset0);
+            console.log("[PoolUpdateManager] asset1: %s", asset1);
         }
         PoolKey memory poolKey = ConversionLib.toPoolKey(address(this), asset0, asset1);
         PoolId id = PoolIdLibrary.toId(poolKey);
         uint256 amountIn;
         (reader, amountIn) = reader.readU128();
+
+        if (DEBUG_LOGS) console.log("[PoolUpdateManager] amountIn: %s", amountIn.fmtD(18));
 
         if (amountIn > 0) {
             int24 tickBefore = UNI_V4.getSlot0(id).tick();

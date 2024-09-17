@@ -6,6 +6,9 @@ import {TICK_SPACING} from "../Constants.sol";
 
 /// @author philogy <https://github.com/philogy>
 library TickLib {
+    int24 internal constant MIN_TICK = -887272;
+    int24 internal constant MAX_TICK = 887272;
+
     function isInitialized(uint256 word, uint8 bitPos) internal pure returns (bool) {
         return word & (uint256(1) << bitPos) != 0;
     }
