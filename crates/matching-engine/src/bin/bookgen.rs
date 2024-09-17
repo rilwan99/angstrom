@@ -20,10 +20,10 @@ struct Args {
     #[arg(short, long, default_value_t = 100_000_000.0)]
     price:           f64,
     /// Scale of bid price distribution
-    #[arg(long, default_value_t = 100000.0, help_heading = "Bid Order Statistics")]
+    #[arg(long, default_value_t = 1000000.0, help_heading = "Bid Order Statistics")]
     bid_price_scale: f64,
     /// Shape of bid price distribution
-    #[arg(long, default_value_t=-2.0, help_heading="Bid Order Statistics")]
+    #[arg(long, default_value_t = -2.0, help_heading = "Bid Order Statistics")]
     bid_price_shape: f64,
     /// Average bid order volume to use
     #[arg(long, default_value_t = 100.0, help_heading = "Bid Order Statistics")]
@@ -32,7 +32,7 @@ struct Args {
     #[arg(long, default_value_t = 1.0, help_heading = "Bid Order Statistics")]
     bid_volume_sd:   f64,
     /// Scale of ask price distribution
-    #[arg(long, default_value_t = 100000.0, help_heading = "Ask Order Statistics")]
+    #[arg(long, default_value_t = 1000000.0, help_heading = "Ask Order Statistics")]
     ask_price_scale: f64,
     /// Shape of ask price distribution
     #[arg(long, default_value_t = 2.0, help_heading = "Ask Order Statistics")]
@@ -46,7 +46,7 @@ struct Args {
 }
 
 fn main() {
-    let id: PoolId = FixedBytes::default();
+    let id: PoolId = FixedBytes::random();
     let args = Args::parse();
 
     let asks = order_distribution(
@@ -61,6 +61,15 @@ fn main() {
     )
     .unwrap();
 
+    let min_ask_price = asks.iter().fold(f64::MAX, |mut acc, order| {
+        let price = order.float_price();
+        if price < acc {
+            acc = price
+        }
+        acc
+    });
+    println!("Min ask price {}", min_ask_price);
+
     let bids = order_distribution(
         true,
         10,
@@ -72,6 +81,23 @@ fn main() {
         0.0
     )
     .unwrap();
+    let max_bid_price = bids.iter().fold(f64::MIN, |mut acc, order| {
+        let price = order.float_price();
+        if price > acc {
+            acc = price
+        }
+        acc
+    });
+    println!("Max bid price {}", max_bid_price);
+    let crossed_bids = bids
+        .iter()
+        .filter(|o| o.float_price() > min_ask_price)
+        .count();
+    let crossed_asks = asks
+        .iter()
+        .filter(|o| o.float_price() < max_bid_price)
+        .count();
+    println!("{} crossed bids, {} crossed asks", crossed_bids, crossed_asks);
 
     let middle_tick =
         get_tick_at_sqrt_ratio(SqrtPriceX96::from_float_price(args.price).into()).unwrap();

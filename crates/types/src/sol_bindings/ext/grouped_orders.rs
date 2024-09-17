@@ -396,6 +396,7 @@ impl GroupedVanillaOrder {
         }
     }
 
+    /// Primarily used for debugging to work with price as an f64
     pub fn float_price(&self) -> f64 {
         match self {
             Self::Standing(o) => Ray::from(o.limit_price()).as_f64(),
@@ -412,8 +413,8 @@ impl GroupedVanillaOrder {
 
     pub fn quantity(&self) -> U256 {
         match self {
-            Self::Standing(o) => U256::from(o.amount_out_min()),
-            Self::KillOrFill(o) => U256::from(o.amount_out_min())
+            Self::Standing(o) => U256::from(o.amount_in()),
+            Self::KillOrFill(o) => U256::from(o.amount_in())
         }
     }
 

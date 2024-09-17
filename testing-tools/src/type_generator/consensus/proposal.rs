@@ -89,7 +89,6 @@ impl ProposalBuilder {
                     .unwrap()
             })
             .collect::<Vec<_>>();
-
         Proposal::generate_proposal(ethereum_height, source, preproposals, solutions, &sk)
     }
 }

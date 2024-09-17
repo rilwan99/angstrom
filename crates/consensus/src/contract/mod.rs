@@ -23,6 +23,9 @@ use reth_primitives::U256;
 use tracing::warn;
 use validation::order::state::pools::AngstromPoolsTracker;
 
+// Note that .to() on Uint is a try_into with an unwrap, so we should be careful
+// about safety here
+
 pub fn to_contract_format(
     proposal: &Proposal,
     pools: &AngstromPoolsTracker

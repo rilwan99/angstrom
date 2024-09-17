@@ -4,7 +4,7 @@ use angstrom_types::{
     orders::{OrderId, OrderPriorityData},
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
-        rpc_orders::PartialFlashOrder
+        rpc_orders::{ExactFlashOrder, PartialFlashOrder}
     }
 };
 use rand_distr::{Distribution, SkewNormal};
@@ -31,9 +31,9 @@ pub fn order_distribution(
         .zip(quantity_gen.sample_iter(&mut rng2))
         .map(|(p, q)| {
             let order = GroupedVanillaOrder::KillOrFill(
-                angstrom_types::sol_bindings::grouped_orders::FlashVariants::Partial(
-                    PartialFlashOrder {
-                        maxAmountIn: q.floor() as u128,
+                angstrom_types::sol_bindings::grouped_orders::FlashVariants::Exact(
+                    ExactFlashOrder {
+                        amount: q.floor() as u128,
                         minPrice: Ray::from(p).into(),
                         ..Default::default()
                     }
