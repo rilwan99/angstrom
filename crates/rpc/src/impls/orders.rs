@@ -100,10 +100,10 @@ where
     Spawner: TaskSpawner + 'static
 {
     async fn validate_and_send_order(&self, order: AllOrders) -> bool {
-        self.pool
-            .validate_order(OrderOrigin::External, order.clone())
-            .await
-            && self.pool.new_order(OrderOrigin::External, order)
+        // self.pool
+        //     .validate_order(OrderOrigin::External, order.clone())
+        //     .await
+        self.pool.new_order(OrderOrigin::External, order)
     }
 }
 

@@ -63,8 +63,7 @@ const PEER_ORDER_CACHE_LIMIT: usize = 1024 * 10;
 #[derive(Debug, Clone)]
 pub struct PoolHandle {
     pub manager_tx:      UnboundedSender<OrderCommand>,
-    pub pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>,
-    pub validator_tx:    UnboundedSender<ValidationRequest>
+    pub pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>
 }
 
 #[derive(Debug)]
@@ -82,15 +81,6 @@ impl PoolHandle {
         self.send(cmd);
         rx.await.unwrap()
     }
-
-    async fn send_validation_request<T>(
-        &self,
-        rx: oneshot::Receiver<T>,
-        cmd: ValidationRequest
-    ) -> T {
-        self.validator_tx.send(cmd);
-        rx.await.unwrap()
-    }
 }
 
 impl OrderPoolHandle for PoolHandle {
@@ -100,27 +90,6 @@ impl OrderPoolHandle for PoolHandle {
 
     fn subscribe_orders(&self) -> Receiver<PoolManagerUpdate> {
         self.pool_manager_tx.subscribe()
-    }
-
-    fn validate_order(
-        &self,
-        order_origin: OrderOrigin,
-        order: AllOrders
-    ) -> impl Future<Output = bool> + Send {
-        let (tx, rx) = oneshot::channel::<OrderValidationResults>();
-        self.send_validation_request(
-            rx,
-            ValidationRequest::Order(OrderValidationRequest::ValidateOrder(
-                tx,
-                order,
-                order_origin
-            ))
-        )
-        .map(|result| match result {
-            OrderValidationResults::Valid(_) => true,
-            OrderValidationResults::Invalid(_) => false,
-            OrderValidationResults::TransitionedToBlock => false
-        })
     }
 }
 
@@ -174,18 +143,14 @@ where
         task_spawner: TP,
         tx: UnboundedSender<OrderCommand>,
         rx: UnboundedReceiver<OrderCommand>,
-        validator_tx: UnboundedSender<ValidationRequest>,
         pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>
     ) -> PoolHandle {
         let rx = UnboundedReceiverStream::new(rx);
         let order_storage = self
             .order_storage
             .unwrap_or_else(|| Arc::new(OrderStorage::new(&self.config)));
-        let handle = PoolHandle {
-            manager_tx:      tx.clone(),
-            pool_manager_tx: pool_manager_tx.clone(),
-            validator_tx:    validator_tx.clone()
-        };
+        let handle =
+            PoolHandle { manager_tx: tx.clone(), pool_manager_tx: pool_manager_tx.clone() };
         let inner = OrderIndexer::new(self.validator.clone(), order_storage.clone(), 0);
 
         task_spawner.spawn_critical(
@@ -207,18 +172,13 @@ where
 
     pub fn build<TP: TaskSpawner>(self, task_spawner: TP) -> PoolHandle {
         let (tx, rx) = unbounded_channel();
-        // TODO: Fix me
-        let (validator_tx, validator_rx) = unbounded_channel();
         let rx = UnboundedReceiverStream::new(rx);
         let order_storage = self
             .order_storage
             .unwrap_or_else(|| Arc::new(OrderStorage::new(&self.config)));
         let (pool_manager_tx, _) = broadcast::channel(100);
-        let handle = PoolHandle {
-            manager_tx:      tx.clone(),
-            pool_manager_tx: pool_manager_tx.clone(),
-            validator_tx:    validator_tx.clone()
-        };
+        let handle =
+            PoolHandle { manager_tx: tx.clone(), pool_manager_tx: pool_manager_tx.clone() };
         let inner = OrderIndexer::new(self.validator.clone(), order_storage.clone(), 0);
 
         task_spawner.spawn_critical(
@@ -330,8 +290,8 @@ where
                     // TODO: add an "await" for the new_order() to complete
                     // if !self.order_sorter.is_valid_order(&order) {
                     //     self.network
-                    //         .peer_reputation_change(peer_id, ReputationChangeKind::BadOrder);
-                    // }
+                    //         .peer_reputation_change(peer_id,
+                    // ReputationChangeKind::BadOrder); }
                 });
             }
         }

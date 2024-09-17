@@ -4,8 +4,10 @@ use angstrom_types::{
     orders::{OrderId, OrderPriorityData},
     sol_bindings::{
         ext::RawPoolOrder,
-        grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
-        rpc_orders::TopOfBlockOrder,
+        grouped_orders::{
+            FlashVariants, GroupedVanillaOrder, OrderWithStorageData, StandingVariants
+        },
+        rpc_orders::{ExactFlashOrder, ExactStandingOrder, TopOfBlockOrder},
         sol::{FlashOrder, StandingOrder}
     }
 };
@@ -35,8 +37,8 @@ pub fn generate_limit_order(
     is_bid: bool,
     pool_id: Option<usize>,
     valid_block: Option<u64>,
-    asset_in: Option<u16>,
-    asset_out: Option<u16>,
+    asset_in: Option<Address>,
+    asset_out: Option<Address>,
     nonce: Option<u64>,
     from: Option<Address>
 ) -> OrderWithStorageData<GroupedVanillaOrder> {
@@ -61,8 +63,6 @@ pub fn generate_limit_order(
     let order_id = generate_order_id(pool_id, order.hash());
     // Todo: Sign It, make this overall better
     OrderWithStorageData {
-        asset_out: asset_out.unwrap_or_default(),
-        asset_in: asset_in.unwrap_or_default(),
         invalidates: vec![],
         order,
         priority_data,
@@ -93,8 +93,6 @@ pub fn generate_top_of_block_order(
     let order_id = generate_order_id(pool_id, order.order_hash());
     // Todo: Sign It, make this overall better
     OrderWithStorageData {
-        asset_out: 0,
-        asset_in: 0,
         invalidates: vec![],
         order,
         priority_data,
@@ -112,31 +110,31 @@ pub fn build_limit_order(
     valid_block: u64,
     volume: u128,
     price: u128,
-    asset_in: u16,
-    asset_out: u16,
+    asset_in: Address,
+    asset_out: Address,
     nonce: u64,
     from: Address
 ) -> GroupedVanillaOrder {
     if kof {
-        GroupedVanillaOrder::KillOrFill(FlashOrder {
-            max_amount_in_or_out: Uint::from(volume),
-            min_price: Ray::from(Uint::from(price)).into(),
-            valid_for_block: valid_block,
-            asset_in,
-            asset_out,
+        GroupedVanillaOrder::KillOrFill(FlashVariants::Exact(ExactFlashOrder {
+            amount: volume,
+            minPrice: Ray::from(Uint::from(price)).into(),
+            validForBlock: valid_block,
+            assetIn: asset_in,
+            assetOut: asset_out,
             recipient: from,
             ..Default::default()
-        })
+        }))
     } else {
-        GroupedVanillaOrder::Partial(StandingOrder {
-            max_amount_in_or_out: Uint::from(volume),
-            min_price: Ray::from(Uint::from(price)).into(),
-            asset_out,
-            asset_in,
+        GroupedVanillaOrder::Partial(StandingVariants::Exact(ExactStandingOrder {
+            amount: volume,
+            minPrice: Ray::from(Uint::from(price)).into(),
+            assetOut: asset_out,
+            assetIn: asset_in,
             nonce,
             recipient: from,
             ..Default::default()
-        })
+        }))
     }
 }
 
@@ -192,13 +190,11 @@ pub fn generate_order_distribution(
         .map(|(p, v)| {
             let price = p.to_u128().unwrap_or_default();
             let volume = v.to_u128().unwrap_or_default();
-            let order = build_limit_order(true, valid_block, volume, price, 0,0, 0,Address::ZERO);
+            let order = build_limit_order(true, valid_block, volume, price, Address::ZERO,Address::ZERO, 0,Address::ZERO);
             let order_id = generate_order_id(pool_id, order.hash());
 
             OrderWithStorageData {
                 invalidates: vec![],
-                asset_in: 0,
-                asset_out: 0,
                 order,
                 priority_data: OrderPriorityData { price: U256::from(price), volume, gas: 10 },
                 is_bid,

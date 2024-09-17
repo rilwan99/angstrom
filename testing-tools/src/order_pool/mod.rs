@@ -1,11 +1,9 @@
 use std::{pin::Pin, sync::Arc, task::Poll, time::Duration};
 
-use crate::mocks::validator::MockValidator;
 use angstrom::cli::DefaultPoolHandle;
 use angstrom_eth::manager::EthEvent;
-use angstrom_network::pool_manager::OrderCommand;
 use angstrom_network::{
-    pool_manager::{PoolHandle, PoolManager},
+    pool_manager::{OrderCommand, PoolHandle, PoolManager},
     NetworkOrderEvent, StromNetworkEvent, StromNetworkHandle
 };
 use futures::{future::poll_fn, Future, FutureExt};
@@ -13,6 +11,8 @@ use order_pool::{order_storage::OrderStorage, OrderIndexer, PoolConfig};
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use tokio::sync::mpsc::unbounded_channel;
 use tokio_stream::wrappers::UnboundedReceiverStream;
+
+use crate::mocks::validator::MockValidator;
 
 type DefaultMockPoolManager = PoolManager<MockValidator>;
 
@@ -39,7 +39,8 @@ impl TestnetOrderPool {
         let (tx, rx) = unbounded_channel();
         let rx = UnboundedReceiverStream::<OrderCommand>::new(rx);
         let (pool_manager_tx, _) = tokio::sync::broadcast::channel(100);
-        let handle = PoolHandle { manager_tx: tx.clone(), pool_manager_tx: pool_manager_tx.clone() };
+        let handle =
+            PoolHandle { manager_tx: tx.clone(), pool_manager_tx: pool_manager_tx.clone() };
         let order_storage = Arc::new(OrderStorage::new(&config));
         let inner = OrderIndexer::new(validator, order_storage.clone(), block_number);
 

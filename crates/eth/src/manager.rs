@@ -81,6 +81,7 @@ where
         // get all reorged orders
         let old_filled: HashSet<_> = Self::fetch_filled_orders(old.clone()).collect();
         let new_filled: HashSet<_> = Self::fetch_filled_orders(new.clone()).collect();
+
         let difference: Vec<_> = old_filled.difference(&new_filled).copied().collect();
         let reorged_orders = EthEvent::ReorgedOrders(difference);
 

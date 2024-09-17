@@ -4,7 +4,7 @@ use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
-        sol::TopOfBlockOrder
+        rpc_orders::TopOfBlockOrder
     }
 };
 use blsful::{Bls12381G1Impl, SecretKey};

@@ -14,7 +14,6 @@ use tokio::sync::mpsc::{
 };
 
 mod network_builder;
-use crate::cli::network_builder::AngstromNetworkBuilder;
 use alloy_chains::Chain;
 use angstrom_eth::{
     handle::{Eth, EthCommand},
@@ -25,8 +24,7 @@ use angstrom_network::{
     NetworkBuilder as StromNetworkBuilder, NetworkOrderEvent, PoolManagerBuilder, StatusState,
     VerificationSidecar
 };
-use angstrom_rpc::api::OrderApiServer;
-use angstrom_rpc::OrderApi;
+use angstrom_rpc::{api::OrderApiServer, OrderApi};
 use clap::Parser;
 use consensus::{
     ConsensusCommand, ConsensusHandle, ConsensusManager, GlobalConsensusState, ManagerNetworkDeps,
@@ -43,8 +41,9 @@ use reth_cli_util::get_secret_key;
 use reth_metrics::common::mpsc::{UnboundedMeteredReceiver, UnboundedMeteredSender};
 use reth_network_peers::pk2id;
 use reth_node_ethereum::{node::EthereumAddOns, EthereumNode};
-use validation::init_validation;
-use validation::validator::ValidationRequest;
+use validation::{init_validation, validator::ValidationRequest};
+
+use crate::cli::network_builder::AngstromNetworkBuilder;
 
 /// Convenience function for parsing CLI options, set up logging and run the
 /// chosen command.
@@ -68,7 +67,7 @@ pub fn run() -> eyre::Result<()> {
 
         // for rpc
         let pool = channels.get_pool_handle();
-        let executor_clone  = executor.clone();
+        let executor_clone = executor.clone();
         // let consensus = channels.get_consensus_handle();
         let NodeHandle { node, node_exit_future } = builder
             .with_types::<EthereumNode>()
@@ -144,7 +143,10 @@ pub struct StromHandles {
 
 impl StromHandles {
     pub fn get_pool_handle(&self) -> DefaultPoolHandle {
-        PoolHandle { manager_tx: self.orderpool_tx.clone(), pool_manager_tx: self.pool_manager_tx.clone(), validator_tx: self.validator_tx.clone() }
+        PoolHandle {
+            manager_tx:      self.orderpool_tx.clone(),
+            pool_manager_tx: self.pool_manager_tx.clone()
+        }
     }
 
     pub fn get_consensus_handle(&self) -> ConsensusHandle {
@@ -201,7 +203,12 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
         .with_consensus_manager(handles.consensus_tx_op)
         .build_handle(executor.clone(), node.provider.clone());
 
-    let validator = init_validation(node.provider.clone(), config.validation_cache_size, handles.validator_tx.clone(), handles.validator_rx);
+    let validator = init_validation(
+        node.provider.clone(),
+        config.validation_cache_size,
+        handles.validator_tx.clone(),
+        handles.validator_rx
+    );
 
     // Create our pool config
     let pool_config = PoolConfig::default();
@@ -219,7 +226,12 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
         handles.pool_rx
     )
     .with_config(pool_config)
-    .build_with_channels(executor.clone(), handles.orderpool_tx, handles.orderpool_rx, handles.validator_tx, handles.pool_manager_tx);
+    .build_with_channels(
+        executor.clone(),
+        handles.orderpool_tx,
+        handles.orderpool_rx,
+        handles.pool_manager_tx
+    );
 
     let signer = Signer::new(secret_key);
 

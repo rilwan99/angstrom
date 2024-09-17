@@ -40,8 +40,6 @@ pub fn order_distribution(
                 )
             );
             OrderWithStorageData {
-                asset_in: 0,
-                asset_out: 0,
                 invalidates: vec![],
                 order,
                 priority_data: OrderPriorityData {

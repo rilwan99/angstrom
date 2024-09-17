@@ -2,15 +2,15 @@
 use std::sync::Arc;
 
 use alloy_primitives::{Address, B256};
-use angstrom_types::sol_bindings::{ext::RawPoolOrder, grouped_orders::OrderWithStorageData};
+use angstrom_types::{
+    orders::OrderLocation,
+    sol_bindings::{ext::RawPoolOrder, grouped_orders::OrderWithStorageData}
+};
 use dashmap::DashSet;
 use thiserror::Error;
 use user::UserAccounts;
 
-use super::{
-    db_state_utils::StateFetchUtils,
-    pools::{index_to_address::AssetIndexToAddressWrapper, UserOrderPoolInfo}
-};
+use super::{db_state_utils::StateFetchUtils, pools::UserOrderPoolInfo};
 use crate::{common::lru_db::BlockStateProviderFactory, RevmLRU};
 
 pub mod user;
@@ -40,7 +40,7 @@ impl<DB: BlockStateProviderFactory + Unpin + 'static, S: StateFetchUtils>
     /// Fetches the state overrides that are required for the hook simulation.
     pub fn grab_state_for_hook_simulations<O: RawPoolOrder>(
         &self,
-        order: AssetIndexToAddressWrapper<O>,
+        order: O,
         pool_info: UserOrderPoolInfo,
         block: u64
     ) -> Result<(), UserAccountVerificationError<O>> {
@@ -57,7 +57,7 @@ impl<DB: BlockStateProviderFactory + Unpin + 'static, S: StateFetchUtils>
 
     pub fn verify_order<O: RawPoolOrder>(
         &self,
-        order: AssetIndexToAddressWrapper<O>,
+        order: O,
         pool_info: UserOrderPoolInfo,
         block: u64,
         is_limit: bool
@@ -125,15 +125,52 @@ impl<DB: BlockStateProviderFactory + Unpin + 'static, S: StateFetchUtils>
     }
 }
 
+impl<T: RawPoolOrder> StorageWithData for T {}
+
+pub trait StorageWithData: RawPoolOrder {
+    fn into_order_storage_with_data(
+        self,
+        block: u64,
+        is_cur_valid: bool,
+        is_valid: bool,
+        is_limit: bool,
+        pool_info: UserOrderPoolInfo,
+        invalidates: Vec<B256>
+    ) -> OrderWithStorageData<Self> {
+        OrderWithStorageData {
+            priority_data: angstrom_types::orders::OrderPriorityData {
+                price:  self.limit_price(),
+                volume: self.amount_in(),
+                gas:    0
+            },
+            pool_id: pool_info.pool_id,
+            is_currently_valid: is_cur_valid,
+            is_bid: pool_info.is_bid,
+            is_valid,
+            valid_block: block,
+            order_id: angstrom_types::orders::OrderId {
+                reuse_avoidance: self.respend_avoidance_strategy(),
+                flash_block:     self.flash_block(),
+                address:         self.from(),
+                pool_id:         pool_info.pool_id,
+                hash:            self.order_hash(),
+                deadline:        self.deadline(),
+                location:        if is_limit {
+                    OrderLocation::Limit
+                } else {
+                    OrderLocation::Searcher
+                }
+            },
+            invalidates,
+            order: self
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum UserAccountVerificationError<O: RawPoolOrder> {
     #[error("tried to verify for block {} where current is {}", requested, current)]
-    BlockMissMatch {
-        requested: u64,
-        current:   u64,
-        order:     AssetIndexToAddressWrapper<O>,
-        pool_info: UserOrderPoolInfo
-    },
+    BlockMissMatch { requested: u64, current: u64, order: O, pool_info: UserOrderPoolInfo },
     #[error("order hash has been cancelled {0:?}")]
     OrderIsCancelled(B256),
     #[error("Nonce exists for a current order hash: {0:?}")]

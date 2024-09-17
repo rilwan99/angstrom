@@ -108,11 +108,7 @@ pub struct OrderWithStorageData<Order> {
     /// the block the order was validated for
     pub valid_block:        u64,
     /// holds expiry data
-    pub order_id:           OrderId,
-    /// encoding data of asset in
-    pub asset_in:           u16,
-    /// encoding data of asset out
-    pub asset_out:          u16
+    pub order_id:           OrderId
 }
 
 impl<Order> Hash for OrderWithStorageData<Order> {
@@ -165,9 +161,7 @@ impl<Order> OrderWithStorageData<Order> {
             priority_data:      self.priority_data,
             is_currently_valid: self.is_currently_valid,
             is_valid:           self.is_valid,
-            order_id:           self.order_id,
-            asset_in:           self.asset_in,
-            asset_out:          self.asset_out
+            order_id:           self.order_id
         })
     }
 }
