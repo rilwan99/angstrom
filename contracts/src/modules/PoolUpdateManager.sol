@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {RewardsUpdater} from "./RewardsUpdater.sol";
 import {UniConsumer} from "./UniConsumer.sol";
-import {ILiqChangeHooks} from "../interfaces/ILiqChangeHooks.sol";
+import {IBeforeAddLiquidityHook, IAfterRemoveLiquidityHook} from "../interfaces/IHooks.sol";
 
 import {DeltaTracker} from "../types/DeltaTracker.sol";
 import {AssetArray} from "../types/Asset.sol";
@@ -24,7 +24,12 @@ import {console} from "forge-std/console.sol";
 import {DEBUG_LOGS} from "./DevFlags.sol";
 
 /// @author philogy <https://github.com/philogy>
-abstract contract PoolUpdateManager is RewardsUpdater, ILiqChangeHooks, UniConsumer {
+abstract contract PoolUpdateManager is
+    RewardsUpdater,
+    UniConsumer,
+    IBeforeAddLiquidityHook,
+    IAfterRemoveLiquidityHook
+{
     using PoolIdLibrary for PoolKey;
     using IUniV4 for IPoolManager;
     using MixedSignLib for uint128;
@@ -62,7 +67,7 @@ abstract contract PoolUpdateManager is RewardsUpdater, ILiqChangeHooks, UniConsu
         IPoolManager.ModifyLiquidityParams calldata,
         BalanceDelta,
         bytes calldata
-    ) external pure returns (bytes4, BalanceDelta) {
+    ) external pure override returns (bytes4, BalanceDelta) {
         return (bytes4(0), BalanceDelta.wrap(0));
     }
 
