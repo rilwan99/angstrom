@@ -227,10 +227,6 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
             });
     }
 
-    fn subscribe_order_events(&self) -> tokio::sync::broadcast::Receiver<PoolManagerUpdate> {
-        self.orders_subscriber_tx.subscribe()
-    }
-
     /// Removes all filled orders from the pools and moves to regular pool
     fn filled_orders(&mut self, block: u64, orders: &[B256]) {
         if orders.is_empty() {
