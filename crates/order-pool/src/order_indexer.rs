@@ -1,8 +1,7 @@
 use std::{
     collections::HashMap,
-    ops::Deref,
     pin::Pin,
-    sync::Arc,
+    sync::{mpsc::Receiver, Arc},
     task::{Context, Poll},
     time::{Duration, SystemTime, UNIX_EPOCH}
 };
@@ -19,12 +18,15 @@ use angstrom_types::{
 use futures_util::{Stream, StreamExt};
 use reth_network_peers::PeerId;
 use reth_primitives::Address;
+use tokio::sync::oneshot::Sender;
 use tracing::{error, trace};
 use validation::order::{OrderValidationResults, OrderValidatorHandle};
 
 use crate::{
     order_storage::OrderStorage,
-    validator::{OrderValidator, OrderValidatorRes}
+    validator::{OrderValidator, OrderValidatorRes},
+    PoolManagerUpdate,
+    PoolManagerUpdate::NewOrder
 };
 
 /// This is used to remove validated orders. During validation
@@ -43,26 +45,28 @@ pub struct OrderIndexer<V: OrderValidatorHandle> {
     /// Orders that are being validated
     pending_order_indexing: HashMap<B256, Vec<PeerId>>,
     /// Order Validator
-    validator:              OrderValidator<V>
-}
-
-impl<V: OrderValidatorHandle> Deref for OrderIndexer<V> {
-    type Target = OrderStorage;
-
-    fn deref(&self) -> &Self::Target {
-        &self.order_storage
-    }
+    validator:              OrderValidator<V>,
+    // list of subscribers to a specific order validation
+    order_validation_subs:  HashMap<B256, Vec<Sender<OrderValidationResults>>>,
+    orders_subscriber_tx:   tokio::sync::broadcast::Sender<PoolManagerUpdate>
 }
 
 impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
-    pub fn new(validator: V, order_storage: Arc<OrderStorage>, block_number: u64) -> Self {
+    pub fn new(
+        validator: V,
+        order_storage: Arc<OrderStorage>,
+        block_number: u64,
+        orders_subscriber_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>
+    ) -> Self {
         Self {
             order_storage,
             block_number,
             address_to_orders: HashMap::new(),
             hash_to_order_id: HashMap::new(),
             pending_order_indexing: HashMap::new(),
-            validator: OrderValidator::new(validator)
+            order_validation_subs: HashMap::new(),
+            validator: OrderValidator::new(validator),
+            orders_subscriber_tx
         }
     }
 
@@ -71,16 +75,61 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         self.hash_to_order_id.contains_key(&hash)
     }
 
-    pub fn new_order(&mut self, peer_id: PeerId, origin: OrderOrigin, order: AllOrders) {
+    pub fn new_rpc_order(
+        &mut self,
+        origin: OrderOrigin,
+        order: AllOrders,
+        validation_tx: tokio::sync::oneshot::Sender<OrderValidationResults>
+    ) {
+        self.new_order(None, origin, order, validation_tx)
+    }
+
+    pub fn new_network_order(
+        &mut self,
+        peer_id: PeerId,
+        origin: OrderOrigin,
+        order: AllOrders,
+        validation_tx: tokio::sync::oneshot::Sender<OrderValidationResults>
+    ) {
+        self.new_order(Some(peer_id), origin, order, validation_tx)
+    }
+
+    fn new_order(
+        &mut self,
+        peer_id: Option<PeerId>,
+        origin: OrderOrigin,
+        order: AllOrders,
+        validation_tx: Sender<OrderValidationResults>
+    ) {
+        // what is the best way to handle duplicates for:
+        //  1. rpc validation (valid/invalid order)
+        //  2. peer validation (valid/invalid order)
+        // if nothing is returned, the channel will block forever
+        // we probably want to cache the validation result to avoid extra computation?
+        // what about the case when a *peer* spams an invalid order?
         if self.is_duplicate(&order) {
             return
         }
 
+        if let Err(e) = self
+            .orders_subscriber_tx
+            .send(PoolManagerUpdate::NewOrder(order.clone()))
+        {
+            error!("could not send new order update {:?}", e)
+        }
+
         let hash = order.order_hash();
-        self.pending_order_indexing
+        if let Some(peer) = peer_id {
+            self.pending_order_indexing
+                .entry(hash)
+                .or_default()
+                .push(peer);
+        }
+
+        self.order_validation_subs
             .entry(hash)
             .or_default()
-            .push(peer_id);
+            .push(validation_tx);
 
         self.validator.validate_order(origin, order);
     }
@@ -167,7 +216,19 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         self.order_storage
             .reorg(orders)
             .into_iter()
-            .for_each(|order| self.validator.validate_order(OrderOrigin::Local, order));
+            .for_each(|order| {
+                if let Err(e) = self
+                    .orders_subscriber_tx
+                    .send(PoolManagerUpdate::UnfilledOrders(order.clone()))
+                {
+                    error!("could not send new order update {:?}", e)
+                }
+                self.validator.validate_order(OrderOrigin::Local, order)
+            });
+    }
+
+    fn subscribe_order_events(&self) -> tokio::sync::broadcast::Receiver<PoolManagerUpdate> {
+        self.orders_subscriber_tx.subscribe()
     }
 
     /// Removes all filled orders from the pools and moves to regular pool
@@ -189,6 +250,14 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
             })
             .collect::<Vec<OrderWithStorageData<AllOrders>>>();
 
+        for order in filled_orders.iter() {
+            if let Err(e) = self
+                .orders_subscriber_tx
+                .send(PoolManagerUpdate::FilledOrder((block, order.order.clone())))
+            {
+                tracing::error!("could not send filled order update {:?}", e)
+            }
+        }
         self.order_storage.add_filled_orders(block, filled_orders);
     }
 
@@ -208,14 +277,34 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         res: OrderValidationResults
     ) -> eyre::Result<PoolInnerEvent> {
         let res = match res {
-            OrderValidationResults::Valid(valid) => valid,
+            OrderValidationResults::Valid(valid) => {
+                if let Some(subscribers) = self.order_validation_subs.remove(&valid.order_hash()) {
+                    for subscriber in subscribers {
+                        if let Err(e) =
+                            subscriber.send(OrderValidationResults::Valid(valid.clone()))
+                        {
+                            error!("Failed to send order validation result to subscriber: {:?}", e);
+                        }
+                    }
+                }
+                valid
+            }
             OrderValidationResults::Invalid(bad_hash) => {
+                if let Some(subscribers) = self.order_validation_subs.remove(&bad_hash) {
+                    for subscriber in subscribers {
+                        if let Err(e) =
+                            subscriber.send(OrderValidationResults::Invalid(bad_hash.clone()))
+                        {
+                            error!("Failed to send order validation result to subscriber: {:?}", e);
+                        }
+                    }
+                }
+
                 let peers = self
                     .pending_order_indexing
                     .remove(&bad_hash)
                     .unwrap_or_default();
-
-                return Ok(PoolInnerEvent::BadOrderMessages(peers))
+                return Ok(PoolInnerEvent::BadOrderMessages(peers));
             }
             OrderValidationResults::TransitionedToBlock => return Ok(PoolInnerEvent::None)
         };

@@ -47,7 +47,7 @@ pub enum OrderSubscriptionKind {
 #[serde(rename_all = "camelCase")]
 pub enum OrderSubscriptionResult {
     NewOrder(AllOrders),
-    FilledOrder(AllOrders)
+    FilledOrder((u64, AllOrders))
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Default)]
