@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     pin::Pin,
-    sync::{mpsc::Receiver, Arc},
+    sync::Arc,
     task::{Context, Poll},
     time::{Duration, SystemTime, UNIX_EPOCH}
 };
@@ -26,7 +26,6 @@ use crate::{
     order_storage::OrderStorage,
     validator::{OrderValidator, OrderValidatorRes},
     PoolManagerUpdate,
-    PoolManagerUpdate::NewOrder
 };
 
 /// This is used to remove validated orders. During validation
