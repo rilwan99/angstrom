@@ -21,6 +21,14 @@ use crate::{
 
 type CrossPoolExclusions = Option<(Vec<Option<OrderExclusion>>, Vec<Option<OrderExclusion>>)>;
 
+pub enum VolumeFillMatchEndReason {
+    NoMoreBids,
+    NoMoreAsks,
+    BothSidesAMM,
+    NoLongerCross,
+    ZeroQuantity
+}
+
 #[derive(Clone)]
 pub struct VolumeFillMatcher<'a> {
     book:             &'a OrderBook,
@@ -115,7 +123,7 @@ impl<'a> VolumeFillMatcher<'a> {
         true
     }
 
-    pub fn fill(&mut self) {
+    pub fn fill(&mut self) -> VolumeFillMatchEndReason {
         {
             // Local temporary storage for bid and ask AMM orders since they're generated on
             // the fly and need somewhere to live while we use them
@@ -132,7 +140,7 @@ impl<'a> VolumeFillMatcher<'a> {
                                 .get(self.bid_idx.get())
                                 .map(OrderContainer::BookOrder)
                         }) else {
-                            break;
+                            return VolumeFillMatchEndReason::NoMoreBids;
                             // Break if there are no more valid bid orders to
                             // work with
                         };
@@ -149,7 +157,7 @@ impl<'a> VolumeFillMatcher<'a> {
                                 .get(self.ask_idx.get())
                                 .map(OrderContainer::BookOrder)
                         }) else {
-                            break;
+                            return VolumeFillMatchEndReason::NoMoreAsks;
                             // Break if there are no more valid bid orders to
                             // work with
                         };
@@ -159,12 +167,12 @@ impl<'a> VolumeFillMatcher<'a> {
 
                 // If we're talking to the AMM on both sides, we're done
                 if bid.is_amm() && ask.is_amm() {
-                    break
+                    return VolumeFillMatchEndReason::BothSidesAMM
                 }
 
                 // If our prices no longer cross, we're done
                 if ask.price() > bid.price() {
-                    break
+                    return VolumeFillMatchEndReason::NoLongerCross
                 }
 
                 // Limit to price so that AMM orders will only offer the quantity they can
@@ -175,11 +183,10 @@ impl<'a> VolumeFillMatcher<'a> {
                 // If either quantity is zero maybe we should break here? (could be a
                 // replacement for price cross checking if we implement that)
                 if ask_q == U256::ZERO || bid_q == U256::ZERO {
-                    break
+                    return VolumeFillMatchEndReason::ZeroQuantity
                 }
 
                 let matched = ask_q.min(bid_q);
-                let excess = bid_q - ask_q;
                 // Store the amount we matched
                 self.results.total_volume += matched;
 

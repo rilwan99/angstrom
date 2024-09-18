@@ -225,10 +225,12 @@ mod test {
     use alloy::{
         primitives::{address, Bytes, Uint, U256},
         providers::{Provider, ProviderBuilder},
-        rpc::types::Filter
+        rpc::types::Filter,
+        sol_types::SolValue
     };
     use angstrom_types::{
         contract_bindings::{
+            angstrom::Angstrom::PoolKey,
             mockrewardsmanager::MockRewardsManager::MockRewardsManagerInstance,
             poolmanager::PoolManager
         },
@@ -236,6 +238,7 @@ mod test {
         matching::SqrtPriceX96
     };
     use rand::thread_rng;
+    use reth_primitives::keccak256;
     use testing_tools::type_generator::orders::generate_top_of_block_order;
     use uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick;
 
@@ -454,9 +457,6 @@ mod test {
             .await
             .unwrap();
 
-        // let pool_gate = PoolGate::deploy(&provider, *pool_manager.address())
-        //     .await
-        //     .unwrap();
         let mock_tob_addr = testing_tools::contracts::deploy_mock_rewards_manager(
             &provider,
             *pool_manager.address()
@@ -516,6 +516,23 @@ mod test {
         let logs = provider.get_logs(&Filter::new()).await.unwrap();
         println!("Logs: {:?}", logs);
         assert!(call_return.is_ok(), "Failed to perform reward call!");
+
+        let pool_id = keccak256(
+            PoolKey {
+                currency0:   asset0,
+                currency1:   asset1,
+                fee:         0,
+                tickSpacing: 60,
+                hooks:       mock_tob_addr
+            }
+            .abi_encode()
+        );
+
+        for (tick, expected_reward) in tob_outcome.tick_donations.iter() {
+            let growth_call = mock_tob.getGrowthInsideTick(pool_id, *tick);
+            let result = growth_call.call().await.unwrap();
+            println!("Result for tick {}: {} - {:?}", tick, expected_reward, result._0);
+        }
         panic!("Butts");
     }
 }
