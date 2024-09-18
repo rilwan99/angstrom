@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
+import {LibString} from "solady/src/utils/LibString.sol";
+
 type OrderVariantMap is uint8;
 
 using OrderVariantMapLib for OrderVariantMap global;
@@ -56,5 +58,9 @@ library OrderVariantMapLib {
             if (variant.quantitiesPartial()) return "Flash_Partial";
             else return "Flash_Exact";
         }
+    }
+
+    function toStr(OrderVariantMap variant) internal pure returns (string memory) {
+        return LibString.fromSmallString(variant.asB32());
     }
 }

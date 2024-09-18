@@ -15,13 +15,13 @@ contract AssetTest is Test {
 
     function setUp() public {}
 
-    function test_fuzzing_referenceAssetEncoding(address addr, uint128 borrow, uint128 save, uint128 settle)
+    function test_fuzzing_referenceAssetEncoding(address addr, uint128 take, uint128 save, uint128 settle)
         public
         pure
     {
         assertEq(
-            RefAsset({addr: addr, borrow: borrow, save: save, settle: settle}).encode(),
-            abi.encodePacked(addr, borrow, save, settle)
+            RefAsset({addr: addr, take: take, save: save, settle: settle}).encode(),
+            abi.encodePacked(addr, take, save, settle)
         );
     }
 
@@ -41,7 +41,7 @@ contract AssetTest is Test {
             RefAsset calldata inpAsset = inputAssets[i];
             Asset encAsset = encodedAssets.get(i);
             assertEq(inpAsset.addr, encAsset.addr());
-            assertEq(inpAsset.borrow, encAsset.borrow());
+            assertEq(inpAsset.take, encAsset.take());
             assertEq(inpAsset.save, encAsset.save());
             assertEq(inpAsset.settle, encAsset.settle());
         }

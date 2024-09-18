@@ -2,6 +2,7 @@
 solc           = "0.8.26"
 bytecode_hash  = "none"
 viaIR = false
+show_progress = true
 optimizer_runs = 1_000_000
 verbosity      = 3
 fs_permissions = [{ access = "read-write", path = ".forge-snapshots/" }]
@@ -19,5 +20,13 @@ remappings = [
   "solmate/=lib/solmate/"
 ]
 
+[profile.default.invariant]
+fail_on_revert = true
+
+[profile.light-fuzz.invariant]
+runs = 100
+depth = 100
+
 [profile.dev-deopt]
 optimizer = false
+fuzz = { runs = 2_000 }

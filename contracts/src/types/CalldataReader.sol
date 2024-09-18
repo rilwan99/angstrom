@@ -174,7 +174,7 @@ library CalldataReaderLib {
             self.logPos(3, "u24/bytes.length");
             (CalldataReader postReader, bytes calldata b) = _readBytes(self);
             console.log(
-                "[CALLDATAREADER] reading next %s byte(s) at %s as bytes ->",
+                "[CalldataReader] reading next %s byte(s) at %s as bytes ->",
                 b.length.toStr().lpad(" ", 6),
                 postReader.offset().toHexString(3)
             );
@@ -212,7 +212,7 @@ library CalldataReaderLib {
         }
         console.log(
             string.concat(
-                "[CALLDATAREADER] reading next ",
+                "[CalldataReader] reading next ",
                 uint256(reading).toStr().lpad(" ", 6),
                 " byte(s) at ",
                 self.offset().toHexString(3),
