@@ -7,7 +7,7 @@ use crate::common::lru_db::{BlockStateProviderFactory, RevmLRU};
 
 /// sims the pre and post hook assuming
 #[derive(Clone)]
-pub struct SimValidation<DB = ()> {
+pub struct SimValidation<DB> {
     db: Arc<RevmLRU<DB>>
 }
 
