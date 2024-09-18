@@ -4,7 +4,7 @@ use angstrom_types::{
     orders::{OrderId, OrderPriorityData},
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
-        sol::FlashOrder
+        rpc_orders::PartialFlashOrder
     }
 };
 use rand_distr::{Distribution, SkewNormal};
@@ -30,23 +30,35 @@ pub fn order_distribution(
         .sample_iter(&mut rng)
         .zip(quantity_gen.sample_iter(&mut rng2))
         .map(|(p, q)| {
-            let order = GroupedVanillaOrder::KillOrFill(FlashOrder {
-                max_amount_in_or_out: U256::from(q.floor()),
-                min_price: Ray::from(p).into(),
-                ..FlashOrder::default()
-            });
+            let order = GroupedVanillaOrder::KillOrFill(
+                angstrom_types::sol_bindings::grouped_orders::FlashVariants::Partial(
+                    PartialFlashOrder {
+                        maxAmountIn: q.floor() as u128,
+                        minPrice: Ray::from(p).into(),
+                        ..Default::default()
+                    }
+                )
+            );
             OrderWithStorageData {
                 invalidates: vec![],
                 order,
                 priority_data: OrderPriorityData {
-                    price:  p as u128,
+                    price:  U256::from(p as u128),
                     volume: q as u128,
                     gas:    0
                 },
                 is_bid,
                 is_valid: true,
                 is_currently_valid: true,
-                order_id: OrderId::default(),
+                order_id: OrderId {
+                    flash_block:     None,
+                    reuse_avoidance: angstrom_types::sol_bindings::RespendAvoidanceMethod::Block(0),
+                    hash:            Default::default(),
+                    address:         Default::default(),
+                    deadline:        None,
+                    pool_id:         0,
+                    location:        angstrom_types::orders::OrderLocation::Limit
+                },
                 pool_id: 0,
                 valid_block: 0
             }

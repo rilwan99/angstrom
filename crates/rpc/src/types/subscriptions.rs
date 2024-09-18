@@ -3,12 +3,11 @@ use std::sync::Arc;
 use angstrom_types::{
     consensus::*, primitive::Angstrom::PoolKey, sol_bindings::grouped_orders::AllOrders
 };
-use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 use super::quoting::{Depth25, Depth5, BBO};
 
-#[derive(Debug, Encode, Decode, PartialEq, Eq, Hash, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum ConsensusSubscriptionKind {
@@ -23,7 +22,7 @@ pub enum ConsensusSubscriptionKind {
     Commits
 }
 
-#[derive(Debug, Encode, Decode, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum ConsensusSubscriptionResult {
@@ -37,21 +36,21 @@ pub enum ConsensusSubscriptionResult {
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum OrderSubscriptionKind {
-    /// Any new user order
-    NewUserOrder,
-    /// Any new searcher order
-    NewSearcherOrder,
-    /// Only new best searcher orders
-    NewBestSearcherOrder,
-    /// new transient limit orders
-    NewTransientLimitOrders
+    /// Any new orders
+    NewOrders,
+    /// Any new filled orders
+    FilledOrders,
+    /// Any new reorged orders
+    UnfilleOrders
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 #[serde(rename_all = "camelCase")]
 pub enum OrderSubscriptionResult {
-    Order(Arc<AllOrders>)
+    NewOrder(AllOrders),
+    FilledOrder((u64, AllOrders)),
+    UnfilledOrder(AllOrders)
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Default)]

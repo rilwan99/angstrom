@@ -6,7 +6,7 @@ use std::{
 use alloy_primitives::FixedBytes;
 use angstrom_types::{
     orders::OrderPriorityData,
-    sol_bindings::{grouped_orders::OrderWithStorageData, sol::TopOfBlockOrder}
+    sol_bindings::{grouped_orders::OrderWithStorageData, rpc_orders::TopOfBlockOrder}
 };
 
 pub struct PendingPool {

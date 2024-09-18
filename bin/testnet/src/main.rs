@@ -130,7 +130,7 @@ pub async fn spawn_testnet_node(
     let executor: TokioTaskExecutor = Default::default();
 
     let rpc_w = rpc_wrapper.clone();
-    let balls = rpc_wrapper
+    let state_stream = rpc_wrapper
         .provider
         .clone()
         .subscribe_blocks()
@@ -153,19 +153,22 @@ pub async fn spawn_testnet_node(
         })
         .buffer_unordered(10);
 
-    let order_api = OrderApi { pool: pool.clone() };
+    let order_api = OrderApi::new(pool.clone(), executor.clone());
     let eth_handle = AnvilEthDataCleanser::spawn(
         executor.clone(),
         contract_address,
         handles.eth_tx,
         handles.eth_rx,
-        balls,
+        state_stream,
         7,
         span
     )
     .await?;
 
-    let validator = init_validation(rpc_wrapper, CACHE_VALIDATION_SIZE);
+    let validator = init_validation(
+        rpc_wrapper,
+        CACHE_VALIDATION_SIZE
+    );
 
     let network_handle = network.handle.clone();
 
@@ -180,8 +183,8 @@ pub async fn spawn_testnet_node(
         handles.pool_rx
     )
     .with_config(pool_config)
-    .build_with_channels(executor, handles.orderpool_tx, handles.orderpool_rx);
-
+    .build_with_channels(executor, handles.orderpool_tx, handles.orderpool_rx, handles.pool_manager_tx
+    );
     if let Some(port) = port {
         let server = ServerBuilder::default()
             .build(format!("127.0.0.1:{}", port))
