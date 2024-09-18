@@ -204,27 +204,5 @@ pub mod test_fetching {
                 .get(&user)
                 .and_then(|inner| inner.value().get(&token).cloned())
         }
-
-        // fn fetch_with_command(&self, command: FetchCommandRequest) -> oneshot::Receiver<FetchCommandResponse> {
-        //     let result = match command {
-        //         FetchCommandRequest::IsValidNonce(user, nonce,tx) => {
-        //             FetchCommandResponse::IsValidNonce(self.is_valid_nonce(user, nonce))
-        //         }
-        //         FetchCommandRequest::FetchApprovalBalanceForTokenOverrides(user, token, overrides) => {
-        //             FetchCommandResponse::FetchBalance(self.fetch_approval_balance_for_token_overrides(user, token, &overrides))
-        //         }
-        //         FetchCommandRequest::FetchApprovalBalanceForToken(user, token) => {
-        //             FetchCommandResponse::FetchBalance(self.fetch_approval_balance_for_token(user, token))
-        //         }
-        //         FetchCommandRequest::FetchBalanceForTokenOverrides(user, token, overrides) => {
-        //             FetchCommandResponse::FetchBalance(self.fetch_balance_for_token_overrides(user, token, &overrides))
-        //         }
-        //         FetchCommandRequest::FetchBalanceForToken(user, token) => {
-        //             FetchCommandResponse::FetchBalance(self.fetch_balance_for_token(user, token))
-        //         }
-        //     };
-        //     let _ = tx.send(result);
-        //     rx
-        // }
     }
 }
