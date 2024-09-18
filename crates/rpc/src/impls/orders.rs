@@ -1,3 +1,4 @@
+use alloy_primitives::{Address, U256};
 use angstrom_types::{
     orders::OrderOrigin,
     sol_bindings::{
@@ -11,30 +12,32 @@ use angstrom_types::{
 use jsonrpsee::{core::RpcResult, PendingSubscriptionSink, SubscriptionMessage};
 use order_pool::{OrderPoolHandle, PoolManagerUpdate};
 use reth_tasks::TaskSpawner;
+use validation::{
+    common::lru_db::BlockStateProviderFactory, order::state::db_state_utils::FetchUtils
+};
 
 use crate::{
     api::OrderApiServer,
     types::{OrderSubscriptionKind, OrderSubscriptionResult}
 };
 
-pub struct OrderApi<OrderPool, Spawner> {
-    pool:             OrderPool,
-    task_spawner:     Spawner,
+pub struct OrderApi<OrderPool, DB, Spawner> {
+    pool:         OrderPool,
+    fetcher:      FetchUtils<DB>,
+    task_spawner: Spawner
 }
 
-impl<OrderPool, Spawner> OrderApi<OrderPool, Spawner> {
-    pub fn new(pool: OrderPool, task_spawner: Spawner) -> Self {
-        Self {
-            pool,
-            task_spawner,
-        }
+impl<OrderPool, DB, Spawner> OrderApi<OrderPool, DB, Spawner> {
+    pub fn new(pool: OrderPool, fetcher: FetchUtils<DB>, task_spawner: Spawner) -> Self {
+        Self { pool, fetcher, task_spawner }
     }
 }
 
 #[async_trait::async_trait]
-impl<OrderPool, Spawner> OrderApiServer for OrderApi<OrderPool, Spawner>
+impl<OrderPool, DB, Spawner> OrderApiServer for OrderApi<OrderPool, DB, Spawner>
 where
     OrderPool: OrderPoolHandle,
+    DB: BlockStateProviderFactory + 'static,
     Spawner: TaskSpawner + 'static
 {
     async fn send_partial_standing_order(&self, order: PartialStandingOrder) -> RpcResult<bool> {
@@ -51,7 +54,6 @@ where
         let order = AllOrders::TOB(order);
         Ok(self.pool.new_order(OrderOrigin::External, order).await)
     }
-
     async fn send_partial_flash_order(&self, order: PartialFlashOrder) -> RpcResult<bool> {
         let order = AllOrders::Flash(FlashVariants::Partial(order));
         Ok(self.pool.new_order(OrderOrigin::External, order).await)
@@ -60,6 +62,14 @@ where
     async fn send_exact_flash_order(&self, order: ExactFlashOrder) -> RpcResult<bool> {
         let order = AllOrders::Flash(FlashVariants::Exact(order));
         Ok(self.pool.new_order(OrderOrigin::External, order).await)
+    }
+
+    async fn fetch_approval(&self, user: Address, token: Address) -> RpcResult<Option<U256>>{
+        Ok(self.fetcher.approvals.fetch_approval_balance_for_token(user, token, &self.fetcher.db))
+    }
+
+    async fn fetch_balance(&self, user: Address, token: Address) -> RpcResult<Option<U256>>{
+        Ok(self.fetcher.balances.fetch_balance_for_token(user, token, &self.fetcher.db))
     }
 
     async fn subscribe_orders(
@@ -100,7 +110,7 @@ where
                             if sink.send(message).await.is_err() {
                                 break;
                             }
-                        },
+                        }
                         Err(e) => {
                             tracing::error!("Failed to serialize subscription message: {:?}", e);
                         }

@@ -52,7 +52,7 @@ impl TestnetOrderPool {
                 eth_network_events,
                 tx,
                 rx,
-                order_events,
+                order_events
             ),
             pool_handle:  handle
         }
