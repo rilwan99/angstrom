@@ -1291,7 +1291,6 @@ dependencies = [
  "consensus",
  "hyper 1.4.1",
  "jsonrpsee",
- "lru",
  "metrics 0.21.1",
  "order-pool",
  "rand 0.8.5",

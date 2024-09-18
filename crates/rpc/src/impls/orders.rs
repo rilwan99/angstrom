@@ -1,5 +1,3 @@
-use std::{num::NonZeroUsize, sync::Mutex};
-
 use angstrom_types::{
     orders::OrderOrigin,
     sol_bindings::{
@@ -11,7 +9,6 @@ use angstrom_types::{
     }
 };
 use jsonrpsee::{core::RpcResult, PendingSubscriptionSink, SubscriptionMessage};
-use lru::LruCache;
 use order_pool::{OrderPoolHandle, PoolManagerUpdate};
 use reth_tasks::TaskSpawner;
 
@@ -23,7 +20,6 @@ use crate::{
 pub struct OrderApi<OrderPool, Spawner> {
     pool:             OrderPool,
     task_spawner:     Spawner,
-    validated_orders: Mutex<LruCache<[u8; 32], bool>>
 }
 
 impl<OrderPool, Spawner> OrderApi<OrderPool, Spawner> {
@@ -31,7 +27,6 @@ impl<OrderPool, Spawner> OrderApi<OrderPool, Spawner> {
         Self {
             pool,
             task_spawner,
-            validated_orders: Mutex::new(LruCache::new(NonZeroUsize::new(1000).unwrap()))
         }
     }
 }
@@ -44,27 +39,27 @@ where
 {
     async fn send_partial_standing_order(&self, order: PartialStandingOrder) -> RpcResult<bool> {
         let order = AllOrders::Standing(StandingVariants::Partial(order));
-        Ok(self.validate_and_send_order(order).await)
+        Ok(self.pool.new_order(OrderOrigin::External, order).await)
     }
 
     async fn send_exact_standing_order(&self, order: ExactStandingOrder) -> RpcResult<bool> {
         let order = AllOrders::Standing(StandingVariants::Exact(order));
-        Ok(self.validate_and_send_order(order).await)
+        Ok(self.pool.new_order(OrderOrigin::External, order).await)
     }
 
     async fn send_searcher_order(&self, order: TopOfBlockOrder) -> RpcResult<bool> {
         let order = AllOrders::TOB(order);
-        Ok(self.validate_and_send_order(order).await)
+        Ok(self.pool.new_order(OrderOrigin::External, order).await)
     }
 
     async fn send_partial_flash_order(&self, order: PartialFlashOrder) -> RpcResult<bool> {
         let order = AllOrders::Flash(FlashVariants::Partial(order));
-        Ok(self.validate_and_send_order(order).await)
+        Ok(self.pool.new_order(OrderOrigin::External, order).await)
     }
 
     async fn send_exact_flash_order(&self, order: ExactFlashOrder) -> RpcResult<bool> {
         let order = AllOrders::Flash(FlashVariants::Exact(order));
-        Ok(self.validate_and_send_order(order).await)
+        Ok(self.pool.new_order(OrderOrigin::External, order).await)
     }
 
     async fn subscribe_orders(
@@ -115,31 +110,6 @@ where
         }));
 
         Ok(())
-    }
-}
-
-impl<OrderPool, Spawner> OrderApi<OrderPool, Spawner>
-where
-    OrderPool: OrderPoolHandle,
-    Spawner: TaskSpawner + 'static
-{
-    async fn validate_and_send_order(&self, order: AllOrders) -> bool {
-        let order_hash = order.order_hash();
-
-        if let Some(&is_valid) = self
-            .validated_orders
-            .lock()
-            .unwrap()
-            .get::<[u8; 32]>(&order_hash)
-        {
-            return is_valid;
-        }
-        let is_valid = self.pool.new_order(OrderOrigin::External, order).await;
-        self.validated_orders
-            .lock()
-            .unwrap()
-            .put(order_hash.into(), is_valid);
-        is_valid
     }
 }
 

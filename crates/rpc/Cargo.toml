@@ -21,7 +21,6 @@ consensus.workspace = true
 order-pool.workspace = true
 validation.workspace =  true
 
-
 reth-primitives.workspace = true
 reth-tasks.workspace = true
 reth-metrics = { workspace = true, features = ["common"] }
@@ -39,8 +38,6 @@ async-trait.workspace = true
 thiserror.workspace = true
 metrics.workspace = true
 tracing.workspace = true
-
-lru = "0.12.4"
 
 tower-http = { version = "0.5.2", features = ["full"] }
 tower = { version = "0.4.13", features = ["full"] }

@@ -8,6 +8,8 @@ pub mod order_storage;
 mod searcher;
 mod validator;
 
+use std::future::Future;
+
 use angstrom_types::{orders::OrderOrigin, sol_bindings::grouped_orders::AllOrders};
 pub use angstrom_utils::*;
 pub use config::PoolConfig;

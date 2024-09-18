@@ -26,9 +26,9 @@ use futures::{
     stream::{BoxStream, FuturesUnordered},
     Future, FutureExt, Stream, StreamExt
 };
+use order_pool::order_storage::OrderStorage;
 use order_pool::{
-    order_storage::OrderStorage, OrderIndexer, OrderPoolHandle, PoolConfig, PoolInnerEvent,
-    PoolManagerUpdate
+    OrderIndexer, OrderPoolHandle, PoolConfig, PoolInnerEvent, PoolManagerUpdate
 };
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_network::transactions::ValidationOutcome;
@@ -110,7 +110,7 @@ where
     V: OrderValidatorHandle
 {
     validator:            V,
-    order_indexer:        Option<Arc<OrderStorage>>,
+    order_storage:        Option<Arc<OrderStorage>>,
     network_handle:       StromNetworkHandle,
     strom_network_events: UnboundedReceiverStream<StromNetworkEvent>,
     eth_network_events:   UnboundedReceiverStream<EthEvent>,
@@ -135,7 +135,7 @@ where
             strom_network_events: network_handle.subscribe_network_events(),
             network_handle,
             validator,
-            order_indexer,
+            order_storage,
             config: Default::default()
         }
     }
@@ -146,7 +146,7 @@ where
     }
 
     pub fn with_storage(mut self, order_storage: Arc<OrderStorage>) -> Self {
-        self.order_indexer.insert(order_storage);
+        self.order_storage.insert(order_storage);
         self
     }
 
@@ -159,7 +159,7 @@ where
     ) -> PoolHandle {
         let rx = UnboundedReceiverStream::new(rx);
         let order_storage = self
-            .order_indexer
+            .order_storage
             .unwrap_or_else(|| Arc::new(OrderStorage::new(&self.config)));
         let handle =
             PoolHandle { manager_tx: tx.clone(), pool_manager_tx: pool_manager_tx.clone() };
@@ -251,7 +251,6 @@ where
         _command_tx: UnboundedSender<OrderCommand>,
         command_rx: UnboundedReceiverStream<OrderCommand>,
         order_events: UnboundedMeteredReceiver<NetworkOrderEvent>,
-        order_storage: Arc<OrderStorage>
     ) -> Self {
         Self {
             strom_network_events,
@@ -299,19 +298,11 @@ where
                         .get_mut(&peer_id)
                         .map(|peer| peer.orders.insert(order.order_hash()));
 
-                    // how should the bad order be handled
-                    let (tx, rx) = tokio::sync::oneshot::channel();
                     self.order_indexer.new_network_order(
                         peer_id,
                         OrderOrigin::External,
                         order.clone(),
-                        tx
                     );
-
-                    // TODO: how do we want to await
-                    // rx.await
-                    self.network
-                        .peer_reputation_change(peer_id, ReputationChangeKind::BadOrder);
                 });
             }
         }
