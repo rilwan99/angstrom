@@ -57,7 +57,9 @@ library RewardLib {
         // Ensure current tick update doesn't get separated into its own update.
         if (rewards[0].tick == currentTick) {
             updates = new RewardsUpdate[](1);
-            updates[0] = _createRewardUpdateAbove(uni, id, rewards, currentTick);
+            updates[0] = rewards.length == 1
+                ? _createOnlyCurrentUpdate(uni, id, currentTick, rewards[0].amount)
+                : _createRewardUpdateAbove(uni, id, rewards, currentTick);
             return updates;
         } else if (rewards[rewards.length - 1].tick == currentTick) {
             updates = new RewardsUpdate[](1);
@@ -110,6 +112,18 @@ library RewardLib {
                 lastTick = tick;
             }
         }
+    }
+
+    function _createOnlyCurrentUpdate(IPoolManager uni, PoolId id, int24 currentTick, uint128 amount)
+        private
+        view
+        returns (RewardsUpdate memory update)
+    {
+        update.startTick = currentTick;
+        (, int128 netLiquidity) = uni.getTickLiquidity(id, currentTick);
+        update.startLiquidity = MixedSignLib.sub(uni.getPoolLiquidity(id), netLiquidity);
+        update.quantities = new uint128[](2);
+        update.quantities[1] = amount;
     }
 
     function _createRewardUpdateBelow(IPoolManager uni, PoolId id, TickReward[] memory rewards, int24 currentTick)

@@ -21,12 +21,6 @@ import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {ConversionLib} from "src/libraries/ConversionLib.sol";
 import {HookDeployer} from "test/_helpers/HookDeployer.sol";
 
-import {Bundle} from "src/reference/Bundle.sol";
-import {Asset} from "src/reference/Asset.sol";
-import {PoolUpdate, RewardsUpdate} from "src/reference/PoolUpdate.sol";
-import {TopOfBlockOrder} from "src/reference/OrderTypes.sol";
-
-import {EnumerableSetLib} from "solady/src/utils/EnumerableSetLib.sol";
 import {console} from "forge-std/console.sol";
 
 /// @author philogy <https://github.com/philogy>
@@ -74,10 +68,29 @@ contract PoolRewardsInvariantTest is BaseTest, HookDeployer {
 
         handler.addLiquidity(-2 * TICK_SPACING, startTick, 1e21);
         handler.addLiquidity(startTick, 2 * TICK_SPACING, 1e21);
+        handler.addLiquidity(-3 * TICK_SPACING, 1 * TICK_SPACING, 0.0083e21);
+        handler.addLiquidity(-10 * TICK_SPACING, -9 * TICK_SPACING, 0.83e21);
     }
 
-    function invariant_thereIsNoWarInBaSingSe() public view {
-        assertEq(handler.ghost_totalInititalizedTicks(), 3);
+    function invariant_rewardsDistributedWell() public view {
+        PoolRewardsHandler.Position[] memory positions = handler.ghost_positions();
+        TickReward[] memory rewards = handler.ghost_tickRewards();
+
+        for (uint256 i = 0; i < positions.length; i++) {
+            PoolRewardsHandler.Position memory pos = positions[i];
+            uint256 totalReward = 0;
+            for (uint256 j = 0; j < rewards.length; j++) {
+                TickReward memory reward = rewards[j];
+                if (pos.lowerTick <= reward.tick && reward.tick < pos.upperTick) {
+                    totalReward += reward.amount * pos.liquidity / handler.ghost_liquidityAtTick(reward.tick);
+                }
+            }
+            assertApproxEqRel(
+                totalReward,
+                angstrom.positionRewardGrowth(id, pos.lowerTick, pos.upperTick, u128(pos.liquidity)),
+                0.0001e18
+            );
+        }
     }
 
     function poolKey() internal view returns (PoolKey memory) {

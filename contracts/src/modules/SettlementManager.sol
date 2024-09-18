@@ -36,7 +36,7 @@ abstract contract SettlementManager is UniConsumer {
             Asset asset = assets.getUnchecked(i);
             uint256 amount = asset.take();
             address addr = asset.addr();
-            UNI_V4.take(addr.intoC(), address(this), amount);
+            if (amount > 0) UNI_V4.take(addr.intoC(), address(this), amount);
             tBundleDeltas.add(addr, amount);
         }
     }

@@ -7,7 +7,6 @@ optimizer_runs = 1_000_000
 verbosity      = 3
 fs_permissions = [{ access = "read-write", path = ".forge-snapshots/" }]
 evm_version    = "cancun"
-invariant = { fail_on_revert = true }
 
 ignored_error_codes = [
   2394, # Transient storage warning
@@ -20,6 +19,13 @@ remappings = [
   "v4-core/src/=lib/v4-core/src/",
   "solmate/=lib/solmate/"
 ]
+
+[profile.default.invariant]
+fail_on_revert = true
+
+[profile.light-fuzz.invariant]
+runs = 100
+depth = 100
 
 [profile.dev-deopt]
 optimizer = false

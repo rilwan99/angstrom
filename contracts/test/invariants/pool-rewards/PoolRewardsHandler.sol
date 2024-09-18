@@ -12,10 +12,7 @@ import {PoolGate} from "test/_helpers/PoolGate.sol";
 import {TickLib} from "src/libraries/TickLib.sol";
 import {TickReward, RewardLib} from "test/_helpers/RewardLib.sol";
 import {UsedIndexMap} from "super-sol/collections/UsedIndexMap.sol";
-import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
-import {ConversionLib} from "src/libraries/ConversionLib.sol";
-import {HookDeployer} from "test/_helpers/HookDeployer.sol";
 
 import {Bundle} from "src/reference/Bundle.sol";
 import {Asset} from "src/reference/Asset.sol";
@@ -23,13 +20,10 @@ import {PoolUpdate, RewardsUpdate} from "src/reference/PoolUpdate.sol";
 import {TopOfBlockOrder} from "src/reference/OrderTypes.sol";
 
 import {EnumerableSetLib} from "solady/src/utils/EnumerableSetLib.sol";
-import {console} from "forge-std/console.sol";
-import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 /// @author philogy <https://github.com/philogy>
 contract PoolRewardsHandler is BaseTest {
     using EnumerableSetLib for EnumerableSetLib.Int256Set;
-    using FormatLib for *;
 
     using RewardLib for TickReward[];
 
@@ -41,8 +35,6 @@ contract PoolRewardsHandler is BaseTest {
     MockERC20 public immutable asset0;
     MockERC20 public immutable asset1;
     Account public rewarder = makeAccount("rewarder");
-
-    EnumerableSetLib.Int256Set internal ghost_initializedTicks;
 
     constructor(
         UniV4Inspector uniV4_,
@@ -71,44 +63,73 @@ contract PoolRewardsHandler is BaseTest {
         }
     }
 
+    struct Position {
+        int24 lowerTick;
+        int24 upperTick;
+        uint256 liquidity;
+    }
+
+    EnumerableSetLib.Int256Set internal _ghost_initializedTicks;
+    Position[] internal _ghost_postitions;
+
+    mapping(int24 => uint256) public ghost_liquidityAtTick;
+
+    function ghost_initializedTicks() public view returns (int24[] memory ticks) {
+        int256[] memory initialized = _ghost_initializedTicks.values();
+        assembly ("memory-safe") {
+            ticks := initialized
+        }
+    }
+
+    function ghost_positions() public view returns (Position[] memory) {
+        return _ghost_postitions;
+    }
+
     function addLiquidity(int24 lowerTick, int24 upperTick, uint256 liquidity) public {
         assertGt(liquidity, 0, "Liquidity zero");
         assertLt(lowerTick, upperTick, "Upper tick below or equal to lower tick");
         assertEq(lowerTick % TICK_SPACING, 0, "Lower tick incorrectly spaced");
         assertEq(upperTick % TICK_SPACING, 0, "Lower tick incorrectly spaced");
         gate.addLiquidity(address(asset0), address(asset1), lowerTick, upperTick, liquidity);
-        ghost_initializedTicks.add(lowerTick);
-        ghost_initializedTicks.add(upperTick);
+        _ghost_initializedTicks.add(lowerTick);
+        _ghost_initializedTicks.add(upperTick);
+        _ghost_postitions.push(Position(lowerTick, upperTick, liquidity));
+
+        for (int24 tick = lowerTick; tick < upperTick; tick += TICK_SPACING) {
+            ghost_liquidityAtTick[tick] += liquidity;
+        }
     }
 
     function r() public view returns (address) {
         return rewarder.addr;
     }
 
-    TickReward[] temp_tickRewards;
+    TickReward[] _ghost_tickRewards;
+
+    function ghost_tickRewards() public view returns (TickReward[] memory) {
+        return _ghost_tickRewards;
+    }
 
     function rewardLiquidity(uint256 ticksToReward, PRNG memory rng) public {
-        uint256 totalTicks = ghost_initializedTicks.length();
+        uint256 totalTicks = _ghost_initializedTicks.length();
         ticksToReward = bound(ticksToReward, 0, totalTicks);
 
         // Select ticks & amounts to reward with.
         uint128 total = 0;
-        assembly {
-            sstore(temp_tickRewards.slot, 0)
-        }
         UsedIndexMap memory map;
         map.init(totalTicks, totalTicks / 4);
+        TickReward[] memory rewards = new TickReward[](ticksToReward);
         for (uint256 i = 0; i < ticksToReward; i++) {
-            int24 tick = int24(ghost_initializedTicks.at(rng.useRandIndex(map)));
+            int24 tick = int24(_ghost_initializedTicks.at(rng.useRandIndex(map)));
             uint128 amount = u128(rng.randmag(0.8e18, 100.0e18));
             total += amount;
-            temp_tickRewards.push(TickReward({tick: tick, amount: amount}));
+            _ghost_tickRewards.push(rewards[i] = TickReward({tick: tick, amount: amount}));
         }
 
         vm.prank(msg.sender);
         asset0.mint(rewarder.addr, total);
 
-        RewardsUpdate[] memory rewardUpdates = temp_tickRewards.toUpdates(uniV4, id);
+        RewardsUpdate[] memory rewardUpdates = rewards.toUpdates(uniV4, id);
         Bundle memory bundle;
         bundle.assets = new Asset[](2);
         bundle.assets[0].addr = address(asset0);
@@ -121,10 +142,18 @@ contract PoolRewardsHandler is BaseTest {
 
         for (uint256 i = 0; i < rewardUpdates.length; i++) {
             PoolUpdate memory poolUpdate = bundle.poolUpdates[i];
+
             poolUpdate.assetIn = address(asset0);
             poolUpdate.assetOut = address(asset1);
             poolUpdate.rewardUpdate = rewardUpdates[i];
             RewardsUpdate memory rewardUpdate = poolUpdate.rewardUpdate;
+            uint256[] memory amounts;
+            {
+                uint128[] memory quants = rewardUpdate.quantities;
+                assembly ("memory-safe") {
+                    amounts := quants
+                }
+            }
 
             for (uint256 j = 0; j < rewardUpdate.quantities.length; j++) {
                 tob.quantityIn += rewardUpdate.quantities[j];
@@ -142,10 +171,6 @@ contract PoolRewardsHandler is BaseTest {
     }
 
     function ghost_totalInititalizedTicks() public view returns (uint256) {
-        return ghost_initializedTicks.length();
-    }
-
-    function poolKey() internal view returns (PoolKey memory) {
-        return ConversionLib.toPoolKey(address(angstrom), address(asset0), address(asset1));
+        return _ghost_initializedTicks.length();
     }
 }
