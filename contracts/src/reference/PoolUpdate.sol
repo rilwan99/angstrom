@@ -12,6 +12,7 @@ struct PoolUpdate {
 }
 
 struct RewardsUpdate {
+    bool below;
     int24 startTick;
     uint128 startLiquidity;
     uint128[] quantities;
@@ -44,6 +45,11 @@ library PoolUpdateLib {
         }
         encodedQuantities = bytes.concat(bytes3(encodedQuantities.length.toUint24()), encodedQuantities);
 
-        return bytes.concat(bytes3(uint24(self.startTick)), bytes16(self.startLiquidity), encodedQuantities);
+        return bytes.concat(
+            self.below ? bytes1(0x01) : bytes1(0x00),
+            bytes3(uint24(self.startTick)),
+            bytes16(self.startLiquidity),
+            encodedQuantities
+        );
     }
 }

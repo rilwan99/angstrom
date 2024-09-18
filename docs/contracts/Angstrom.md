@@ -156,20 +156,48 @@ recommended to net out multiple swaps against the same pool into one to save on 
 |`swap_in_quantity: u128`|The swap input quantity in the input asset's base units.|
 |`rewards_update: RewardsUpdate`| The pool's LP rewards to distribute *after* the pool swap is executed  |
 
-**Rewards Update**
+##### Rewards Update
 
-Solidity: [decoding implementation (`_decodeAndReward`)](../../contracts/modules/RewardsUpdater.sol) | [reference encoding](../../contracts/src/reference/PoolRewardsUpdate.sol).
+Solidity: [decoding implementation (`_decodeAndReward`)](../../contracts/src/modules/RewardsUpdater.sol) | [reference encoding](../../contracts/src/reference/PoolRewardsUpdate.sol).
 
 ```rust
 struct RewardsUpdate {
+    below: bool,
     start_tick: i24,
     start_liquidity: u128,
     quantities: List<u128>
 }
 ```
 
-To gain a better intuition over how parameters need to be set it's good to have an understanding how
-the meaning of a tick's `reward_growth_outside` changes _relative to the current tick_:
+The rewards update data informs the Angstrom contract where to begin the reward update loop
+(`startTick`) and what quantities to donate. The `start_liquidity` value informs the contract what
+the total liquidity is at the start as this cannot be efficiently querried. Note that the value is
+eventually checked however and is computed as the loop progresses to ensure consistency of reward
+distribution.
+
+To donate only to the current tick one must set a `start_tick` that is itself already out-of-bounds
+(for `below = true` this is any tick `> current_tick`, for `below = false` this is nay tick `<=
+current_tick`).
+
+|Field|Description |
+|-----|-----------|
+|`below: bool`| Whether the reward update starts below or above the current tick.|
+|`start_tick: i24`| When `below = true` the current tick: the first tick **above** the first tick to donate to. <br> When rewarding above: just the first tick actually being donated to. |
+|`start_liquidity: u128`|The current liquidity if `start_tick` were the current tick.|
+|`quantities: List<u128>`|The reward for each initialized tick range *including* the current tick in
+`asset0` base units.|
+
+**Reward Update Internals**
+
+To gain a better intuition over how parameters need to be set it's good to understand how the reward
+update loop operates. The main purpose of the loop is to update the _internal_
+`reward_growth_outside` value of the ticks it passes. The "growth outside" values represent
+cumulative rewards in such a way where the total rewards accrued by a liquidity range can be
+efficiently computed later.
+
+To understand why rewarding above and below the current tick requires different starting values
+we need to understand how the meaning of a tick's `reward_growth_outside` value changes
+_relative to the current tick_:
 
 ![](./assets/fee-growth-outside-meaning.png)
 
@@ -185,7 +213,6 @@ Generally the logic for updating pool rewards looks as follows:
 def update_rewards(
     pool: Pool,
     start_tick: Tick,
-    reward_to_current: int,
     quantities: list[int],
     liquidity: int,
     below: bool
@@ -194,10 +221,8 @@ def update_rewards(
 
     end_tick: Tick = get_current_tick()
     ticks: list[Tick] = initialized_tick_range(start_tick, end_tick, include_end=below)
-    # Missing quantities interpreted as zeros
-    padded_quantities: list[int] = quantities + [0] * max(0, len(ticks) - len(quantities))
 
-    for tick, quantity in zip(ticks, padded_quantities):
+    for tick, quantity in zip(ticks, quantities):
         cumulative_reward_growth += quantity / liquidity
         tick.reward_growth_outside += cumulative_reward_growth
 
@@ -206,22 +231,15 @@ def update_rewards(
         else:
             liquidity -= tick.net_liquidity
 
-    # Last quantity assumed to be reward for current tick.
-    if len(quantities) > len(ticks):
-        current_tick_reward: int = quantities[len(ticks)]
-        cumulative_reward_growth += current_tick_reward / liquidity
+    assert len(quantities) == len(ticks) + 1, 'Unused quantities'
 
+    current_tick_reward: int = quantities[len(ticks)]
+    cumulative_reward_growth += current_tick_reward / liquidity
     pool.global_reward_growth += sum(quantities)
 
-    assert len(quantities) <= len(ticks) + 1, 'Unused quantities'
     assert liquidity == get_current_liquidity(), 'Invalid set start liquidity'
 ```
 
-|Field|Description |
-|-----|-----------|
-|`start_tick: i24`| When rewarding below the current tick: the first tick **above** the first tick to donate to. <br> When rewarding above: just the first tick actually being donated to. |
-|`start_liquidity: u128`|The current liquidity if `start_tick` were the current tick.|
-|`quantities: List<u128>`|The reward for each initialized tick. Zeros at the end of the array can be left out. To donate to the current tick append a quantity.|
 
 #### `TopOfBlockOrder`
 

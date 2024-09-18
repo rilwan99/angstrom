@@ -9,6 +9,9 @@ import {TickLib} from "src/libraries/TickLib.sol";
 import {MixedSignLib} from "src/libraries/MixedSignLib.sol";
 import {VecLib, UintVec} from "super-sol/collections/Vec.sol";
 
+import {console} from "forge-std/console.sol";
+import {FormatLib} from "super-sol/libraries/FormatLib.sol";
+
 struct TickReward {
     int24 tick;
     uint128 amount;
@@ -18,6 +21,8 @@ using RewardLib for TickReward global;
 
 /// @author philogy <https://github.com/philogy>
 library RewardLib {
+    using FormatLib for *;
+
     using RewardLib for TickReward[];
     using IUniV4 for IPoolManager;
     using TickLib for uint256;
@@ -57,9 +62,7 @@ library RewardLib {
         // Ensure current tick update doesn't get separated into its own update.
         if (rewards[0].tick == currentTick) {
             updates = new RewardsUpdate[](1);
-            updates[0] = rewards.length == 1
-                ? _createOnlyCurrentUpdate(uni, id, currentTick, rewards[0].amount)
-                : _createRewardUpdateAbove(uni, id, rewards, currentTick);
+            updates[0] = _createRewardUpdateAbove(uni, id, rewards, currentTick);
             return updates;
         } else if (rewards[rewards.length - 1].tick == currentTick) {
             updates = new RewardsUpdate[](1);
@@ -114,24 +117,14 @@ library RewardLib {
         }
     }
 
-    function _createOnlyCurrentUpdate(IPoolManager uni, PoolId id, int24 currentTick, uint128 amount)
-        private
-        view
-        returns (RewardsUpdate memory update)
-    {
-        update.startTick = currentTick;
-        (, int128 netLiquidity) = uni.getTickLiquidity(id, currentTick);
-        update.startLiquidity = MixedSignLib.sub(uni.getPoolLiquidity(id), netLiquidity);
-        update.quantities = new uint128[](2);
-        update.quantities[1] = amount;
-    }
-
     function _createRewardUpdateBelow(IPoolManager uni, PoolId id, TickReward[] memory rewards, int24 currentTick)
         private
         view
         returns (RewardsUpdate memory update)
     {
         require(rewards.length > 0, "No rewards");
+
+        update.below = true;
 
         UintVec memory amounts = VecLib.uint_with_cap(rewards.length * 2);
 
@@ -141,33 +134,39 @@ library RewardLib {
         bool startTickSet = false;
         int128 cumNetLiquidity = 0;
 
+        console.log("build below loop");
         while (tick <= currentTick) {
+            console.log("i: %s", i);
             if (initialized && startTickSet) {
+                console.log("  adding net of %s", tick.toStr());
                 (, int128 liquidityNet) = uni.getTickLiquidity(id, tick);
                 cumNetLiquidity += liquidityNet;
             }
             (initialized, tick) = uni.getNextTickUp(id, tick);
-            if (initialized && i < rewards.length) {
-                TickReward memory reward = rewards[i];
-                if (reward.tick < tick) {
-                    if (!startTickSet) {
-                        update.startTick = tick;
-                        startTickSet = true;
+            if (initialized) {
+                if (i < rewards.length) {
+                    TickReward memory reward = rewards[i];
+                    if (reward.tick < tick) {
+                        if (!startTickSet) {
+                            update.startTick = tick;
+                            startTickSet = true;
+                        }
+                        amounts.push(reward.amount);
+                        i++;
+                    } else if (startTickSet) {
+                        amounts.push(0);
                     }
-                    amounts.push(reward.amount);
-                    i++;
                 } else if (startTickSet) {
                     amounts.push(0);
                 }
             }
         }
 
-        if (i < rewards.length) {
-            require(
-                i + 1 == rewards.length && rewards[i].tick == currentTick, "Donating above in _createRewardUpdateBelow"
-            );
-            amounts.push(rewards[i].amount);
-        }
+        console.log("=== done");
+        console.log("i: %s", i);
+        console.log("rewards.length: %s", rewards.length);
+
+        require(i == rewards.length, "Not all rewards used?");
 
         update.startLiquidity = MixedSignLib.sub(uni.getPoolLiquidity(id), cumNetLiquidity);
         update.quantities = new uint128[](amounts.length);
@@ -182,6 +181,8 @@ library RewardLib {
         returns (RewardsUpdate memory update)
     {
         require(rewards.length > 0, "No rewards");
+
+        update.below = false;
 
         UintVec memory amounts = VecLib.uint_with_cap(rewards.length * 2);
 
@@ -213,6 +214,8 @@ library RewardLib {
                 i + 1 == rewards.length && rewards[0].tick == currentTick, "Donating above in _createRewardUpdateBelow"
             );
             amounts.push(rewards[0].amount);
+        } else {
+            amounts.push(0);
         }
 
         update.startLiquidity = MixedSignLib.add(uni.getPoolLiquidity(id), cumNetLiquidity);
