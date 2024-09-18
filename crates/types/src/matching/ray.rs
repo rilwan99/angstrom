@@ -1,6 +1,6 @@
 use std::ops::{Add, AddAssign, Deref, Sub, SubAssign};
 
-use alloy_primitives::{aliases::U320, Uint, U256, U512};
+use alloy::primitives::{aliases::U320, Uint, U256, U512};
 use malachite::{
     num::{
         arithmetic::traits::{DivRound, Pow},
@@ -178,7 +178,7 @@ impl Ray {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::U160;
+    use alloy::primitives::U160;
     use rand::{thread_rng, Rng};
 
     use super::*;

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use alloy::primitives::{I256, U256};
+use alloy::primitives::{aliases::I24, I256, U256};
 use angstrom_types::{
     contract_payloads::tob::{PoolRewardsUpdate, RewardsUpdate},
     matching::{Ray, SqrtPriceX96},
@@ -47,7 +47,8 @@ impl ToBOutcome {
                 Some(u128::try_from(*state).unwrap())
             })
             .collect::<Vec<_>>();
-        let start_tick = donations.first().map(|(a, _)| *a + 1).unwrap_or_default();
+        let start_tick = I24::try_from(donations.first().map(|(a, _)| *a + 1).unwrap_or_default())
+            .unwrap_or_default();
         let update = RewardsUpdate {
             startTick: start_tick,
             startLiquidity: self.start_liquidity,
@@ -223,9 +224,8 @@ pub fn calculate_reward(
 #[cfg(test)]
 mod test {
     use alloy::{
-        primitives::{address, Address, Bytes, Uint, U256},
-        providers::{Provider, ProviderBuilder},
-        rpc::types::Filter,
+        primitives::{address, aliases::I24, Address, Bytes, Uint, U256},
+        providers::ProviderBuilder,
         sol_types::SolValue
     };
     use angstrom_types::{
@@ -450,8 +450,9 @@ mod test {
                 Some(u128::try_from(*state).unwrap())
             })
             .collect::<Vec<_>>();
+        let start_tick = I24::unchecked_from(*donations[0].0 + 1);
         let update = RewardsUpdate {
-            startTick: *donations[0].0 + 1,
+            startTick: start_tick,
             startLiquidity: tob_outcome.start_liquidity,
             quantities
         };
@@ -473,8 +474,8 @@ mod test {
             PoolKey {
                 currency0:   asset0,
                 currency1:   asset1,
-                fee:         0,
-                tickSpacing: 60,
+                fee:         Uint::from(0_u8),
+                tickSpacing: I24::unchecked_from(60_i32),
                 hooks:       mock_tob_addr
             }
             .abi_encode()
@@ -482,7 +483,8 @@ mod test {
 
         for (tick, expected_reward) in tob_outcome.tick_donations.iter() {
             println!("Trying tick {}", tick);
-            let growth_call = mock_tob.getGrowthInsideTick(pool_id, 100020);
+            let growth_call =
+                mock_tob.getGrowthInsideTick(pool_id, I24::unchecked_from(100020_i32));
             let result = growth_call.call().await.unwrap();
             println!("Result for tick {}: {} - {:?}", tick, expected_reward, result._0);
         }

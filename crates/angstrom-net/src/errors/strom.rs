@@ -39,8 +39,8 @@ pub enum StromHandshakeError {
     InvalidStakeVerificationSignature
 }
 
-impl From<alloy_rlp::Error> for StromStreamError {
-    fn from(_err: alloy_rlp::Error) -> Self {
+impl From<alloy::rlp::Error> for StromStreamError {
+    fn from(_err: alloy::rlp::Error) -> Self {
         StromStreamError::InvalidMessageError
     }
 }

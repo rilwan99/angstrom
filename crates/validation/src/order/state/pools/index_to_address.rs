@@ -3,7 +3,7 @@ use std::{
     ops::{Deref, DerefMut}
 };
 
-use alloy_primitives::{Address, TxHash, U256};
+use alloy::primitives::{Address, TxHash, U256};
 use angstrom_types::{
     orders::OrderLocation,
     sol_bindings::{ext::RawPoolOrder, grouped_orders::OrderWithStorageData, sol::AssetIndex}

@@ -1,8 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use alloy::providers::Provider;
-use alloy_primitives::Address;
-use alloy_sol_types::SolValue;
+use alloy::{primitives::Address, providers::Provider, sol_types::SolValue};
 use angstrom::cli::{initialize_strom_handles, StromHandles};
 use angstrom_eth::handle::Eth;
 use angstrom_network::pool_manager::PoolManagerBuilder;
@@ -26,8 +24,8 @@ use validation::init_validation;
 #[derive(Parser)]
 #[clap(about = "
 Angstrom Anvil Testnet.
-Anvil must be installed on the system in order to spin up the \
-                testnode. 
+Anvil must be installed on the system in order to spin up \
+                the testnode. 
 To install run `curl -L https://foundry.paradigm.xyz | bash`. then run foundryup to install anvil
     ")]
 struct Cli {
@@ -140,7 +138,7 @@ pub async fn spawn_testnet_node(
             let cloned_block = block.clone();
             let rpc = rpc_w.clone();
             async move {
-                let number = cloned_block.header.number.unwrap();
+                let number = cloned_block.header.number;
                 let mut res = vec![];
                 for hash in cloned_block.transactions.hashes() {
                     let Ok(Some(tx)) = rpc.provider.get_transaction_by_hash(hash).await else {
@@ -165,7 +163,12 @@ pub async fn spawn_testnet_node(
     )
     .await?;
 
-    let validator = init_validation(rpc_wrapper, CACHE_VALIDATION_SIZE, handles.validator_tx.clone(), handles.validator_rx);
+    let validator = init_validation(
+        rpc_wrapper,
+        CACHE_VALIDATION_SIZE,
+        handles.validator_tx.clone(),
+        handles.validator_rx
+    );
 
     let network_handle = network.handle.clone();
 
@@ -180,7 +183,13 @@ pub async fn spawn_testnet_node(
         handles.pool_rx
     )
     .with_config(pool_config)
-    .build_with_channels(executor, handles.orderpool_tx, handles.orderpool_rx, handles.validator_tx, handles.pool_manager_tx);
+    .build_with_channels(
+        executor,
+        handles.orderpool_tx,
+        handles.orderpool_rx,
+        handles.validator_tx,
+        handles.pool_manager_tx
+    );
     if let Some(port) = port {
         let server = ServerBuilder::default()
             .build(format!("127.0.0.1:{}", port))

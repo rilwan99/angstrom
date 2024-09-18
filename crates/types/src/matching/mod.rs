@@ -3,7 +3,7 @@ use std::{
     sync::OnceLock
 };
 
-use alloy_primitives::U256;
+use alloy::primitives::U256;
 
 mod ray;
 mod sqrtprice;
@@ -67,7 +67,7 @@ impl From<U256> for MatchingPrice {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::{U160, U256};
+    use alloy::primitives::{U160, U256};
     use rand::{thread_rng, Rng};
 
     use super::{MatchingPrice, Ray};

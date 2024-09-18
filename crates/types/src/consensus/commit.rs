@@ -1,7 +1,6 @@
-use alloy_primitives::{FixedBytes, Keccak256, B256};
+use alloy::primitives::{keccak256, FixedBytes, Keccak256, B256};
 use bitmaps::Bitmap;
 use blsful::{Bls12381G1Impl, PublicKey, SecretKey};
-use reth_primitives::keccak256;
 use serde::{Deserialize, Serialize};
 
 use super::Proposal;

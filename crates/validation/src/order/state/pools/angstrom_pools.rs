@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use alloy_primitives::{Address, FixedBytes};
+use alloy::primitives::{Address, FixedBytes};
 use angstrom_types::primitive::PoolId;
 use dashmap::DashMap;
 

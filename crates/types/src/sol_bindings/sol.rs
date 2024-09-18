@@ -1,5 +1,5 @@
 mod private {
-    use alloy_sol_macro::sol;
+    use alloy::sol;
     use pade_macro::PadeEncode;
     use serde::{Deserialize, Serialize};
 
@@ -227,7 +227,7 @@ mod private {
     }
 }
 
-use alloy_rlp::{Decodable, Encodable};
+use alloy::rlp::{Decodable, Encodable};
 pub use private::{
     AngstromContract, AssetForm as SolAssetForm, AssetIndex, ContractBundle, Donate as SolDonate,
     FlashOrder, GenericOrder as SolGenericOrder, MockContractMessage as SolMockContractMessage,
@@ -254,14 +254,14 @@ impl Encodable for SolAssetForm {
 }
 
 impl Decodable for SolAssetForm {
-    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+    fn decode(buf: &mut &[u8]) -> alloy::rlp::Result<Self> {
         let v = u8::decode(buf)?;
         match v {
             0 => Ok(Self::Liquid),
             1 => Ok(Self::UniV4Claim),
             2 => Ok(Self::AngstromClaim),
             3 => Ok(Self::__Invalid),
-            _ => Err(alloy_rlp::Error::Custom("Unknown value when decoding AssetForm"))
+            _ => Err(alloy::rlp::Error::Custom("Unknown value when decoding AssetForm"))
         }
     }
 }
@@ -279,8 +279,10 @@ impl std::fmt::Display for InvalidSolEnumVariant {
 
 #[cfg(test)]
 mod test {
-    use alloy_primitives::{Address, U256};
-    use alloy_sol_types::{SolCall, SolStruct, SolType};
+    use alloy::{
+        primitives::{Address, U256},
+        sol_types::{SolCall, SolStruct, SolType}
+    };
 
     use super::*;
 

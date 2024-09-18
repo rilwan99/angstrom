@@ -1,5 +1,4 @@
-use alloy_primitives::FixedBytes;
-use alloy_sol_types::SolStruct;
+use alloy::{primitives::FixedBytes, sol_types::SolStruct};
 
 use crate::sol_bindings::sol::TopOfBlockOrder;
 

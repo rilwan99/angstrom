@@ -1,6 +1,6 @@
 use std::{hash::Hash, ops::Deref};
 
-use alloy_primitives::{Address, Bytes, FixedBytes, TxHash, U256};
+use alloy::primitives::{Address, Bytes, FixedBytes, TxHash, U256};
 use reth_primitives::B256;
 use serde::{Deserialize, Serialize};
 

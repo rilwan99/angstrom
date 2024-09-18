@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use alloy_primitives::{hex, Address, B256, U256};
+use alloy::primitives::{hex, Address, B256, U256};
 use reth_primitives::keccak256;
 use reth_revm::DatabaseRef;
 

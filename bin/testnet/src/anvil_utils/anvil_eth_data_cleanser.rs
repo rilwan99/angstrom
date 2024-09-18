@@ -1,8 +1,10 @@
 use std::task::{Context, Poll};
 
-use alloy::network::TransactionResponse;
-use alloy_primitives::Address;
-use alloy_sol_types::{SolCall, SolType};
+use alloy::{
+    network::TransactionResponse,
+    primitives::Address,
+    sol_types::{SolCall, SolType}
+};
 use angstrom_eth::{
     handle::{EthCommand, EthHandle},
     manager::EthEvent

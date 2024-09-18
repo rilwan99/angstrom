@@ -3,7 +3,7 @@ use std::{
     sync::{atomic::AtomicU64, Arc}
 };
 
-use alloy_primitives::Address;
+use alloy::primitives::Address;
 use parking_lot::RwLock;
 use reth_errors::{RethError, RethResult};
 use reth_primitives::{

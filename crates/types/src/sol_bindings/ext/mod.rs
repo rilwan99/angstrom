@@ -1,7 +1,7 @@
 //! extension functionality to sol types
 use std::fmt;
 
-use alloy_primitives::{Address, TxHash, U256};
+use alloy::primitives::{Address, TxHash, U256};
 use serde::{Deserialize, Serialize};
 
 pub mod contract_bundle_ext;

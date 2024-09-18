@@ -1,5 +1,7 @@
-use alloy_primitives::{Address, Bytes, Signature, U256};
-use alloy_sol_types::SolValue;
+use alloy::{
+    primitives::{Address, Bytes, Signature, Signed, U256},
+    sol_types::SolValue
+};
 
 use crate::PadeEncode;
 
@@ -25,6 +27,12 @@ use_alloy_default!(u16, u64, i32, U256, u128, Address, Bytes);
 impl PadeEncode for Signature {
     fn pade_encode(&self) -> Vec<u8> {
         self.as_bytes().into_iter().collect()
+    }
+}
+
+impl<const B: usize, const L: usize> PadeEncode for Signed<B, L> {
+    fn pade_encode(&self) -> Vec<u8> {
+        self.to_be_bytes::<B>().iter().cloned().collect()
     }
 }
 #[cfg(test)]

@@ -1,9 +1,8 @@
 #[cfg(not(feature = "testnet"))]
-use alloy_primitives::Address;
-use alloy_primitives::B256;
+use alloy::primitives::Address;
 #[cfg(feature = "testnet")]
-use alloy_primitives::{Address, U256};
-use alloy_sol_types::SolStruct;
+use alloy::primitives::{Address, U256};
+use alloy::{primitives::B256, sol_types::SolStruct};
 #[cfg(feature = "testnet")]
 use rand::{rngs::ThreadRng, Rng};
 
@@ -64,7 +63,7 @@ pub mod test {
     #[test]
     #[cfg(feature = "testnet")]
     pub fn test_contract_bundle_encode_decode() {
-        use alloy_sol_types::SolValue;
+        use alloy::sol_types::SolValue;
 
         use crate::sol_bindings::sol::ContractBundle;
 

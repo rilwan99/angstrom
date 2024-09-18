@@ -1,4 +1,4 @@
-use alloy_primitives::Address;
+use alloy::primitives::Address;
 use angstrom_pools::AngstromPools;
 use angstrom_types::{primitive::PoolId, sol_bindings::ext::RawPoolOrder};
 use dashmap::DashMap;
@@ -76,7 +76,7 @@ impl AngstromPoolsTracker {
 
 #[cfg(test)]
 pub mod pool_tracker_mock {
-    use alloy_primitives::{Address, FixedBytes};
+    use alloy::primitives::{Address, FixedBytes};
     use dashmap::DashMap;
 
     use super::*;

@@ -1,7 +1,7 @@
 //! keeps track of account state for orders
 use std::sync::Arc;
 
-use alloy_primitives::{Address, B256};
+use alloy::primitives::{Address, B256};
 use angstrom_types::sol_bindings::{ext::RawPoolOrder, grouped_orders::OrderWithStorageData};
 use dashmap::DashSet;
 use thiserror::Error;
@@ -149,7 +149,7 @@ pub mod tests {
         sync::{atomic::AtomicU64, Arc}
     };
 
-    use alloy_primitives::{FixedBytes, U256};
+    use alloy::primitives::{FixedBytes, U256};
     use angstrom_types::sol_bindings::{grouped_orders::GroupedVanillaOrder, RawPoolOrder};
     use dashmap::DashSet;
     use rand::thread_rng;

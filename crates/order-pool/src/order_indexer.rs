@@ -7,7 +7,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH}
 };
 
-use alloy_primitives::{B256, U256};
+use alloy::primitives::{B256, U256};
 use angstrom_types::{
     orders::{OrderId, OrderOrigin, OrderSet},
     primitive::PoolId,

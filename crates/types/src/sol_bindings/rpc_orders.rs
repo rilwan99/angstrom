@@ -1,8 +1,10 @@
 use std::borrow::Cow;
 
-use alloy_primitives::{keccak256, B256};
-use alloy_sol_macro::sol;
-use alloy_sol_types::{Eip712Domain, SolStruct};
+use alloy::{
+    primitives::{keccak256, B256},
+    sol,
+    sol_types::{Eip712Domain, SolStruct}
+};
 use serde::{Deserialize, Serialize};
 
 sol! {
@@ -150,7 +152,7 @@ pub trait OmitOrderMeta: SolStruct {
 
     #[inline]
     fn eip712_hash_struct(&self) -> B256 {
-        let mut hasher = alloy_primitives::Keccak256::new();
+        let mut hasher = alloy::primitives::Keccak256::new();
         hasher.update(<Self as OmitOrderMeta>::eip712_type_hash(self));
         hasher.update(<Self as OmitOrderMeta>::eip712_encode_data(self));
         hasher.finalize()
@@ -179,13 +181,13 @@ impl OmitOrderMeta for TopOfBlockOrder {}
 pub mod test {
     use super::*;
 
-    const TEST_DOMAIN: Eip712Domain = alloy_sol_types::eip712_domain! {
+    const TEST_DOMAIN: Eip712Domain = alloy::sol_types::eip712_domain! {
         name: "Angstrom",
         version: "0.61.0",
     };
 
     mod a {
-        alloy_sol_macro::sol! {
+        alloy::sol! {
             #[derive(Default)]
             struct PartialStandingOrder {
                 uint128 minAmountIn;

@@ -3,7 +3,7 @@ use std::{
     collections::{BTreeMap, HashMap}
 };
 
-use alloy_primitives::FixedBytes;
+use alloy::primitives::FixedBytes;
 use angstrom_types::{
     orders::OrderPriorityData,
     sol_bindings::{grouped_orders::OrderWithStorageData, rpc_orders::TopOfBlockOrder}

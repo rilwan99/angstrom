@@ -4,7 +4,7 @@ pub mod nonces;
 
 use std::{cmp::Ordering, collections::HashMap, sync::Arc};
 
-use alloy_primitives::{keccak256, Address, Bytes, FixedBytes, B256, U256};
+use alloy::primitives::{keccak256, Address, Bytes, FixedBytes, B256, U256};
 use angstrom_types::sol_bindings::ext::RawPoolOrder;
 use reth_primitives::revm_primitives::{Env, TransactTo, TxEnv};
 use reth_revm::EvmBuilder;
@@ -151,7 +151,7 @@ impl FetchUtils {
 pub mod test_fetching {
     use std::collections::{HashMap, HashSet};
 
-    use alloy_primitives::U256;
+    use alloy::primitives::U256;
     use dashmap::DashMap;
 
     use super::{StateFetchUtils, *};

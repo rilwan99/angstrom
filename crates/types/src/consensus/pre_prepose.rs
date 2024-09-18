@@ -1,7 +1,7 @@
 // use bincode::{config::standard, encode_to_vec, Decode, Encode};
+use alloy::primitives::keccak256;
 use bytes::Bytes;
 use reth_network_peers::PeerId;
-use reth_primitives::keccak256;
 use secp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
 
@@ -81,7 +81,7 @@ impl PreProposal {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::FixedBytes;
+    use alloy::primitives::FixedBytes;
     use rand::thread_rng;
     use reth_network_peers::pk2id;
     use secp256k1::Secp256k1;
@@ -93,7 +93,7 @@ mod tests {
         let ethereum_height = 100;
         let limit = vec![];
         let searcher = vec![];
-        let source = FixedBytes::default();
+        let source = FixedBytes::<64>::default();
         let sk = SecretKey::new(&mut rand::thread_rng());
         PreProposal::generate_pre_proposal(ethereum_height, source, limit, searcher, &sk);
     }

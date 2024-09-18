@@ -1,6 +1,6 @@
 use std::{collections::HashMap, path::Path, sync::Arc};
 
-use alloy_primitives::Address;
+use alloy::primitives::Address;
 use angstrom_types::primitive::PoolId;
 use reth_primitives::{keccak256, U256};
 use reth_revm::DatabaseRef;

@@ -26,16 +26,10 @@ hex-literal = "0.4.1"
 anyhow.workspace = true
 modular-bitfield = "0.11.2"
 alloy.workspace = true
-alloy-sol-macro = { workspace = true, features = ["json"] }
-alloy-sol-types.workspace = true
-alloy-primitives = { workspace = true, features = ["rlp", "serde"] }
 alloy-rlp.workspace = true
-alloy-rlp-derive.workspace = true
 derive_more = "0.99.17"
 eyre.workspace = true
 bincode = { workspace = true }
-
-alloy-contract = "0.2"
 serde = { workspace = true, optional = true, default-features = false, features = [
   "derive",
 ] }
@@ -48,4 +42,5 @@ rand.workspace = true
 [features]
 default = ["serde"]
 testnet = ["dep:rand"]
-serde = ["dep:serde", "alloy-primitives/serde"]
+# serde = ["dep:serde", "alloy-primitives/serde"]
+serde = ["dep:serde"]
