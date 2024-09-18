@@ -1,3 +1,4 @@
+use alloy_primitives::{Address, U256};
 use angstrom_types::sol_bindings::rpc_orders::{
     ExactFlashOrder, ExactStandingOrder, PartialFlashOrder, PartialStandingOrder, TopOfBlockOrder
 };
@@ -34,4 +35,10 @@ pub trait OrderApi {
         &self,
         kind: OrderSubscriptionKind
     ) -> jsonrpsee::core::SubscriptionResult;
+
+    #[method(name = "fetchApproval")]
+    async fn fetch_approval(&self, user: Address, token: Address) -> RpcResult<Option<U256>>;
+
+    #[method(name = "fetchBalance")]
+    async fn fetch_balance(&self, user: Address, token: Address) -> RpcResult<Option<U256>>;
 }

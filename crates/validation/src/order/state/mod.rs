@@ -1,28 +1,14 @@
-use std::{collections::HashMap, sync::Arc, task::Poll};
+use std::{collections::HashMap, sync::Arc};
 
 use account::UserAccountProcessor;
 use alloy::primitives::{Address, B256, U256};
 use angstrom_types::sol_bindings::{ext::RawPoolOrder, grouped_orders::AllOrders};
 use db_state_utils::StateFetchUtils;
 use futures::{Stream, StreamExt};
-use futures_util::stream::FuturesUnordered;
-use parking_lot::RwLock;
-use pools::{AngstromPoolsTracker, PoolsTracker};
-use revm::db::{AccountStatus, BundleState};
-use tokio::{
-    sync::oneshot::Sender,
-    task::{yield_now, JoinHandle}
-};
+use pools::PoolsTracker;
 
-use self::db_state_utils::UserAccountDetails;
 use super::{OrderValidation, OrderValidationResults};
-use crate::{
-    common::{
-        executor::ThreadPool,
-        lru_db::{BlockStateProviderFactory, RevmLRU}
-    },
-    order::state::config::ValidationConfig
-};
+use crate::common::lru_db::{BlockStateProviderFactory, RevmLRU};
 
 pub mod account;
 pub mod config;
@@ -39,23 +25,18 @@ type HookOverrides = HashMap<Address, HashMap<U256, U256>>;
 /// 4) deals with possible pending state
 #[allow(dead_code)]
 #[derive(Clone)]
-pub struct StateValidation<DB, Pools, Fetch> {
-    db:                   Arc<RevmLRU<DB>>,
+pub struct StateValidation<Pools, Fetch> {
     /// tracks everything user related.
-    user_account_tracker: Arc<UserAccountProcessor<DB, Fetch>>,
+    user_account_tracker: Arc<UserAccountProcessor<Fetch>>,
     /// tracks all info about the current angstrom pool state.
     pool_tacker:          Arc<Pools>
 }
 
-impl<DB, Pools: PoolsTracker, Fetch: StateFetchUtils> StateValidation<DB, Pools, Fetch>
-where
-    DB: BlockStateProviderFactory + Unpin + 'static
-{
-    pub fn new(db: Arc<RevmLRU<DB>>, block: u64, pools: Pools, fetch: Fetch) -> Self {
+impl<Pools: PoolsTracker, Fetch: StateFetchUtils> StateValidation<Pools, Fetch> {
+    pub fn new(user_account_tracker: UserAccountProcessor<Fetch>, pools: Pools) -> Self {
         Self {
-            db:                   db.clone(),
             pool_tacker:          Arc::new(pools),
-            user_account_tracker: Arc::new(UserAccountProcessor::new(db, block, fetch))
+            user_account_tracker: Arc::new(user_account_tracker)
         }
     }
 

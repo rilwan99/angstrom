@@ -1,7 +1,7 @@
 //! CLI definition and entrypoint to executable
 use std::{
     path::PathBuf,
-    sync::{Arc, Mutex}
+    sync::{atomic::AtomicU64, Arc, Mutex}
 };
 
 use angstrom_metrics::{initialize_prometheus_metrics, METRICS_ENABLED};
@@ -42,7 +42,11 @@ use reth_cli_util::get_secret_key;
 use reth_metrics::common::mpsc::{UnboundedMeteredReceiver, UnboundedMeteredSender};
 use reth_network_peers::pk2id;
 use reth_node_ethereum::{node::EthereumAddOns, EthereumNode};
-use validation::init_validation;
+use validation::{
+    common::lru_db::{BlockStateProviderFactory, RevmLRU},
+    init_validation,
+    order::state::{config::DataFetcherConfig, db_state_utils::FetchUtils}
+};
 
 use crate::cli::network_builder::AngstromNetworkBuilder;
 
@@ -79,10 +83,17 @@ pub fn run() -> eyre::Result<()> {
             )
             .with_add_ons::<EthereumAddOns>()
             .extend_rpc_modules(move |rpc_context| {
-                let order_api = OrderApi::new(pool.clone(), executor_clone);
+                let data_fetcher_config = DataFetcherConfig { approvals: Vec::new(), balances: Vec::new() };
+                let provider = rpc_context.provider().clone(); // Clone the provider
+                let cache_max_bytes = 10000000;
+                let current_block = Arc::new(AtomicU64::new(provider.best_block_number().unwrap()));
+                let revm_lru = Arc::new(RevmLRU::new(cache_max_bytes, Arc::new(provider.clone()), current_block.clone()));
+                let fetch_utils = FetchUtils::new(data_fetcher_config, revm_lru);
+                let order_api = OrderApi::new(pool.clone(), fetch_utils, executor_clone);
+
+
                 // let quotes_api = QuotesApi { pool: pool.clone() };
                 // let consensus_api = ConsensusApi { consensus: consensus.clone() };
-
                 rpc_context.modules.merge_configured(order_api.into_rpc())?;
                 // rpc_context
                 //     .modules

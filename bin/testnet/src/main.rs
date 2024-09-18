@@ -1,4 +1,7 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{atomic::AtomicU64, Arc},
+    time::Duration
+};
 
 use alloy::{primitives::Address, providers::Provider, sol_types::SolValue};
 use angstrom::cli::{initialize_strom_handles, StromHandles};
@@ -19,7 +22,11 @@ use testnet::{
     rpc_state_provider::RpcStateProviderFactory
 };
 use tracing::{span, Instrument, Level};
-use validation::init_validation;
+use validation::{
+    common::lru_db::{BlockStateProviderFactory, RevmLRU},
+    init_validation,
+    order::state::{config::DataFetcherConfig, db_state_utils::FetchUtils}
+};
 
 #[derive(Parser)]
 #[clap(about = "
@@ -151,7 +158,17 @@ pub async fn spawn_testnet_node(
         })
         .buffer_unordered(10);
 
-    let order_api = OrderApi::new(pool.clone(), executor.clone());
+    let data_fetcher_config = DataFetcherConfig { approvals: Vec::new(), balances: Vec::new() };
+    let cache_max_bytes = 10000000;
+    let current_block = Arc::new(AtomicU64::new(rpc_wrapper.best_block_number().unwrap()));
+    let revm_lru = Arc::new(RevmLRU::new(
+        cache_max_bytes,
+        Arc::new(rpc_wrapper.clone()),
+        current_block.clone()
+    ));
+    let fetch_utils = FetchUtils::new(data_fetcher_config.clone(), revm_lru.clone());
+    let order_api = OrderApi::new(pool.clone(), fetch_utils, executor.clone());
+
     let eth_handle = AnvilEthDataCleanser::spawn(
         executor.clone(),
         contract_address,
