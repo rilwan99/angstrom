@@ -82,18 +82,12 @@ where
         block: u64,
         is_limit: bool
     ) -> OrderValidationResults {
-<<<<<<< HEAD
-        let order_hash = order.hash();
-        let Some((pool_info, wrapped_order)) =
-            self.pool_tacker.read_arc().fetch_pool_info_for_order(order)
-=======
         let order_hash = order.order_hash();
         if !order.is_valid_signature() {
             return OrderValidationResults::Invalid(order_hash)
         }
 
         let Some((pool_info, wrapped_order)) = self.pool_tacker.fetch_pool_info_for_order(order)
->>>>>>> main
         else {
             return OrderValidationResults::Invalid(order_hash)
         };
