@@ -158,16 +158,7 @@ pub async fn spawn_testnet_node(
         })
         .buffer_unordered(10);
 
-    let data_fetcher_config = DataFetcherConfig { approvals: Vec::new(), balances: Vec::new() };
-    let cache_max_bytes = 10000000;
-    let current_block = Arc::new(AtomicU64::new(rpc_wrapper.best_block_number().unwrap()));
-    let revm_lru = Arc::new(RevmLRU::new(
-        cache_max_bytes,
-        Arc::new(rpc_wrapper.clone()),
-        current_block.clone()
-    ));
-    let fetch_utils = FetchUtils::new(data_fetcher_config.clone(), revm_lru.clone());
-    let order_api = OrderApi::new(pool.clone(), fetch_utils, executor.clone());
+    let order_api = OrderApi::new(pool.clone(), executor.clone());
 
     let eth_handle = AnvilEthDataCleanser::spawn(
         executor.clone(),
