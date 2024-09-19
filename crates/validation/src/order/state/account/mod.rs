@@ -187,7 +187,7 @@ pub mod tests {
     };
 
     use alloy_primitives::U256;
-    use angstrom_types::sol_bindings::grouped_orders::GroupedVanillaOrder;
+    use angstrom_types::sol_bindings::{grouped_orders::GroupedVanillaOrder, RawPoolOrder};
     use dashmap::DashSet;
     use rand::thread_rng;
     use reth_primitives::Address;
@@ -223,8 +223,6 @@ pub mod tests {
         let mut processor = setup_test_account_processor(block);
 
         let user = Address::random();
-        let asset0 = 0;
-        let asset1 = 1;
 
         let token0 = Address::random();
         let token1 = Address::random();
@@ -233,8 +231,6 @@ pub mod tests {
         let mut mock_pool = MockPoolTracker::default();
 
         mock_pool.add_pool(token0, token1, pool);
-        mock_pool.add_asset(asset0, token0);
-        mock_pool.add_asset(asset1, token1);
 
         let mut rng = thread_rng();
         let mut order: GroupedVanillaOrder = generate_limit_order(
@@ -243,16 +239,16 @@ pub mod tests {
             true,
             Some(pool as usize),
             None,
-            Some(asset0),
-            Some(asset1),
+            Some(token0),
+            Some(token1),
             Some(420),
             Some(user)
         )
         .order;
 
         // wrap order with details
-        let (pool_info, order) = mock_pool
-            .fetch_pool_info_for_order(order)
+        let pool_info = mock_pool
+            .fetch_pool_info_for_order(&order)
             .expect("pool tracker should have valid state");
 
         println!("setting balances and approvals");
@@ -275,8 +271,6 @@ pub mod tests {
         let mut processor = setup_test_account_processor(block);
 
         let user = Address::random();
-        let asset0 = 0;
-        let asset1 = 1;
 
         let token0 = Address::random();
         let token1 = Address::random();
@@ -285,8 +279,6 @@ pub mod tests {
         let mut mock_pool = MockPoolTracker::default();
 
         mock_pool.add_pool(token0, token1, pool);
-        mock_pool.add_asset(asset0, token0);
-        mock_pool.add_asset(asset1, token1);
 
         let mut rng = thread_rng();
         let mut order: GroupedVanillaOrder = generate_limit_order(
@@ -295,16 +287,16 @@ pub mod tests {
             true,
             Some(pool as usize),
             None,
-            Some(asset0),
-            Some(asset1),
+            Some(token0),
+            Some(token1),
             Some(420),
             Some(user)
         )
         .order;
 
         // wrap order with details
-        let (pool_info, order) = mock_pool
-            .fetch_pool_info_for_order(order)
+        let pool_info = mock_pool
+            .fetch_pool_info_for_order(&order)
             .expect("pool tracker should have valid state");
 
         processor.fetch_utils.set_balance_for_user(
@@ -338,8 +330,6 @@ pub mod tests {
         let mut processor = setup_test_account_processor(block);
 
         let user = Address::random();
-        let asset0 = 0;
-        let asset1 = 1;
 
         let token0 = Address::random();
         let token1 = Address::random();
@@ -348,8 +338,6 @@ pub mod tests {
         let mut mock_pool = MockPoolTracker::default();
 
         mock_pool.add_pool(token0, token1, pool);
-        mock_pool.add_asset(asset0, token0);
-        mock_pool.add_asset(asset1, token1);
 
         let mut rng = thread_rng();
         let mut order0: GroupedVanillaOrder = generate_limit_order(
@@ -358,8 +346,8 @@ pub mod tests {
             true,
             Some(pool as usize),
             None,
-            Some(asset0),
-            Some(asset1),
+            Some(token0),
+            Some(token1),
             Some(420),
             Some(user)
         )
@@ -371,18 +359,18 @@ pub mod tests {
             true,
             Some(pool as usize),
             None,
-            Some(asset0),
-            Some(asset1),
+            Some(token0),
+            Some(token1),
             Some(10),
             Some(user)
         )
         .order;
         // wrap order with details
-        let (pool_info0, order0) = mock_pool
-            .fetch_pool_info_for_order(order0)
+        let pool_info0 = mock_pool
+            .fetch_pool_info_for_order(&order0)
             .expect("pool tracker should have valid state");
-        let (pool_info1, order1) = mock_pool
-            .fetch_pool_info_for_order(order1)
+        let pool_info1 = mock_pool
+            .fetch_pool_info_for_order(&order1)
             .expect("pool tracker should have valid state");
 
         processor.fetch_utils.set_balance_for_user(
@@ -416,8 +404,6 @@ pub mod tests {
         let mut processor = setup_test_account_processor(block);
 
         let user = Address::random();
-        let asset0 = 0;
-        let asset1 = 1;
 
         let token0 = Address::random();
         let token1 = Address::random();
@@ -426,8 +412,6 @@ pub mod tests {
         let mut mock_pool = MockPoolTracker::default();
 
         mock_pool.add_pool(token0, token1, pool);
-        mock_pool.add_asset(asset0, token0);
-        mock_pool.add_asset(asset1, token1);
 
         let mut rng = thread_rng();
         let mut order: GroupedVanillaOrder = generate_limit_order(
@@ -436,16 +420,16 @@ pub mod tests {
             true,
             Some(pool as usize),
             None,
-            Some(asset0),
-            Some(asset1),
+            Some(token0),
+            Some(token1),
             Some(420),
             Some(user)
         )
         .order;
 
         // wrap order with details
-        let (pool_info, order) = mock_pool
-            .fetch_pool_info_for_order(order)
+        let pool_info = mock_pool
+            .fetch_pool_info_for_order(&order)
             .expect("pool tracker should have valid state");
 
         processor

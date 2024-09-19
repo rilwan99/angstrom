@@ -26,9 +26,9 @@ use futures::{
     stream::{BoxStream, FuturesUnordered},
     Future, FutureExt, Stream, StreamExt
 };
-use order_pool::order_storage::OrderStorage;
 use order_pool::{
-    OrderIndexer, OrderPoolHandle, PoolConfig, PoolInnerEvent, PoolManagerUpdate
+    order_storage::OrderStorage, OrderIndexer, OrderPoolHandle, PoolConfig, PoolInnerEvent,
+    PoolManagerUpdate
 };
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_network::transactions::ValidationOutcome;
@@ -250,7 +250,7 @@ where
         eth_network_events: UnboundedReceiverStream<EthEvent>,
         _command_tx: UnboundedSender<OrderCommand>,
         command_rx: UnboundedReceiverStream<OrderCommand>,
-        order_events: UnboundedMeteredReceiver<NetworkOrderEvent>,
+        order_events: UnboundedMeteredReceiver<NetworkOrderEvent>
     ) -> Self {
         Self {
             strom_network_events,
@@ -286,7 +286,7 @@ where
             EthEvent::FinalizedBlock(block) => {
                 self.order_indexer.finalized_block(block);
             }
-            EthEvent::NewPool(pool) => self.order_sorter.new_pool(pool),
+            EthEvent::NewPool(pool) => self.order_indexer.new_pool(pool),
             EthEvent::NewBlock(block) => {}
         }
     }
@@ -302,7 +302,7 @@ where
                     self.order_indexer.new_network_order(
                         peer_id,
                         OrderOrigin::External,
-                        order.clone(),
+                        order.clone()
                     );
                 });
             }

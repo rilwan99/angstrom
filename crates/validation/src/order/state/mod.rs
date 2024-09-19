@@ -2,7 +2,10 @@ use std::{collections::HashMap, sync::Arc, task::Poll};
 
 use account::UserAccountProcessor;
 use alloy_primitives::{Address, B256, U256};
-use angstrom_types::sol_bindings::{ext::RawPoolOrder, grouped_orders::AllOrders};
+use angstrom_types::{
+    primitive::NewInitializedPool,
+    sol_bindings::{ext::RawPoolOrder, grouped_orders::AllOrders}
+};
 use db_state_utils::StateFetchUtils;
 use futures::{Stream, StreamExt};
 use futures_util::stream::FuturesUnordered;
@@ -80,14 +83,17 @@ where
             return OrderValidationResults::Invalid(order_hash)
         }
 
-        let Some((pool_info, wrapped_order)) = self.pool_tacker.fetch_pool_info_for_order(order)
+        let Some(pool_info) = self
+            .pool_tacker
+            .read_arc()
+            .fetch_pool_info_for_order(&order)
         else {
             return OrderValidationResults::Invalid(order_hash)
         };
 
         self.user_account_tracker
-            .verify_order(wrapped_order, pool_info, block, is_limit)
-            .map(|o| {
+            .verify_order::<O>(order, pool_info, block, is_limit)
+            .map(|o: _| {
                 OrderValidationResults::Valid(o.try_map_inner(|inner| Ok(inner.into())).unwrap())
             })
             .unwrap_or_else(|_| OrderValidationResults::Invalid(order_hash))

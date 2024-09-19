@@ -3,13 +3,8 @@ use std::collections::HashMap;
 use angstrom_metrics::SearcherOrderPoolMetricsWrapper;
 use angstrom_types::{
     orders::OrderId,
-<<<<<<< HEAD
     primitive::{NewInitializedPool, PoolId},
-    sol_bindings::{grouped_orders::OrderWithStorageData, sol::TopOfBlockOrder}
-=======
-    primitive::PoolId,
     sol_bindings::{grouped_orders::OrderWithStorageData, rpc_orders::TopOfBlockOrder}
->>>>>>> main
 };
 use angstrom_utils::map::OwnedMap;
 use pending::PendingPool;

@@ -42,7 +42,8 @@ impl TestnetOrderPool {
         let handle =
             PoolHandle { manager_tx: tx.clone(), pool_manager_tx: pool_manager_tx.clone() };
         let order_storage = Arc::new(OrderStorage::new(&config));
-        let inner = OrderIndexer::new(validator, order_storage.clone(), block_number);
+        let inner =
+            OrderIndexer::new(validator, order_storage.clone(), block_number, pool_manager_tx);
 
         Self {
             pool_manager: PoolManager::new(
@@ -52,7 +53,7 @@ impl TestnetOrderPool {
                 eth_network_events,
                 tx,
                 rx,
-                order_events,
+                order_events
             ),
             pool_handle:  handle
         }
