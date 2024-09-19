@@ -10,7 +10,7 @@ use std::{
 
 use angstrom_eth::manager::EthEvent;
 use angstrom_types::{
-    contract_bindings::poolmanager::PoolManager::PoolManagerCalls::updateDynamicLPFee,
+    contract_bindings::poolmanager::PoolManager::{syncCall, PoolManagerCalls::updateDynamicLPFee},
     orders::{OrderOrigin, OrderPriorityData, OrderSet},
     primitive::Order,
     sol_bindings::{
@@ -22,6 +22,7 @@ use angstrom_types::{
 };
 use futures::{
     future::BoxFuture,
+    poll,
     stream::{BoxStream, FuturesUnordered},
     Future, FutureExt, Stream, StreamExt
 };
@@ -70,7 +71,7 @@ pub struct PoolHandle {
 #[derive(Debug)]
 pub enum OrderCommand {
     // new orders
-    NewOrder(OrderOrigin, AllOrders)
+    NewOrder(OrderOrigin, AllOrders, tokio::sync::oneshot::Sender<OrderValidationResults>)
 }
 
 impl PoolHandle {
@@ -94,8 +95,19 @@ impl PoolHandle {
 }
 
 impl OrderPoolHandle for PoolHandle {
-    fn new_order(&self, origin: OrderOrigin, order: AllOrders) -> bool {
-        self.send(OrderCommand::NewOrder(origin, order)).is_ok()
+    fn new_order(
+        &self,
+        origin: OrderOrigin,
+        order: AllOrders
+    ) -> impl Future<Output = bool> + Send {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        self.send(OrderCommand::NewOrder(origin, order, tx)).is_ok();
+        rx.map(|result| match result {
+            Ok(OrderValidationResults::Valid(_)) => true,
+            Ok(OrderValidationResults::Invalid(_)) => false,
+            Ok(OrderValidationResults::TransitionedToBlock) => false,
+            Err(_) => false
+        })
     }
 
     fn subscribe_orders(&self) -> Receiver<PoolManagerUpdate> {
@@ -186,7 +198,12 @@ where
             pool_manager_tx: pool_manager_tx.clone(),
             validator_tx:    validator_tx.clone()
         };
-        let inner = OrderIndexer::new(self.validator.clone(), order_storage.clone(), 0);
+        let inner = OrderIndexer::new(
+            self.validator.clone(),
+            order_storage.clone(),
+            0,
+            pool_manager_tx.clone()
+        );
 
         task_spawner.spawn_critical(
             "transaction manager",
@@ -195,7 +212,7 @@ where
                 strom_network_events: self.strom_network_events,
                 order_events: self.order_events,
                 peers: HashMap::default(),
-                order_sorter: inner,
+                order_indexer: inner,
                 network: self.network_handle,
                 command_rx: rx,
                 pool_manager_tx
@@ -219,7 +236,12 @@ where
             pool_manager_tx: pool_manager_tx.clone(),
             validator_tx:    validator_tx.clone()
         };
-        let inner = OrderIndexer::new(self.validator.clone(), order_storage.clone(), 0);
+        let inner = OrderIndexer::new(
+            self.validator.clone(),
+            order_storage.clone(),
+            0,
+            pool_manager_tx.clone()
+        );
 
         task_spawner.spawn_critical(
             "transaction manager",
@@ -228,7 +250,7 @@ where
                 strom_network_events: self.strom_network_events,
                 order_events: self.order_events,
                 peers: HashMap::default(),
-                order_sorter: inner,
+                order_indexer: inner,
                 network: self.network_handle,
                 command_rx: rx,
                 pool_manager_tx
@@ -244,7 +266,7 @@ where
     V: OrderValidatorHandle
 {
     /// access to validation and sorted storage of orders.
-    order_sorter:         OrderIndexer<V>,
+    order_indexer:        OrderIndexer<V>,
     /// Network access.
     network:              StromNetworkHandle,
     /// Subscriptions to all the strom-network related events.
@@ -270,20 +292,19 @@ where
 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        order_sorter: OrderIndexer<V>,
+        order_indexer: OrderIndexer<V>,
         network: StromNetworkHandle,
         strom_network_events: UnboundedReceiverStream<StromNetworkEvent>,
         eth_network_events: UnboundedReceiverStream<EthEvent>,
         _command_tx: UnboundedSender<OrderCommand>,
         command_rx: UnboundedReceiverStream<OrderCommand>,
         order_events: UnboundedMeteredReceiver<NetworkOrderEvent>,
-        order_storage: Arc<OrderStorage>,
         pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>
     ) -> Self {
         Self {
             strom_network_events,
             network,
-            order_sorter,
+            order_indexer,
             peers: HashMap::new(),
             order_events,
             command_rx,
@@ -294,24 +315,26 @@ where
 
     fn on_command(&mut self, cmd: OrderCommand) {
         match cmd {
-            OrderCommand::NewOrder(origin, order) => {}
+            OrderCommand::NewOrder(origin, order, validation_response) => self
+                .order_indexer
+                .new_rpc_order(OrderOrigin::External, order, validation_response)
         }
     }
 
     fn on_eth_event(&mut self, eth: EthEvent) {
         match eth {
             EthEvent::NewBlockTransitions { block_number, filled_orders, address_changeset } => {
-                self.order_sorter.start_new_block_processing(
+                self.order_indexer.start_new_block_processing(
                     block_number,
                     filled_orders,
                     address_changeset
                 );
             }
             EthEvent::ReorgedOrders(orders) => {
-                self.order_sorter.reorg(orders);
+                self.order_indexer.reorg(orders);
             }
             EthEvent::FinalizedBlock(block) => {
-                self.order_sorter.finalized_block(block);
+                self.order_indexer.finalized_block(block);
             }
             EthEvent::NewBlock(block) => {}
         }
@@ -325,13 +348,16 @@ where
                         .get_mut(&peer_id)
                         .map(|peer| peer.orders.insert(order.order_hash()));
 
-                    self.order_sorter
-                        .new_order(peer_id, OrderOrigin::External, order.clone());
+                    self.order_indexer.new_network_order(
+                        peer_id,
+                        OrderOrigin::External,
+                        order.clone()
+                    );
                     // TODO: add an "await" for the new_order() to complete
                     // if !self.order_sorter.is_valid_order(&order) {
                     //     self.network
-                    //         .peer_reputation_change(peer_id, ReputationChangeKind::BadOrder);
-                    // }
+                    //         .peer_reputation_change(peer_id,
+                    // ReputationChangeKind::BadOrder); }
                 });
             }
         }
@@ -425,7 +451,7 @@ where
         }
 
         // poll underlying pool. This is the validation process that's being polled
-        while let Poll::Ready(Some(orders)) = this.order_sorter.poll_next_unpin(cx) {
+        while let Poll::Ready(Some(orders)) = this.order_indexer.poll_next_unpin(cx) {
             this.on_pool_events(orders);
         }
 

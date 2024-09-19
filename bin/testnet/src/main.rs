@@ -128,7 +128,7 @@ pub async fn spawn_testnet_node(
     let executor: TokioTaskExecutor = Default::default();
 
     let rpc_w = rpc_wrapper.clone();
-    let balls = rpc_wrapper
+    let state_stream = rpc_wrapper
         .provider
         .clone()
         .subscribe_blocks()
@@ -157,7 +157,7 @@ pub async fn spawn_testnet_node(
         contract_address,
         handles.eth_tx,
         handles.eth_rx,
-        balls,
+        state_stream,
         7,
         span
     )

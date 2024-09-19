@@ -101,7 +101,6 @@ pub enum RecoveryError {
 
 #[cfg(test)]
 mod tests {
-
     use rand::thread_rng;
     use reth_primitives::keccak256;
     use secp256k1::SecretKey;

@@ -27,12 +27,13 @@ pub struct TopOfBlockOrder {
 }
 
 impl TopOfBlockOrder {
-    pub fn of(internal: &OrderWithStorageData<RpcTopOfBlockOrder>) -> Self {
+    pub fn of(
+        internal: &OrderWithStorageData<RpcTopOfBlockOrder>,
+        asset_in_index: u16,
+        asset_out_index: u16
+    ) -> Self {
         let quantity_in = internal.quantityIn;
         let quantity_out = internal.quantityOut;
-        // TODO:  Is this right, this might not be right
-        let asset_in_index = internal.asset_in;
-        let asset_out_index = internal.asset_out;
         let recipient = Some(internal.recipient);
         let hook_data = Some(internal.hookPayload.clone());
         let signature = internal.meta.signature.clone();

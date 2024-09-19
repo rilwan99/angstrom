@@ -103,7 +103,7 @@ where
         self.pool
             .validate_order(OrderOrigin::External, order.clone())
             .await
-            && self.pool.new_order(OrderOrigin::External, order)
+            && self.pool.new_order(OrderOrigin::External, order).await
     }
 }
 
@@ -122,6 +122,7 @@ mod tests {
         broadcast::Receiver,
         mpsc::{unbounded_channel, UnboundedReceiver, UnboundedSender}
     };
+    use validation::order::OrderValidationResults;
 
     use super::*;
 
@@ -187,6 +188,7 @@ mod tests {
     struct OrderApiTestHandle {
         from_api: UnboundedReceiver<OrderCommand>
     }
+    use futures::FutureExt;
 
     #[derive(Clone)]
     struct MockOrderPoolHandle {
@@ -194,10 +196,21 @@ mod tests {
     }
 
     impl OrderPoolHandle for MockOrderPoolHandle {
-        fn new_order(&self, origin: OrderOrigin, order: AllOrders) -> bool {
+        fn new_order(
+            &self,
+            origin: OrderOrigin,
+            order: AllOrders
+        ) -> impl Future<Output = bool> + Send {
+            let (tx, rx) = tokio::sync::oneshot::channel();
             self.sender
-                .send(OrderCommand::NewOrder(origin, order))
-                .is_ok()
+                .send(OrderCommand::NewOrder(origin, order, tx))
+                .unwrap();
+            rx.map(|result| match result {
+                Ok(OrderValidationResults::Valid(_)) => true,
+                Ok(OrderValidationResults::Invalid(_)) => false,
+                Ok(OrderValidationResults::TransitionedToBlock) => false,
+                Err(_) => false
+            })
         }
 
         fn subscribe_orders(&self) -> Receiver<PoolManagerUpdate> {

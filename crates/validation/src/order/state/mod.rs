@@ -21,7 +21,7 @@ use crate::{
         executor::ThreadPool,
         lru_db::{BlockStateProviderFactory, RevmLRU}
     },
-    order::state::{config::ValidationConfig, pools::index_to_address::AssetIndexToAddressWrapper}
+    order::state::config::ValidationConfig
 };
 
 pub mod account;

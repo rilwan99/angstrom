@@ -127,7 +127,7 @@ pub fn to_contract_format(
                 tob.quantityIn,
                 tob.quantityOut
             );
-            let contract_tob = TopOfBlockOrder::of(tob);
+            let contract_tob = TopOfBlockOrder::of(tob, asset_in_index, asset_out_index);
             top_of_block_orders.push(contract_tob);
         }
 

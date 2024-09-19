@@ -9,9 +9,7 @@ use dashmap::DashMap;
 use reth_primitives::{B256, U256};
 
 use crate::{
-    order::state::{
-        db_state_utils::StateFetchUtils, pools::UserOrderPoolInfo, AssetIndexToAddressWrapper
-    },
+    order::state::{db_state_utils::StateFetchUtils, pools::UserOrderPoolInfo},
     BlockStateProviderFactory, RevmLRU
 };
 
@@ -34,7 +32,7 @@ pub struct LiveState {
 impl LiveState {
     pub fn can_support_order<O: RawPoolOrder>(
         &self,
-        order: &AssetIndexToAddressWrapper<O>,
+        order: &O,
         pool_info: &UserOrderPoolInfo
     ) -> Option<PendingUserAction> {
         assert_eq!(order.token_in(), self.token, "incorrect lives state for order");

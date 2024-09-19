@@ -2,19 +2,17 @@ use alloy::primitives::Address;
 use angstrom_pools::AngstromPools;
 use angstrom_types::{primitive::PoolId, sol_bindings::ext::RawPoolOrder};
 use dashmap::DashMap;
-use index_to_address::{AssetIndexToAddress, AssetIndexToAddressWrapper};
 
 use super::config::ValidationConfig;
 
 pub mod angstrom_pools;
-pub mod index_to_address;
 
 pub trait PoolsTracker: Clone + Send + Unpin {
     /// Returns None if no pool is found
     fn fetch_pool_info_for_order<O: RawPoolOrder>(
         &self,
         order: O
-    ) -> Option<(UserOrderPoolInfo, AssetIndexToAddressWrapper<O>)>;
+    ) -> Option<(UserOrderPoolInfo, O)>;
 }
 
 #[derive(Debug, Clone)]
@@ -28,23 +26,20 @@ pub struct UserOrderPoolInfo {
 #[derive(Clone)]
 /// keeps track of all valid pools and the mappings of asset id to pool id
 pub struct AngstromPoolsTracker {
-    pub asset_index_to_address: AssetIndexToAddress,
-    pub pools:                  AngstromPools
+    /// TODO: we can most likely flatten this but will circle back
+    pub pools: AngstromPools
 }
 
 impl PoolsTracker for AngstromPoolsTracker {
     fn fetch_pool_info_for_order<O: RawPoolOrder>(
         &self,
         order: O
-    ) -> Option<(UserOrderPoolInfo, AssetIndexToAddressWrapper<O>)> {
-        let wrapped = self.asset_index_to_address.wrap(order)?;
-        let (is_bid, pool_id) = self
-            .pools
-            .order_info(wrapped.token_in(), wrapped.token_out())?;
+    ) -> Option<(UserOrderPoolInfo, O)> {
+        let (is_bid, pool_id) = self.pools.order_info(order.token_in(), order.token_out())?;
 
-        let user_info = UserOrderPoolInfo { pool_id, is_bid, token: wrapped.token_in() };
+        let user_info = UserOrderPoolInfo { pool_id, is_bid, token: order.token_in() };
 
-        Some((user_info, wrapped))
+        Some((user_info, order))
     }
 }
 
@@ -57,13 +52,7 @@ impl AngstromPoolsTracker {
             .collect::<DashMap<_, _>>();
         let angstrom_pools = AngstromPools::new(pools);
 
-        let assets = config
-            .asset_to_indexes
-            .into_iter()
-            .collect::<DashMap<_, _>>();
-        let assets = AssetIndexToAddress::new(assets);
-
-        Self { pools: angstrom_pools, asset_index_to_address: assets }
+        Self { pools: angstrom_pools }
     }
 
     /// Get the token addresses for a pool specified by Uniswap PoolId.  By
@@ -119,7 +108,7 @@ pub mod pool_tracker_mock {
         fn fetch_pool_info_for_order<O: RawPoolOrder>(
             &self,
             order: O
-        ) -> Option<(UserOrderPoolInfo, AssetIndexToAddressWrapper<O>)> {
+        ) -> Option<(UserOrderPoolInfo, O)> {
             let asset_in = order.token_in();
             let asset_out = order.token_out();
             let asset_in_idx = *self.asset_address_to_index.get(&asset_in)?;
@@ -127,13 +116,8 @@ pub mod pool_tracker_mock {
             let key = Self::get_key(asset_in, asset_out);
             let pool_id = *self.pools.get(&(key))?.value();
             let is_bid = asset_in > asset_out;
-            let wrapped = AssetIndexToAddressWrapper {
-                asset_out: asset_out_idx,
-                asset_in: asset_in_idx,
-                order
-            };
             let info = UserOrderPoolInfo { pool_id, is_bid, token: asset_in };
-            Some((info, wrapped))
+            Some((info, order))
         }
     }
 }

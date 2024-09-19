@@ -1249,6 +1249,7 @@ dependencies = [
  "async-trait",
  "bincode",
  "consensus",
+ "futures",
  "hyper 1.4.1",
  "jsonrpsee",
  "metrics 0.21.1",
