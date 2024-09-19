@@ -1,5 +1,5 @@
 use alloy::{
-    primitives::{Address, Bytes, Signature, Signed, U256},
+    primitives::{aliases::I24, Address, Bytes, Signature, U256},
     sol_types::SolValue
 };
 
@@ -21,7 +21,7 @@ macro_rules! use_alloy_default {
     };
 }
 
-use_alloy_default!(u16, u64, i32, U256, u128, Address, Bytes);
+use_alloy_default!(u16, u64, i32, I24, U256, u128, Address, Bytes);
 
 // Custom impl for Signature which needs validation
 impl PadeEncode for Signature {
@@ -30,11 +30,6 @@ impl PadeEncode for Signature {
     }
 }
 
-impl<const B: usize, const L: usize> PadeEncode for Signed<B, L> {
-    fn pade_encode(&self) -> Vec<u8> {
-        self.to_be_bytes::<B>().iter().cloned().collect()
-    }
-}
 #[cfg(test)]
 mod tests {
     use crate::PadeEncode;

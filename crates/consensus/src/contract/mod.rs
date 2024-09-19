@@ -7,18 +7,12 @@ use angstrom_types::{
     contract_payloads::angstrom::{
         AngstromBundle, OrderQuantities, Pair, PoolUpdate, TopOfBlockOrder, UserOrder
     },
-    matching::{Ray, SqrtPriceX96},
+    matching::Ray,
     orders::{OrderFillState, OrderOutcome},
     sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
 };
 use builder::{AssetBuilder, AssetBuilderStage};
-use matching_engine::{
-    cfmm::uniswap::{
-        tob::{calculate_reward, ToBOutcome},
-        MarketSnapshot
-    },
-    MatchingManager
-};
+use matching_engine::{cfmm::uniswap::tob::ToBOutcome, MatchingManager};
 use reth_primitives::U256;
 use tracing::warn;
 use validation::order::state::pools::AngstromPoolsTracker;
