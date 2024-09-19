@@ -4,11 +4,11 @@ use alloy_primitives::Address;
 use angstrom_types::{
     orders::{OrderId, OrderOrigin},
     sol_bindings::{
+        ext::RawPoolOrder,
         grouped_orders::{
-            AllOrders, GroupedComposableOrder, GroupedVanillaOrder, OrderWithStorageData,
-            RawPoolOrder
+            AllOrders, GroupedComposableOrder, GroupedVanillaOrder, OrderWithStorageData
         },
-        sol::TopOfBlockOrder
+        rpc_orders::TopOfBlockOrder
     }
 };
 use reth_primitives::B256;
@@ -38,27 +38,30 @@ impl From<OrderValidationRequest> for OrderValidation {
     fn from(value: OrderValidationRequest) -> Self {
         match value {
             OrderValidationRequest::ValidateOrder(tx, order, orign) => match order {
-                AllOrders::Partial(p) => {
-                    if p.hook_data.is_empty() {
-                        OrderValidation::Limit(tx, GroupedVanillaOrder::Partial(p), orign)
-                    } else {
-                        OrderValidation::LimitComposable(
-                            tx,
-                            GroupedComposableOrder::Partial(p),
-                            orign
-                        )
-                    }
+                AllOrders::Standing(p) => {
+                    // TODO: check hook data and deal with composable
+                    // if p.hook_data.is_empty() {
+                    OrderValidation::Limit(tx, GroupedVanillaOrder::Partial(p), orign)
+                    // } else {
+                    //
+                    //     OrderValidation::LimitComposable(
+                    //         tx,
+                    //         GroupedComposableOrder::Partial(p),
+                    //         orign
+                    //     )
+                    // }
                 }
-                AllOrders::KillOrFill(kof) => {
-                    if kof.hook_data.is_empty() {
-                        OrderValidation::Limit(tx, GroupedVanillaOrder::KillOrFill(kof), orign)
-                    } else {
-                        OrderValidation::LimitComposable(
-                            tx,
-                            GroupedComposableOrder::KillOrFill(kof),
-                            orign
-                        )
-                    }
+                AllOrders::Flash(kof) => {
+                    // TODO: check hook data and deal with composable
+                    // if kof.hook_data.is_empty() {
+                    OrderValidation::Limit(tx, GroupedVanillaOrder::KillOrFill(kof), orign)
+                    // } else {
+                    //     OrderValidation::LimitComposable(
+                    //         tx,
+                    //         GroupedComposableOrder::KillOrFill(kof),
+                    //         orign
+                    //     )
+                    // }
                 }
                 AllOrders::TOB(tob) => OrderValidation::Searcher(tx, tob, orign)
             }

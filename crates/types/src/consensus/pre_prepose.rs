@@ -10,7 +10,7 @@ use crate::{
     primitive::Signature,
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
-        sol::TopOfBlockOrder
+        rpc_orders::TopOfBlockOrder
     }
 };
 

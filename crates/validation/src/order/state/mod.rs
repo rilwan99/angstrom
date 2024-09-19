@@ -2,10 +2,14 @@ use std::{collections::HashMap, sync::Arc, task::Poll};
 
 use account::UserAccountProcessor;
 use alloy_primitives::{Address, B256, U256};
+<<<<<<< HEAD
 use angstrom_types::{
     primitive::NewInitializedPool,
     sol_bindings::grouped_orders::{AllOrders, RawPoolOrder}
 };
+=======
+use angstrom_types::sol_bindings::{ext::RawPoolOrder, grouped_orders::AllOrders};
+>>>>>>> main
 use db_state_utils::StateFetchUtils;
 use futures::{Stream, StreamExt};
 use futures_util::stream::FuturesUnordered;
@@ -24,7 +28,7 @@ use crate::{
         executor::ThreadPool,
         lru_db::{BlockStateProviderFactory, RevmLRU}
     },
-    order::state::{config::ValidationConfig, pools::index_to_address::AssetIndexToAddressWrapper}
+    order::state::config::ValidationConfig
 };
 
 pub mod account;
@@ -78,9 +82,18 @@ where
         block: u64,
         is_limit: bool
     ) -> OrderValidationResults {
+<<<<<<< HEAD
         let order_hash = order.hash();
         let Some((pool_info, wrapped_order)) =
             self.pool_tacker.read_arc().fetch_pool_info_for_order(order)
+=======
+        let order_hash = order.order_hash();
+        if !order.is_valid_signature() {
+            return OrderValidationResults::Invalid(order_hash)
+        }
+
+        let Some((pool_info, wrapped_order)) = self.pool_tacker.fetch_pool_info_for_order(order)
+>>>>>>> main
         else {
             return OrderValidationResults::Invalid(order_hash)
         };

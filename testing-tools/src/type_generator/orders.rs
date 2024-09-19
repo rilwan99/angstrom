@@ -1,10 +1,14 @@
-use alloy_primitives::{Address, FixedBytes, Uint};
+use alloy_primitives::{Address, FixedBytes, Uint, U256};
 use angstrom_types::{
     matching::Ray,
     orders::{OrderId, OrderPriorityData},
     sol_bindings::{
-        grouped_orders::{GroupedVanillaOrder, OrderWithStorageData, RawPoolOrder},
-        sol::{FlashOrder, StandingOrder, TopOfBlockOrder}
+        ext::RawPoolOrder,
+        grouped_orders::{
+            FlashVariants, GroupedVanillaOrder, OrderWithStorageData, StandingVariants
+        },
+        rpc_orders::{ExactFlashOrder, ExactStandingOrder, TopOfBlockOrder},
+        sol::{FlashOrder, StandingOrder}
     }
 };
 use rand::{rngs::ThreadRng, Rng};
@@ -16,7 +20,15 @@ use rand_distr::{num_traits::ToPrimitive, Distribution, SkewNormal};
 
 fn generate_order_id(pool_id: usize, hash: FixedBytes<32>) -> OrderId {
     let address = Address::random();
-    OrderId { address, pool_id, hash, ..Default::default() }
+    OrderId {
+        address,
+        pool_id,
+        hash,
+        flash_block: None,
+        location: Default::default(),
+        deadline: None,
+        reuse_avoidance: angstrom_types::sol_bindings::RespendAvoidanceMethod::Block(0)
+    }
 }
 
 pub fn generate_limit_order(
@@ -25,8 +37,8 @@ pub fn generate_limit_order(
     is_bid: bool,
     pool_id: Option<usize>,
     valid_block: Option<u64>,
-    asset_in: Option<u16>,
-    asset_out: Option<u16>,
+    asset_in: Option<Address>,
+    asset_out: Option<Address>,
     nonce: Option<u64>,
     from: Option<Address>
 ) -> OrderWithStorageData<GroupedVanillaOrder> {
@@ -47,7 +59,7 @@ pub fn generate_limit_order(
         from.unwrap_or_else(|| rng.gen())
     );
 
-    let priority_data = OrderPriorityData { price, volume, gas };
+    let priority_data = OrderPriorityData { price: U256::from(price), volume, gas };
     let order_id = generate_order_id(pool_id, order.hash());
     // Todo: Sign It, make this overall better
     OrderWithStorageData {
@@ -77,8 +89,8 @@ pub fn generate_top_of_block_order(
     let gas: u128 = rng.gen();
     let order = build_top_of_block_order();
 
-    let priority_data = OrderPriorityData { price, volume, gas };
-    let order_id = generate_order_id(pool_id, order.hash());
+    let priority_data = OrderPriorityData { price: U256::from(price), volume, gas };
+    let order_id = generate_order_id(pool_id, order.order_hash());
     // Todo: Sign It, make this overall better
     OrderWithStorageData {
         invalidates: vec![],
@@ -98,31 +110,31 @@ pub fn build_limit_order(
     valid_block: u64,
     volume: u128,
     price: u128,
-    asset_in: u16,
-    asset_out: u16,
+    asset_in: Address,
+    asset_out: Address,
     nonce: u64,
     from: Address
 ) -> GroupedVanillaOrder {
     if kof {
-        GroupedVanillaOrder::KillOrFill(FlashOrder {
-            max_amount_in_or_out: Uint::from(volume),
-            min_price: Ray::from(Uint::from(price)).into(),
-            valid_for_block: valid_block,
-            asset_in,
-            asset_out,
+        GroupedVanillaOrder::KillOrFill(FlashVariants::Exact(ExactFlashOrder {
+            amount: volume,
+            minPrice: Ray::from(Uint::from(price)).into(),
+            validForBlock: valid_block,
+            assetIn: asset_in,
+            assetOut: asset_out,
             recipient: from,
             ..Default::default()
-        })
+        }))
     } else {
-        GroupedVanillaOrder::Partial(StandingOrder {
-            max_amount_in_or_out: Uint::from(volume),
-            min_price: Ray::from(Uint::from(price)).into(),
-            asset_out,
-            asset_in,
+        GroupedVanillaOrder::Partial(StandingVariants::Exact(ExactStandingOrder {
+            amount: volume,
+            minPrice: Ray::from(Uint::from(price)).into(),
+            assetOut: asset_out,
+            assetIn: asset_in,
             nonce,
             recipient: from,
             ..Default::default()
-        })
+        }))
     }
 }
 
@@ -178,13 +190,13 @@ pub fn generate_order_distribution(
         .map(|(p, v)| {
             let price = p.to_u128().unwrap_or_default();
             let volume = v.to_u128().unwrap_or_default();
-            let order = build_limit_order(true, valid_block, volume, price, 0,0, 0,Address::ZERO);
+            let order = build_limit_order(true, valid_block, volume, price, Address::ZERO,Address::ZERO, 0,Address::ZERO);
             let order_id = generate_order_id(pool_id, order.hash());
 
             OrderWithStorageData {
                 invalidates: vec![],
                 order,
-                priority_data: OrderPriorityData { price, volume, gas: 10 },
+                priority_data: OrderPriorityData { price: U256::from(price), volume, gas: 10 },
                 is_bid,
                 is_valid: true,
                 is_currently_valid: true,

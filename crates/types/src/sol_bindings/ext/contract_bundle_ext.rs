@@ -1,3 +1,5 @@
+#[cfg(not(feature = "testnet"))]
+use alloy_primitives::Address;
 use alloy_primitives::B256;
 #[cfg(feature = "testnet")]
 use alloy_primitives::{Address, U256};

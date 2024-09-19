@@ -1,21 +1,16 @@
 //! keeps track of account state for orders
-use std::{
-    collections::HashSet,
-    sync::{atomic::AtomicU64, Arc}
-};
+use std::sync::Arc;
 
 use alloy_primitives::{Address, B256};
-use angstrom_types::sol_bindings::grouped_orders::{OrderWithStorageData, PoolOrder, RawPoolOrder};
+use angstrom_types::{
+    orders::OrderLocation,
+    sol_bindings::{ext::RawPoolOrder, grouped_orders::OrderWithStorageData}
+};
 use dashmap::DashSet;
-use parking_lot::RwLock;
 use thiserror::Error;
 use user::UserAccounts;
 
-use super::{
-    db_state_utils::{FetchUtils, StateFetchUtils},
-    pools::{index_to_address::AssetIndexToAddressWrapper, UserOrderPoolInfo},
-    ValidationConfig
-};
+use super::{db_state_utils::StateFetchUtils, pools::UserOrderPoolInfo};
 use crate::{common::lru_db::BlockStateProviderFactory, RevmLRU};
 
 pub mod user;
@@ -45,7 +40,7 @@ impl<DB: BlockStateProviderFactory + Unpin + 'static, S: StateFetchUtils>
     /// Fetches the state overrides that are required for the hook simulation.
     pub fn grab_state_for_hook_simulations<O: RawPoolOrder>(
         &self,
-        order: AssetIndexToAddressWrapper<O>,
+        order: O,
         pool_info: UserOrderPoolInfo,
         block: u64
     ) -> Result<(), UserAccountVerificationError<O>> {
@@ -62,25 +57,35 @@ impl<DB: BlockStateProviderFactory + Unpin + 'static, S: StateFetchUtils>
 
     pub fn verify_order<O: RawPoolOrder>(
         &self,
-        order: AssetIndexToAddressWrapper<O>,
+        order: O,
         pool_info: UserOrderPoolInfo,
         block: u64,
         is_limit: bool
     ) -> Result<OrderWithStorageData<O>, UserAccountVerificationError<O>> {
-        let nonce = order.nonce();
         let user = order.from();
-        let order_hash = order.hash();
+        let order_hash = order.order_hash();
 
         // very nonce hasn't been used historically
-        if !self
-            .fetch_utils
-            .is_valid_nonce(user, nonce.to(), self.db.clone())
-        {
-            return Err(UserAccountVerificationError::DuplicateNonce(order_hash))
+        //
+        let respend = order.respend_avoidance_strategy();
+        match respend {
+            angstrom_types::sol_bindings::RespendAvoidanceMethod::Nonce(nonce) => {
+                if !self
+                    .fetch_utils
+                    .is_valid_nonce(user, nonce, self.db.clone())
+                {
+                    return Err(UserAccountVerificationError::DuplicateNonce(order_hash))
+                }
+            }
+            angstrom_types::sol_bindings::RespendAvoidanceMethod::Block(order_block) => {
+                if block != order_block {
+                    return Err(UserAccountVerificationError::BadBlock)
+                }
+            }
         }
 
-        // very we don't have a pending nonce conflict
-        if self.user_accounts.has_nonce_conflict(user, nonce) {
+        // very we don't have a respend conflict
+        if self.user_accounts.has_respend_conflict(user, respend) {
             return Err(UserAccountVerificationError::DuplicateNonce(order_hash))
         }
 
@@ -92,7 +97,7 @@ impl<DB: BlockStateProviderFactory + Unpin + 'static, S: StateFetchUtils>
         let live_state = self.user_accounts.get_live_state_for_order(
             user,
             pool_info.token,
-            nonce,
+            respend,
             &self.fetch_utils,
             &self.db
         );
@@ -120,19 +125,58 @@ impl<DB: BlockStateProviderFactory + Unpin + 'static, S: StateFetchUtils>
     }
 }
 
+impl<T: RawPoolOrder> StorageWithData for T {}
+
+pub trait StorageWithData: RawPoolOrder {
+    fn into_order_storage_with_data(
+        self,
+        block: u64,
+        is_cur_valid: bool,
+        is_valid: bool,
+        is_limit: bool,
+        pool_info: UserOrderPoolInfo,
+        invalidates: Vec<B256>
+    ) -> OrderWithStorageData<Self> {
+        OrderWithStorageData {
+            priority_data: angstrom_types::orders::OrderPriorityData {
+                price:  self.limit_price(),
+                volume: self.amount_in(),
+                gas:    0
+            },
+            pool_id: pool_info.pool_id,
+            is_currently_valid: is_cur_valid,
+            is_bid: pool_info.is_bid,
+            is_valid,
+            valid_block: block,
+            order_id: angstrom_types::orders::OrderId {
+                reuse_avoidance: self.respend_avoidance_strategy(),
+                flash_block:     self.flash_block(),
+                address:         self.from(),
+                pool_id:         pool_info.pool_id,
+                hash:            self.order_hash(),
+                deadline:        self.deadline(),
+                location:        if is_limit {
+                    OrderLocation::Limit
+                } else {
+                    OrderLocation::Searcher
+                }
+            },
+            invalidates,
+            order: self
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum UserAccountVerificationError<O: RawPoolOrder> {
     #[error("tried to verify for block {} where current is {}", requested, current)]
-    BlockMissMatch {
-        requested: u64,
-        current:   u64,
-        order:     AssetIndexToAddressWrapper<O>,
-        pool_info: UserOrderPoolInfo
-    },
+    BlockMissMatch { requested: u64, current: u64, order: O, pool_info: UserOrderPoolInfo },
     #[error("order hash has been cancelled {0:?}")]
     OrderIsCancelled(B256),
     #[error("Nonce exists for a current order hash: {0:?}")]
-    DuplicateNonce(B256)
+    DuplicateNonce(B256),
+    #[error("block for flash order is not current block")]
+    BadBlock
 }
 
 #[cfg(test)]
@@ -143,7 +187,7 @@ pub mod tests {
     };
 
     use alloy_primitives::U256;
-    use angstrom_types::sol_bindings::grouped_orders::{GroupedVanillaOrder, PoolOrder};
+    use angstrom_types::sol_bindings::grouped_orders::GroupedVanillaOrder;
     use dashmap::DashSet;
     use rand::thread_rng;
     use reth_primitives::Address;

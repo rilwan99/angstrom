@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 use std::{collections::HashMap, sync::Arc};
 
 use alloy_primitives::{Address, FixedBytes, U256};
@@ -9,21 +10,30 @@ use angstrom_types::{
 use dashmap::DashMap;
 use index_to_address::{AssetIndexToAddress, AssetIndexToAddressWrapper};
 use parking_lot::RwLock;
+=======
+use alloy_primitives::Address;
+use angstrom_pools::AngstromPools;
+use angstrom_types::sol_bindings::ext::RawPoolOrder;
+use dashmap::DashMap;
+>>>>>>> main
 
-use super::config::{HashMethod, ValidationConfig};
+use super::config::ValidationConfig;
 
 pub mod angstrom_pools;
-pub mod index_to_address;
 
 pub trait PoolsTracker: Clone + Send + Unpin {
     /// Returns None if no pool is found
     fn fetch_pool_info_for_order<O: RawPoolOrder>(
         &self,
         order: O
+<<<<<<< HEAD
     ) -> Option<(UserOrderPoolInfo, AssetIndexToAddressWrapper<O>)>;
 
     /// indexes a new pool into the tracker
     fn index_new_pool(&mut self, pool: NewInitializedPool);
+=======
+    ) -> Option<(UserOrderPoolInfo, O)>;
+>>>>>>> main
 }
 
 #[derive(Debug, Clone)]
@@ -37,10 +47,26 @@ pub struct UserOrderPoolInfo {
 #[derive(Clone)]
 /// keeps track of all valid pools and the mappings of asset id to pool id
 pub struct AngstromPoolsTracker {
-    pub asset_index_to_address: AssetIndexToAddress,
-    pub pools:                  AngstromPools
+    /// TODO: we can most likely flatten this but will circle back
+    pub pools: AngstromPools
 }
 
+<<<<<<< HEAD
+=======
+impl PoolsTracker for AngstromPoolsTracker {
+    fn fetch_pool_info_for_order<O: RawPoolOrder>(
+        &self,
+        order: O
+    ) -> Option<(UserOrderPoolInfo, O)> {
+        let (is_bid, pool_id) = self.pools.order_info(order.token_in(), order.token_out())?;
+
+        let user_info = UserOrderPoolInfo { pool_id, is_bid, token: order.token_in() };
+
+        Some((user_info, order))
+    }
+}
+
+>>>>>>> main
 impl AngstromPoolsTracker {
     pub fn new(config: ValidationConfig) -> Self {
         let pools = config
@@ -54,13 +80,7 @@ impl AngstromPoolsTracker {
             .collect::<DashMap<_, _>>();
         let angstrom_pools = AngstromPools::new(pools);
 
-        let assets = config
-            .asset_to_indexes
-            .into_iter()
-            .collect::<DashMap<_, _>>();
-        let assets = AssetIndexToAddress::new(assets);
-
-        Self { pools: angstrom_pools, asset_index_to_address: assets }
+        Self { pools: angstrom_pools }
     }
 
     fn set_pool(&mut self, pool: NewInitializedPool) {
@@ -96,8 +116,12 @@ impl PoolsTracker for AngstromPoolsTracker {
 
 #[cfg(test)]
 pub mod pool_tracker_mock {
+<<<<<<< HEAD
     use alloy_primitives::{Address, FixedBytes};
     use angstrom_types::primitive::PoolIdWithDirection;
+=======
+    use alloy_primitives::Address;
+>>>>>>> main
     use dashmap::DashMap;
 
     use super::*;
@@ -124,18 +148,12 @@ pub mod pool_tracker_mock {
             &self,
             order: O
         ) -> Option<(UserOrderPoolInfo, AssetIndexToAddressWrapper<O>)> {
-            let token_in = *self
-                .asset_index_to_address
-                .get(&order.get_token_in())?
-                .value();
-            let token_out = *self
-                .asset_index_to_address
-                .get(&order.get_token_out())?
-                .value();
+            let asset_in = *self.asset_index_to_address.get(&order.token_in())?.value();
+            let asset_out = *self.asset_index_to_address.get(&order.token_out())?.value();
 
             let value = self.pools.get(&(token_in, token_out))?;
             let (is_bid, pool_id) = value.value();
-            let wrapped = AssetIndexToAddressWrapper { token_out, token_in, order };
+            let wrapped = AssetIndexToAddressWrapper { asset_out, asset_in, order };
             let info = UserOrderPoolInfo { pool_id: *pool_id, is_bid: *is_bid, token: token_in };
 
             Some((info, wrapped))
