@@ -169,7 +169,7 @@ pub mod tests {
     use rand::thread_rng;
     use reth_primitives::Address;
     use revm::primitives::bitvec::store::BitStore;
-    use testing_tools::type_generator::orders::generate_limit_order;
+    use testing_tools::type_generator::orders::UserOrderBuilder;
 
     use super::{UserAccountProcessor, UserAccountVerificationError, UserAccounts};
     use crate::order::state::{
@@ -201,18 +201,13 @@ pub mod tests {
         mock_pool.add_pool(token0, token1, pool);
 
         let mut rng = thread_rng();
-        let mut order: GroupedVanillaOrder = generate_limit_order(
-            &mut rng,
-            false,
-            true,
-            Some(pool),
-            None,
-            Some(token0),
-            Some(token1),
-            Some(420),
-            Some(user)
-        )
-        .order;
+        let mut order: GroupedVanillaOrder = UserOrderBuilder::new()
+            .standing()
+            .asset_in(token0)
+            .asset_out(token1)
+            .nonce(420)
+            .recipient(user)
+            .build();
 
         // wrap order with details
         let pool_info = mock_pool
@@ -249,18 +244,13 @@ pub mod tests {
         mock_pool.add_pool(token0, token1, pool);
 
         let mut rng = thread_rng();
-        let mut order: GroupedVanillaOrder = generate_limit_order(
-            &mut rng,
-            false,
-            true,
-            Some(pool),
-            None,
-            Some(token0),
-            Some(token1),
-            Some(420),
-            Some(user)
-        )
-        .order;
+        let mut order: GroupedVanillaOrder = UserOrderBuilder::new()
+            .standing()
+            .asset_in(token0)
+            .asset_out(token1)
+            .nonce(420)
+            .recipient(user)
+            .build();
 
         // wrap order with details
         let pool_info = mock_pool
@@ -308,31 +298,20 @@ pub mod tests {
         mock_pool.add_pool(token0, token1, pool);
 
         let mut rng = thread_rng();
-        let mut order0: GroupedVanillaOrder = generate_limit_order(
-            &mut rng,
-            false,
-            true,
-            Some(pool),
-            None,
-            Some(token0),
-            Some(token1),
-            Some(420),
-            Some(user)
-        )
-        .order;
-
-        let mut order1: GroupedVanillaOrder = generate_limit_order(
-            &mut rng,
-            false,
-            true,
-            Some(pool),
-            None,
-            Some(token0),
-            Some(token1),
-            Some(10),
-            Some(user)
-        )
-        .order;
+        let mut order0: GroupedVanillaOrder = UserOrderBuilder::new()
+            .standing()
+            .asset_in(token0)
+            .asset_out(token1)
+            .nonce(420)
+            .recipient(user)
+            .build();
+        let mut order1: GroupedVanillaOrder = UserOrderBuilder::new()
+            .standing()
+            .asset_in(token0)
+            .asset_out(token1)
+            .nonce(90)
+            .recipient(user)
+            .build();
         // wrap order with details
         let pool_info0 = mock_pool
             .fetch_pool_info_for_order(&order0)
@@ -382,18 +361,13 @@ pub mod tests {
         mock_pool.add_pool(token0, token1, pool);
 
         let mut rng = thread_rng();
-        let mut order: GroupedVanillaOrder = generate_limit_order(
-            &mut rng,
-            false,
-            true,
-            Some(pool),
-            None,
-            Some(token0),
-            Some(token1),
-            Some(420),
-            Some(user)
-        )
-        .order;
+        let mut order: GroupedVanillaOrder = UserOrderBuilder::new()
+            .standing()
+            .asset_in(token0)
+            .asset_out(token1)
+            .nonce(420)
+            .recipient(user)
+            .build();
 
         // wrap order with details
         let pool_info = mock_pool
