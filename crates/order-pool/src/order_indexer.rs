@@ -18,9 +18,8 @@ use angstrom_types::{
 use futures_util::{Stream, StreamExt};
 use reth_network_peers::PeerId;
 use reth_primitives::Address;
-use revm::interpreter::require_eof;
 use tokio::sync::oneshot::Sender;
-use tracing::{error, trace, Instrument};
+use tracing::{error, trace};
 use validation::order::{
     state::account::user::UserAddress, OrderValidationResults, OrderValidatorHandle
 };
@@ -105,7 +104,7 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
             return false;
         }
 
-        let removed = self.order_storage.cancel_order(&order_id);
+        let removed = self.order_storage.cancel_order(order_id);
         if removed.is_some() {
             // make the increment
             self.order_hash_to_order_id.remove(&order_hash);
@@ -308,7 +307,7 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
             OrderValidationResults::Invalid(bad_hash) => {
                 self.notify_validation_subscribers(
                     &bad_hash,
-                    OrderValidationResults::Invalid(bad_hash.clone())
+                    OrderValidationResults::Invalid(bad_hash)
                 );
                 let peers = self
                     .order_hash_to_peer_id
@@ -370,7 +369,7 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
 
     fn update_order_tracking(&mut self, hash: &B256, user: UserAddress, id: OrderId) {
         self.order_hash_to_peer_id.remove(hash);
-        self.order_hash_to_order_id.insert(hash.clone(), id);
+        self.order_hash_to_order_id.insert(*hash, id);
         // nonce overlap is checked during validation so its ok we
         // don't check for duplicates
         self.address_to_orders.entry(user).or_default().push(id);
