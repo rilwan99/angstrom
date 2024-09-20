@@ -64,8 +64,7 @@ const PEER_ORDER_CACHE_LIMIT: usize = 1024 * 10;
 #[derive(Debug, Clone)]
 pub struct PoolHandle {
     pub manager_tx:      UnboundedSender<OrderCommand>,
-    pub pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>,
-    pub validator_tx:    UnboundedSender<ValidationRequest>
+    pub pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>
 }
 
 #[derive(Debug)]
@@ -81,15 +80,6 @@ impl PoolHandle {
 
     async fn send_request<T>(&self, rx: oneshot::Receiver<T>, cmd: OrderCommand) -> T {
         self.send(cmd);
-        rx.await.unwrap()
-    }
-
-    async fn send_validation_request<T>(
-        &self,
-        rx: oneshot::Receiver<T>,
-        cmd: ValidationRequest
-    ) -> T {
-        self.validator_tx.send(cmd);
         rx.await.unwrap()
     }
 }
@@ -112,27 +102,6 @@ impl OrderPoolHandle for PoolHandle {
 
     fn subscribe_orders(&self) -> Receiver<PoolManagerUpdate> {
         self.pool_manager_tx.subscribe()
-    }
-
-    fn validate_order(
-        &self,
-        order_origin: OrderOrigin,
-        order: AllOrders
-    ) -> impl Future<Output = bool> + Send {
-        let (tx, rx) = oneshot::channel::<OrderValidationResults>();
-        self.send_validation_request(
-            rx,
-            ValidationRequest::Order(OrderValidationRequest::ValidateOrder(
-                tx,
-                order,
-                order_origin
-            ))
-        )
-        .map(|result| match result {
-            OrderValidationResults::Valid(_) => true,
-            OrderValidationResults::Invalid(_) => false,
-            OrderValidationResults::TransitionedToBlock => false
-        })
     }
 }
 
@@ -186,18 +155,14 @@ where
         task_spawner: TP,
         tx: UnboundedSender<OrderCommand>,
         rx: UnboundedReceiver<OrderCommand>,
-        validator_tx: UnboundedSender<ValidationRequest>,
         pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>
     ) -> PoolHandle {
         let rx = UnboundedReceiverStream::new(rx);
         let order_storage = self
             .order_storage
             .unwrap_or_else(|| Arc::new(OrderStorage::new(&self.config)));
-        let handle = PoolHandle {
-            manager_tx:      tx.clone(),
-            pool_manager_tx: pool_manager_tx.clone(),
-            validator_tx:    validator_tx.clone()
-        };
+        let handle =
+            PoolHandle { manager_tx: tx.clone(), pool_manager_tx: pool_manager_tx.clone() };
         let inner = OrderIndexer::new(
             self.validator.clone(),
             order_storage.clone(),
@@ -208,14 +173,13 @@ where
         task_spawner.spawn_critical(
             "transaction manager",
             Box::pin(PoolManager {
-                eth_network_events: self.eth_network_events,
+                eth_network_events:   self.eth_network_events,
                 strom_network_events: self.strom_network_events,
-                order_events: self.order_events,
-                peers: HashMap::default(),
-                order_indexer: inner,
-                network: self.network_handle,
-                command_rx: rx,
-                pool_manager_tx
+                order_events:         self.order_events,
+                peers:                HashMap::default(),
+                order_indexer:        inner,
+                network:              self.network_handle,
+                command_rx:           rx
             })
         );
 
@@ -224,18 +188,13 @@ where
 
     pub fn build<TP: TaskSpawner>(self, task_spawner: TP) -> PoolHandle {
         let (tx, rx) = unbounded_channel();
-        // TODO: Fix me
-        let (validator_tx, validator_rx) = unbounded_channel();
         let rx = UnboundedReceiverStream::new(rx);
         let order_storage = self
             .order_storage
             .unwrap_or_else(|| Arc::new(OrderStorage::new(&self.config)));
         let (pool_manager_tx, _) = broadcast::channel(100);
-        let handle = PoolHandle {
-            manager_tx:      tx.clone(),
-            pool_manager_tx: pool_manager_tx.clone(),
-            validator_tx:    validator_tx.clone()
-        };
+        let handle =
+            PoolHandle { manager_tx: tx.clone(), pool_manager_tx: pool_manager_tx.clone() };
         let inner = OrderIndexer::new(
             self.validator.clone(),
             order_storage.clone(),
@@ -246,14 +205,13 @@ where
         task_spawner.spawn_critical(
             "transaction manager",
             Box::pin(PoolManager {
-                eth_network_events: self.eth_network_events,
+                eth_network_events:   self.eth_network_events,
                 strom_network_events: self.strom_network_events,
-                order_events: self.order_events,
-                peers: HashMap::default(),
-                order_indexer: inner,
-                network: self.network_handle,
-                command_rx: rx,
-                pool_manager_tx
+                order_events:         self.order_events,
+                peers:                HashMap::default(),
+                order_indexer:        inner,
+                network:              self.network_handle,
+                command_rx:           rx
             })
         );
 
@@ -281,9 +239,7 @@ where
     /// Incoming events from the ProtocolManager.
     order_events:         UnboundedMeteredReceiver<NetworkOrderEvent>,
     /// All the connected peers.
-    peers:                HashMap<PeerId, StromPeer>,
-    /// Broadcast channel for orders.
-    pool_manager_tx:      broadcast::Sender<PoolManagerUpdate>
+    peers:                HashMap<PeerId, StromPeer>
 }
 
 impl<V> PoolManager<V>
@@ -308,8 +264,7 @@ where
             peers: HashMap::new(),
             order_events,
             command_rx,
-            eth_network_events,
-            pool_manager_tx
+            eth_network_events
         }
     }
 
@@ -410,10 +365,6 @@ where
             })
             .collect::<Vec<_>>();
 
-        broadcast_orders.iter().for_each(|order| {
-            self.pool_manager_tx
-                .send(PoolManagerUpdate::NewOrder(order.clone()));
-        });
         // need to update network types for this
         self.network
             .broadcast_tx(StromMessage::PropagatePooledOrders(broadcast_orders));

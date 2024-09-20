@@ -30,9 +30,4 @@ pub trait OrderPoolHandle: Send + Sync + Clone + Unpin + 'static {
     fn new_order(&self, origin: OrderOrigin, order: AllOrders)
         -> impl Future<Output = bool> + Send;
     fn subscribe_orders(&self) -> Receiver<PoolManagerUpdate>;
-    fn validate_order(
-        &self,
-        order_origin: OrderOrigin,
-        order: AllOrders
-    ) -> impl Future<Output = bool> + Send;
 }
