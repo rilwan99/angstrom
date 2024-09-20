@@ -110,7 +110,14 @@ impl UserOrderBuilder {
                 GroupedVanillaOrder::Standing(StandingVariants::Exact(order))
             }
             (true, false) => {
-                let order = PartialStandingOrder { ..Default::default() };
+                let order = PartialStandingOrder {
+                    assetIn: self.asset_in,
+                    assetOut: self.asset_out,
+                    maxAmountIn: self.amount,
+                    minPrice: *self.min_price,
+                    recipient: self.recipient,
+                    ..Default::default()
+                };
                 GroupedVanillaOrder::Standing(StandingVariants::Partial(order))
             }
             (false, true) => {
@@ -126,7 +133,15 @@ impl UserOrderBuilder {
                 GroupedVanillaOrder::KillOrFill(FlashVariants::Exact(order))
             }
             (false, false) => {
-                let order = PartialFlashOrder { ..Default::default() };
+                let order = PartialFlashOrder {
+                    validForBlock: self.block,
+                    assetIn: self.asset_in,
+                    assetOut: self.asset_out,
+                    maxAmountIn: self.amount,
+                    minPrice: *self.min_price,
+                    recipient: self.recipient,
+                    ..Default::default()
+                };
                 GroupedVanillaOrder::KillOrFill(FlashVariants::Partial(order))
             }
         }

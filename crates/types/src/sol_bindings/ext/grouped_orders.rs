@@ -449,6 +449,14 @@ impl GroupedVanillaOrder {
             Self::KillOrFill(o) => o.signature()
         }
     }
+
+    pub fn is_partial(&self) -> bool {
+        matches!(
+            self,
+            Self::Standing(StandingVariants::Partial(_))
+                | Self::KillOrFill(FlashVariants::Partial(_))
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

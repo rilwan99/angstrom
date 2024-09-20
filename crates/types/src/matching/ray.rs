@@ -135,6 +135,8 @@ impl<'de> Deserialize<'de> for Ray {
 }
 
 impl Ray {
+    pub const ZERO: Ray = Ray(U256::ZERO);
+
     /// Uses malachite.rs to approximate this value as a floating point number.
     /// Converts from the internal U256 representation to an approximated f64
     /// representation, which is a change to the value of this number and why
