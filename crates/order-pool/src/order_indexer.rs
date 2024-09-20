@@ -106,7 +106,6 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
 
         let removed = self.order_storage.cancel_order(order_id);
         if removed.is_some() {
-            // make the increment
             self.order_hash_to_order_id.remove(&order_hash);
             self.order_hash_to_peer_id.remove(&order_hash);
             self.notify_order_subscribers(PoolManagerUpdate::CancelledOrder(order_hash));
