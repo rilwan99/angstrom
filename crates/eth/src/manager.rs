@@ -18,10 +18,11 @@ use crate::handle::{EthCommand, EthHandle};
 /// executed by the order pool
 #[allow(dead_code)]
 pub struct EthDataCleanser<DB> {
+    angstrom_address: Address,
     /// our command receiver
-    commander:       ReceiverStream<EthCommand>,
+    commander:        ReceiverStream<EthCommand>,
     /// people listening to events
-    event_listeners: Vec<UnboundedSender<EthEvent>>,
+    event_listeners:  Vec<UnboundedSender<EthEvent>>,
 
     /// Notifications for Canonical Block updates
     canonical_updates: BroadcastStream<CanonStateNotification>,
@@ -35,6 +36,7 @@ where
     DB: StateProviderFactory + Send + Sync + Unpin + 'static
 {
     pub fn spawn<TP: TaskSpawner>(
+        angstrom_address: Address,
         canonical_updates: CanonStateNotifications,
         db: DB,
         tp: TP,
@@ -44,6 +46,7 @@ where
         let stream = ReceiverStream::new(rx);
 
         let this = Self {
+            angstrom_address,
             canonical_updates: BroadcastStream::new(canonical_updates),
             commander: stream,
             event_listeners: Vec::new(),
@@ -79,8 +82,8 @@ where
         eoas.extend(Self::get_eoa(new.clone()));
 
         // get all reorged orders
-        let old_filled: HashSet<_> = Self::fetch_filled_orders(old.clone()).collect();
-        let new_filled: HashSet<_> = Self::fetch_filled_orders(new.clone()).collect();
+        let old_filled: HashSet<_> = self.fetch_filled_orders(old.clone()).collect();
+        let new_filled: HashSet<_> = self.fetch_filled_orders(new.clone()).collect();
 
         let difference: Vec<_> = old_filled.difference(&new_filled).copied().collect();
         let reorged_orders = EthEvent::ReorgedOrders(difference);
@@ -95,7 +98,7 @@ where
     }
 
     fn handle_commit(&mut self, new: Arc<Chain>) {
-        let filled_orders = Self::fetch_filled_orders(new.clone()).collect::<Vec<_>>();
+        let filled_orders = self.fetch_filled_orders(new.clone()).collect::<Vec<_>>();
         let eoas = Self::get_eoa(new.clone());
 
         let transitions = EthEvent::NewBlockTransitions {
@@ -106,10 +109,18 @@ where
         self.send_events(transitions);
     }
 
-    /// TODO: check contract for state change. if there is change. fetch the
     /// transaction on Angstrom and process call-data to pull order-hashes.
-    fn fetch_filled_orders(_chain: Arc<Chain>) -> impl Iterator<Item = B256> + 'static {
-        vec![].into_iter()
+    fn fetch_filled_orders(&self, chain: Arc<Chain>) -> impl Iterator<Item = B256> + 'static {
+        let angstrom_input = chain
+            .tip()
+            .transactions()
+            .filter(|tx| tx.transaction.to().is_some())
+            .filter(|tx| tx.to().unwrap() == self.angstrom_address)
+            .filter_map(|transaction| AngstromBundle::decode(transaction.input()).ok());
+
+        // let a = let calldata = angstrom_tx.input();
+
+        return vec![].into_iter()
     }
 
     /// fetches all eoa addresses touched
