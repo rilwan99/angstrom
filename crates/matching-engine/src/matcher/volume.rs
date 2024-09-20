@@ -12,7 +12,7 @@ use angstrom_types::{
 
 use super::Solution;
 use crate::book::{
-    order::{OrderContainer, OrderDirection, OrderExclusion},
+    order::{OrderContainer, OrderExclusion},
     OrderBook
 };
 
@@ -130,7 +130,7 @@ impl<'a> VolumeFillMatcher<'a> {
                 let bid = match self.current_partial {
                     Some(ref o) if o.is_bid => OrderContainer::BookOrderFragment(o),
                     _ => {
-                        amm_bid_order = self.try_next_order(OrderDirection::Bid);
+                        amm_bid_order = self.try_next_order(true);
                         let Some(o) = amm_bid_order.or_else(|| {
                             self.book
                                 .bids()
@@ -147,7 +147,7 @@ impl<'a> VolumeFillMatcher<'a> {
                 let ask = match self.current_partial {
                     Some(ref o) if !o.is_bid => OrderContainer::BookOrderFragment(o),
                     _ => {
-                        amm_ask_order = self.try_next_order(OrderDirection::Ask);
+                        amm_ask_order = self.try_next_order(false);
                         let Some(o) = amm_ask_order.or_else(|| {
                             self.book
                                 .asks()
@@ -264,26 +264,20 @@ impl<'a> VolumeFillMatcher<'a> {
                 // We can checkpoint if we annihilated (No partial), if we completely filled an
                 // order with an AMM order (No partial) or if we have an incomplete order but
                 // it's a Partial Fill order which means this is a valid state to stop
-                let good_state = self
-                    .current_partial
-                    .as_ref()
-                    .map(|o| matches!(o.order, GroupedVanillaOrder::Standing(_)))
-                    .unwrap_or(true); // None is a good state
-                if good_state {
-                    self.save_checkpoint();
+                if let Some(ref fragment) = self.current_partial {
+                    if fragment.is_partial() {
+                        self.save_checkpoint();
+                    }
                 }
             }
         }
     }
 
-    fn try_next_order<'b>(&self, direction: OrderDirection) -> Option<OrderContainer<'a, 'b>> {
-        let (index_cell, order_book, outcomes, related) = match direction {
-            OrderDirection::Bid => {
-                (&self.bid_idx, self.book.bids(), &self.bid_outcomes, &self.bid_xpool)
-            }
-            OrderDirection::Ask => {
-                (&self.ask_idx, self.book.asks(), &self.ask_outcomes, &self.ask_xpool)
-            }
+    fn try_next_order<'b>(&self, is_bid: bool) -> Option<OrderContainer<'a, 'b>> {
+        let (index_cell, order_book, outcomes, related) = if is_bid {
+            (&self.bid_idx, self.book.bids(), &self.bid_outcomes, &self.bid_xpool)
+        } else {
+            (&self.ask_idx, self.book.asks(), &self.ask_outcomes, &self.ask_xpool)
         };
         let mut index = index_cell.get();
         // Find our next unfilled order
@@ -307,7 +301,7 @@ impl<'a> VolumeFillMatcher<'a> {
                     .get(index)
                     // .map(|o| SqrtPriceX96::from(OrderContainer::BookOrder(o).price()));
                     .map(|o| SqrtPriceX96::from(Ray::from(*OrderContainer::BookOrder(o).price())));
-                amm_price.order_to_target(target_price, direction.is_ask())
+                amm_price.order_to_target(target_price, !is_bid)
             })
             .map(OrderContainer::AMM);
 
@@ -343,5 +337,85 @@ impl<'a> VolumeFillMatcher<'a> {
             searcher,
             limit
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloy::primitives::Uint;
+    use angstrom_types::{matching::Ray, primitive::PoolId};
+    use testing_tools::type_generator::orders::UserOrderBuilder;
+
+    use super::VolumeFillMatcher;
+    use crate::book::OrderBook;
+
+    #[test]
+    fn runs_cleanly_on_empty_book() {
+        let book = OrderBook::default();
+        let matcher = VolumeFillMatcher::new(&book);
+        let solution = matcher.solution(None);
+        assert!(solution.ucp == Ray::ZERO, "Empty book didn't have UCP of zero");
+    }
+
+    // Let's write tests for all the basic matching outcomes to make sure they
+    // work properly, then come up with some more complicated situations and
+    // components to check
+
+    #[test]
+    fn bid_outweighs_ask_sets_price() {
+        let pool_id = PoolId::random();
+        let high_price = Ray::from(Uint::from(1_000_000_000_u128));
+        let low_price = Ray::from(Uint::from(1_000_u128));
+        let bid_order = UserOrderBuilder::new()
+            .partial()
+            .amount(100)
+            .min_price(high_price)
+            .with_storage()
+            .bid()
+            .build();
+        let ask_order = UserOrderBuilder::new()
+            .exact()
+            .amount(10)
+            .min_price(low_price)
+            .with_storage()
+            .ask()
+            .build();
+        let book = OrderBook::new(pool_id, None, vec![bid_order.clone()], vec![ask_order], None);
+        let mut matcher = VolumeFillMatcher::new(&book);
+        let fill_outcome = matcher.fill();
+        let solution = matcher.from_checkpoint().unwrap().solution(None);
+        assert!(
+            solution.ucp == high_price,
+            "Bid outweighed but the final price wasn't properly set"
+        );
+    }
+
+    #[test]
+    fn ask_outweighs_bid_sets_price() {
+        let pool_id = PoolId::random();
+        let high_price = Ray::from(Uint::from(1_000_000_000_u128));
+        let low_price = Ray::from(Uint::from(1_000_u128));
+        let bid_order = UserOrderBuilder::new()
+            .exact()
+            .amount(10)
+            .min_price(high_price)
+            .with_storage()
+            .bid()
+            .build();
+        let ask_order = UserOrderBuilder::new()
+            .partial()
+            .amount(100)
+            .min_price(low_price)
+            .with_storage()
+            .ask()
+            .build();
+        let book = OrderBook::new(pool_id, None, vec![bid_order.clone()], vec![ask_order], None);
+        let mut matcher = VolumeFillMatcher::new(&book);
+        let fill_outcome = matcher.fill();
+        let solution = matcher.from_checkpoint().unwrap().solution(None);
+        assert!(
+            solution.ucp == low_price,
+            "Ask outweighed but the final price wasn't properly set"
+        );
     }
 }
