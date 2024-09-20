@@ -3,7 +3,7 @@ use std::{
     sync::OnceLock
 };
 
-use alloy_primitives::U256;
+use alloy::primitives::U256;
 
 mod ray;
 mod sqrtprice;
@@ -27,7 +27,7 @@ fn const_2_192() -> &'static Natural {
 
 /// MatchingPrice is the internal price representation used in the matching
 /// engine.  We'll make sure all the various price representations we work with
-/// can be converted to/from this standard so our Math is sane
+/// can be converted to/from this standard so our Math is sane.  This is a Ray.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MatchingPrice(U256);
 
@@ -67,7 +67,7 @@ impl From<U256> for MatchingPrice {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::{U160, U256};
+    use alloy::primitives::{U160, U256};
     use rand::{thread_rng, Rng};
 
     use super::{MatchingPrice, Ray};

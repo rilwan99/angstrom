@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use alloy_primitives::{Address, U256};
+use alloy::primitives::{Address, U256};
 use futures_util::stream::FuturesUnordered;
 use tokio::task::JoinHandle;
 

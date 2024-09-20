@@ -7,7 +7,7 @@ import {BitPackLib} from "./BitPackLib.sol";
 
 struct Asset {
     address addr;
-    uint128 borrow;
+    uint128 take;
     uint128 save;
     uint128 settle;
 }
@@ -30,7 +30,7 @@ library AssetLib {
     }
 
     function encode(Asset memory asset) internal pure returns (bytes memory b) {
-        b = abi.encodePacked(asset.addr, asset.borrow, asset.save, asset.settle);
+        b = abi.encodePacked(asset.addr, asset.take, asset.save, asset.settle);
         require(b.length == ActualAssetLib.ASSET_BYTES, "Assets unexpected length");
     }
 

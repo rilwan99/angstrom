@@ -37,8 +37,7 @@ reth-network.workspace = true
 revm.workspace = true
 
 # alloy 
-alloy-rlp.workspace = true
-alloy-primitives.workspace = true
+alloy.workspace = true
 
 
 # async/futures
@@ -71,7 +70,7 @@ proptest = { workspace = true, optional = true }
 testing-tools.workspace = true
 angstrom-network.workspace = true
 # reth
-reth-discv4 = { git = "https://github.com/paradigmxyz/reth", version = "1.0.4", tag = "v1.0.4", features = [
+reth-discv4 = { workspace = true, features = [
   "test-utils",
 ] }
 # reth-interfaces = { workspace = true, features = ["test-utils"] }

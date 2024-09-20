@@ -39,7 +39,7 @@ impl ComposableLimitPool {
     pub fn remove_order(
         &mut self,
         pool_id: PoolId,
-        tx_id: alloy_primitives::FixedBytes<32>
+        tx_id: alloy::primitives::FixedBytes<32>
     ) -> Option<OrderWithStorageData<GroupedComposableOrder>> {
         self.map
             .get_mut(&pool_id)?

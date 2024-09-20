@@ -3,7 +3,7 @@ use std::{
     task::Poll
 };
 
-use alloy_primitives::{Address, B256};
+use alloy::primitives::{Address, B256};
 use futures_util::{Future, FutureExt};
 use tokio::{
     runtime::Handle,

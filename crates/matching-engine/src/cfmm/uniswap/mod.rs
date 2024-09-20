@@ -9,9 +9,11 @@ use angstrom_types::{
     matching::{Ray, SqrtPriceX96},
     orders::OrderPrice
 };
+use eyre::{eyre, Context, Error};
 use uniswap_v3_math::{
     sqrt_price_math::{
-        _get_amount_0_delta, get_next_sqrt_price_from_input, get_next_sqrt_price_from_output
+        _get_amount_0_delta, _get_amount_1_delta, get_next_sqrt_price_from_input,
+        get_next_sqrt_price_from_output
     },
     tick_math::{get_sqrt_ratio_at_tick, get_tick_at_sqrt_ratio, MAX_TICK, MIN_TICK}
 };
@@ -38,21 +40,34 @@ pub struct PoolRange {
 }
 
 impl PoolRange {
-    pub fn new(lower_tick: Tick, upper_tick: Tick, liquidity: u128) -> Result<Self, String> {
+    pub fn new(lower_tick: Tick, upper_tick: Tick, liquidity: u128) -> Result<Self, Error> {
         // Validate our inputs
         if upper_tick <= lower_tick {
-            return Err(format!(
+            return Err(eyre!(
                 "Upper tick bound less than or equal to lower tick bound for range ({}, {})",
-                lower_tick, upper_tick
+                lower_tick,
+                upper_tick
             ));
         }
         if upper_tick > MAX_TICK {
-            return Err(format!("Proposed upper tick '{}' out of valid tick range", upper_tick));
+            return Err(eyre!("Proposed upper tick '{}' out of valid tick range", upper_tick));
         }
         if lower_tick < MIN_TICK {
-            return Err(format!("Proposed lower tick '{}' out of valid tick range", lower_tick));
+            return Err(eyre!("Proposed lower tick '{}' out of valid tick range", lower_tick));
         }
         Ok(Self { lower_tick, upper_tick, liquidity })
+    }
+
+    pub fn lower_tick(&self) -> i32 {
+        self.lower_tick
+    }
+
+    pub fn upper_tick(&self) -> i32 {
+        self.upper_tick
+    }
+
+    pub fn liquidity(&self) -> u128 {
+        self.liquidity
     }
 }
 
@@ -77,7 +92,7 @@ pub struct MarketSnapshot {
 }
 
 impl MarketSnapshot {
-    pub fn new(mut ranges: Vec<PoolRange>, sqrt_price_x96: SqrtPriceX96) -> Result<Self, String> {
+    pub fn new(mut ranges: Vec<PoolRange>, sqrt_price_x96: SqrtPriceX96) -> Result<Self, Error> {
         // Sort our ranges
         ranges.sort_by(|a, b| a.lower_tick.cmp(&b.lower_tick));
 
@@ -86,12 +101,12 @@ impl MarketSnapshot {
             .windows(2)
             .all(|w| w[0].upper_tick == w[1].lower_tick)
         {
-            return Err("Tick windows not contiguous, cannot create snapshot".to_string());
+            return Err(eyre!("Tick windows not contiguous, cannot create snapshot"));
         }
 
         // Get our current tick from our current price
-        let current_tick = get_tick_at_sqrt_ratio(sqrt_price_x96.into()).map_err(|_| {
-            format!("Unable to get a tick from our current price '{:?}'", sqrt_price_x96)
+        let current_tick = get_tick_at_sqrt_ratio(sqrt_price_x96.into()).wrap_err_with(|| {
+            eyre!("Unable to get a tick from our current price '{:?}'", sqrt_price_x96)
         })?;
 
         // Find the tick range that our current tick lies within
@@ -99,10 +114,7 @@ impl MarketSnapshot {
             .iter()
             .position(|r| r.lower_tick <= current_tick && current_tick < r.upper_tick)
         else {
-            return Err(format!(
-                "Unable to find initialized tick window for tick '{}'",
-                current_tick
-            ));
+            return Err(eyre!("Unable to find initialized tick window for tick '{}'", current_tick));
         };
 
         Ok(Self { ranges, sqrt_price_x96, current_tick, cur_tick_idx })
@@ -263,16 +275,13 @@ impl<'a> MarketPrice<'a> {
         } else {
             tick_bound_price
         };
-        let quantity =
-            _get_amount_0_delta(self.price.into(), closest_price.into(), pool.liquidity, false)
-                .ok()?;
         let end_bound = Self {
             state:     self.state,
             price:     closest_price,
             range_idx: new_range_idx,
             tick:      get_tick_at_sqrt_ratio(closest_price.into()).ok()?
         };
-        Some(PriceRange { start_bound: self.clone(), end_bound, quantity })
+        Some(PriceRange::new(self.clone(), end_bound))
     }
 
     pub fn price(&self) -> &SqrtPriceX96 {
@@ -294,30 +303,49 @@ impl<'a> MarketPrice<'a> {
 pub struct PriceRange<'a> {
     pub start_bound: MarketPrice<'a>,
     pub end_bound:   MarketPrice<'a>,
-    pub quantity:    U256
+    pub d_t0:        U256,
+    pub d_t1:        U256
 }
 
 impl<'a> PriceRange<'a> {
-    pub fn quantity(&self, target_price: OrderPrice) -> U256 {
+    pub fn new(start_bound: MarketPrice<'a>, end_bound: MarketPrice<'a>) -> Self {
+        let (d_t0, d_t1) =
+            Self::delta_to_price(start_bound.price, end_bound.price, start_bound.liquidity());
+        Self { start_bound, end_bound, d_t0, d_t1 }
+    }
+
+    fn delta_to_price(
+        start_price: SqrtPriceX96,
+        end_price: SqrtPriceX96,
+        liquidity: u128
+    ) -> (U256, U256) {
+        let sqrt_ratio_a_x_96 = start_price.into();
+        let sqrt_ratio_b_x_96 = end_price.into();
+        let d_t0 = _get_amount_0_delta(sqrt_ratio_a_x_96, sqrt_ratio_b_x_96, liquidity, false)
+            .unwrap_or(Uint::from(0));
+        let d_t1 = _get_amount_1_delta(sqrt_ratio_a_x_96, sqrt_ratio_b_x_96, liquidity, false)
+            .unwrap_or(Uint::from(0));
+        (d_t0, d_t1)
+    }
+
+    pub fn is_buy(&self) -> bool {
+        self.start_bound.price < self.end_bound.price
+    }
+
+    /// Returns `(quantity, price)`
+    pub fn quantity(&self, target_price: OrderPrice) -> (U256, U256) {
         let t: SqrtPriceX96 = Ray::from(*target_price).into();
 
         // If our target price is past our end bound, our quantity is the entire range
-        if self.end_bound.price > self.start_bound.price {
-            if t > self.end_bound.price {
-                return self.quantity;
-            }
+        if self.is_buy() && t > self.end_bound.price {
+            return (self.d_t0, self.d_t1);
         } else if t < self.end_bound.price {
-            return self.quantity;
+            return (self.d_t0, self.d_t1);
         }
 
-        // Otherwise we have to calculate the precise quantity we have to sell
-        _get_amount_0_delta(
-            self.start_bound.price.into(),
-            t.into(),
-            self.start_bound.liquidity(),
-            false
-        )
-        .unwrap_or(Uint::from(0))
+        let (quantity, price) =
+            Self::delta_to_price(self.start_bound.price, t, self.start_bound.liquidity());
+        (quantity, price)
     }
 
     // Maybe it's OK that I don't check the price again here because in the matching
@@ -325,7 +353,7 @@ impl<'a> PriceRange<'a> {
     // always be OK?
     pub fn fill(&self, quantity: U256) -> Self {
         let liquidity = self.start_bound.liquidity();
-        let end_sqrt_price = if self.end_bound.price > self.start_bound.price {
+        let end_sqrt_price = if self.is_buy() {
             get_next_sqrt_price_from_output(
                 self.start_bound.price.into(),
                 liquidity,
@@ -339,9 +367,10 @@ impl<'a> PriceRange<'a> {
                 .map(SqrtPriceX96::from)
                 .unwrap()
         };
+        let (d_t0, d_t1) = Self::delta_to_price(self.start_bound.price, end_sqrt_price, liquidity);
         let mut end_bound = self.start_bound.clone();
         end_bound.price = end_sqrt_price;
-        Self { end_bound, start_bound: self.start_bound.clone(), quantity }
+        Self { end_bound, start_bound: self.start_bound.clone(), d_t0, d_t1 }
     }
 }
 

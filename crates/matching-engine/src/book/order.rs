@@ -2,7 +2,9 @@ use angstrom_types::{
     orders::{OrderID, OrderId, OrderPrice, OrderVolume},
     primitive::PoolId,
     sol_bindings::{
-        grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
+        grouped_orders::{
+            FlashVariants, GroupedVanillaOrder, OrderWithStorageData, StandingVariants
+        },
         sol::{FlashOrder, StandingOrder}
     }
 };
@@ -68,10 +70,13 @@ impl OrderExclusion {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum OrderContainer<'a, 'b> {
+    /// A complete order from our book
     BookOrder(&'a OrderWithStorageData<GroupedVanillaOrder>),
-    Partial(&'b OrderWithStorageData<GroupedVanillaOrder>),
+    /// A fragment of an order from our book yet to be filled
+    BookOrderFragment(&'b OrderWithStorageData<GroupedVanillaOrder>),
+    /// An order constructed from the current state of our AMM
     AMM(PriceRange<'a>)
 }
 
@@ -79,7 +84,7 @@ impl<'a, 'b> OrderContainer<'a, 'b> {
     pub fn id(&self) -> Option<OrderId> {
         match self {
             Self::BookOrder(o) => Some(o.order_id),
-            Self::Partial(o) => Some(o.order_id),
+            Self::BookOrderFragment(o) => Some(o.order_id),
             _ => None
         }
     }
@@ -88,19 +93,22 @@ impl<'a, 'b> OrderContainer<'a, 'b> {
         matches!(self, Self::AMM(_))
     }
 
-    /// To be removed
-    #[deprecated]
-    pub fn related(&self) -> Option<&Vec<OrderCoordinate>> {
-        None
-    }
-
+    /// Is the underlying order a Partial Fill compatible order
     pub fn is_partial(&self) -> bool {
         match self {
             Self::BookOrder(o) => {
-                matches!(o.order, GroupedVanillaOrder::Partial(_))
+                matches!(
+                    o.order,
+                    GroupedVanillaOrder::Standing(StandingVariants::Partial(_))
+                        | GroupedVanillaOrder::KillOrFill(FlashVariants::Partial(_))
+                )
             }
-            Self::Partial(o) => {
-                matches!(o.order, GroupedVanillaOrder::Partial(_))
+            Self::BookOrderFragment(o) => {
+                matches!(
+                    o.order,
+                    GroupedVanillaOrder::Standing(StandingVariants::Partial(_))
+                        | GroupedVanillaOrder::KillOrFill(FlashVariants::Partial(_))
+                )
             }
             Self::AMM(_) => false
         }
@@ -110,8 +118,8 @@ impl<'a, 'b> OrderContainer<'a, 'b> {
     pub fn quantity(&self, limit_price: OrderPrice) -> OrderVolume {
         match self {
             Self::BookOrder(o) => o.quantity(),
-            Self::Partial(o) => o.quantity(),
-            Self::AMM(ammo) => ammo.quantity(limit_price)
+            Self::BookOrderFragment(o) => o.quantity(),
+            Self::AMM(ammo) => ammo.quantity(limit_price).0
         }
     }
 
@@ -119,7 +127,7 @@ impl<'a, 'b> OrderContainer<'a, 'b> {
     pub fn price(&self) -> OrderPrice {
         match self {
             Self::BookOrder(o) => o.price().into(),
-            Self::Partial(o) => o.price().into(),
+            Self::BookOrderFragment(o) => o.price().into(),
             Self::AMM(o) => (*o.start_bound.price()).into()
         }
     }
@@ -133,7 +141,7 @@ impl<'a, 'b> OrderContainer<'a, 'b> {
                 let newo = (**o).clone();
                 newo.try_map_inner(|f| Ok(f.fill(filled_quantity))).unwrap()
             }
-            Self::Partial(o) => {
+            Self::BookOrderFragment(o) => {
                 let newo = (**o).clone();
                 newo.try_map_inner(|f| Ok(f.fill(filled_quantity))).unwrap()
             }
@@ -175,7 +183,7 @@ impl<'a> Order<'a> {
         match self {
             Self::KillOrFill(lo) => lo.max_amount_in_or_out,
             Self::PartialFill(lo) => lo.max_amount_in_or_out,
-            Self::AMM(ammo) => ammo.quantity(limit_price)
+            Self::AMM(ammo) => ammo.quantity(limit_price).0
         }
     }
 

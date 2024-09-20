@@ -1,7 +1,7 @@
 //! keeps track of account state for orders
 use std::sync::Arc;
 
-use alloy_primitives::{Address, B256};
+use alloy::primitives::{Address, B256};
 use angstrom_types::{
     orders::OrderLocation,
     sol_bindings::{ext::RawPoolOrder, grouped_orders::OrderWithStorageData}
@@ -186,8 +186,8 @@ pub mod tests {
         sync::{atomic::AtomicU64, Arc}
     };
 
-    use alloy_primitives::U256;
-    use angstrom_types::sol_bindings::grouped_orders::GroupedVanillaOrder;
+    use alloy::primitives::{FixedBytes, U256};
+    use angstrom_types::sol_bindings::{grouped_orders::GroupedVanillaOrder, RawPoolOrder};
     use dashmap::DashSet;
     use rand::thread_rng;
     use reth_primitives::Address;
@@ -228,11 +228,10 @@ pub mod tests {
 
         let token0 = Address::random();
         let token1 = Address::random();
-        let pool = 10;
 
         let mut mock_pool = MockPoolTracker::default();
 
-        mock_pool.add_pool(token0, token1, pool);
+        let pool = mock_pool.add_pool(token0, token1, None);
         mock_pool.add_asset(asset0, token0);
         mock_pool.add_asset(asset1, token1);
 
@@ -241,10 +240,10 @@ pub mod tests {
             &mut rng,
             false,
             true,
-            Some(pool as usize),
+            Some(pool),
             None,
-            Some(asset0),
-            Some(asset1),
+            Some(token0),
+            Some(token1),
             Some(420),
             Some(user)
         )
@@ -280,11 +279,10 @@ pub mod tests {
 
         let token0 = Address::random();
         let token1 = Address::random();
-        let pool = 10;
 
         let mut mock_pool = MockPoolTracker::default();
 
-        mock_pool.add_pool(token0, token1, pool);
+        let pool = mock_pool.add_pool(token0, token1, None);
         mock_pool.add_asset(asset0, token0);
         mock_pool.add_asset(asset1, token1);
 
@@ -293,10 +291,10 @@ pub mod tests {
             &mut rng,
             false,
             true,
-            Some(pool as usize),
+            Some(pool),
             None,
-            Some(asset0),
-            Some(asset1),
+            Some(token0),
+            Some(token1),
             Some(420),
             Some(user)
         )
@@ -343,11 +341,10 @@ pub mod tests {
 
         let token0 = Address::random();
         let token1 = Address::random();
-        let pool = 10;
 
         let mut mock_pool = MockPoolTracker::default();
 
-        mock_pool.add_pool(token0, token1, pool);
+        let pool = mock_pool.add_pool(token0, token1, None);
         mock_pool.add_asset(asset0, token0);
         mock_pool.add_asset(asset1, token1);
 
@@ -356,10 +353,10 @@ pub mod tests {
             &mut rng,
             false,
             true,
-            Some(pool as usize),
+            Some(pool),
             None,
-            Some(asset0),
-            Some(asset1),
+            Some(token0),
+            Some(token1),
             Some(420),
             Some(user)
         )
@@ -369,10 +366,10 @@ pub mod tests {
             &mut rng,
             false,
             true,
-            Some(pool as usize),
+            Some(pool),
             None,
-            Some(asset0),
-            Some(asset1),
+            Some(token0),
+            Some(token1),
             Some(10),
             Some(user)
         )
@@ -421,11 +418,10 @@ pub mod tests {
 
         let token0 = Address::random();
         let token1 = Address::random();
-        let pool = 10;
 
         let mut mock_pool = MockPoolTracker::default();
 
-        mock_pool.add_pool(token0, token1, pool);
+        let pool = mock_pool.add_pool(token0, token1, None);
         mock_pool.add_asset(asset0, token0);
         mock_pool.add_asset(asset1, token1);
 
@@ -434,10 +430,10 @@ pub mod tests {
             &mut rng,
             false,
             true,
-            Some(pool as usize),
+            Some(pool),
             None,
-            Some(asset0),
-            Some(asset1),
+            Some(token0),
+            Some(token1),
             Some(420),
             Some(user)
         )

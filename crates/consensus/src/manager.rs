@@ -429,12 +429,12 @@ mod tests {
     };
 
     use alloy_primitives::FixedBytes;
-    use angstrom_types::{consensus::Proposal, sol_bindings::grouped_orders::GroupedUserOrder};
+    use angstrom_types::sol_bindings::grouped_orders::GroupedUserOrder;
     use order_pool::{order_storage::OrderStorage, PoolConfig};
     use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
     use testing_tools::{
         mocks::network_events::MockNetworkHandle,
-        type_generator::consensus::{generate_limit_order_distribution, generate_random_proposal}
+        type_generator::consensus::{generate_limit_order_distribution, proposal::ProposalBuilder}
     };
     use tokio::sync::mpsc::{channel, unbounded_channel};
     use tokio_stream::StreamExt;
@@ -469,10 +469,11 @@ mod tests {
     async fn builds_preproposal() {
         let globalstate = Arc::new(Mutex::new(GlobalConsensusState::default()));
         let netdeps = mock_net_deps();
-        let poolconfig = PoolConfig { ids: vec![10], ..Default::default() };
+        let pool: FixedBytes<32> = FixedBytes::random();
+        let poolconfig = PoolConfig { ids: vec![pool], ..Default::default() };
         let order_storage = Arc::new(OrderStorage::new(&poolconfig));
         // Let's make some orders to go in our order storage
-        let orders = generate_limit_order_distribution(100, 10, 0);
+        let orders = generate_limit_order_distribution(100, pool, 0);
         let in_ord: HashSet<FixedBytes<32>> = orders.iter().map(|i| i.hash()).collect();
         for o in orders {
             let lim = o
@@ -506,7 +507,8 @@ mod tests {
     async fn verifies_proposal() {
         let globalstate = Arc::new(Mutex::new(GlobalConsensusState::default()));
         let netdeps = mock_net_deps();
-        let poolconfig = PoolConfig { ids: vec![10], ..Default::default() };
+        let pool: FixedBytes<32> = FixedBytes::random();
+        let poolconfig = PoolConfig { ids: vec![pool], ..Default::default() };
         let order_storage = Arc::new(OrderStorage::new(&poolconfig));
         let timings = RoundStateTimings::default();
         let mut manager = ConsensusManager::new(
@@ -518,7 +520,11 @@ mod tests {
         );
         let (tx, mut rx) = channel(100);
         manager.on_command(crate::ConsensusCommand::Subscribe(tx));
-        let proposal: Proposal = generate_random_proposal(100, 1, 10);
+        let proposal = ProposalBuilder::new()
+            .order_count(100)
+            .for_random_pools(1)
+            .for_block(0)
+            .build();
         manager
             .cache
             .set(proposal.ethereum_height, proposal.clone());

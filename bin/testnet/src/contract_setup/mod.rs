@@ -1,7 +1,9 @@
 use std::{pin::pin, time::Duration};
 
-use alloy::providers::ext::AnvilApi;
-use alloy_primitives::{Address, U256};
+use alloy::{
+    primitives::{Address, U256},
+    providers::ext::AnvilApi
+};
 use angstrom_types::sol_bindings::testnet::{MockERC20, PoolManagerDeployer, TestnetHub};
 use futures::Future;
 use tokio::time::timeout;

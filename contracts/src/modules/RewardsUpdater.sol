@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: BUSL-1.1
 pragma solidity ^0.8.24;
 
 import {PoolId} from "v4-core/src/types/PoolId.sol";
-import {PoolRewards} from "../types/PoolRewards.sol";
+import {PoolRewards, REWARD_GROWTH_SIZE} from "../types/PoolRewards.sol";
 import {CalldataReader} from "../types/CalldataReader.sol";
 
 import {TickLib} from "../libraries/TickLib.sol";
@@ -19,16 +19,27 @@ abstract contract RewardsUpdater {
     using TickLib for uint256;
     using FormatLib for *;
 
-    error WrongEndLiquidity(uint128, uint128);
+    error WrongEndLiquidity(uint128 endLiquidity, uint128 actualCurrentLiquidity);
 
-    function _decodeAndReward(PoolRewards storage poolRewards, PoolId id, CalldataReader reader)
+    function _decodeAndReward(CalldataReader reader, PoolRewards storage poolRewards, PoolId id)
         internal
         returns (CalldataReader, uint256 total)
     {
-        if (DEBUG_LOGS) console.log("[RewardsUpdater] Entering _decodeAndReward");
+        if (DEBUG_LOGS) {
+            console.log(
+                "[RewardsUpdater] Entering _decodeAndReward(reader, poolRewards, %x)", uint256(PoolId.unwrap(id))
+            );
+        }
         uint256 cumulativeGrowth;
         uint128 endLiquidity;
         {
+            if (DEBUG_LOGS) console.log("[RewardsUpdater] Decoding below flag");
+            bool below;
+            {
+                uint8 rewardUpdateVariantMap;
+                (reader, rewardUpdateVariantMap) = reader.readU8();
+                below = rewardUpdateVariantMap & 1 != 0;
+            }
             if (DEBUG_LOGS) console.log("[RewardsUpdater] Decoding startTick");
             int24 startTick;
             (reader, startTick) = reader.readI24();
@@ -41,7 +52,7 @@ abstract contract RewardsUpdater {
             CalldataReader amountsEnd;
             (reader, amountsEnd) = reader.readU24End();
             if (DEBUG_LOGS) console.log("[RewardsUpdater] Starting core reward loop");
-            (reader, total, cumulativeGrowth, endLiquidity) = startTick <= currentTick
+            (reader, total, cumulativeGrowth, endLiquidity) = below
                 ? _rewardBelow(poolRewards.rewardGrowthOutside, currentTick, reader, startTick, id, liquidity, amountsEnd)
                 : _rewardAbove(poolRewards.rewardGrowthOutside, currentTick, reader, startTick, id, liquidity, amountsEnd);
         }
@@ -49,6 +60,10 @@ abstract contract RewardsUpdater {
         if (DEBUG_LOGS) console.log("[RewardsUpdater] Completed core reward loop, checking end liquidity");
 
         uint128 currentLiquidity = _getCurrentLiquidity(id);
+        if (DEBUG_LOGS) {
+            console.log("[RewardsUpdater] endLiquidity: %s", endLiquidity.fmtD(18));
+            console.log("[RewardsUpdater] currentLiquidity: %s", currentLiquidity.fmtD(18));
+        }
         if (endLiquidity != currentLiquidity) revert WrongEndLiquidity(endLiquidity, currentLiquidity);
 
         if (DEBUG_LOGS) console.log("[RewardsUpdater] Updating global growth by cumulativeGrowth");
@@ -59,101 +74,99 @@ abstract contract RewardsUpdater {
     }
 
     function _rewardBelow(
-        mapping(int24 => uint256) storage rewardGrowthOutside,
-        int24 endTick,
+        uint256[REWARD_GROWTH_SIZE] storage rewardGrowthOutside,
+        int24 currentTick,
         CalldataReader reader,
-        int24 tick,
+        int24 rewardTick,
         PoolId id,
         uint128 liquidity,
         CalldataReader amountsEnd
     ) internal returns (CalldataReader, uint256, uint256, uint128) {
         if (DEBUG_LOGS) console.log("[RewardsUpdater] entering _rewardBelow");
 
-        // To not waste a loop iteration we assume the given tick is a valid initialized tick.
-        // TODO(security): Check that this doesn't allow breaking invariants if invoked with an
-        // unitialized tick.
         bool initialized = true;
         uint256 total = 0;
         uint256 cumulativeGrowth = 0;
 
-        if (DEBUG_LOGS) console.log("[RewardsUpdater] total: %s", total);
+        if (DEBUG_LOGS) console.log("[RewardsUpdater] total: %s", total.fmtD(18));
 
-        do {
+        while (true) {
             if (DEBUG_LOGS) {
                 console.log(
                     "[RewardsUpdater] reward update loop (initialized: %s, tick: %s, liquidity: %s)",
                     initialized.toStr(),
-                    tick.toStr(),
-                    liquidity
+                    rewardTick.toStr(),
+                    liquidity.fmtD(18)
                 );
             }
             if (initialized) {
                 if (DEBUG_LOGS) console.log("[RewardsUpdater] Initialized, updating tick");
                 // Amounts beyond the end of the sequence default to 0.
-                uint256 amount = 0;
-                if (reader != amountsEnd) (reader, amount) = reader.readU128();
+                uint256 amount;
+                (reader, amount) = reader.readU128();
                 total += amount;
 
                 cumulativeGrowth += flatDivWad(amount, liquidity);
-                rewardGrowthOutside[tick] += cumulativeGrowth;
 
-                liquidity = MixedSignLib.add(liquidity, _getNetTickLiquidity(id, tick));
+                // Break *before* we update the cumulative growth and net liquidity of ticks as we
+                // don't want to be doing that for the reward to the current tick.
+                if (rewardTick > currentTick) break;
+
+                rewardGrowthOutside[uint24(rewardTick)] += cumulativeGrowth;
+
+                {
+                    int128 netLiquidity = _getNetTickLiquidity(id, rewardTick);
+                    if (DEBUG_LOGS) console.log("[RewardsUpdater] Net liquidity: %s", netLiquidity.fmtD(18));
+                    liquidity = MixedSignLib.add(liquidity, netLiquidity);
+                }
 
                 if (DEBUG_LOGS) {
-                    console.log("[RewardsUpdater] Adding %s to tick %s", amount, tick.toStr());
-                    console.log("[RewardsUpdater] New total: %s", total);
+                    console.log("[RewardsUpdater] Adding %s to tick %s", amount.fmtD(18), rewardTick.toStr());
+                    console.log("[RewardsUpdater] New total: %s", total.fmtD(18));
                     console.log(
-                        "[RewardsUpdater] Increasing tick %s growth outside by %e18", tick.toStr(), cumulativeGrowth
+                        "[RewardsUpdater] Increasing tick %s growth outside by %s",
+                        rewardTick.toStr(),
+                        cumulativeGrowth.fmtD(18)
                     );
-                    console.log("[RewardsUpdater] Retrieved and updated liquidity to: %s", liquidity);
+                    console.log("[RewardsUpdater] Retrieved and updated liquidity to: %s", liquidity.fmtD(18));
                 }
+            } else if (rewardTick > currentTick) {
+                break;
             }
 
-            (initialized, tick) = _findNextTickUp(id, tick);
-
-            // Break condition is the current tick bound to account for situations where the
-            // "current tick" is uninitialized.
-        } while (tick <= endTick);
-
-        if (DEBUG_LOGS) console.log("[RewardsUpdater] Main reward loop complete.");
-
-        if (reader != amountsEnd) {
-            if (DEBUG_LOGS) console.log("[RewardsUpdater] Reading additional amount for current tick");
-            uint256 currentTickReward;
-            (reader, currentTickReward) = reader.readU128();
-            if (DEBUG_LOGS) console.log("[RewardsUpdater] currentTickReward: %s", currentTickReward);
-            total += currentTickReward;
-            cumulativeGrowth += flatDivWad(currentTickReward, liquidity);
-        }
-
-        if (DEBUG_LOGS) {
-            console.log("[RewardsUpdater] Final values (total: %s, cumulativeGrowth: s)", total, cumulativeGrowth);
+            (initialized, rewardTick) = _findNextTickUp(id, rewardTick);
         }
 
         reader.requireAtEndOf(amountsEnd);
+
+        if (DEBUG_LOGS) {
+            console.log("[RewardsUpdater] Main reward loop complete.");
+            console.log(
+                "[RewardsUpdater] Final values (total: %s, cumulativeGrowth: %s)",
+                total.fmtD(18),
+                cumulativeGrowth.fmtD(18)
+            );
+        }
 
         return (reader, total, cumulativeGrowth, liquidity);
     }
 
     function _rewardAbove(
-        mapping(int24 => uint256) storage rewardGrowthOutside,
-        int24 endTick,
+        uint256[REWARD_GROWTH_SIZE] storage rewardGrowthOutside,
+        int24 currentTick,
         CalldataReader reader,
-        int24 tick,
+        int24 rewardTick,
         PoolId id,
         uint128 liquidity,
         CalldataReader amountsEnd
     ) internal returns (CalldataReader, uint256, uint256, uint128) {
         if (DEBUG_LOGS) console.log("[RewardsUpdater] entering _rewardAbove");
 
-        // To not waste a loop iteration we assume the given tick is a valid initialized tick.
-        // TODO(security): Check that this doesn't allow breaking invariants if invoked with an
-        // unitialized tick.
         bool initialized = true;
         uint256 total = 0;
         uint256 cumulativeGrowth = 0;
 
-        do {
+        while (true) {
             if (initialized) {
                 if (DEBUG_LOGS) console.log("[RewardsUpdater] Initialized, updating tick");
                 // Amounts beyond the end of the sequence default to 0.
@@ -162,39 +175,37 @@ abstract contract RewardsUpdater {
                 total += amount;
 
                 cumulativeGrowth += flatDivWad(amount, liquidity);
-                rewardGrowthOutside[tick] += cumulativeGrowth;
 
-                liquidity = MixedSignLib.sub(liquidity, _getNetTickLiquidity(id, tick));
+                if (rewardTick <= currentTick) break;
+
+                rewardGrowthOutside[uint24(rewardTick)] += cumulativeGrowth;
+
+                liquidity = MixedSignLib.sub(liquidity, _getNetTickLiquidity(id, rewardTick));
 
                 if (DEBUG_LOGS) {
-                    console.log("[RewardsUpdater] Adding %s to tick %s", amount, tick.toStr());
-                    console.log("[RewardsUpdater] New total: %s", total);
+                    console.log("[RewardsUpdater] Adding %s to tick %s", amount.fmtD(18), rewardTick.toStr());
+                    console.log("[RewardsUpdater] New total: %s", total.fmtD(18));
                     console.log(
-                        "[RewardsUpdater] Increasing tick %s growth outside by %e18", tick.toStr(), cumulativeGrowth
+                        "[RewardsUpdater] Increasing tick %s growth outside by %s",
+                        rewardTick.toStr(),
+                        cumulativeGrowth.fmtD(18)
                     );
-                    console.log("[RewardsUpdater] Retrieved and updated liquidity to: %s", liquidity);
+                    console.log("[RewardsUpdater] Retrieved and updated liquidity to: %s", liquidity.fmtD(18));
                 }
+            } else if (rewardTick <= currentTick) {
+                break;
             }
 
-            (initialized, tick) = _findNextTickDown(id, tick);
-
-            // Break condition is the current tick bound to account for situations where the
-            // "current tick" is uninitialized.
-        } while (endTick < tick);
-
-        if (DEBUG_LOGS) console.log("[RewardsUpdater] Main reward loop complete.");
-
-        if (reader != amountsEnd) {
-            if (DEBUG_LOGS) console.log("[RewardsUpdater] Reading additional amount for current tick");
-            uint256 currentTickReward;
-            (reader, currentTickReward) = reader.readU128();
-            if (DEBUG_LOGS) console.log("[RewardsUpdater] currentTickReward: %s", currentTickReward);
-            total += currentTickReward;
-            cumulativeGrowth += flatDivWad(currentTickReward, liquidity);
+            (initialized, rewardTick) = _findNextTickDown(id, rewardTick);
         }
 
         if (DEBUG_LOGS) {
-            console.log("[RewardsUpdater] Final values (total: %s, cumulativeGrowth: s)", total, cumulativeGrowth);
+            console.log("[RewardsUpdater] Main reward loop complete.");
+            console.log(
+                "[RewardsUpdater] Final values (total: %s, cumulativeGrowth: %s)",
+                total.fmtD(18),
+                cumulativeGrowth.fmtD(18)
+            );
         }
 
         reader.requireAtEndOf(amountsEnd);

@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use alloy_primitives::FixedBytes;
+use alloy::primitives::FixedBytes;
 use angstrom_metrics::FinalizationOrderPoolMetricsWrapper;
 use angstrom_types::sol_bindings::grouped_orders::{AllOrders, OrderWithStorageData};
 use angstrom_utils::map::OwnedMap;

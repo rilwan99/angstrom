@@ -1,24 +1,23 @@
 use std::collections::HashMap;
 
-use alloy::primitives::{I256, U256};
+use alloy::primitives::{aliases::I24, I256, U256};
 use angstrom_types::{
+    contract_payloads::tob::{PoolRewardsUpdate, RewardsUpdate},
     matching::{Ray, SqrtPriceX96},
-    sol_bindings::{
-        grouped_orders::OrderWithStorageData,
-        sol::{SolPoolRewardsUpdate, SolRewardsUpdate, TopOfBlockOrder}
-    }
+    sol_bindings::{grouped_orders::OrderWithStorageData, rpc_orders::TopOfBlockOrder}
 };
 use eyre::{eyre, Context, OptionExt};
 use uniswap_v3_math::{swap_math::compute_swap_step, tick_math::get_sqrt_ratio_at_tick};
 
 use super::{MarketSnapshot, Tick};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ToBOutcome {
     pub start_tick:      i32,
     pub start_liquidity: u128,
     pub tribute:         U256,
     pub total_cost:      U256,
+    pub total_reward:    U256,
     pub tick_donations:  HashMap<Tick, U256>
 }
 
@@ -35,7 +34,7 @@ impl ToBOutcome {
         self.total_donations() + self.tribute
     }
 
-    pub fn to_donate(&self, a0_idx: u16, a1_idx: u16) -> SolPoolRewardsUpdate {
+    pub fn to_donate(&self, a0_idx: u16, a1_idx: u16) -> PoolRewardsUpdate {
         let mut donations = self.tick_donations.iter().collect::<Vec<_>>();
         // Will sort from lowest to highest (donations[0] will be the lowest tick
         // number)
@@ -48,17 +47,19 @@ impl ToBOutcome {
                 Some(u128::try_from(*state).unwrap())
             })
             .collect::<Vec<_>>();
-        let update = SolRewardsUpdate {
-            startTick: *donations[0].0 + 1,
+        let start_tick = I24::try_from(donations.first().map(|(a, _)| *a + 1).unwrap_or_default())
+            .unwrap_or_default();
+        let update = RewardsUpdate {
+            startTick: start_tick,
             startLiquidity: self.start_liquidity,
             quantities
         };
-        SolPoolRewardsUpdate { asset0: a0_idx, asset1: a1_idx, update }
+        PoolRewardsUpdate { asset0: a0_idx, asset1: a1_idx, update }
     }
 }
 
 pub fn calculate_reward(
-    tob: OrderWithStorageData<TopOfBlockOrder>,
+    tob: &OrderWithStorageData<TopOfBlockOrder>,
     amm: MarketSnapshot
 ) -> eyre::Result<ToBOutcome> {
     // This implies that a bid will be purchasing T0 out of the pool, therefore
@@ -74,10 +75,11 @@ pub fn calculate_reward(
 
     // Turn our output into a negative number so compute_swap_step knows we're
     // looking to get an exact amount out
-    let mut expected_out = I256::try_from(tob.order.amountOut).wrap_err_with(|| {
+    let mut expected_out = I256::try_from(tob.order.quantityOut).wrap_err_with(|| {
         format!(
-            "Expected ToB order output too large to convert U256 -> I256: {}",
-            tob.order.amountOut
+            // This should be impossible
+            "Expected ToB order output too large to convert u128 -> I256: {}",
+            tob.order.quantityOut
         )
     })? * I256::MINUS_ONE;
 
@@ -136,11 +138,13 @@ pub fn calculate_reward(
         current_price = SqrtPriceX96::from(fin_price);
     }
 
-    // Determine how much extra amountIn we have that will be used as tribute to the
-    // LPs
-    let bribe = tob.amountIn.checked_sub(total_cost).ok_or_else(|| {
-        eyre!("Total cost greater than amount offered: {} > {}", total_cost, tob.amountIn)
-    })?;
+    // Determine how much extra quantityIn we have that will be used as tribute to
+    // the LPs
+    let bribe = U256::from(tob.quantityIn)
+        .checked_sub(total_cost)
+        .ok_or_else(|| {
+            eyre!("Total cost greater than amount offered: {} > {}", total_cost, tob.quantityIn)
+        })?;
 
     if stakes.is_empty() {
         // TODO: Maybe this should just be a big donation to the current tick?
@@ -212,6 +216,7 @@ pub fn calculate_reward(
         start_liquidity: amm.current_position().liquidity(),
         tribute,
         total_cost,
+        total_reward: reward_t,
         tick_donations
     })
 }
@@ -219,12 +224,13 @@ pub fn calculate_reward(
 #[cfg(test)]
 mod test {
     use alloy::{
-        primitives::{address, Bytes, Uint, U256},
-        providers::{Provider, ProviderBuilder},
-        rpc::types::Filter
+        primitives::{address, aliases::I24, Address, Bytes, Uint, U256},
+        providers::ProviderBuilder,
+        sol_types::SolValue
     };
     use angstrom_types::{
         contract_bindings::{
+            angstrom::Angstrom::PoolKey,
             mockrewardsmanager::MockRewardsManager::MockRewardsManagerInstance,
             poolmanager::PoolManager
         },
@@ -232,6 +238,7 @@ mod test {
         matching::SqrtPriceX96
     };
     use rand::thread_rng;
+    use reth_primitives::keccak256;
     use testing_tools::type_generator::orders::generate_top_of_block_order;
     use uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick;
 
@@ -250,15 +257,20 @@ mod test {
     fn calculates_reward() {
         let mut rng = thread_rng();
         let amm = generate_amm_market(100000);
-        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
-        let total_payment = Uint::from(10_000_000_000_000_u128);
-        order.order.amountIn = total_payment;
-        order.order.amountOut = Uint::from(100000000);
-        let result = calculate_reward(order, amm).expect("Error calculating tick donations");
+        let total_payment = 10_000_000_000_000_u128;
+        let order = generate_top_of_block_order(
+            &mut rng,
+            true,
+            None,
+            None,
+            Some(total_payment),
+            Some(100000000_u128)
+        );
+        let result = calculate_reward(&order, amm).expect("Error calculating tick donations");
         let total_donations = result.total_donations();
         assert_eq!(
             total_donations + result.total_cost + result.tribute,
-            total_payment,
+            Uint::from(total_payment),
             "Total allocations do not add up to input payment"
         );
     }
@@ -267,11 +279,16 @@ mod test {
     fn handles_insufficient_funds() {
         let mut rng = thread_rng();
         let amm = generate_amm_market(-100000);
-        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
+        let mut order = generate_top_of_block_order(
+            &mut rng,
+            true,
+            None,
+            None,
+            Some(10_000_000_000_000_u128),
+            Some(100000000_u128)
+        );
         order.is_bid = true;
-        order.order.amountOut = Uint::from(10_000_000_000_000_u128);
-        order.order.amountIn = Uint::from(100000000);
-        let result = calculate_reward(order, amm);
+        let result = calculate_reward(&order, amm);
         assert!(result.is_err_and(|e| {
             e.to_string()
                 .starts_with("Total cost greater than amount offered")
@@ -282,11 +299,16 @@ mod test {
     fn handles_precisely_zero_donation() {
         let mut rng = thread_rng();
         let amm = generate_amm_market(100000);
-        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
-        let total_payment = Uint::from(2_203_194_246_001_u128);
-        order.order.amountIn = total_payment;
-        order.order.amountOut = Uint::from(100000000);
-        let result = calculate_reward(order, amm).expect("Error calculating tick donations");
+        let total_payment = 2_203_194_246_001_u128;
+        let order = generate_top_of_block_order(
+            &mut rng,
+            true,
+            None,
+            None,
+            Some(total_payment),
+            Some(100000000_u128)
+        );
+        let result = calculate_reward(&order, amm).expect("Error calculating tick donations");
         let total_donations = result.total_donations();
         assert!(
             result.tick_donations.is_empty(),
@@ -294,7 +316,7 @@ mod test {
         );
         assert_eq!(
             total_donations + result.total_cost + result.tribute,
-            total_payment,
+            Uint::from(total_payment),
             "Total allocations do not add up to input payment"
         );
     }
@@ -303,11 +325,16 @@ mod test {
     fn handles_partial_donation() {
         let mut rng = thread_rng();
         let amm = generate_amm_market(100000);
-        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
-        let total_payment = Uint::from(2_203_371_417_593_u128);
-        order.order.amountIn = total_payment;
-        order.order.amountOut = Uint::from(100000000);
-        let result = calculate_reward(order, amm).expect("Error calculating tick donations");
+        let total_payment = 2_203_371_417_593_u128;
+        let order = generate_top_of_block_order(
+            &mut rng,
+            true,
+            None,
+            None,
+            Some(total_payment),
+            Some(100000000_u128)
+        );
+        let result = calculate_reward(&order, amm).expect("Error calculating tick donations");
         let total_donations = result.total_donations();
         assert!(result.tick_donations.contains_key(&100000), "Donation to first tick missing");
         assert!(result.tick_donations.contains_key(&100001), "Donation to second tick missing");
@@ -317,7 +344,7 @@ mod test {
         );
         assert_eq!(
             total_donations + result.total_cost + result.tribute,
-            total_payment,
+            Uint::from(total_payment),
             "Total allocations do not add up to input payment"
         );
     }
@@ -326,11 +353,16 @@ mod test {
     fn handles_bid_order() {
         let mut rng = thread_rng();
         let amm = generate_amm_market(100000);
-        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
+        let mut order = generate_top_of_block_order(
+            &mut rng,
+            true,
+            None,
+            None,
+            Some(10_000_000_000_000_u128),
+            Some(100000000_u128)
+        );
         order.is_bid = true;
-        order.order.amountIn = Uint::from(10_000_000_000_000_u128);
-        order.order.amountOut = Uint::from(100000000);
-        let result = calculate_reward(order, amm);
+        let result = calculate_reward(&order, amm);
         assert!(result.is_ok());
     }
 
@@ -338,70 +370,28 @@ mod test {
     fn handles_ask_order() {
         let mut rng = thread_rng();
         let amm = generate_amm_market(100000);
-        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
+        let mut order = generate_top_of_block_order(
+            &mut rng,
+            true,
+            None,
+            None,
+            Some(10_000_000_000_000_u128),
+            Some(800000000_u128)
+        );
         order.is_bid = false;
-        order.order.amountOut = Uint::from(10_000_000_000_000_u128);
-        order.order.amountIn = Uint::from(800000000);
-        let result = calculate_reward(order, amm);
+        let result = calculate_reward(&order, amm);
         assert!(result.is_ok());
     }
 
     #[tokio::test]
+    #[ignore = "Test requires a configured local anvil node"]
     async fn local_test_of_mock() {
         let provider = ProviderBuilder::new()
             .with_recommended_fillers()
             .on_http("http://localhost:8545".parse().unwrap());
 
         let mock_tob_addr = address!("4026bA349706b18b9dA081233cc20B3C5B4bE980");
-        let mock_tob = MockRewardsManagerInstance::new(mock_tob_addr, &provider);
-        // These are TEMPROARY LOCAL ADDRESSES from Dave's Testnet - if you are seeing
-        // these used in prod code they are No Bueno
-        let asset1 = address!("76ca03a67C049477FfB09694dFeF00416dB69746");
-        let asset0 = address!("1696C7203769A71c97Ca725d42b13270ee493526");
-
-        // Build a ToB outcome that we care about
-        let mut rng = thread_rng();
-        let amm = generate_amm_market(100000);
-        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
-        let total_payment = Uint::from(10_000_000_000_000_u128);
-        order.order.amountIn = total_payment;
-        order.order.amountOut = Uint::from(100000000);
-        let tob_outcome = calculate_reward(order, amm).expect("Error calculating tick donations");
-        println!("Outcome: {:?}", tob_outcome);
-        // ---- Manually do to_donate to be in our new structs
-        let mut donations = tob_outcome.tick_donations.iter().collect::<Vec<_>>();
-        // Will sort from lowest to highest (donations[0] will be the lowest tick
-        // number)
-        donations.sort_by_key(|f| f.0);
-        // Each reward value is the cumulative sum of the rewards before it
-        let quantities = donations
-            .iter()
-            .scan(U256::ZERO, |state, (_tick, q)| {
-                *state += **q;
-                Some(u128::try_from(*state).unwrap())
-            })
-            .collect::<Vec<_>>();
-        let update = RewardsUpdate {
-            startTick: *donations[0].0 + 1,
-            startLiquidity: tob_outcome.start_liquidity,
-            quantities
-        };
-        let update = PoolRewardsUpdate { asset0: 0, asset1: 1, update };
-        println!("PoolRewardsUpdate: {:?}", update);
-        // ---- End of all that
-
-        let address_list = [asset0, asset1]
-            .into_iter()
-            .map(|addr| Asset { addr, borrow: 0, save: 0, settle: 0 })
-            .collect();
-        let tob_mock_message = MockContractMessage { addressList: address_list, update };
-        let tob_bytes = Bytes::from(pade::PadeEncode::pade_encode(&tob_mock_message));
-        let call = mock_tob.reward(tob_bytes);
-        let call_return = call.call().await;
-        let logs = provider.get_logs(&Filter::new()).await.unwrap();
-        println!("Logs: {:?}", logs);
-        assert!(call_return.is_ok(), "Failed to perform reward call!");
-        panic!("Butts");
+        do_contract_test(provider, mock_tob_addr).await;
     }
 
     #[tokio::test]
@@ -409,22 +399,25 @@ mod test {
         // Start up our Anvil instance
         let provider = ProviderBuilder::new()
             .with_recommended_fillers()
-            .on_anvil_with_wallet();
+            .on_anvil_with_wallet_and_config(|anvil| anvil.args(["--code-size-limit", "30000"]));
         // Deploy the supporting contracts
-        let pool_manager = PoolManager::deploy(&provider, U256::from(50_000_u32))
-            .await
-            .unwrap();
+        let pool_manager = PoolManager::deploy(&provider).await.unwrap();
 
-        // let pool_gate = PoolGate::deploy(&provider, *pool_manager.address())
-        //     .await
-        //     .unwrap();
         let mock_tob_addr = testing_tools::contracts::deploy_mock_rewards_manager(
             &provider,
             *pool_manager.address()
         )
         .await;
-        let mock_tob = MockRewardsManagerInstance::new(mock_tob_addr, &provider);
+        do_contract_test(provider, mock_tob_addr).await;
+    }
 
+    async fn do_contract_test<T, N, P>(provider: P, mock_tob_addr: Address)
+    where
+        T: Clone + Send + Sync + alloy::transports::Transport,
+        N: alloy::providers::Network,
+        P: alloy::providers::Provider<T, N>
+    {
+        let mock_tob = MockRewardsManagerInstance::new(mock_tob_addr, &provider);
         // These are TEMPROARY LOCAL ADDRESSES from Dave's Testnet - if you are seeing
         // these used in prod code they are No Bueno
         let asset1 = address!("76ca03a67C049477FfB09694dFeF00416dB69746");
@@ -432,12 +425,17 @@ mod test {
 
         // Build a ToB outcome that we care about
         let mut rng = thread_rng();
-        let amm = generate_amm_market(100000);
-        let mut order = generate_top_of_block_order(&mut rng, true, None, None);
-        let total_payment = Uint::from(10_000_000_000_000_u128);
-        order.order.amountIn = total_payment;
-        order.order.amountOut = Uint::from(100000000);
-        let tob_outcome = calculate_reward(order, amm).expect("Error calculating tick donations");
+        let amm = generate_amm_market(100020);
+        let total_payment = 10_000_000_000_000_u128;
+        let order = generate_top_of_block_order(
+            &mut rng,
+            true,
+            None,
+            None,
+            Some(total_payment),
+            Some(100000000_u128)
+        );
+        let tob_outcome = calculate_reward(&order, amm).expect("Error calculating tick donations");
         println!("Outcome: {:?}", tob_outcome);
         // ---- Manually do to_donate to be in our new structs
         let mut donations = tob_outcome.tick_donations.iter().collect::<Vec<_>>();
@@ -452,8 +450,9 @@ mod test {
                 Some(u128::try_from(*state).unwrap())
             })
             .collect::<Vec<_>>();
+        let start_tick = I24::unchecked_from(*donations[0].0 + 1);
         let update = RewardsUpdate {
-            startTick: *donations[0].0 + 1,
+            startTick: start_tick,
             startLiquidity: tob_outcome.start_liquidity,
             quantities
         };
@@ -467,11 +466,28 @@ mod test {
             .collect();
         let tob_mock_message = MockContractMessage { addressList: address_list, update };
         let tob_bytes = Bytes::from(pade::PadeEncode::pade_encode(&tob_mock_message));
-        let call = mock_tob.reward(tob_bytes);
+        let call = mock_tob.update(tob_bytes);
         let call_return = call.call().await;
-        let logs = provider.get_logs(&Filter::new()).await.unwrap();
-        println!("Logs: {:?}", logs);
         assert!(call_return.is_ok(), "Failed to perform reward call!");
+
+        let pool_id = keccak256(
+            PoolKey {
+                currency0:   asset0,
+                currency1:   asset1,
+                fee:         Uint::from(0_u8),
+                tickSpacing: I24::unchecked_from(60_i32),
+                hooks:       mock_tob_addr
+            }
+            .abi_encode()
+        );
+
+        for (tick, expected_reward) in tob_outcome.tick_donations.iter() {
+            println!("Trying tick {}", tick);
+            let growth_call =
+                mock_tob.getGrowthInsideTick(pool_id, I24::unchecked_from(100020_i32));
+            let result = growth_call.call().await.unwrap();
+            println!("Result for tick {}: {} - {:?}", tick, expected_reward, result._0);
+        }
         panic!("Butts");
     }
 }

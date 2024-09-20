@@ -1,6 +1,6 @@
 use std::{collections::HashSet, net::SocketAddr, pin::Pin};
 
-use alloy_rlp::BytesMut;
+use alloy::rlp::BytesMut;
 use futures::{stream::Empty, Stream, StreamExt};
 use reth_eth_wire::{
     capability::SharedCapabilities, multiplex::ProtocolConnection, protocol::Protocol,

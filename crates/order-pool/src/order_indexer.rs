@@ -6,7 +6,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH}
 };
 
-use alloy_primitives::{B256, U256};
+use alloy::primitives::{B256, U256};
 use angstrom_types::{
     orders::{OrderId, OrderOrigin, OrderSet},
     primitive::PoolId,
@@ -75,6 +75,11 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         }
     }
 
+    pub fn is_valid_order(&self, order: &AllOrders) -> bool {
+        let hash = order.order_hash();
+        self.order_hash_to_order_id.contains_key(&hash)
+    }
+
     pub fn new_rpc_order(
         &mut self,
         origin: OrderOrigin,
@@ -120,8 +125,7 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
     }
 
     fn is_duplicate(&self, hash: &B256) -> bool {
-        if self.order_hash_to_order_id.contains_key(hash)
-            || self.seen_invalid_orders.contains(hash)
+        if self.order_hash_to_order_id.contains_key(hash) || self.seen_invalid_orders.contains(hash)
         {
             trace!(?hash, "got duplicate order");
             return true
@@ -327,7 +331,7 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
                     res.try_map_inner(|inner| {
                         Ok(match inner {
                             AllOrders::Standing(p) => {
-                                GroupedUserOrder::Vanilla(GroupedVanillaOrder::Partial(p))
+                                GroupedUserOrder::Vanilla(GroupedVanillaOrder::Standing(p))
                             }
                             AllOrders::Flash(kof) => {
                                 GroupedUserOrder::Vanilla(GroupedVanillaOrder::KillOrFill(kof))

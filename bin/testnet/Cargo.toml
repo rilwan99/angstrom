@@ -15,11 +15,38 @@ normal = [
 ]
 
 [dependencies]
-reth.workspace = true
-reth-node-builder.workspace = true
+# Alloy
+alloy.workspace = true
 alloy-chains.workspace = true
 
-blsful.workspace = true
+# Reth
+reth.workspace = true
+reth-node-builder.workspace = true
+reth-network-api.workspace = true
+reth-network-peers.workspace = true
+reth-codecs.workspace = true
+reth-tasks.workspace = true
+reth-rpc-types.workspace = true
+reth-eth-wire.workspace = true
+reth-node-ethereum.workspace = true
+reth-revm.workspace = true
+reth-blockchain-tree.workspace = true
+reth-beacon-consensus.workspace = true
+reth-tokio-util.workspace = true
+reth-ecies.workspace = true
+reth-discv4 = { workspace = true, features = [
+  "test-utils",
+] }
+reth-dns-discovery = { git = "https://github.com/paradigmxyz/reth", version = "1.0.7", tag = "v1.0.7" }
+reth-primitives = { workspace = true, features = ["test-utils"] }
+reth-network = { workspace = true, features = ["test-utils"] }
+reth-metrics.workspace = true
+reth-provider = { workspace = true, features = ["test-utils"] }
+reth-tracing.workspace = true
+reth-transaction-pool = { workspace = true, features = ["test-utils"] }
+reth-db.workspace = true
+
+# Angstrom
 consensus.workspace = true
 angstrom-types = { workspace = true, features = ["testnet"] }
 angstrom-utils.workspace = true
@@ -30,70 +57,26 @@ angstrom.workspace = true
 order-pool.workspace = true
 validation.workspace = true
 
-reth-network-api.workspace = true
-reth-network-peers.workspace = true
-reth-codecs.workspace = true
-reth-tasks.workspace = true
-reth-rpc-types.workspace = true
-reth-eth-wire.workspace = true
+# Other
+blsful.workspace = true
 futures.workspace = true
 jsonrpsee.workspace = true
-alloy-rlp.workspace = true
-
-alloy-primitives.workspace = true
-alloy-sol-types.workspace = true
-
-reth-node-ethereum.workspace = true
-reth-revm.workspace = true
-reth-blockchain-tree.workspace = true
-reth-beacon-consensus.workspace = true
-reth-tokio-util.workspace = true
-reth-ecies.workspace = true
-alloy.workspace = true
-reth-dns-discovery = { git = "https://github.com/paradigmxyz/reth", version = "1.0.4", tag = "v1.0.4" }
-
-alloy-pubsub.workspace = true
-alloy-node-bindings.workspace = true
-alloy-rpc-types-eth.workspace = true
-
-# reth
-reth-discv4 = { git = "https://github.com/paradigmxyz/reth", version = "1.0.4", tag = "v1.0.4", features = [
-  "test-utils",
-] }
-# reth-interfaces = { workspace = true, features = ["test-utils"] }
-reth-primitives = { workspace = true, features = ["test-utils"] }
-
-# we need to enable the test-utils feature in our own crate to use utils in
-# integration tests
-reth-network = { workspace = true, features = ["test-utils"] }
-reth-metrics.workspace = true
-
 tokio-util.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-
 tokio.workspace = true
 tokio-stream.workspace = true
-reth-provider = { workspace = true, features = ["test-utils"] }
-reth-tracing.workspace = true
-reth-transaction-pool = { workspace = true, features = ["test-utils"] }
-reth-db.workspace = true
-
-
 enr = { workspace = true, features = ["serde", "rust-secp256k1"] }
 rand.workspace = true
 secp256k1.workspace = true
-
-# misc
 serial_test.workspace = true
 tempfile.workspace = true
-
 parking_lot.workspace = true
 clap = { version = "4.5.4", features = ["derive"] }
 eyre = "0.6.12"
 
 [target.'cfg(unix)'.dependencies]
-tikv-jemallocator = { version = "0.5.0", optional = true }
+tikv-jemallocator = { version = "0.6.0", optional = true }
 
 
 [features]

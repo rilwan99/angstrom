@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use alloy_primitives::{Uint, U160, U256};
+use alloy::primitives::{Uint, U160, U256};
 use malachite::{
     num::{
         arithmetic::traits::{CeilingRoot, DivRound, Pow, PowerOf2},
@@ -11,7 +11,7 @@ use malachite::{
 
 use super::{const_1e27, const_2_192, Ray};
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SqrtPriceX96(U160);
 
 impl SqrtPriceX96 {

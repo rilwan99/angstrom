@@ -68,7 +68,9 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                             .to_compile_error()
                         })
                 })
-                .unwrap_or_else(|| quote! { let #encoded = #name.pade_encode(); });
+                .unwrap_or_else(
+                    || quote_spanned! { f.span() => let #encoded = #name.pade_encode(); }
+                );
             quote! {
                 #encode_command
                 let #variant_map_bytes = #name.pade_variant_map_bits().div_ceil(8);

@@ -1,8 +1,9 @@
-use alloy_primitives::*;
-use alloy_rlp::{length_of_length, Decodable, Encodable, Error, Header};
-use alloy_rlp_derive::{RlpDecodable, RlpEncodable};
-use alloy_sol_macro::sol;
-use alloy_sol_types::{eip712_domain, Eip712Domain};
+use alloy::{
+    primitives::*,
+    rlp::{length_of_length, Decodable, Encodable, Error, Header, RlpDecodable, RlpEncodable},
+    sol,
+    sol_types::{eip712_domain, Eip712Domain}
+};
 use serde::{Deserialize, Serialize};
 
 sol! {
@@ -201,21 +202,21 @@ impl Encodable for Angstrom::PoolKey {
         self.currency1.encode(out);
         self.fee.encode(out);
 
-        let tick_spacing = self.tickSpacing.to_be_bytes();
+        let tick_spacing: [u8; 3] = self.tickSpacing.to_be_bytes();
         tick_spacing.encode(out);
         self.hooks.encode(out);
     }
 }
 
 impl Decodable for Angstrom::PoolKey {
-    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+    fn decode(buf: &mut &[u8]) -> alloy::rlp::Result<Self> {
         let _ = Header::decode(buf)?;
 
         let cur_0 = Address::decode(buf)?;
         let cur_1 = Address::decode(buf)?;
-        let fee = u32::decode(buf)?;
+        let fee = Uint::<24, 1>::decode(buf)?;
         let spacing: [u8; 4] = Decodable::decode(buf)?;
-        let tick_spacing = i32::from_be_bytes(spacing);
+        let tick_spacing = Signed::<24, 1>::from_be_bytes(spacing);
 
         let hooks = Address::decode(buf)?;
 
@@ -254,7 +255,7 @@ impl Encodable for Angstrom::CurrencySettlement {
     }
 }
 impl Decodable for Angstrom::CurrencySettlement {
-    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+    fn decode(buf: &mut &[u8]) -> alloy::rlp::Result<Self> {
         let Header { list, payload_length } = Header::decode(buf)?;
 
         if !list {

@@ -32,6 +32,7 @@ use consensus::{
 };
 use reth::{
     api::NodeAddOns,
+    args::utils::DefaultChainSpecParser,
     builder::{FullNodeComponents, Node},
     cli::Cli,
     providers::CanonStateSubscriptions,
@@ -49,7 +50,7 @@ use crate::cli::network_builder::AngstromNetworkBuilder;
 /// chosen command.
 #[inline]
 pub fn run() -> eyre::Result<()> {
-    Cli::<AngstromConfig>::parse().run(|builder, args| async move {
+    Cli::<DefaultChainSpecParser, AngstromConfig>::parse().run(|builder, args| async move {
         let executor = builder.task_executor().clone();
 
         if args.metrics {
@@ -141,7 +142,10 @@ pub struct StromHandles {
 
 impl StromHandles {
     pub fn get_pool_handle(&self) -> DefaultPoolHandle {
-        PoolHandle { manager_tx: self.orderpool_tx.clone(), pool_manager_tx: self.pool_manager_tx.clone(), }
+        PoolHandle {
+            manager_tx:      self.orderpool_tx.clone(),
+            pool_manager_tx: self.pool_manager_tx.clone()
+        }
     }
 
     pub fn get_consensus_handle(&self) -> ConsensusHandle {
@@ -195,10 +199,7 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
         .with_consensus_manager(handles.consensus_tx_op)
         .build_handle(executor.clone(), node.provider.clone());
 
-    let validator = init_validation(
-        node.provider.clone(),
-        config.validation_cache_size
-    );
+    let validator = init_validation(node.provider.clone(), config.validation_cache_size);
 
     // Create our pool config
     let pool_config = PoolConfig::default();
@@ -216,7 +217,11 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
         handles.pool_rx
     )
     .with_config(pool_config)
-    .build_with_channels(executor.clone(), handles.orderpool_tx, handles.orderpool_rx, handles.pool_manager_tx
+    .build_with_channels(
+        executor.clone(),
+        handles.orderpool_tx,
+        handles.orderpool_rx,
+        handles.pool_manager_tx
     );
 
     let signer = Signer::new(secret_key);

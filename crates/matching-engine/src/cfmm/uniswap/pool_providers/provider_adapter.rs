@@ -1,6 +1,11 @@
 use std::{marker::PhantomData, sync::Arc};
 
-use alloy::{network::Network, providers::Provider, rpc::types::Filter, transports::Transport};
+use alloy::{
+    network::{BlockResponse, HeaderResponse, Network},
+    providers::Provider,
+    rpc::types::Filter,
+    transports::Transport
+};
 use futures_util::{FutureExt, StreamExt};
 use reth_primitives::Log;
 
@@ -37,7 +42,7 @@ where
         let provider = self.inner.clone();
         async move { provider.subscribe_blocks().await.unwrap().into_stream() }
             .flatten_stream()
-            .map(|b| b.header.number)
+            .map(|b| Some(b.header().number()))
             .boxed()
     }
 

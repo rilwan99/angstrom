@@ -1,4 +1,5 @@
 mod cache;
+mod contract;
 mod evidence;
 mod global;
 mod manager;

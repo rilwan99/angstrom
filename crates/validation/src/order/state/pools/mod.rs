@@ -1,6 +1,6 @@
-use alloy_primitives::Address;
+use alloy::primitives::Address;
 use angstrom_pools::AngstromPools;
-use angstrom_types::sol_bindings::ext::RawPoolOrder;
+use angstrom_types::{primitive::PoolId, sol_bindings::ext::RawPoolOrder};
 use dashmap::DashMap;
 
 use super::config::ValidationConfig;
@@ -20,7 +20,7 @@ pub struct UserOrderPoolInfo {
     // token in for pool
     pub token:   Address,
     pub is_bid:  bool,
-    pub pool_id: usize
+    pub pool_id: PoolId
 }
 
 #[derive(Clone)]
@@ -48,39 +48,59 @@ impl AngstromPoolsTracker {
         let pools = config
             .pools
             .iter()
-            .flat_map(|pool| {
-                let key0 = AngstromPools::get_key(pool.token0, pool.token1);
-                let key1 = AngstromPools::get_key(pool.token1, pool.token0);
-                [(key0, (true, pool.pool_id)), (key1, (false, pool.pool_id))]
-            })
+            .map(|pool| (AngstromPools::build_key(pool.token0, pool.token1), pool.pool_id))
             .collect::<DashMap<_, _>>();
         let angstrom_pools = AngstromPools::new(pools);
 
         Self { pools: angstrom_pools }
     }
+
+    /// Get the token addresses for a pool specified by Uniswap PoolId.  By
+    /// Uniswap convention, these token addresses will be sorted, therefore the
+    /// return from this method is `Option<(t0, t1)>`
+    pub fn get_pool_addresses(&self, poolid: PoolId) -> Option<(Address, Address)> {
+        self.pools.get_addresses(poolid)
+    }
 }
 
 #[cfg(test)]
 pub mod pool_tracker_mock {
-    use alloy_primitives::Address;
+    use alloy::primitives::{Address, FixedBytes};
     use dashmap::DashMap;
 
-    use super::{angstrom_pools::PoolIdWithDirection, *};
+    use super::*;
 
     #[derive(Clone, Default)]
     pub struct MockPoolTracker {
         asset_index_to_address: DashMap<u16, Address>,
-        pools:                  DashMap<(Address, Address), PoolIdWithDirection>
+        asset_address_to_index: DashMap<Address, u16>,
+        pools:                  DashMap<(Address, Address), PoolId>
     }
 
     impl MockPoolTracker {
         pub fn add_asset(&self, index: u16, address: Address) {
             self.asset_index_to_address.insert(index, address);
+            self.asset_address_to_index.insert(address, index);
         }
 
-        pub fn add_pool(&self, token0: Address, token1: Address, pool: u16) {
-            self.pools.insert((token0, token1), (true, pool as usize));
-            self.pools.insert((token1, token0), (false, pool as usize));
+        pub fn get_key(token0: Address, token1: Address) -> (Address, Address) {
+            match token0.cmp(&token1) {
+                std::cmp::Ordering::Greater => (token1, token0),
+                std::cmp::Ordering::Less => (token0, token1),
+                std::cmp::Ordering::Equal => panic!("Can't have a pool with equal tokens")
+            }
+        }
+
+        pub fn add_pool(&self, token0: Address, token1: Address, id: Option<PoolId>) -> PoolId {
+            let key = Self::get_key(token0, token1);
+            let pool_id = id.unwrap_or_else(|| FixedBytes::random());
+            match self.pools.entry(key) {
+                dashmap::Entry::Occupied(_) => panic!("Tried to double-add a pool entry"),
+                dashmap::Entry::Vacant(e) => {
+                    e.insert(pool_id);
+                }
+            }
+            pool_id
         }
     }
 
@@ -88,16 +108,16 @@ pub mod pool_tracker_mock {
         fn fetch_pool_info_for_order<O: RawPoolOrder>(
             &self,
             order: O
-        ) -> Option<(UserOrderPoolInfo, AssetIndexToAddressWrapper<O>)> {
-            let asset_in = *self.asset_index_to_address.get(&order.token_in())?.value();
-            let asset_out = *self.asset_index_to_address.get(&order.token_out())?.value();
-
-            let value = self.pools.get(&(token_in, token_out))?;
-            let (is_bid, pool_id) = value.value();
-            let wrapped = AssetIndexToAddressWrapper { asset_out, asset_in, order };
-            let info = UserOrderPoolInfo { pool_id: *pool_id, is_bid: *is_bid, token: token_in };
-
-            Some((info, wrapped))
+        ) -> Option<(UserOrderPoolInfo, O)> {
+            let asset_in = order.token_in();
+            let asset_out = order.token_out();
+            let asset_in_idx = *self.asset_address_to_index.get(&asset_in)?;
+            let asset_out_idx = *self.asset_address_to_index.get(&asset_out)?;
+            let key = Self::get_key(asset_in, asset_out);
+            let pool_id = *self.pools.get(&(key))?.value();
+            let is_bid = asset_in > asset_out;
+            let info = UserOrderPoolInfo { pool_id, is_bid, token: asset_in };
+            Some((info, order))
         }
     }
 }

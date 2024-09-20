@@ -9,12 +9,13 @@ import {CalldataReader, CalldataReaderLib} from "src/types/CalldataReader.sol";
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
-import {RewardsUpdate} from "../../src/reference/PoolRewardsUpdate.sol";
+import {RewardsUpdate} from "../../src/reference/PoolUpdate.sol";
 import {TICK_SPACING} from "../../src/Constants.sol";
 import {UniV4Inspector} from "../_view-ext/UniV4Inspector.sol";
 import {MockERC20} from "super-sol/mocks/MockERC20.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {TickRangeMap} from "../_helpers/TickRangeMap.sol";
+import {IUniV4, IPoolManager} from "../../src/interfaces/IUniV4.sol";
 
 import {PoolGate} from "../_helpers/PoolGate.sol";
 import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
@@ -27,6 +28,7 @@ import {console2 as console} from "forge-std/console2.sol";
 /// @author philogy <https://github.com/philogy>
 contract RewardsUpdaterTest is BaseTest, RewardsUpdater {
     using TickMath for int24;
+    using IUniV4 for IPoolManager;
 
     using FormatLib for *;
     using FixedPointMathLib for *;
@@ -76,7 +78,15 @@ contract RewardsUpdaterTest is BaseTest, RewardsUpdater {
         uint256 realTotal;
     }
 
-    function test_reward(int256 input_startCompressedTick, uint256 seed) public {
+    function test_reward() public {
+        int24 startTick = 0;
+
+        gate.initializePool(asset0, asset1, startTick.getSqrtPriceAtTick());
+        gate.addLiquidity(asset0, asset1, -2 * TICK_SPACING, startTick, 1e21);
+        gate.addLiquidity(asset0, asset1, startTick, 2 * TICK_SPACING, 1e21);
+    }
+
+    function test_fuzzing_reward(int256 input_startCompressedTick, uint256 seed) public {
         Vars memory v;
         PRNG memory rng = PRNG(seed);
 
@@ -135,7 +145,8 @@ contract RewardsUpdaterTest is BaseTest, RewardsUpdater {
             int24 startTick = v.map.brangeToTick(v.donateTicks - 1);
 
             v.total = this.__reward(
-                RewardsUpdate({startTick: startTick, startLiquidity: startLiquidity, quantities: v.amounts}).encode()
+                RewardsUpdate({below: true, startTick: startTick, startLiquidity: startLiquidity, quantities: v.amounts})
+                    .encode()
             );
         } else {
             // Donating above.
@@ -145,7 +156,12 @@ contract RewardsUpdaterTest is BaseTest, RewardsUpdater {
             int24 startTick = v.map.rangeToTick(v.donateTicks - 1);
 
             v.total = this.__reward(
-                RewardsUpdate({startTick: startTick, startLiquidity: startLiquidity, quantities: v.amounts}).encode()
+                RewardsUpdate({
+                    below: false,
+                    startTick: startTick,
+                    startLiquidity: startLiquidity,
+                    quantities: v.amounts
+                }).encode()
             );
         }
 
@@ -173,7 +189,7 @@ contract RewardsUpdaterTest is BaseTest, RewardsUpdater {
 
     function __reward(bytes calldata encodedRewardUpdate) external returns (uint256 total) {
         CalldataReader reader = CalldataReaderLib.from(encodedRewardUpdate);
-        (reader, total) = _decodeAndReward(mainRewards, mainId, reader);
+        (reader, total) = _decodeAndReward(reader, mainRewards, mainId);
         reader.requireAtEndOf(encodedRewardUpdate);
     }
 

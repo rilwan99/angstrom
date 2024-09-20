@@ -26,9 +26,9 @@ use futures::{
     stream::{BoxStream, FuturesUnordered},
     Future, FutureExt, Stream, StreamExt
 };
-use order_pool::order_storage::OrderStorage;
 use order_pool::{
-    OrderIndexer, OrderPoolHandle, PoolConfig, PoolInnerEvent, PoolManagerUpdate
+    order_storage::OrderStorage, OrderIndexer, OrderPoolHandle, PoolConfig, PoolInnerEvent,
+    PoolManagerUpdate
 };
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_network::transactions::ValidationOutcome;
@@ -195,8 +195,12 @@ where
         let (pool_manager_tx, _) = broadcast::channel(100);
         let handle =
             PoolHandle { manager_tx: tx.clone(), pool_manager_tx: pool_manager_tx.clone() };
-        let inner =
-            OrderIndexer::new(self.validator.clone(), order_storage.clone(), 0, pool_manager_tx);
+        let inner = OrderIndexer::new(
+            self.validator.clone(),
+            order_storage.clone(),
+            0,
+            pool_manager_tx.clone()
+        );
 
         task_spawner.spawn_critical(
             "transaction manager",
@@ -251,6 +255,7 @@ where
         _command_tx: UnboundedSender<OrderCommand>,
         command_rx: UnboundedReceiverStream<OrderCommand>,
         order_events: UnboundedMeteredReceiver<NetworkOrderEvent>,
+        pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>
     ) -> Self {
         Self {
             strom_network_events,
@@ -301,8 +306,13 @@ where
                     self.order_indexer.new_network_order(
                         peer_id,
                         OrderOrigin::External,
-                        order.clone(),
+                        order.clone()
                     );
+                    // TODO: add an "await" for the new_order() to complete
+                    // if !self.order_sorter.is_valid_order(&order) {
+                    //     self.network
+                    //         .peer_reputation_change(peer_id,
+                    // ReputationChangeKind::BadOrder); }
                 });
             }
         }

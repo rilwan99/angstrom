@@ -24,7 +24,7 @@ library AssetLib {
     uint256 internal constant ASSET_BYTES = 68;
 
     uint256 internal constant ADDR_OFFSET = 0;
-    uint256 internal constant BORROW_OFFSET = 20;
+    uint256 internal constant TAKE_OFFSET = 20;
     uint256 internal constant SAVE_OFFSET = 36;
     uint256 internal constant SETTLE_OFFSET = 52;
 
@@ -74,12 +74,19 @@ library AssetLib {
         return Asset.wrap(self.into().ptr() + index * ASSET_BYTES);
     }
 
+    function getUnchecked(AssetArray self, uint256 index) internal pure returns (Asset asset) {
+        if (DEBUG_LOGS) console.log("[Asset] Retrieving asset[%s] from array", index);
+        unchecked {
+            return Asset.wrap(self.into().ptr() + index * ASSET_BYTES);
+        }
+    }
+
     function addr(Asset self) internal pure returns (address) {
         return self.into().readAddressMemberFromPtr(ADDR_OFFSET);
     }
 
-    function borrow(Asset self) internal pure returns (uint256) {
-        return self.into().readU128MemberFromPtr(BORROW_OFFSET);
+    function take(Asset self) internal pure returns (uint256) {
+        return self.into().readU128MemberFromPtr(TAKE_OFFSET);
     }
 
     function save(Asset self) internal pure returns (uint256) {

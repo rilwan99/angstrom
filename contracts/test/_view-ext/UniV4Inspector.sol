@@ -9,8 +9,8 @@ import {Slot0} from "v4-core/src/types/Slot0.sol";
 
 /// @author philogy <https://github.com/philogy>
 /// @notice This contract is *not* for production use.
-contract UniV4Inspector is PoolManager(50_000) {
-    using Position for mapping(bytes32 => Position.Info);
+contract UniV4Inspector is PoolManager {
+    using Position for mapping(bytes32 => Position.State);
 
     function getPool(PoolId id)
         external
@@ -63,7 +63,7 @@ contract UniV4Inspector is PoolManager(50_000) {
         view
         returns (uint128 liquidity, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128)
     {
-        Position.Info storage info = _getPool(id).positions.get(owner, tickLower, tickUpper, salt);
+        Position.State storage info = _getPool(id).positions.get(owner, tickLower, tickUpper, salt);
         liquidity = info.liquidity;
         feeGrowthInside0LastX128 = info.feeGrowthInside0LastX128;
         feeGrowthInside1LastX128 = info.feeGrowthInside1LastX128;

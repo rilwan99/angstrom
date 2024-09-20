@@ -18,16 +18,13 @@ use crate::{
 };
 
 pub struct OrderApi<OrderPool, Spawner> {
-    pool:             OrderPool,
-    task_spawner:     Spawner,
+    pool:         OrderPool,
+    task_spawner: Spawner
 }
 
 impl<OrderPool, Spawner> OrderApi<OrderPool, Spawner> {
     pub fn new(pool: OrderPool, task_spawner: Spawner) -> Self {
-        Self {
-            pool,
-            task_spawner,
-        }
+        Self { pool, task_spawner }
     }
 }
 
@@ -77,21 +74,30 @@ where
                 }
 
                 let msg = match (&kind, order) {
-                    (OrderSubscriptionKind::NewOrders, PoolManagerUpdate::NewOrder(order_update)) => {
-                        Some(OrderSubscriptionResult::NewOrder(order_update))
-                    },
-                    (OrderSubscriptionKind::FilledOrders, PoolManagerUpdate::FilledOrder((block_number, filled_order))) => {
-                        Some(OrderSubscriptionResult::FilledOrder((block_number, filled_order)))
-                    },
-                    (OrderSubscriptionKind::UnfilleOrders, PoolManagerUpdate::UnfilledOrders(unfilled_order)) => {
-                        Some(OrderSubscriptionResult::UnfilledOrder(unfilled_order))
-                    },
+                    (
+                        OrderSubscriptionKind::NewOrders,
+                        PoolManagerUpdate::NewOrder(order_update)
+                    ) => Some(OrderSubscriptionResult::NewOrder(order_update)),
+                    (
+                        OrderSubscriptionKind::FilledOrders,
+                        PoolManagerUpdate::FilledOrder((block_number, filled_order))
+                    ) => Some(OrderSubscriptionResult::FilledOrder((block_number, filled_order))),
+                    (
+                        OrderSubscriptionKind::UnfilleOrders,
+                        PoolManagerUpdate::UnfilledOrders(unfilled_order)
+                    ) => Some(OrderSubscriptionResult::UnfilledOrder(unfilled_order)),
                     (OrderSubscriptionKind::NewOrders, PoolManagerUpdate::FilledOrder(_)) => None,
-                    (OrderSubscriptionKind::NewOrders, PoolManagerUpdate::UnfilledOrders(_)) => None,
+                    (OrderSubscriptionKind::NewOrders, PoolManagerUpdate::UnfilledOrders(_)) => {
+                        None
+                    }
                     (OrderSubscriptionKind::FilledOrders, PoolManagerUpdate::NewOrder(_)) => None,
-                    (OrderSubscriptionKind::FilledOrders, PoolManagerUpdate::UnfilledOrders(_)) => None,
+                    (OrderSubscriptionKind::FilledOrders, PoolManagerUpdate::UnfilledOrders(_)) => {
+                        None
+                    }
                     (OrderSubscriptionKind::UnfilleOrders, PoolManagerUpdate::NewOrder(_)) => None,
-                    (OrderSubscriptionKind::UnfilleOrders, PoolManagerUpdate::FilledOrder(_)) => None,
+                    (OrderSubscriptionKind::UnfilleOrders, PoolManagerUpdate::FilledOrder(_)) => {
+                        None
+                    }
                 };
 
                 if let Some(result) = msg {
@@ -100,7 +106,7 @@ where
                             if sink.send(message).await.is_err() {
                                 break;
                             }
-                        },
+                        }
                         Err(e) => {
                             tracing::error!("Failed to serialize subscription message: {:?}", e);
                         }

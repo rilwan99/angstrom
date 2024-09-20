@@ -31,17 +31,15 @@ reth-network.workspace = true
 reth-ecies.workspace = true
 reth-network-peers.workspace = true
 
-reth-network-p2p = { git = "https://github.com/paradigmxyz/reth", version = "1.0.4", tag = "v1.0.4" }
-reth-chainspec = { git = "https://github.com/paradigmxyz/reth", version = "1.0.4", tag = "v1.0.4" }
-reth-net-banlist = { git = "https://github.com/paradigmxyz/reth", version = "1.0.4", tag = "v1.0.4" }
-reth-tokio-util = { git = "https://github.com/paradigmxyz/reth", version = "1.0.4", tag = "v1.0.4" }
-reth-discv4 = { git = "https://github.com/paradigmxyz/reth", version = "1.0.4", tag = "v1.0.4" }
-reth-dns-discovery = { git = "https://github.com/paradigmxyz/reth", version = "1.0.4", tag = "v1.0.4" }
+reth-network-p2p = { git = "https://github.com/paradigmxyz/reth", version = "1.0.7", tag = "v1.0.7" }
+reth-chainspec = { git = "https://github.com/paradigmxyz/reth", version = "1.0.7", tag = "v1.0.7" }
+reth-net-banlist = { git = "https://github.com/paradigmxyz/reth", version = "1.0.7", tag = "v1.0.7" }
+reth-tokio-util = { git = "https://github.com/paradigmxyz/reth", version = "1.0.7", tag = "v1.0.7" }
+reth-discv4.workspace = true
+reth-dns-discovery = { git = "https://github.com/paradigmxyz/reth", version = "1.0.7", tag = "v1.0.7" }
 
-alloy-sol-macro.workspace = true
-alloy-sol-types.workspace = true
-alloy-rlp.workspace = true
-alloy-rlp-derive.workspace = true
+alloy.workspace = true
+alloy-chains.workspace = true
 
 anyhow.workspace = true
 bincode.workspace = true
@@ -51,7 +49,6 @@ angstrom-types.workspace = true
 angstrom-utils.workspace = true
 order-pool.workspace = true
 validation.workspace = true
-alloy-chains.workspace = true
 
 # async/futures
 futures.workspace = true
@@ -90,7 +87,7 @@ tempfile = { version = "3.3", optional = true }
 testing-tools.workspace = true
 angstrom-network.workspace = true
 # reth
-reth-discv4 = { git = "https://github.com/paradigmxyz/reth", version = "1.0.4", tag = "v1.0.4", features = [
+reth-discv4 = { workspace = true, features = [
   "test-utils",
 ] }
 reth-primitives = { workspace = true, features = ["test-utils"] }
