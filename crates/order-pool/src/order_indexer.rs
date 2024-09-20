@@ -18,8 +18,9 @@ use angstrom_types::{
 use futures_util::{Stream, StreamExt};
 use reth_network_peers::PeerId;
 use reth_primitives::Address;
+use revm::interpreter::require_eof;
 use tokio::sync::oneshot::Sender;
-use tracing::{error, trace};
+use tracing::{error, trace, Instrument};
 use validation::order::{
     state::account::user::UserAddress, OrderValidationResults, OrderValidatorHandle
 };
@@ -91,6 +92,28 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
 
     pub fn new_network_order(&mut self, peer_id: PeerId, origin: OrderOrigin, order: AllOrders) {
         self.new_order(Some(peer_id), origin, order, None)
+    }
+
+    pub fn cancel_order(&mut self, from: Address, order_hash: B256) -> bool {
+        if self.seen_invalid_orders.contains(&order_hash)
+            || !self.order_hash_to_order_id.contains_key(&order_hash)
+        {
+            return true
+        }
+        let order_id = self.order_hash_to_order_id.get(&order_hash).unwrap();
+        if order_id.address != from {
+            return false;
+        }
+
+        let removed = self.order_storage.cancel_order(&order_id);
+        if removed.is_some() {
+            // make the increment
+            self.order_hash_to_order_id.remove(&order_hash);
+            self.order_hash_to_peer_id.remove(&order_hash);
+            self.notify_order_subscribers(PoolManagerUpdate::CancelledOrder(order_hash));
+        }
+
+        removed.is_some()
     }
 
     fn new_order(

@@ -33,7 +33,7 @@ use order_pool::{
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_network::transactions::ValidationOutcome;
 use reth_network_peers::PeerId;
-use reth_primitives::{TxHash, B256};
+use reth_primitives::{Address, TxHash, B256};
 use reth_rpc_types::txpool::TxpoolStatus;
 use reth_tasks::TaskSpawner;
 use tokio::sync::{
@@ -70,7 +70,8 @@ pub struct PoolHandle {
 #[derive(Debug)]
 pub enum OrderCommand {
     // new orders
-    NewOrder(OrderOrigin, AllOrders, tokio::sync::oneshot::Sender<OrderValidationResults>)
+    NewOrder(OrderOrigin, AllOrders, tokio::sync::oneshot::Sender<OrderValidationResults>),
+    CancelOrder(Address, B256, tokio::sync::oneshot::Sender<bool>)
 }
 
 impl PoolHandle {
@@ -102,6 +103,13 @@ impl OrderPoolHandle for PoolHandle {
 
     fn subscribe_orders(&self) -> Receiver<PoolManagerUpdate> {
         self.pool_manager_tx.subscribe()
+    }
+
+    fn cancel_order(&self, from: Address, order_hash: B256) -> impl Future<Output = bool> + Send {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        self.send(OrderCommand::CancelOrder(from, order_hash, tx))
+            .is_ok();
+        rx.map(|res| res.unwrap_or_else(|_| false))
     }
 }
 
@@ -272,7 +280,11 @@ where
         match cmd {
             OrderCommand::NewOrder(origin, order, validation_response) => self
                 .order_indexer
-                .new_rpc_order(OrderOrigin::External, order, validation_response)
+                .new_rpc_order(OrderOrigin::External, order, validation_response),
+            OrderCommand::CancelOrder(from, order_hash, receiver) => {
+                let res = self.order_indexer.cancel_order(from, order_hash);
+                receiver.send(res);
+            }
         }
     }
 
@@ -308,11 +320,6 @@ where
                         OrderOrigin::External,
                         order.clone()
                     );
-                    // TODO: add an "await" for the new_order() to complete
-                    // if !self.order_sorter.is_valid_order(&order) {
-                    //     self.network
-                    //         .peer_reputation_change(peer_id,
-                    // ReputationChangeKind::BadOrder); }
                 });
             }
         }

@@ -63,6 +63,45 @@ impl OrderStorage {
         }
     }
 
+    pub fn cancel_order(&self, order_id: &OrderId) -> Option<OrderWithStorageData<AllOrders>> {
+        if self
+            .pending_finalization_orders
+            .lock()
+            .expect("poisoned")
+            .has_order(&order_id.hash)
+        {
+            return None;
+        }
+
+        match order_id.location {
+            angstrom_types::orders::OrderLocation::Limit => self
+                .limit_orders
+                .lock()
+                .expect("lock poisoned")
+                .remove_order(order_id)
+                .and_then(|order| {
+                    match order.order {
+                        GroupedUserOrder::Composable(_) => {
+                            self.metrics.incr_cancelled_composable_orders()
+                        }
+                        GroupedUserOrder::Vanilla(_) => self.metrics.incr_cancelled_vanilla_orders()
+                    }
+                    order.try_map_inner(|inner| Ok(inner.into())).ok()
+                }),
+            angstrom_types::orders::OrderLocation::Searcher => self
+                .searcher_orders
+                .lock()
+                .expect("lock poisoned")
+                .remove_order(order_id)
+                .map(|order| {
+                    self.metrics.incr_cancelled_searcher_orders();
+                    order
+                        .try_map_inner(|inner| Ok(AllOrders::TOB(inner)))
+                        .unwrap()
+                })
+        }
+    }
+
     /// moves all orders to the parked location if there not already.
     pub fn park_orders(&self, order_info: Vec<&OrderId>) {
         // take lock here so we don't drop between iterations.

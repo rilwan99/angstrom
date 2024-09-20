@@ -19,7 +19,7 @@ pub struct OrderId {
     pub deadline:        Option<U256>,
     pub flash_block:     Option<u64>,
     /// Order Location
-    pub location:        OrderLocation
+    pub location:        OrderLocation,
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
