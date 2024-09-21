@@ -27,10 +27,7 @@ pub enum PoolManagerUpdate {
 /// asyncly. This allows for requesting data and providing data from different
 /// threads efficiently.
 pub trait OrderPoolHandle: Send + Sync + Clone + Unpin + 'static {
-    fn new_order(
-        &self,
-        order_origin: OrderOrigin,
-        order: AllOrders
-    ) -> impl Future<Output = bool> + Send;
+    fn new_order(&self, origin: OrderOrigin, order: AllOrders)
+        -> impl Future<Output = bool> + Send;
     fn subscribe_orders(&self) -> Receiver<PoolManagerUpdate>;
 }

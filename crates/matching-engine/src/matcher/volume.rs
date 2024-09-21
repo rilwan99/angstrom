@@ -1,4 +1,4 @@
-use std::{borrow::Cow, cell::Cell, cmp::Ordering};
+use std::{cell::Cell, cmp::Ordering};
 
 use alloy::primitives::U256;
 use angstrom_types::{
@@ -14,13 +14,20 @@ use super::Solution;
 use crate::{
     book::{
         order::{OrderContainer, OrderDirection, OrderExclusion},
-        xpool::XPoolOutcomes,
         OrderBook
     },
     cfmm::uniswap::MarketPrice
 };
 
 type CrossPoolExclusions = Option<(Vec<Option<OrderExclusion>>, Vec<Option<OrderExclusion>>)>;
+
+pub enum VolumeFillMatchEndReason {
+    NoMoreBids,
+    NoMoreAsks,
+    BothSidesAMM,
+    NoLongerCross,
+    ZeroQuantity
+}
 
 #[derive(Clone)]
 pub struct VolumeFillMatcher<'a> {
@@ -73,110 +80,6 @@ impl<'a> VolumeFillMatcher<'a> {
         &self.results
     }
 
-    /// Gets the relevant outcomes for cross-pool orders that have components
-    /// that are part of this pool.  Returns an Option - `None` implies that
-    /// there are no cross-pool orders in this pool.  Otherwise we get an
-    /// XPoolOutcomes struct
-    // pub fn crosspool_outcomes(&self) -> Option<XPoolOutcomes> {
-    //     let mut live: Vec<OrderCoordinate> = Vec::new();
-    //     let mut dead: Vec<OrderCoordinate> = Vec::new();
-    //     let related_bids = self
-    //         .book
-    //         .bids()
-    //         .iter()
-    //         .enumerate()
-    //         .filter(|(_, o)| o.related().is_some())
-    //         .map(|(i, o)| (OrderDirection::Bid, i, o));
-    //     let related_asks = self
-    //         .book
-    //         .asks()
-    //         .iter()
-    //         .enumerate()
-    //         .filter(|(_, o)| o.related().is_some())
-    //         .map(|(i, o)| (OrderDirection::Ask, i, o));
-    //     // For each order that's part of a related order group
-    //     for (direction, index, order) in related_bids.chain(related_asks) {
-    //         // Figure out what it's outcome was
-    //         let outcomes = match direction {
-    //             OrderDirection::Bid => &self.bid_outcomes,
-    //             OrderDirection::Ask => &self.ask_outcomes
-    //         };
-    //         if outcomes[index].is_filled() {
-    //             // In our current configuration, the order was filled and should
-    //             // be live
-    //             live.extend(order.related().unwrap().iter().cloned()); // Can unwrap because we
-    // checked earlier         } else {
-    //             // The order was not filled and should be dead
-    //             dead.extend(order.related().unwrap().iter().cloned()); // Can unwrap because we
-    // checked earlier         }
-    //     }
-    //     if live.is_empty() && dead.is_empty() {
-    //         // In the rare situation that it's all empty, we can just say none
-    //         None
-    //     } else {
-    //         Some(XPoolOutcomes::new(live, dead))
-    //     }
-    // }
-
-    #[allow(dead_code)]
-    fn update_xpool(&self, state: &XPoolOutcomes) -> Option<Self> {
-        let mut new_bid_xpool = Cow::from(&self.bid_xpool);
-        let mut new_ask_xpool = Cow::from(&self.ask_xpool);
-
-        let local_outcomes = state.for_book(self.book.id());
-
-        // Vivify our live orders if they're dead
-        for coord in local_outcomes.live().iter() {
-            let (direction, idx) =
-                if let Some((d, i)) = self.book.find_coordinate(coord) { (d, i) } else { continue };
-            let pool = match direction {
-                OrderDirection::Bid => &mut new_bid_xpool,
-                OrderDirection::Ask => &mut new_ask_xpool
-            };
-            if let Some(exc @ OrderExclusion::Dead(_)) = &pool[idx] {
-                let new_state = exc.flip();
-                // TTL limit for how many times we'll flip something away from Dead
-                if new_state.ttl() < 6 {
-                    pool.to_mut()[idx].replace(new_state);
-                }
-            }
-        }
-
-        // Kill our dead orders if they're alive
-        for coord in local_outcomes.dead().iter() {
-            let (direction, idx) =
-                if let Some((d, i)) = self.book.find_coordinate(coord) { (d, i) } else { continue };
-            let pool = match direction {
-                OrderDirection::Bid => &mut new_bid_xpool,
-                OrderDirection::Ask => &mut new_ask_xpool
-            };
-            match &pool[idx] {
-                None => {
-                    pool.to_mut()[idx] = Some(OrderExclusion::Dead(0));
-                }
-                Some(exc @ OrderExclusion::Live(_)) => {
-                    let new_state = exc.flip();
-                    if new_state.ttl() < 6 {
-                        pool.to_mut()[idx].replace(new_state);
-                    }
-                }
-                _ => ()
-            };
-        }
-
-        // If we've changed anything, we spawn a new state to be resolved
-        if let (Cow::Owned(_), _) | (_, Cow::Owned(_)) = (&new_bid_xpool, &new_ask_xpool) {
-            // Time to clone and return something new
-            Some(Self::with_related(
-                self.book,
-                Some((new_bid_xpool.into_owned(), new_ask_xpool.into_owned()))
-            ))
-        } else {
-            // Nothing was changed, we have no update
-            None
-        }
-    }
-
     /// Save our current solve state to an internal checkpoint
     fn save_checkpoint(&mut self) {
         let checkpoint = Self {
@@ -220,7 +123,7 @@ impl<'a> VolumeFillMatcher<'a> {
         true
     }
 
-    pub fn fill(&mut self) {
+    pub fn fill(&mut self) -> VolumeFillMatchEndReason {
         {
             // Local temporary storage for bid and ask AMM orders since they're generated on
             // the fly and need somewhere to live while we use them
@@ -228,7 +131,7 @@ impl<'a> VolumeFillMatcher<'a> {
             let mut amm_ask_order: Option<OrderContainer>;
             loop {
                 let bid = match self.current_partial {
-                    Some(ref o) if o.is_bid => OrderContainer::Partial(o),
+                    Some(ref o) if o.is_bid => OrderContainer::BookOrderFragment(o),
                     _ => {
                         amm_bid_order = self.try_next_order(OrderDirection::Bid);
                         let Some(o) = amm_bid_order.or_else(|| {
@@ -237,7 +140,7 @@ impl<'a> VolumeFillMatcher<'a> {
                                 .get(self.bid_idx.get())
                                 .map(OrderContainer::BookOrder)
                         }) else {
-                            break;
+                            return VolumeFillMatchEndReason::NoMoreBids;
                             // Break if there are no more valid bid orders to
                             // work with
                         };
@@ -245,7 +148,7 @@ impl<'a> VolumeFillMatcher<'a> {
                     }
                 };
                 let ask = match self.current_partial {
-                    Some(ref o) if !o.is_bid => OrderContainer::Partial(o),
+                    Some(ref o) if !o.is_bid => OrderContainer::BookOrderFragment(o),
                     _ => {
                         amm_ask_order = self.try_next_order(OrderDirection::Ask);
                         let Some(o) = amm_ask_order.or_else(|| {
@@ -254,7 +157,7 @@ impl<'a> VolumeFillMatcher<'a> {
                                 .get(self.ask_idx.get())
                                 .map(OrderContainer::BookOrder)
                         }) else {
-                            break;
+                            return VolumeFillMatchEndReason::NoMoreAsks;
                             // Break if there are no more valid bid orders to
                             // work with
                         };
@@ -264,12 +167,12 @@ impl<'a> VolumeFillMatcher<'a> {
 
                 // If we're talking to the AMM on both sides, we're done
                 if bid.is_amm() && ask.is_amm() {
-                    break
+                    return VolumeFillMatchEndReason::BothSidesAMM
                 }
 
                 // If our prices no longer cross, we're done
                 if ask.price() > bid.price() {
-                    break
+                    return VolumeFillMatchEndReason::NoLongerCross
                 }
 
                 // Limit to price so that AMM orders will only offer the quantity they can
@@ -280,11 +183,10 @@ impl<'a> VolumeFillMatcher<'a> {
                 // If either quantity is zero maybe we should break here? (could be a
                 // replacement for price cross checking if we implement that)
                 if ask_q == U256::ZERO || bid_q == U256::ZERO {
-                    break
+                    return VolumeFillMatchEndReason::ZeroQuantity
                 }
 
                 let matched = ask_q.min(bid_q);
-                let excess = bid_q - ask_q;
                 // Store the amount we matched
                 self.results.total_volume += matched;
 
@@ -308,11 +210,11 @@ impl<'a> VolumeFillMatcher<'a> {
                     let amm_out = self
                         .amm_outcome
                         .get_or_insert_with(|| NetAmmOrder::new(bid.is_amm()));
-                    amm_out.add_quantity(matched);
+                    amm_out.add_quantity(final_amm_order.d_t0, final_amm_order.d_t1);
                 }
 
                 // Then we see what else we need to do
-                match excess.cmp(&U256::ZERO) {
+                match bid_q.cmp(&ask_q) {
                     Ordering::Equal => {
                         // We annihilated
                         self.results.price =
@@ -368,7 +270,7 @@ impl<'a> VolumeFillMatcher<'a> {
                 let good_state = self
                     .current_partial
                     .as_ref()
-                    .map(|o| matches!(o.order, GroupedVanillaOrder::Partial(_)))
+                    .map(|o| matches!(o.order, GroupedVanillaOrder::Standing(_)))
                     .unwrap_or(true); // None is a good state
                 if good_state {
                     self.save_checkpoint();
@@ -436,6 +338,13 @@ impl<'a> VolumeFillMatcher<'a> {
             )
             .map(|(id, outcome)| OrderOutcome { id, outcome: outcome.clone() })
             .collect();
-        PoolSolution { id: self.book.id(), amm_quantity: self.amm_outcome.clone(), searcher, limit }
+        let ucp: Ray = self.results.price.map(Into::into).unwrap_or_default();
+        PoolSolution {
+            id: self.book.id(),
+            ucp,
+            amm_quantity: self.amm_outcome.clone(),
+            searcher,
+            limit
+        }
     }
 }

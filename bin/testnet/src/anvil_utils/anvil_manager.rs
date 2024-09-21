@@ -1,19 +1,27 @@
 use alloy::{
     network::{Ethereum, EthereumWallet},
-    node_bindings::Anvil,
+    node_bindings::{Anvil, AnvilInstance},
     providers::{
         builder,
         fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller},
         Identity, IpcConnect, RootProvider
     },
+    pubsub::PubSubFrontend,
     signers::local::PrivateKeySigner
 };
-use alloy_node_bindings::AnvilInstance;
-use alloy_pubsub::PubSubFrontend;
 
 pub type AnvilWalletRpc = FillProvider<
     JoinFill<
-        JoinFill<JoinFill<JoinFill<Identity, GasFiller>, NonceFiller>, ChainIdFiller>,
+        JoinFill<
+            Identity,
+            JoinFill<
+                GasFiller,
+                JoinFill<
+                    alloy::providers::fillers::BlobGasFiller,
+                    JoinFill<NonceFiller, ChainIdFiller>
+                >
+            >
+        >,
         WalletFiller<EthereumWallet>
     >,
     RootProvider<PubSubFrontend>,

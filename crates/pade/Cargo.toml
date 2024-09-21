@@ -10,5 +10,4 @@ exclude.workspace = true
 
 [dependencies]
 bitvec = "1.0.1"
-alloy-primitives.workspace = true
-alloy-sol-types.workspace = true
+alloy.workspace = true

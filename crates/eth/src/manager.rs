@@ -4,11 +4,7 @@ use std::{
     task::{Context, Poll}
 };
 
-use alloy_primitives::{Address, B256};
-use alloy_sol_types::SolEvent;
-use angstrom_types::{
-    contract_bindings::poolmanager::PoolManager::Initialize, primitive::NewInitializedPool
-};
+use alloy::primitives::{Address, B256};
 use futures::Future;
 use futures_util::{FutureExt, StreamExt};
 use reth_provider::{CanonStateNotification, CanonStateNotifications, Chain, StateProviderFactory};

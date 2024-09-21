@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use angstrom_types::{
     consensus::PreProposal,
     orders::PoolSolution,
+    primitive::PoolId,
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
         rpc_orders::TopOfBlockOrder
@@ -70,18 +71,23 @@ impl MatchingManager {
         MatcherHandle { sender: tx }
     }
 
-    pub fn build_books(&self, preproposals: &[PreProposal]) -> Vec<OrderBook> {
+    pub fn orders_by_pool_id(
+        preproposals: &[PreProposal]
+    ) -> HashMap<PoolId, HashSet<OrderWithStorageData<GroupedVanillaOrder>>> {
+        preproposals
+            .iter()
+            .flat_map(|p| p.limit.iter())
+            .cloned()
+            .fold(HashMap::new(), |mut acc, order| {
+                acc.entry(order.pool_id).or_default().insert(order);
+                acc
+            })
+    }
+
+    pub fn build_books(preproposals: &[PreProposal]) -> Vec<OrderBook> {
         // Pull all the orders out of all the preproposals and build OrderPools out of
         // them.  This is ugly and inefficient right now
-        let book_sources: HashMap<usize, HashSet<OrderWithStorageData<GroupedVanillaOrder>>> =
-            preproposals
-                .iter()
-                .flat_map(|p| p.limit.iter())
-                .cloned()
-                .fold(HashMap::new(), |mut acc, order| {
-                    acc.entry(order.pool_id).or_default().insert(order);
-                    acc
-                });
+        let book_sources = Self::orders_by_pool_id(preproposals);
 
         book_sources
             .into_iter()
@@ -98,9 +104,9 @@ impl MatchingManager {
     ) -> Result<Vec<PoolSolution>, String> {
         // Pull all the orders out of all the preproposals and build OrderPools out of
         // them.  This is ugly and inefficient right now
-        let books = self.build_books(&preproposals);
+        let books = Self::build_books(&preproposals);
 
-        let searcher_orders: HashMap<usize, OrderWithStorageData<TopOfBlockOrder>> = preproposals
+        let searcher_orders: HashMap<PoolId, OrderWithStorageData<TopOfBlockOrder>> = preproposals
             .iter()
             .flat_map(|p| p.searcher.iter())
             .fold(HashMap::new(), |mut acc, order| {
@@ -149,7 +155,7 @@ mod tests {
 
     use alloy::primitives::FixedBytes;
     use angstrom_types::consensus::PreProposal;
-    use testing_tools::type_generator::consensus::generate_random_preproposal;
+    use testing_tools::type_generator::consensus::preproposal::PreproposalBuilder;
 
     use super::MatchingManager;
 
@@ -164,7 +170,13 @@ mod tests {
     async fn will_combine_preproposals() {
         let manager = MatchingManager {};
         let preproposals: Vec<PreProposal> = (0..3)
-            .map(|_| generate_random_preproposal(10, 1, 100))
+            .map(|_| {
+                PreproposalBuilder::new()
+                    .order_count(10)
+                    .for_random_pools(1)
+                    .for_block(100)
+                    .build()
+            })
             .collect();
         let existing_orders: HashSet<FixedBytes<32>> = preproposals
             .iter()

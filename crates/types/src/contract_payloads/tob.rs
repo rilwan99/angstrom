@@ -10,7 +10,7 @@ sol! {
         uint128 settle;
     }
 
-    #[derive(PadeEncode, Debug)]
+    #[derive(Debug, Default, PadeEncode)]
     struct RewardsUpdate {
         #[pade_width(3)]
         int24 startTick;

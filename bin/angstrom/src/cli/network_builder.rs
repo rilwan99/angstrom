@@ -1,6 +1,8 @@
-use reth::transaction_pool::TransactionPool;
+use reth::{chainspec::ChainSpec, transaction_pool::TransactionPool};
 use reth_network::{protocol::IntoRlpxSubProtocol, NetworkHandle, NetworkManager};
-use reth_node_builder::{components::NetworkBuilder, node::FullNodeTypes, BuilderContext};
+use reth_node_builder::{
+    components::NetworkBuilder, node::FullNodeTypes, BuilderContext, NodeTypes
+};
 // use reth_tracing::tracing::{debug, info};
 
 /// A basic ethereum payload service.
@@ -17,7 +19,7 @@ impl<I: IntoRlpxSubProtocol + Send> AngstromNetworkBuilder<I> {
 impl<Node, Pool, I: IntoRlpxSubProtocol + Send> NetworkBuilder<Node, Pool>
     for AngstromNetworkBuilder<I>
 where
-    Node: FullNodeTypes,
+    Node: FullNodeTypes<Types: NodeTypes<ChainSpec = ChainSpec>>,
     Pool: TransactionPool + Unpin + 'static
 {
     async fn build_network(

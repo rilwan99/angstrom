@@ -20,14 +20,15 @@ use reth_blockchain_tree::{
     BlockchainTree, BlockchainTreeConfig, ShareableBlockchainTree, TreeExternals
 };
 use reth_chainspec::MAINNET;
-use reth_db::{mdbx::DatabaseArguments, models::client_version::ClientVersion, DatabaseEnv};
+use reth_db::{mdbx::DatabaseArguments, ClientVersion, DatabaseEnv};
+use reth_node_ethereum::EthereumNode;
+use reth_node_types::NodeTypesWithDBAdapter;
 use reth_provider::{
     providers::{BlockchainProvider, StaticFileProvider},
     ChainSpecProvider, ProviderFactory
 };
-use reth_prune_types::PruneModes;
 
-pub type Provider = BlockchainProvider<Arc<DatabaseEnv>>;
+pub type Provider = BlockchainProvider<NodeTypesWithDBAdapter<EthereumNode, Arc<DatabaseEnv>>>;
 
 pub fn load_reth_db(db_path: &Path) -> Provider {
     let db = Arc::new(
@@ -40,7 +41,7 @@ pub fn load_reth_db(db_path: &Path) -> Provider {
 
     let chain = MAINNET.clone();
     let static_file_provider =
-        StaticFileProvider::read_only(static_files).expect("static file provider failed");
+        StaticFileProvider::read_only(static_files, true).expect("static file provider failed");
 
     let provider_factory =
         ProviderFactory::new(db.clone(), Arc::clone(&chain), static_file_provider);
@@ -53,9 +54,8 @@ pub fn load_reth_db(db_path: &Path) -> Provider {
 
     let tree_config = BlockchainTreeConfig::default();
 
-    let blockchain_tree = ShareableBlockchainTree::new(
-        BlockchainTree::new(tree_externals, tree_config, PruneModes::none()).unwrap()
-    );
+    let blockchain_tree =
+        ShareableBlockchainTree::new(BlockchainTree::new(tree_externals, tree_config).unwrap());
 
     BlockchainProvider::new(provider_factory.clone(), Arc::new(blockchain_tree)).unwrap()
 }

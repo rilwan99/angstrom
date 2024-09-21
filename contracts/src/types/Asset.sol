@@ -5,7 +5,7 @@ import {CalldataReader} from "./CalldataReader.sol";
 import {StructArrayLib} from "../libraries/StructArrayLib.sol";
 
 import {console} from "forge-std/console.sol";
-import {DEBUG_LOGS} from "../modules/DevFlags.sol";
+import {DEBUG_LOGS, LOG_LEVEL, DEBUG_LEVEL} from "../modules/DevFlags.sol";
 
 type Asset is uint256;
 
@@ -24,7 +24,7 @@ library AssetLib {
     uint256 internal constant ASSET_BYTES = 68;
 
     uint256 internal constant ADDR_OFFSET = 0;
-    uint256 internal constant BORROW_OFFSET = 20;
+    uint256 internal constant TAKE_OFFSET = 20;
     uint256 internal constant SAVE_OFFSET = 36;
     uint256 internal constant SETTLE_OFFSET = 52;
 
@@ -42,7 +42,7 @@ library AssetLib {
         uint256 length = self.len();
         address lastAddr = address(0);
         for (uint256 i = 0; i < length; i++) {
-            address newAddr = self.get(i).addr();
+            address newAddr = self.getUnchecked(i).addr();
             if (newAddr <= lastAddr) revert AssetsOutOfOrderOrNotUnique();
             lastAddr = newAddr;
         }
@@ -69,17 +69,24 @@ library AssetLib {
     }
 
     function get(AssetArray self, uint256 index) internal pure returns (Asset asset) {
-        if (DEBUG_LOGS) console.log("[Asset] Attempting to retrieve asset[%s] from array", index);
+        if (DEBUG_LEVEL >= LOG_LEVEL) console.log("[Asset] Attempting to retrieve asset[%s] from array", index);
         self.into()._checkBounds(index);
         return Asset.wrap(self.into().ptr() + index * ASSET_BYTES);
+    }
+
+    function getUnchecked(AssetArray self, uint256 index) internal pure returns (Asset asset) {
+        if (DEBUG_LEVEL >= LOG_LEVEL) console.log("[Asset] Retrieving asset[%s] from array", index);
+        unchecked {
+            return Asset.wrap(self.into().ptr() + index * ASSET_BYTES);
+        }
     }
 
     function addr(Asset self) internal pure returns (address) {
         return self.into().readAddressMemberFromPtr(ADDR_OFFSET);
     }
 
-    function borrow(Asset self) internal pure returns (uint256) {
-        return self.into().readU128MemberFromPtr(BORROW_OFFSET);
+    function take(Asset self) internal pure returns (uint256) {
+        return self.into().readU128MemberFromPtr(TAKE_OFFSET);
     }
 
     function save(Asset self) internal pure returns (uint256) {

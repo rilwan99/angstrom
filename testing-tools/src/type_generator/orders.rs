@@ -2,13 +2,13 @@ use alloy_primitives::{Address, FixedBytes, Uint, U256};
 use angstrom_types::{
     matching::Ray,
     orders::{OrderId, OrderPriorityData},
+    primitive::PoolId,
     sol_bindings::{
         ext::RawPoolOrder,
         grouped_orders::{
             FlashVariants, GroupedVanillaOrder, OrderWithStorageData, StandingVariants
         },
-        rpc_orders::{ExactFlashOrder, ExactStandingOrder, TopOfBlockOrder},
-        sol::{FlashOrder, StandingOrder}
+        rpc_orders::{ExactFlashOrder, PartialStandingOrder, TopOfBlockOrder}
     }
 };
 use rand::{rngs::ThreadRng, Rng};
@@ -18,7 +18,7 @@ use rand_distr::{num_traits::ToPrimitive, Distribution, SkewNormal};
 //     OrderPriorityData { price: order.price().into(), volume: order.quantity()
 // as u128, gas: 10 } }
 
-fn generate_order_id(pool_id: usize, hash: FixedBytes<32>) -> OrderId {
+fn generate_order_id(pool_id: PoolId, hash: FixedBytes<32>) -> OrderId {
     let address = Address::random();
     OrderId {
         address,
@@ -35,7 +35,7 @@ pub fn generate_limit_order(
     rng: &mut ThreadRng,
     kof: bool,
     is_bid: bool,
-    pool_id: Option<usize>,
+    pool_id: Option<PoolId>,
     valid_block: Option<u64>,
     asset_in: Option<Address>,
     asset_out: Option<Address>,
@@ -78,8 +78,10 @@ pub fn generate_limit_order(
 pub fn generate_top_of_block_order(
     rng: &mut ThreadRng,
     is_bid: bool,
-    pool_id: Option<usize>,
-    valid_block: Option<u64>
+    pool_id: Option<PoolId>,
+    valid_block: Option<u64>,
+    quantity_in: Option<u128>,
+    quantity_out: Option<u128>
 ) -> OrderWithStorageData<TopOfBlockOrder> {
     let pool_id = pool_id.unwrap_or_default();
     let valid_block = valid_block.unwrap_or_default();
@@ -87,7 +89,8 @@ pub fn generate_top_of_block_order(
     let price: u128 = rng.gen();
     let volume: u128 = rng.gen();
     let gas: u128 = rng.gen();
-    let order = build_top_of_block_order();
+    let order =
+        build_top_of_block_order(quantity_in.unwrap_or_default(), quantity_out.unwrap_or_default());
 
     let priority_data = OrderPriorityData { price: U256::from(price), volume, gas };
     let order_id = generate_order_id(pool_id, order.order_hash());
@@ -116,30 +119,50 @@ pub fn build_limit_order(
     from: Address
 ) -> GroupedVanillaOrder {
     if kof {
-        GroupedVanillaOrder::KillOrFill(FlashVariants::Exact(ExactFlashOrder {
-            amount: volume,
-            minPrice: Ray::from(Uint::from(price)).into(),
-            validForBlock: valid_block,
-            assetIn: asset_in,
-            assetOut: asset_out,
-            recipient: from,
-            ..Default::default()
-        }))
+        GroupedVanillaOrder::KillOrFill(FlashVariants::Exact(
+            ExactFlashOrder {
+                amount: volume,
+                minPrice: Ray::from(Uint::from(price)).into(),
+                validForBlock: valid_block,
+                recipient: from,
+                ..Default::default()
+            } /* Old struct:
+               *     FlashOrder {
+               *     max_amount_in_or_out:
+               * Uint::from(volume),
+               *     min_price:
+               * Ray::from(Uint::from(price)).into(),
+               *     valid_for_block: valid_block,
+               *     asset_in,
+               *     asset_out,
+               *     recipient: from,
+               *     ..Default::default()
+               * } */
+        ))
     } else {
-        GroupedVanillaOrder::Partial(StandingVariants::Exact(ExactStandingOrder {
-            amount: volume,
-            minPrice: Ray::from(Uint::from(price)).into(),
-            assetOut: asset_out,
-            assetIn: asset_in,
-            nonce,
-            recipient: from,
-            ..Default::default()
-        }))
+        GroupedVanillaOrder::Standing(
+            StandingVariants::Partial(PartialStandingOrder {
+                maxAmountIn: volume,
+                minPrice: Ray::from(Uint::from(price)).into(),
+                nonce,
+                recipient: from,
+                ..Default::default()
+            }) /* Old struct:
+                *    StandingOrder {
+                *     max_amount_in_or_out: Uint::from(volume),
+                *     min_price: Ray::from(Uint::from(price)).into(),
+                *     asset_out,
+                *     asset_in,
+                *     nonce,
+                *     recipient: from,
+                *     ..Default::default()
+                * } */
+        )
     }
 }
 
-pub fn build_top_of_block_order() -> TopOfBlockOrder {
-    TopOfBlockOrder::default()
+pub fn build_top_of_block_order(quantity_in: u128, quantity_out: u128) -> TopOfBlockOrder {
+    TopOfBlockOrder { quantityIn: quantity_in, quantityOut: quantity_out, ..Default::default() }
 }
 
 #[derive(Debug, Default)]
@@ -171,7 +194,7 @@ pub fn generate_order_distribution(
     order_count: usize,
     priceparams: DistributionParameters,
     volumeparams: DistributionParameters,
-    pool_id: usize,
+    pool_id: PoolId,
     valid_block: u64
 ) -> Result<Vec<OrderWithStorageData<GroupedVanillaOrder>>, String> {
     let DistributionParameters { location: price_location, scale: price_scale, shape: price_shape } =

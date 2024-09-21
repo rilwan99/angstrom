@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use alloy::{
     network::Network,
-    primitives::{Address, I256, U256},
+    primitives::{aliases::I24, Address, I256, U256},
     providers::Provider,
     sol,
     sol_types::{SolEvent, SolType},
@@ -99,13 +99,25 @@ impl EnhancedUniswapV3Pool {
         T: Transport + Clone,
         N: Network
     {
+        let current_tick = I24::try_from(tick_start).map_err(|_| {
+            AMMError::ABICodecError(alloy::dyn_abi::Error::InvalidPropertyDefinition(format!(
+                "Current tick provided was out of range: {}",
+                tick_start
+            )))
+        })?;
+        let tick_spacing = I24::try_from(self.tick_spacing).map_err(|_| {
+            AMMError::ABICodecError(alloy::dyn_abi::Error::InvalidPropertyDefinition(format!(
+                "Tick spacing out of range: {}",
+                self.tick_spacing
+            )))
+        })?;
         let deployer = IGetUniswapV3TickDataBatchRequest::deploy_builder(
             provider.clone(),
             self.address,
             zero_for_one,
-            tick_start,
+            current_tick,
             num_ticks,
-            self.tick_spacing
+            tick_spacing
         );
 
         let data = match block_number {
@@ -120,7 +132,7 @@ impl EnhancedUniswapV3Pool {
             .iter()
             .map(|tick| UniswapV3TickData {
                 initialized:     tick.initialized,
-                tick:            tick.tick,
+                tick:            tick.tick.as_i32(),
                 liquidity_gross: tick.liquidityGross,
                 liquidity_net:   tick.liquidityNet
             })
@@ -415,7 +427,7 @@ impl EnhancedUniswapV3Pool {
         let swap_event = IUniswapV3Pool::Swap::decode_log(&log, true)?;
 
         tracing::trace!(pool_tick = ?self.tick, pool_price = ?self.sqrt_price, pool_liquidity = ?self.liquidity, pool_address = ?self.address, "pool before");
-        tracing::debug!(swap_tick=swap_event.tick, swap_price=?swap_event.sqrtPriceX96, swap_liquidity=?swap_event.liquidity, swap_amount0=?swap_event.amount0, swap_amount1=?swap_event.amount1, "swap event");
+        tracing::debug!(swap_tick=swap_event.tick.as_i32(), swap_price=?swap_event.sqrtPriceX96, swap_liquidity=?swap_event.liquidity, swap_amount0=?swap_event.amount0, swap_amount1=?swap_event.amount1, "swap event");
 
         let combinations = [
             (self.token_b, swap_event.amount1),
@@ -426,7 +438,7 @@ impl EnhancedUniswapV3Pool {
 
         let mut simulation_failed = true;
         for (token_in, amount_in) in combinations.iter() {
-            let sqrt_price_limit_x96 = Some(swap_event.sqrtPriceX96);
+            let sqrt_price_limit_x96 = Some(U256::from(swap_event.sqrtPriceX96));
             if let Ok((amount0, amount1)) =
                 self.simulate_swap(*token_in, *amount_in, sqrt_price_limit_x96)
             {
@@ -447,7 +459,7 @@ impl EnhancedUniswapV3Pool {
                 pool_liquidity = ?self.liquidity,
                 pool_tick = ?self.tick,
                 swap_price = ?swap_event.sqrtPriceX96,
-                swap_tick = swap_event.tick,
+                swap_tick = swap_event.tick.as_i32(),
                 swap_liquidity = ?swap_event.liquidity,
                 swap_amount0 = ?swap_event.amount0,
                 swap_amount1 = ?swap_event.amount1,
@@ -481,8 +493,8 @@ impl EnhancedUniswapV3Pool {
         let burn_event = IUniswapV3Pool::Burn::decode_log(&log, true)?;
 
         self.modify_position(
-            burn_event.tickLower,
-            burn_event.tickUpper,
+            burn_event.tickLower.as_i32(),
+            burn_event.tickUpper.as_i32(),
             -(burn_event.amount as i128)
         );
 
@@ -494,7 +506,11 @@ impl EnhancedUniswapV3Pool {
     pub fn sync_from_mint_log(&mut self, log: Log) -> Result<(), alloy::dyn_abi::Error> {
         let mint_event = IUniswapV3Pool::Mint::decode_log(&log, true)?;
 
-        self.modify_position(mint_event.tickLower, mint_event.tickUpper, mint_event.amount as i128);
+        self.modify_position(
+            mint_event.tickLower.as_i32(),
+            mint_event.tickUpper.as_i32(),
+            mint_event.amount as i128
+        );
 
         tracing::debug!(?mint_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "mint event");
 
@@ -504,9 +520,9 @@ impl EnhancedUniswapV3Pool {
     pub fn _sync_from_swap_log(&mut self, log: Log) -> Result<(), alloy::sol_types::Error> {
         let swap_event = IUniswapV3Pool::Swap::decode_log(&log, true)?;
 
-        self.sqrt_price = swap_event.sqrtPriceX96;
+        self.sqrt_price = U256::from(swap_event.sqrtPriceX96);
         self.liquidity = swap_event.liquidity;
-        self.tick = swap_event.tick;
+        self.tick = swap_event.tick.as_i32();
 
         tracing::debug!(?swap_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "swap event");
 

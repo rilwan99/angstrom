@@ -24,10 +24,7 @@ abstract contract HookDeployer is Test {
         bytes32 initcodeHash = keccak256(initcode);
 
         uint256 salt = 0;
-        while (
-            uint160(addr = vm.computeCreate2Address(bytes32(salt), initcodeHash, factory)) & Hooks.ALL_HOOK_MASK
-                != flags
-        ) {
+        while (uint160(addr = computeCreate2(factory, salt, initcodeHash)) & Hooks.ALL_HOOK_MASK != flags) {
             salt++;
         }
 
@@ -39,6 +36,10 @@ abstract contract HookDeployer is Test {
                 revert(add(retdata, 0x20), mload(retdata))
             }
         }
+    }
+
+    function computeCreate2(address factory, uint256 salt, bytes32 initcodeHash) internal pure returns (address) {
+        return address(uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), factory, salt, initcodeHash)))));
     }
 }
 

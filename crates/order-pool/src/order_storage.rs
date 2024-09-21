@@ -5,7 +5,7 @@ use std::{
     time::Instant
 };
 
-use alloy_primitives::FixedBytes;
+use alloy::primitives::FixedBytes;
 use angstrom_metrics::OrderStorageMetricsWrapper;
 use angstrom_types::{
     orders::{OrderId, OrderSet},

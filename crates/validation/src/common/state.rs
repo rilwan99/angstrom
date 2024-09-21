@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 //
-use alloy_primitives::{Address, Bytes, I256, U256};
+use alloy::primitives::{Address, Bytes, I256, U256};
 // use angstrom_types::{
 //     primitive::{Angstrom::Bundle, *},
 //     rpc::CallerInfo

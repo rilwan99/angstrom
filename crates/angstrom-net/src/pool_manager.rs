@@ -195,8 +195,12 @@ where
         let (pool_manager_tx, _) = broadcast::channel(100);
         let handle =
             PoolHandle { manager_tx: tx.clone(), pool_manager_tx: pool_manager_tx.clone() };
-        let inner =
-            OrderIndexer::new(self.validator.clone(), order_storage.clone(), 0, pool_manager_tx);
+        let inner = OrderIndexer::new(
+            self.validator.clone(),
+            order_storage.clone(),
+            0,
+            pool_manager_tx.clone()
+        );
 
         task_spawner.spawn_critical(
             "transaction manager",
@@ -250,7 +254,8 @@ where
         eth_network_events: UnboundedReceiverStream<EthEvent>,
         _command_tx: UnboundedSender<OrderCommand>,
         command_rx: UnboundedReceiverStream<OrderCommand>,
-        order_events: UnboundedMeteredReceiver<NetworkOrderEvent>
+        order_events: UnboundedMeteredReceiver<NetworkOrderEvent>,
+        pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>
     ) -> Self {
         Self {
             strom_network_events,
@@ -304,6 +309,11 @@ where
                         OrderOrigin::External,
                         order.clone()
                     );
+                    // TODO: add an "await" for the new_order() to complete
+                    // if !self.order_sorter.is_valid_order(&order) {
+                    //     self.network
+                    //         .peer_reputation_change(peer_id,
+                    // ReputationChangeKind::BadOrder); }
                 });
             }
         }

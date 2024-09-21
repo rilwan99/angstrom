@@ -24,8 +24,7 @@ reth-provider.workspace = true
 reth-tasks.workspace = true
 
 # alloy  
-alloy-primitives.workspace = true
-#alloy-providers.workspace = true
+alloy.workspace = true
 
 
 # misc

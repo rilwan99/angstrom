@@ -396,7 +396,7 @@ library OrdersLib {
         for (uint256 i = 0; i < orders.length; i++) {
             b = bytes.concat(b, orders[i].encode(assets));
         }
-        b = bytes.concat(bytes3(orders.length.toUint24()), b);
+        b = bytes.concat(bytes3(b.length.toUint24()), b);
     }
 
     function encode(TopOfBlockOrder memory order, Asset[] memory assets) internal pure returns (bytes memory) {
@@ -416,8 +416,8 @@ library OrdersLib {
             bytes1(OrderVariantMap.unwrap(variantMap.encode())),
             bytes16(order.quantityIn),
             bytes16(order.quantityOut),
-            bytes1(assets.getIndex(order.assetIn).toUint8()),
-            bytes1(assets.getIndex(order.assetOut).toUint8()),
+            bytes2(assets.getIndex(order.assetIn).toUint16()),
+            bytes2(assets.getIndex(order.assetOut).toUint16()),
             _encodeRecipient(order.recipient),
             _encodeHookData(order.hook, order.hookPayload),
             _encodeSig(order.meta)

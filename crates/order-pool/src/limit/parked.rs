@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use alloy_primitives::FixedBytes;
+use alloy::primitives::FixedBytes;
 use angstrom_types::sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData};
 
 pub struct ParkedPool(HashMap<FixedBytes<32>, OrderWithStorageData<GroupedVanillaOrder>>);

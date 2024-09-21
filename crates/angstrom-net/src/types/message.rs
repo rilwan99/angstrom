@@ -1,7 +1,7 @@
 #![allow(missing_docs)]
 use std::{fmt::Debug, sync::Arc};
 
-use alloy_rlp::{Decodable, Encodable};
+use alloy::rlp::{Decodable, Encodable};
 use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
     sol_bindings::grouped_orders::AllOrders
@@ -47,15 +47,15 @@ impl Encodable for StromMessageID {
 }
 
 impl Decodable for StromMessageID {
-    fn decode(buf: &mut &[u8]) -> Result<Self, alloy_rlp::Error> {
-        let id = buf.first().ok_or(alloy_rlp::Error::InputTooShort)?;
+    fn decode(buf: &mut &[u8]) -> Result<Self, alloy::rlp::Error> {
+        let id = buf.first().ok_or(alloy::rlp::Error::InputTooShort)?;
         let id = match id {
             0 => StromMessageID::Status,
             1 => StromMessageID::PrePropose,
             2 => StromMessageID::Propose,
             3 => StromMessageID::Commit,
             4 => StromMessageID::PropagatePooledOrders,
-            _ => return Err(alloy_rlp::Error::Custom("Invalid message ID"))
+            _ => return Err(alloy::rlp::Error::Custom("Invalid message ID"))
         };
         buf.advance(1);
         Ok(id)

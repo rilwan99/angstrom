@@ -1,10 +1,10 @@
-use alloy::primitives::U256;
+use alloy::primitives::{FixedBytes, U256};
 use angstrom_types::{
     matching::Ray,
     orders::{OrderId, OrderPriorityData},
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
-        rpc_orders::PartialFlashOrder
+        rpc_orders::{ExactFlashOrder, PartialFlashOrder}
     }
 };
 use rand_distr::{Distribution, SkewNormal};
@@ -31,9 +31,9 @@ pub fn order_distribution(
         .zip(quantity_gen.sample_iter(&mut rng2))
         .map(|(p, q)| {
             let order = GroupedVanillaOrder::KillOrFill(
-                angstrom_types::sol_bindings::grouped_orders::FlashVariants::Partial(
-                    PartialFlashOrder {
-                        maxAmountIn: q.floor() as u128,
+                angstrom_types::sol_bindings::grouped_orders::FlashVariants::Exact(
+                    ExactFlashOrder {
+                        amount: q.floor() as u128,
                         minPrice: Ray::from(p).into(),
                         ..Default::default()
                     }
@@ -56,10 +56,10 @@ pub fn order_distribution(
                     hash:            Default::default(),
                     address:         Default::default(),
                     deadline:        None,
-                    pool_id:         0,
+                    pool_id:         FixedBytes::default(),
                     location:        angstrom_types::orders::OrderLocation::Limit
                 },
-                pool_id: 0,
+                pool_id: FixedBytes::default(),
                 valid_block: 0
             }
         })

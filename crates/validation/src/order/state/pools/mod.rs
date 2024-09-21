@@ -1,4 +1,4 @@
-use alloy_primitives::Address;
+use alloy::primitives::Address;
 use angstrom_pools::AngstromPools;
 use angstrom_types::{primitive::NewInitializedPool, sol_bindings::ext::RawPoolOrder};
 use dashmap::DashMap;
@@ -20,7 +20,7 @@ pub struct UserOrderPoolInfo {
     // token in for pool
     pub token:   Address,
     pub is_bid:  bool,
-    pub pool_id: usize
+    pub pool_id: PoolId
 }
 
 #[derive(Clone)]
@@ -35,15 +35,18 @@ impl AngstromPoolsTracker {
         let pools = config
             .pools
             .iter()
-            .flat_map(|pool| {
-                let key0 = AngstromPools::get_key(pool.token0, pool.token1);
-                let key1 = AngstromPools::get_key(pool.token1, pool.token0);
-                [(key0, (true, pool.pool_id)), (key1, (false, pool.pool_id))]
-            })
+            .map(|pool| (AngstromPools::build_key(pool.token0, pool.token1), pool.pool_id))
             .collect::<DashMap<_, _>>();
         let angstrom_pools = AngstromPools::new(pools);
 
         Self { pools: angstrom_pools }
+    }
+
+    /// Get the token addresses for a pool specified by Uniswap PoolId.  By
+    /// Uniswap convention, these token addresses will be sorted, therefore the
+    /// return from this method is `Option<(t0, t1)>`
+    pub fn get_pool_addresses(&self, poolid: PoolId) -> Option<(Address, Address)> {
+        self.pools.get_addresses(poolid)
     }
 }
 

@@ -1,11 +1,13 @@
 use bytes::Bytes;
-use reth_network_peers::PeerId;
 use reth_primitives::keccak256;
 use secp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
 
 use super::PreProposal;
-use crate::{orders::PoolSolution, primitive::Signature};
+use crate::{
+    orders::PoolSolution,
+    primitive::{PeerId, Signature}
+};
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Proposal {
@@ -75,7 +77,7 @@ impl Proposal {
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::FixedBytes;
+    use alloy::primitives::FixedBytes;
     use rand::thread_rng;
     use reth_network_peers::pk2id;
     use secp256k1::Secp256k1;
@@ -85,7 +87,7 @@ mod tests {
     #[test]
     fn can_be_constructed() {
         let ethereum_height = 100;
-        let source = FixedBytes::random();
+        let source = FixedBytes::<64>::default();
         let preproposals = vec![];
         let solutions = vec![];
         let mut rng = thread_rng();

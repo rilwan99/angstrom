@@ -1,4 +1,4 @@
-# Angstrom
+# Angstrom Payload Struct Specification
 
 **Corresponding Source file:** [`Angstrom.sol`](../../contracts/src/Angstrom.sol)
 
@@ -71,10 +71,9 @@ The `data` payload is the PADE encoding of the following struct:
 struct Bundle {
     assets: List<Asset>,
     pairs: List<Pair>,
-    swaps: List<PoolSwap>,
-    toBOrders: List<TopOfBlockOrder>,
-    userOrders: List<UserOrder>,
-    poolRewardsUpdates: List<PoolRewardsUpdate>
+    pool_updates: List<PoolUpdate>,
+    top_of_block_orders: List<TopOfBlockOrder>,
+    user_orders: List<UserOrder>,
 }
 ```
 
@@ -86,7 +85,7 @@ encoding (`src/reference/Asset.sol`)](../../contracts/src/reference/Asset.sol)
 ```rust
 struct Asset {
     addr: address,
-    borrow: u128,
+    take: u128,
     save: u128,
     settle: u128
 }
@@ -98,7 +97,7 @@ The elements **must be** sorted in ascending order according the value of `.addr
 |Field|Description|
 |-----|-----------|
 |`addr: address`|Contract address of ERC20 token of the asset. |
-|`borrow: uint128`|Amount of the asset to flash borrow. (`.addr` base unit)|
+|`take: uint128`|Amount of the asset to take from Uniswap (`.addr` base unit) |
 |`save: uint128`|Amount of the asset to save as the network fee (`.addr` base unit)|
 |`settle: uint128`|Final amount to be repayed to Uniswap post-bundle execution. (`.addr` base unit)|
 
@@ -124,33 +123,123 @@ Note that to ensure pair uniqueness `.index_a` **must** be less than `.index_b`.
 |-----|-----------|
 |`index_a: u16`|Pair's asset A as index into the asset array|
 |`index_b: u16`|Pair's asset B as index into the asset array|
-|`price_AOverB: u256`|Unform clearing price of pair in asset A **over** asset B base units in Ray e.g. `13.2e27` represents 13.2 base units of A for every base unit of A.|
+|`price_AOverB: u256`|Uniform clearing price of pair in asset A **over** asset B base units in Ray e.g. `13.2e27` represents 13.2 base units of A for every base unit of A.|
 
 
 
-#### `PoolSwap`
+#### `PoolUpdate`
+
+TODO: Update solidity link
 
 Solidity: [decoding implementation](../../contracts/src/types/PoolSwap.sol) | [reference
 encoding (`src/reference/PoolSwap.sol`)](../../contracts/src/reference/PoolSwap.sol)
 
 
 ```rust
-struct PoolSwap {
+struct PoolUpdate {
     asset_in_index: u16,
     asset_out_index: u16,
-    quantity_in: u128
+    swap_in_quantity: u128,
+    rewards_update: RewardsUpdate
 }
 ```
 
-The array of `PoolSwap`s represents the netted out swaps to execute against the underlying Uniswap
-pool (where Angstrom is its hook). The contract does not enforce swap uniqueness, it is recommended
-to net out multiple swaps against the same pool into one to save on gas.
+The array of `PoolUpdate`s represents intended changes to the underlying pool. This includes the
+netted out swap to execute against the underlying Uniswap pool (where Angstrom is its hook) and
+rewards to be saved & accounted for LPs. The contract does not enforce update uniqueness, it is
+recommended to net out multiple swaps against the same pool into one to save on gas.
 
 |Field|Description|
 |-----|-----------|
 |`asset_in_index: u16`|Swap's input asset as index into the assets array|
 |`asset_out_index: u16`|Swap's output asset as index into the assets array|
-|`quantity_in: u128`|The swap input quantity in the input asset's base units.|
+|`swap_in_quantity: u128`|The swap input quantity in the input asset's base units.|
+|`rewards_update: RewardsUpdate`| The pool's LP rewards to distribute *after* the pool swap is executed  |
+
+##### Rewards Update
+
+Solidity: [decoding implementation (`_decodeAndReward`)](../../contracts/src/modules/RewardsUpdater.sol) | [reference encoding](../../contracts/src/reference/PoolRewardsUpdate.sol).
+
+```rust
+struct RewardsUpdate {
+    below: bool,
+    start_tick: i24,
+    start_liquidity: u128,
+    quantities: List<u128>
+}
+```
+
+The rewards update data informs the Angstrom contract where to begin the reward update loop
+(`startTick`) and what quantities to donate. The `start_liquidity` value informs the contract what
+the total liquidity is at the start as this cannot be efficiently querried. Note that the value is
+eventually checked however and is computed as the loop progresses to ensure consistency of reward
+distribution.
+
+To donate only to the current tick one must set a `start_tick` that is itself already out-of-bounds
+(for `below = true` this is any tick `> current_tick`, for `below = false` this is nay tick `<=
+current_tick`).
+
+|Field|Description |
+|-----|-----------|
+|`below: bool`| Whether the reward update starts below or above the current tick.|
+|`start_tick: i24`| When `below = true` the current tick: the first tick **above** the first tick to donate to. <br> When rewarding above: just the first tick actually being donated to. |
+|`start_liquidity: u128`|The current liquidity if `start_tick` were the current tick.|
+|`quantities: List<u128>`|The reward for each initialized tick range *including* the current tick in
+`asset0` base units.|
+
+**Reward Update Internals**
+
+To gain a better intuition over how parameters need to be set it's good to understand how the reward
+update loop operates. The main purpose of the loop is to update the _internal_
+`reward_growth_outside` value of the ticks it passes. The "growth outside" values represent
+cumulative rewards in such a way where the total rewards accrued by a liquidity range can be
+efficiently computed later.
+
+To understand why rewarding above and below the current tick requires different starting values
+we need to understand how the meaning of a tick's `reward_growth_outside` value changes
+_relative to the current tick_:
+
+![](./assets/fee-growth-outside-meaning.png)
+
+For ticks that are **below or at** the current tick their `reward_growth_outside` value represents the sum
+of all accrued rewards in the ticks below **excluding the tick's own rewards**.
+
+Conversely for ticks that are above the current tick their `reward_growth_outside` value represents
+the sum of all accrued rewards in the ticks above **including its own**.
+
+Generally the logic for updating pool rewards looks as follows:
+
+```python
+def update_rewards(
+    pool: Pool,
+    start_tick: Tick,
+    quantities: list[int],
+    liquidity: int,
+    below: bool
+):
+    cumulative_reward_growth: float = 0
+
+    end_tick: Tick = get_current_tick()
+    ticks: list[Tick] = initialized_tick_range(start_tick, end_tick, include_end=below)
+
+    for tick, quantity in zip(ticks, quantities):
+        cumulative_reward_growth += quantity / liquidity
+        tick.reward_growth_outside += cumulative_reward_growth
+
+        if below:
+            liquidity += tick.net_liquidity
+        else:
+            liquidity -= tick.net_liquidity
+
+    assert len(quantities) == len(ticks) + 1, 'Unused quantities'
+
+    current_tick_reward: int = quantities[len(ticks)]
+    cumulative_reward_growth += current_tick_reward / liquidity
+    pool.global_reward_growth += sum(quantities)
+
+    assert liquidity == get_current_liquidity(), 'Invalid set start liquidity'
+```
+
 
 #### `TopOfBlockOrder`
 
@@ -229,93 +318,7 @@ enum OrderQuantities {
 |`signature: Signature`|The signature validating the order.|
 
 **`StandingValidation`**
-|`nonce: u64`|The order's nonce (can only be used once but do not have to be used in order).|
-|`deadline: u40`|The unix timestamp in seconds (inclusive) after which the order is considered invalid by the contract. |
-
-#### `PoolRewardsUpdate`
-
-Solidity: [decoding implementation (`_rewardPool`)](../../contracts/modules/PoolRewardsManager.sol) | [reference encoding](../../contracts/src/reference/PoolRewardsUpdate.sol).
-
-
-```rust
-struct PoolRewardsUpdate {
-    assets: AssetIndexPair,
-    update: RewardsUpdate
-}
-```
-
-The `PoolRewardsUpdate` struct and its parameters instruct the contract how to account and
-distribute rewards to different ticks. Similar to Uniswap pool rewards are accounted by tick by
-tracking the "cumulative growth outside".
-
 |Field|Description|
 |-----|-----------|
-|`assets: AssetIndexPair`|Asset 0 & 1 of the pool to reward as indices into the assets array.|
-|`update: RewardsUpdate`|The reward update data for the select pool (more below).|
-
-**Rewards Update**
-
-Solidity: [decoding implementation (`_decodeAndReward`)](../../contracts/modules/RewardsUpdater.sol) | [reference encoding](../../contracts/src/reference/PoolRewardsUpdate.sol).
-
-```rust
-struct RewardsUpdate {
-    start_tick: i24,
-    start_liquidity: u128,
-    quantities: List<u128>
-}
-```
-
-To gain a better intuition over how parameters need to be set it's good to have an understanding how
-the meaning of a tick's `reward_growth_outside` changes _relative to the current tick_:
-
-![](./assets/fee-growth-outside-meaning.png)
-
-For ticks that are **below or at** the current tick their `reward_growth_outside` value represents the sum
-of all accrued rewards in the ticks below **excluding the tick's own rewards**.
-
-Conversely for ticks that are above the current tick their `reward_growth_outside` value represents
-the sum of all accrued rewards in the ticks above **including its own**.
-
-Generally the logic for updating pool rewards looks as follows:
-
-```python
-def update_rewards(
-    pool: Pool,
-    start_tick: Tick,
-    reward_to_current: int,
-    quantities: list[int],
-    liquidity: int,
-    below: bool
-):
-    cumulative_reward_growth: float = 0
-
-    end_tick: Tick = get_current_tick()
-    ticks: list[Tick] = initialized_tick_range(start_tick, end_tick, include_end=below)
-    # Missing quantities interpreted as zeros
-    padded_quantities: list[int] = quantities + [0] * max(0, len(ticks) - len(quantities))
-
-    for tick, quantity in zip(ticks, padded_quantities):
-        cumulative_reward_growth += quantity / liquidity
-        tick.reward_growth_outside += cumulative_reward_growth
-
-        if below:
-            liquidity += tick.net_liquidity
-        else:
-            liquidity -= tick.net_liquidity
-
-    # Last quantity assumed to be reward for current tick.
-    if len(quantities) > len(ticks):
-        current_tick_reward: int = quantities[len(ticks)]
-        cumulative_reward_growth += current_tick_reward / liquidity
-
-    pool.global_reward_growth += sum(quantities)
-
-    assert len(quantities) <= len(ticks) + 1, 'Unused quantities'
-    assert liquidity == get_current_liquidity(), 'Invalid set start liquidity'
-```
-
-|Field|Description |
-|-----|-----------|
-|`start_tick: i24`| When rewarding below the current tick: the first tick **above** the first tick to donate to. <br> When rewarding above: just the first tick actually being donated to. |
-|`start_liquidity: u128`|The current liquidity if `start_tick` were the current tick.|
-|`quantities: List<u128>`|The reward for each initialized tick. Zeros at the end of the array can be left out. To donate to the current tick append a quantity.|
+|`nonce: u64`|The order's nonce (can only be used once but do not have to be used in order).|
+|`deadline: u40`|The unix timestamp in seconds (inclusive) after which the order is considered invalid by the contract. |

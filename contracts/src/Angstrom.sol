@@ -3,8 +3,8 @@ pragma solidity 0.8.26;
 
 import {ERC712} from "./modules/ERC712.sol";
 import {NodeManager} from "./modules/NodeManager.sol";
-import {Accounter, PoolSwap} from "./modules/Accounter.sol";
-import {PoolRewardsManager} from "./modules/PoolRewardsManager.sol";
+import {SettlementManager} from "./modules/SettlementManager.sol";
+import {PoolUpdateManager} from "./modules/PoolUpdateManager.sol";
 import {InvalidationManager} from "./modules/InvalidationManager.sol";
 import {HookManager} from "./modules/HookManager.sol";
 import {UniConsumer} from "./modules/UniConsumer.sol";
@@ -12,7 +12,6 @@ import {IUnlockCallback} from "v4-core/src/interfaces/callback/IUnlockCallback.s
 
 import {TypedDataHasher} from "./types/TypedDataHasher.sol";
 
-import {PadeEncoded} from "./types/PadeEncoded.sol";
 import {AssetArray, AssetLib} from "./types/Asset.sol";
 import {PairArray, Pair, PairLib} from "./types/Pair.sol";
 import {ToBOrderBuffer} from "./types/ToBOrderBuffer.sol";
@@ -25,7 +24,7 @@ import {PriceAB as PriceOutVsIn, AmountA as AmountOut, AmountB as AmountIn} from
 
 import {RayMathLib} from "./libraries/RayMathLib.sol";
 
-import {safeconsole as console} from "forge-std/safeconsole.sol";
+import {console} from "forge-std/console.sol";
 import {DEBUG_LOGS} from "./modules/DevFlags.sol";
 // TODO: Remove
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
@@ -33,9 +32,9 @@ import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 /// @author philogy <https://github.com/philogy>
 contract Angstrom is
     ERC712,
-    Accounter,
     InvalidationManager,
-    PoolRewardsManager,
+    PoolUpdateManager,
+    SettlementManager,
     NodeManager,
     HookManager,
     IUnlockCallback
@@ -48,9 +47,9 @@ contract Angstrom is
 
     constructor(address uniV4PoolManager, address governance) UniConsumer(uniV4PoolManager) NodeManager(governance) {}
 
-    function execute(PadeEncoded calldata encoded) external {
+    function execute(bytes calldata encoded) external {
         _nodeBundleLock();
-        UNI_V4.unlock(encoded.data);
+        UNI_V4.unlock(encoded);
     }
 
     function unlockCallback(bytes calldata data) external override onlyUniV4 returns (bytes memory) {
@@ -61,11 +60,10 @@ contract Angstrom is
         PairArray pairs;
         (reader, pairs) = PairLib.readFromAndValidate(reader);
 
-        _borrowAssets(assets);
-        reader = _execPoolSwaps(reader, assets);
-        reader = _validateAndExecuteToBs(reader, assets);
-        reader = _validateAndExecuteOrders(reader, assets, pairs);
-        reader = _rewardPools(reader, assets, freeBalance);
+        _takeAssets(assets);
+        reader = _updatePools(reader, tBundleDeltas, assets);
+        reader = _validateAndExecuteToBOrders(reader, assets);
+        reader = _validateAndExecuteUserOrders(reader, assets, pairs);
         _saveAndSettle(assets);
 
         reader.requireAtEndOf(data);
@@ -73,7 +71,7 @@ contract Angstrom is
         return new bytes(0);
     }
 
-    function _validateAndExecuteToBs(CalldataReader reader, AssetArray assets) internal returns (CalldataReader) {
+    function _validateAndExecuteToBOrders(CalldataReader reader, AssetArray assets) internal returns (CalldataReader) {
         CalldataReader end;
         (reader, end) = reader.readU24End();
 
@@ -85,13 +83,13 @@ contract Angstrom is
         // Purposefully devolve into an endless loop if the specified length isn't exactly used s.t.
         // `reader == end` at some point.
         while (reader != end) {
-            reader = _validateAndExecuteToB(reader, buffer, typedHasher, assets);
+            reader = _validateAndExecuteToBOrder(reader, buffer, typedHasher, assets);
         }
 
         return reader;
     }
 
-    function _validateAndExecuteToB(
+    function _validateAndExecuteToBOrder(
         CalldataReader reader,
         ToBOrderBuffer memory buffer,
         TypedDataHasher typedHasher,
@@ -99,6 +97,7 @@ contract Angstrom is
     ) internal returns (CalldataReader) {
         OrderVariantMap variant;
         (reader, variant) = reader.readVariant();
+
         buffer.useInternal = variant.useInternal();
 
         (reader, buffer.quantityIn) = reader.readU128();
@@ -130,15 +129,15 @@ contract Angstrom is
 
         hook.tryTrigger(from);
 
-        _accountIn(from, buffer.assetIn, AmountIn.wrap(buffer.quantityIn), variant.useInternal());
+        _settleOrderIn(from, buffer.assetIn, AmountIn.wrap(buffer.quantityIn), variant.useInternal());
         address to = _defaultOr(buffer.recipient, from);
-        _accountOut(to, buffer.assetOut, AmountOut.wrap(buffer.quantityOut), variant.useInternal());
+        _settleOrderOut(to, buffer.assetOut, AmountOut.wrap(buffer.quantityOut), variant.useInternal());
         return reader;
     }
 
     uint256 debug_orderCounter;
 
-    function _validateAndExecuteOrders(CalldataReader reader, AssetArray assets, PairArray pairs)
+    function _validateAndExecuteUserOrders(CalldataReader reader, AssetArray assets, PairArray pairs)
         internal
         returns (CalldataReader)
     {
@@ -154,13 +153,13 @@ contract Angstrom is
         // `reader == end` at some point.
         while (reader != end) {
             if (DEBUG_LOGS) console.log("[%s]", debug_orderCounter++);
-            reader = _validateAndExecuteUser(reader, buffer, typedHasher, assets, pairs);
+            reader = _validateAndExecuteUserOrder(reader, buffer, typedHasher, assets, pairs);
         }
 
         return reader;
     }
 
-    function _validateAndExecuteUser(
+    function _validateAndExecuteUserOrder(
         CalldataReader reader,
         UserOrderBuffer memory buffer,
         TypedDataHasher typedHasher,
@@ -169,8 +168,6 @@ contract Angstrom is
     ) internal returns (CalldataReader) {
         OrderVariantMap variant;
         (reader, variant) = reader.readVariant();
-
-        if (DEBUG_LOGS) console.log("  variant: %s", variant.asB32());
 
         buffer.setTypeHash(variant);
         buffer.useInternal = variant.useInternal();
@@ -218,9 +215,9 @@ contract Angstrom is
 
         hook.tryTrigger(from);
 
-        _accountIn(from, buffer.assetIn, amountIn, variant.useInternal());
+        _settleOrderIn(from, buffer.assetIn, amountIn, variant.useInternal());
         address to = _defaultOr(buffer.recipient, from);
-        _accountOut(to, buffer.assetOut, amountOut, variant.useInternal());
+        _settleOrderOut(to, buffer.assetOut, amountOut, variant.useInternal());
 
         return reader;
     }

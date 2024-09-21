@@ -1,7 +1,9 @@
 use std::{collections::HashMap, sync::Arc};
 
-use alloy_primitives::{keccak256, Address, FixedBytes, B256, U256};
-use alloy_sol_macro::sol;
+use alloy::{
+    primitives::{keccak256, Address, FixedBytes, B256, U256},
+    sol
+};
 use parking_lot::RwLock;
 use reth_provider::StateProvider;
 use reth_revm::DatabaseRef;

@@ -3,9 +3,11 @@ use std::{
     ops::{Deref, DerefMut}
 };
 
-use alloy_primitives::{Address, FixedBytes, U256};
-use alloy_rlp::{Decodable, Encodable, Error};
-use reth_network_peers::{pk2id, PeerId};
+use alloy::{
+    primitives::{Address, FixedBytes, U256},
+    rlp::{Decodable, Encodable, Error}
+};
+use reth_network_peers::pk2id;
 use reth_primitives::Signature as ESignature;
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
@@ -13,6 +15,8 @@ use secp256k1::{
 };
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+
+use super::PeerId;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[repr(transparent)]

@@ -1,7 +1,7 @@
 //! keeps track of account state for orders
 use std::sync::Arc;
 
-use alloy_primitives::{Address, B256};
+use alloy::primitives::{Address, B256};
 use angstrom_types::{
     orders::OrderLocation,
     sol_bindings::{ext::RawPoolOrder, grouped_orders::OrderWithStorageData}
@@ -226,7 +226,6 @@ pub mod tests {
 
         let token0 = Address::random();
         let token1 = Address::random();
-        let pool = 10;
 
         let mut mock_pool = MockPoolTracker::default();
 
@@ -237,7 +236,7 @@ pub mod tests {
             &mut rng,
             false,
             true,
-            Some(pool as usize),
+            Some(pool),
             None,
             Some(token0),
             Some(token1),
@@ -274,7 +273,6 @@ pub mod tests {
 
         let token0 = Address::random();
         let token1 = Address::random();
-        let pool = 10;
 
         let mut mock_pool = MockPoolTracker::default();
 
@@ -285,7 +283,7 @@ pub mod tests {
             &mut rng,
             false,
             true,
-            Some(pool as usize),
+            Some(pool),
             None,
             Some(token0),
             Some(token1),
@@ -333,7 +331,6 @@ pub mod tests {
 
         let token0 = Address::random();
         let token1 = Address::random();
-        let pool = 10;
 
         let mut mock_pool = MockPoolTracker::default();
 
@@ -344,7 +341,7 @@ pub mod tests {
             &mut rng,
             false,
             true,
-            Some(pool as usize),
+            Some(pool),
             None,
             Some(token0),
             Some(token1),
@@ -357,7 +354,7 @@ pub mod tests {
             &mut rng,
             false,
             true,
-            Some(pool as usize),
+            Some(pool),
             None,
             Some(token0),
             Some(token1),
@@ -407,7 +404,6 @@ pub mod tests {
 
         let token0 = Address::random();
         let token1 = Address::random();
-        let pool = 10;
 
         let mut mock_pool = MockPoolTracker::default();
 
@@ -418,7 +414,7 @@ pub mod tests {
             &mut rng,
             false,
             true,
-            Some(pool as usize),
+            Some(pool),
             None,
             Some(token0),
             Some(token1),

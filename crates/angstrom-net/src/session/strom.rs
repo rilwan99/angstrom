@@ -6,7 +6,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH}
 };
 
-use alloy_rlp::Encodable;
+use alloy::rlp::Encodable;
 use angstrom_utils::{GenericExt, PollFlatten};
 use futures::{
     task::{Context, Poll},

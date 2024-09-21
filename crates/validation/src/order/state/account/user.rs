@@ -3,7 +3,7 @@ use std::{
     sync::{atomic::AtomicU64, Arc}
 };
 
-use alloy_primitives::Address;
+use alloy::primitives::Address;
 use angstrom_types::sol_bindings::{ext::RawPoolOrder, RespendAvoidanceMethod};
 use dashmap::DashMap;
 use reth_primitives::{B256, U256};

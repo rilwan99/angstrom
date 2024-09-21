@@ -316,7 +316,7 @@ impl RoundAction {
 #[cfg(test)]
 mod tests {
     use alloy_primitives::FixedBytes;
-    use testing_tools::type_generator::consensus::generate_random_preproposal;
+    use testing_tools::type_generator::consensus::preproposal::PreproposalBuilder;
     use tokio_stream::StreamExt;
 
     use super::*;
@@ -377,7 +377,11 @@ mod tests {
         // Set it to PrePropose state
         state.current_state = RoundAction::PrePropose(Timeout::new(Duration::default()));
         // One preproposal is not enough
-        let pp1 = generate_random_preproposal(20, 1, 100);
+        let pp1 = PreproposalBuilder::new()
+            .order_count(20)
+            .for_random_pools(1)
+            .for_block(100)
+            .build();
         state.on_pre_propose(FixedBytes::random(), pp1).unwrap();
         assert!(
             matches!(state.current_state, RoundAction::PrePropose(_)),
@@ -385,7 +389,11 @@ mod tests {
         );
         // But then two should cause us to have 2/3rds of the network so we should be
         // good
-        let pp2 = generate_random_preproposal(20, 1, 100);
+        let pp2 = PreproposalBuilder::new()
+            .order_count(20)
+            .for_random_pools(1)
+            .for_block(100)
+            .build();
         state.on_pre_propose(FixedBytes::random(), pp2).unwrap();
         assert!(
             matches!(state.current_state, RoundAction::PreProposeLaggards(_)),

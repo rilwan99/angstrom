@@ -4,19 +4,18 @@ pragma solidity ^0.8.13;
 import {UserOrder, UserOrderLib} from "./UserOrder.sol";
 import {Asset, AssetLib} from "./Asset.sol";
 import {Pair, PairLib} from "./Pair.sol";
-import {OrdersLib, TopOfBlockOrder} from "./OrderTypes.sol";
-import {PoolSwap, PoolSwapLib} from "./PoolSwap.sol";
-import {PoolRewardsUpdate, PoolRewardsUpdateLib} from "./PoolRewardsUpdate.sol";
+import {TopOfBlockOrder, OrdersLib} from "./OrderTypes.sol";
+import {PoolUpdate, PoolUpdateLib} from "./PoolUpdate.sol";
+import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 
 import {console} from "forge-std/console.sol";
 
 struct Bundle {
     Asset[] assets;
     Pair[] pairs;
-    PoolSwap[] swaps;
+    PoolUpdate[] poolUpdates;
     TopOfBlockOrder[] toBOrders;
     UserOrder[] userOrders;
-    PoolRewardsUpdate[] poolRewardsUpdates;
 }
 
 using BundleLib for Bundle global;
@@ -27,17 +26,20 @@ library BundleLib {
     using UserOrderLib for UserOrder[];
     using AssetLib for Asset[];
     using PairLib for Pair[];
-    using PoolSwapLib for PoolSwap[];
-    using PoolRewardsUpdateLib for PoolRewardsUpdate[];
+    using PoolUpdateLib for PoolUpdate[];
 
-    function encode(Bundle memory bundle) internal pure returns (bytes memory) {
+    function encode(Bundle memory self) internal pure returns (bytes memory) {
         return bytes.concat(
-            bundle.assets.encode(),
-            bundle.pairs.encode(bundle.assets),
-            bundle.swaps.encode(bundle.assets),
-            bundle.toBOrders.encode(bundle.assets),
-            bundle.userOrders.encode(bundle.pairs),
-            bundle.poolRewardsUpdates.encode(bundle.assets)
+            self.assets.encode(),
+            self.pairs.encode(self.assets),
+            self.poolUpdates.encode(self.assets),
+            self.toBOrders.encode(self.assets),
+            self.userOrders.encode(self.pairs)
         );
+    }
+
+    function addDeltas(Bundle memory self, uint256 index0, uint256 index1, BalanceDelta deltas) internal pure {
+        self.assets[index0].addDelta(deltas.amount0());
+        self.assets[index1].addDelta(deltas.amount1());
     }
 }
