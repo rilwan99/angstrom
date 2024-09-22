@@ -10,7 +10,7 @@ mod validator;
 
 use std::future::Future;
 
-use alloy_primitives::{Address, B256};
+use alloy::primitives::{Address, B256};
 use angstrom_types::{orders::OrderOrigin, sol_bindings::grouped_orders::AllOrders};
 pub use angstrom_utils::*;
 pub use config::PoolConfig;
