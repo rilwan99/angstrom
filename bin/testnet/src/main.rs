@@ -1,4 +1,7 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::Duration
+};
 
 use alloy::{primitives::Address, providers::Provider, sol_types::SolValue};
 use angstrom::cli::{initialize_strom_handles, StromHandles};
@@ -152,6 +155,7 @@ pub async fn spawn_testnet_node(
         .buffer_unordered(10);
 
     let order_api = OrderApi::new(pool.clone(), executor.clone());
+
     let eth_handle = AnvilEthDataCleanser::spawn(
         executor.clone(),
         contract_address,

@@ -82,7 +82,6 @@ pub fn run() -> eyre::Result<()> {
                 let order_api = OrderApi::new(pool.clone(), executor_clone);
                 // let quotes_api = QuotesApi { pool: pool.clone() };
                 // let consensus_api = ConsensusApi { consensus: consensus.clone() };
-
                 rpc_context.modules.merge_configured(order_api.into_rpc())?;
                 // rpc_context
                 //     .modules
