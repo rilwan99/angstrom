@@ -68,6 +68,14 @@ library CalldataReaderLib {
         return CalldataReader.unwrap(self);
     }
 
+    function readBool(CalldataReader self) internal pure returns (CalldataReader, bool value) {
+        assembly {
+            value := gt(byte(0, calldataload(self)), 0)
+            self := add(self, 1)
+        }
+        return (self, value);
+    }
+
     function readU8(CalldataReader self) internal pure returns (CalldataReader, uint8 value) {
         assembly {
             value := byte(0, calldataload(self))
