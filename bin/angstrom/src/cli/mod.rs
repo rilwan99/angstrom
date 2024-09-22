@@ -42,10 +42,7 @@ use reth_cli_util::get_secret_key;
 use reth_metrics::common::mpsc::{UnboundedMeteredReceiver, UnboundedMeteredSender};
 use reth_network_peers::pk2id;
 use reth_node_ethereum::{node::EthereumAddOns, EthereumNode};
-use validation::{
-    common::lru_db::BlockStateProviderFactory,
-    init_validation
-};
+use validation::init_validation;
 
 use crate::cli::network_builder::AngstromNetworkBuilder;
 

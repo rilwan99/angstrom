@@ -1,4 +1,3 @@
-use alloy_primitives::{Address, U256};
 use angstrom_types::{
     orders::OrderOrigin,
     sol_bindings::{
@@ -12,9 +11,6 @@ use angstrom_types::{
 use jsonrpsee::{core::RpcResult, PendingSubscriptionSink, SubscriptionMessage};
 use order_pool::{OrderPoolHandle, PoolManagerUpdate};
 use reth_tasks::TaskSpawner;
-use validation::{
-    common::lru_db::BlockStateProviderFactory, order::state::db_state_utils::FetchUtils
-};
 
 use crate::{
     api::OrderApiServer,
@@ -52,6 +48,7 @@ where
         let order = AllOrders::TOB(order);
         Ok(self.pool.new_order(OrderOrigin::External, order).await)
     }
+
     async fn send_partial_flash_order(&self, order: PartialFlashOrder) -> RpcResult<bool> {
         let order = AllOrders::Flash(FlashVariants::Partial(order));
         Ok(self.pool.new_order(OrderOrigin::External, order).await)

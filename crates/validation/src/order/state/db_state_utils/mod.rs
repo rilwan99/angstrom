@@ -4,7 +4,7 @@ pub mod nonces;
 
 use std::{collections::HashMap, sync::Arc};
 
-use alloy_primitives::{Address, U256};
+use alloy::primitives::{Address, U256};
 use angstrom_types::sol_bindings::ext::RawPoolOrder;
 use revm::{Database, Inspector};
 

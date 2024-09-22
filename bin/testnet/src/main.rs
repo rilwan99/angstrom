@@ -1,5 +1,5 @@
 use std::{
-    sync::{atomic::AtomicU64, Arc},
+    sync::Arc,
     time::Duration
 };
 
@@ -22,11 +22,7 @@ use testnet::{
     rpc_state_provider::RpcStateProviderFactory
 };
 use tracing::{span, Instrument, Level};
-use validation::{
-    common::lru_db::{BlockStateProviderFactory, RevmLRU},
-    init_validation,
-    order::state::{config::DataFetcherConfig, db_state_utils::FetchUtils}
-};
+use validation::init_validation;
 
 #[derive(Parser)]
 #[clap(about = "
