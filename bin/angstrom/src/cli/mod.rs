@@ -80,8 +80,6 @@ pub fn run() -> eyre::Result<()> {
             .with_add_ons::<EthereumAddOns>()
             .extend_rpc_modules(move |rpc_context| {
                 let order_api = OrderApi::new(pool.clone(), executor_clone);
-
-
                 // let quotes_api = QuotesApi { pool: pool.clone() };
                 // let consensus_api = ConsensusApi { consensus: consensus.clone() };
                 rpc_context.modules.merge_configured(order_api.into_rpc())?;
