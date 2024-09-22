@@ -28,11 +28,7 @@ abstract contract RewardsUpdater {
         uint128 endLiquidity;
         {
             bool below;
-            {
-                uint8 rewardUpdateVariantMap;
-                (reader, rewardUpdateVariantMap) = reader.readU8();
-                below = rewardUpdateVariantMap & 1 != 0;
-            }
+            (reader, below) = reader.readBool();
             int24 startTick;
             (reader, startTick) = reader.readI24();
             int24 currentTick = _getCurrentTick(id);
