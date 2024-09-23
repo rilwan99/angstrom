@@ -15,6 +15,7 @@ use angstrom_types::{
         rpc_orders::TopOfBlockOrder
     }
 };
+use futures::channel::mpsc::Sender;
 use futures_util::{Stream, StreamExt};
 use reth_network_peers::PeerId;
 use reth_primitives::Address;
@@ -33,6 +34,10 @@ use crate::{
 /// This is used to remove validated orders. During validation
 /// the same check wil be ran but with more accuracy
 const ETH_BLOCK_TIME: Duration = Duration::from_secs(12);
+// mostly arbitrary
+const SEEN_INVALID_ORDERS_CAPACITY: usize = 10000;
+// mostly arbitrary
+const CANCELLED_ORDERS_CAPACITY: usize = 10000;
 
 pub struct OrderIndexer<V: OrderValidatorHandle> {
     /// order storage
@@ -47,6 +52,8 @@ pub struct OrderIndexer<V: OrderValidatorHandle> {
     order_hash_to_peer_id:  HashMap<B256, Vec<PeerId>>,
     /// Used to avoid unnecessary computation on order spam
     seen_invalid_orders:    HashSet<B256>,
+    /// Used to protect against late order propagation
+    cancelled_orders:       HashSet<B256>,
     /// Order Validator
     validator:              OrderValidator<V>,
     /// List of subscribers for order validation result
@@ -68,7 +75,8 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
             address_to_orders: HashMap::new(),
             order_hash_to_order_id: HashMap::new(),
             order_hash_to_peer_id: HashMap::new(),
-            seen_invalid_orders: HashSet::with_capacity(10000),
+            seen_invalid_orders: HashSet::with_capacity(SEEN_INVALID_ORDERS_CAPACITY),
+            cancelled_orders: HashSet::with_capacity(CANCELLED_ORDERS_CAPACITY),
             order_validation_subs: HashMap::new(),
             validator: OrderValidator::new(validator),
             orders_subscriber_tx
@@ -108,6 +116,7 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         if removed.is_some() {
             self.order_hash_to_order_id.remove(&order_hash);
             self.order_hash_to_peer_id.remove(&order_hash);
+            self.cancelled_orders.insert(order_hash.clone());
             self.notify_order_subscribers(PoolManagerUpdate::CancelledOrder(order_hash));
         }
 
@@ -123,7 +132,7 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
     ) {
         let hash = order.order_hash();
         // network spammers will get penalized only once
-        if self.is_duplicate(&hash) {
+        if self.is_duplicate(&hash) || self.is_cancelled(&hash) {
             self.notify_validation_subscribers(&hash, OrderValidationResults::Invalid(hash));
             return
         }
@@ -143,6 +152,10 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
                 .push(validation_tx);
         }
         self.validator.validate_order(origin, order);
+    }
+
+    fn is_cancelled(&self, hash: &B256) -> bool {
+        self.cancelled_orders.contains(hash)
     }
 
     fn is_duplicate(&self, hash: &B256) -> bool {
