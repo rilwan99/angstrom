@@ -37,4 +37,9 @@ contract MockRewardsManagerScript is Test, Script, HookDeployer {
 
         vm.stopBroadcast();
     }
+
+    /// @dev Ensure compiler warns me about changes to the `MockRewardsManager` constructor interface
+    function MockRewardsManager_constructorRef() public {
+        new MockRewardsManager(address(0), address(0));
+    }
 }
