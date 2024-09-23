@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {CalldataReader, CalldataReaderLib} from "../../src/types/CalldataReader.sol";
+import {HookManager} from "src/modules/HookManager.sol";
 import {Asset, AssetArray, AssetLib} from "../../src/types/Asset.sol";
 import {PairArray, PairLib} from "src/types/Pair.sol";
 import {UniSwapCallBuffer, UniCallLib} from "../../src/libraries/UniCallLib.sol";
@@ -19,7 +20,7 @@ import {PoolConfigStoreLib} from "src/libraries/pool-config/PoolConfigStore.sol"
 import {console} from "forge-std/console.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager {
+contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager, HookManager {
     using IUniV4 for IPoolManager;
 
     constructor(address uniV4PoolManager, address controller)
