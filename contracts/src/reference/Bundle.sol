@@ -28,17 +28,20 @@ library BundleLib {
     using PairLib for Pair[];
     using PoolUpdateLib for PoolUpdate[];
 
-    function encode(Bundle memory self) internal pure returns (bytes memory) {
+    function encode(Bundle memory self, address configStore) internal view returns (bytes memory) {
         return bytes.concat(
             self.assets.encode(),
-            self.pairs.encode(self.assets),
-            self.poolUpdates.encode(self.assets),
-            self.toBOrders.encode(self.assets),
+            self.pairs.encode(self.assets, configStore),
+            self.poolUpdates.encode(self.pairs),
+            self.toBOrders.encode(self.pairs),
             self.userOrders.encode(self.pairs)
         );
     }
 
-    function addDeltas(Bundle memory self, uint256 index0, uint256 index1, BalanceDelta deltas) internal pure {
+    function addDeltas(Bundle memory self, uint256 index0, uint256 index1, BalanceDelta deltas)
+        internal
+        pure
+    {
         self.assets[index0].addDelta(deltas.amount0());
         self.assets[index1].addDelta(deltas.amount1());
     }

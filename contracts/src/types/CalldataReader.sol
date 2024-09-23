@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {OrderVariantMap} from "./OrderVariantMap.sol";
-
 import {console} from "forge-std/console.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 import {LibString} from "solady/src/utils/LibString.sol";
@@ -66,6 +64,14 @@ library CalldataReaderLib {
 
     function offset(CalldataReader self) internal pure returns (uint256) {
         return CalldataReader.unwrap(self);
+    }
+
+    function readBool(CalldataReader self) internal pure returns (CalldataReader, bool value) {
+        assembly {
+            value := gt(byte(0, calldataload(self)), 0)
+            self := add(self, 1)
+        }
+        return (self, value);
     }
 
     function readU8(CalldataReader self) internal pure returns (CalldataReader, uint8 value) {
@@ -140,15 +146,11 @@ library CalldataReaderLib {
         return (self, value);
     }
 
-    function readVariant(CalldataReader self) internal pure returns (CalldataReader, OrderVariantMap variant) {
-        assembly {
-            variant := shr(248, calldataload(self))
-            self := add(self, 1)
-        }
-        return (self, variant);
-    }
-
-    function readU24End(CalldataReader self) internal pure returns (CalldataReader, CalldataReader end) {
+    function readU24End(CalldataReader self)
+        internal
+        pure
+        returns (CalldataReader, CalldataReader end)
+    {
         assembly ("memory-safe") {
             let len := shr(232, calldataload(self))
             self := add(self, 3)
@@ -157,7 +159,11 @@ library CalldataReaderLib {
         return (self, end);
     }
 
-    function readBytes(CalldataReader self) internal pure returns (CalldataReader, bytes calldata slice) {
+    function readBytes(CalldataReader self)
+        internal
+        pure
+        returns (CalldataReader, bytes calldata slice)
+    {
         assembly ("memory-safe") {
             slice.length := shr(232, calldataload(self))
             self := add(self, 3)

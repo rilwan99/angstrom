@@ -17,11 +17,14 @@ using PositionsLib for Positions global;
 
 /// @author philogy <https://github.com/philogy>
 library PositionsLib {
-    function get(Positions storage positions, PoolId id, address sender, int24 lowerTick, int24 upperTick, bytes32 salt)
-        internal
-        pure
-        returns (Position storage position, bytes32 positionKey)
-    {
+    function get(
+        Positions storage positions,
+        PoolId id,
+        address sender,
+        int24 lowerTick,
+        int24 upperTick,
+        bytes32 salt
+    ) internal pure returns (Position storage position, bytes32 positionKey) {
         assembly ("memory-safe") {
             let free := mload(0x40)
 
@@ -33,12 +36,13 @@ library PositionsLib {
             mstore(0x26, salt)
             positionKey := keccak256(12, add(add(20, 3), add(3, 32)))
 
+            // Compute sorage slot of position.
             mstore(0x00, id)
             mstore(0x20, positionKey)
             mstore(0x40, positions.slot)
-
             position.slot := or(shr(8, keccak256(0x00, 0x60)), shl(248, POSITIONS_STORAGE_PREFIX))
 
+            // Fee memory pointer restored.
             mstore(0x40, free)
         }
     }

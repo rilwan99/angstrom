@@ -100,9 +100,6 @@ where
     }
 
     fn handle_commit(&mut self, new: Arc<Chain>) {
-        // handle this first so the newest state is the first available
-        self.handle_new_pools(new.clone());
-
         let filled_orders = Self::fetch_filled_orders(new.clone()).collect::<Vec<_>>();
         let eoas = Self::get_eoa(new.clone());
 
@@ -112,12 +109,6 @@ where
             address_changeset: eoas
         };
         self.send_events(transitions);
-    }
-
-    fn handle_new_pools(&mut self, chain: Arc<Chain>) {
-        Self::get_new_pools(&chain)
-            .map(EthEvent::NewPool)
-            .for_each(|pool_event| self.send_events(pool_event));
     }
 
     /// TODO: check contract for state change. if there is change. fetch the

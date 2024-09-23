@@ -24,7 +24,9 @@ contract MockRewardsManagerScript is Test, Script, HookDeployer {
         vm.startBroadcast(key);
 
         (bool suc, address mockRewardsAddr,) = deployHook(
-            abi.encodePacked(type(MockRewardsManager).creationCode, abi.encode(UNI_V4_PM)),
+            abi.encodePacked(
+                type(MockRewardsManager).creationCode, abi.encode(UNI_V4_PM, vm.addr(key))
+            ),
             ANGSTROM_HOOK_FLAGS,
             CREATE2_FACTORY
         );
@@ -34,5 +36,10 @@ contract MockRewardsManagerScript is Test, Script, HookDeployer {
         console.log("mockRewardsAddr: %s", mockRewardsAddr);
 
         vm.stopBroadcast();
+    }
+
+    /// @dev Ensure compiler warns me about changes to the `MockRewardsManager` constructor interface
+    function MockRewardsManager_constructorRef() public {
+        new MockRewardsManager(address(0), address(0));
     }
 }

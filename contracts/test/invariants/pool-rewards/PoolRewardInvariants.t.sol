@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {BaseTest} from "test/_helpers/BaseTest.sol";
-import {TICK_SPACING, POOL_FEE, ANGSTROM_HOOK_FLAGS} from "src/Constants.sol";
+import {POOL_FEE, ANGSTROM_HOOK_FLAGS} from "src/Constants.sol";
 import {PoolRewardsHandler} from "./PoolRewardsHandler.sol";
 
 import {PoolGate} from "test/_helpers/PoolGate.sol";
@@ -18,13 +18,14 @@ import {UsedIndexMap} from "super-sol/collections/UsedIndexMap.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {ConversionLib} from "src/libraries/ConversionLib.sol";
-import {HookDeployer} from "test/_helpers/HookDeployer.sol";
 
 import {console} from "forge-std/console.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
+int24 constant TICK_SPACING = 60;
+
 /// @author philogy <https://github.com/philogy>
-contract PoolRewardsInvariantTest is BaseTest, HookDeployer {
+contract PoolRewardsInvariantTest is BaseTest {
     using FormatLib for *;
 
     using TickMath for int24;
@@ -36,40 +37,39 @@ contract PoolRewardsInvariantTest is BaseTest, HookDeployer {
     PoolId public id;
     PoolId public refId;
 
-    MockERC20 public asset0 = new MockERC20();
-    MockERC20 public asset1 = new MockERC20();
+    address public asset0;
+    address public asset1;
     address public owner = makeAddr("owner");
-    address public gov = makeAddr("gov");
+    address public controller = makeAddr("controller");
 
     PoolRewardsHandler handler;
     bytes4[] handlerSelectors;
 
     function setUp() public {
-        if (asset1 < asset0) (asset0, asset1) = (asset1, asset0);
+        (asset0, asset1) = deployTokensSorted();
 
         vm.prank(owner);
         uniV4 = new UniV4Inspector();
         gate = new PoolGate(address(uniV4));
+        gate.tickSpacing(TICK_SPACING);
 
         int24 startTick = 0;
-        refId = PoolIdLibrary.toId(address(0).toPoolKey(address(asset0), address(asset1)));
+        refId =
+            PoolIdLibrary.toId(address(0).toPoolKey(address(asset0), address(asset1), TICK_SPACING));
         gate.setHook(address(0));
-        gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick());
+        gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick(), 0);
 
-        (bool success, address angstromAddr,) = deployHook(
-            abi.encodePacked(type(ExtAngstrom).creationCode, abi.encode(uniV4, gov)),
-            ANGSTROM_HOOK_FLAGS,
-            CREATE2_FACTORY
-        );
-
-        assertTrue(success, "Failed to deploy angstrom");
-        angstrom = ExtAngstrom(angstromAddr);
+        angstrom = ExtAngstrom(deployAngstrom(type(ExtAngstrom).creationCode, uniV4, controller));
         id = PoolIdLibrary.toId(poolKey());
 
-        gate.setHook(angstromAddr);
-        gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick());
+        vm.prank(controller);
+        angstrom.configurePool(asset0, asset1, uint16(uint24(TICK_SPACING)), 0);
 
-        handler = new PoolRewardsHandler(uniV4, angstrom, gate, id, refId, asset0, asset1, gov);
+        gate.setHook(address(angstrom));
+        gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick(), 0);
+
+        handler =
+            new PoolRewardsHandler(uniV4, angstrom, gate, id, refId, asset0, asset1, controller);
 
         handlerSelectors.push(PoolRewardsHandler.rewardLiquidity.selector);
         handlerSelectors.push(PoolRewardsHandler.swapToPrice.selector);
@@ -94,7 +94,8 @@ contract PoolRewardsInvariantTest is BaseTest, HookDeployer {
             for (uint256 j = 0; j < rewards.length; j++) {
                 TickReward memory reward = rewards[j];
                 if (pos.lowerTick <= reward.tick && reward.tick < pos.upperTick) {
-                    totalReward += reward.amount * pos.liquidity / handler.ghost_liquidityAtTick(reward.tick);
+                    totalReward +=
+                        reward.amount * pos.liquidity / handler.ghost_liquidityAtTick(reward.tick);
                 }
             }
             uint256 computed = angstrom.positionRewards(
@@ -357,6 +358,8 @@ contract PoolRewardsInvariantTest is BaseTest, HookDeployer {
     }
 
     function poolKey() internal view returns (PoolKey memory) {
-        return ConversionLib.toPoolKey(address(angstrom), address(asset0), address(asset1));
+        return ConversionLib.toPoolKey(
+            address(angstrom), address(asset0), address(asset1), TICK_SPACING
+        );
     }
 }

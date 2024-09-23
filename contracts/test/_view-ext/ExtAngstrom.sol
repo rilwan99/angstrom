@@ -7,6 +7,7 @@ import {IUniV4, IPoolManager} from "../../src/interfaces/IUniV4.sol";
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
 import {Position} from "src/libraries/Positions.sol";
+import {PoolConfigStore} from "src/libraries/pool-config/PoolConfigStore.sol";
 
 import {console} from "forge-std/console.sol";
 
@@ -15,14 +16,24 @@ contract ExtAngstrom is Angstrom {
     using IUniV4 for IPoolManager;
     using FixedPointMathLib for *;
 
-    constructor(address uniV4PoolManager, address governance) Angstrom(uniV4PoolManager, governance) {}
+    constructor(address uniV4PoolManager, address governance)
+        Angstrom(uniV4PoolManager, governance)
+    {}
 
     function __ilegalMint(address to, address asset, uint256 amount) external {
         _angstromReserves[to][asset] += amount;
     }
 
+    function lastBlockUpdated() public view returns (uint64) {
+        return _lastBlockUpdated;
+    }
+
+    function configStore() public view returns (address) {
+        return PoolConfigStore.unwrap(_configStore);
+    }
+
     function updateLastBlock() public {
-        lastBlockUpdated = SafeCastLib.toUint64(block.number);
+        _lastBlockUpdated = SafeCastLib.toUint64(block.number);
     }
 
     function isNode(address addr) public view returns (bool) {
@@ -53,8 +64,8 @@ contract ExtAngstrom is Angstrom {
         bytes32 salt,
         uint128 liquidity
     ) external view returns (uint256) {
-        return poolRewards[id].getGrowthInside(UNI_V4.getSlot0(id).tick(), lowerTick, upperTick).mulWad(liquidity)
-            - pastRewards(id, owner, lowerTick, upperTick, salt);
+        return poolRewards[id].getGrowthInside(UNI_V4.getSlot0(id).tick(), lowerTick, upperTick)
+            .mulWad(liquidity) - pastRewards(id, owner, lowerTick, upperTick, salt);
     }
 
     function pastRewards(PoolId id, address owner, int24 lowerTick, int24 upperTick, bytes32 salt)

@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {OrdersLib} from "../reference/OrderTypes.sol";
 import {CalldataReader} from "./CalldataReader.sol";
-import {OrderVariantMap} from "./OrderVariantMap.sol";
+import {UserOrderVariantMap} from "./UserOrderVariantMap.sol";
 import {TypedDataHasher} from "./TypedDataHasher.sol";
 import {PriceAB as PriceOutVsIn, AmountA as AmountOut, AmountB as AmountIn} from "./Price.sol";
 
@@ -35,7 +35,7 @@ library UserOrderBufferLib {
     uint256 internal constant STANDING_ORDER_BYTES = 352;
     uint256 internal constant FLASH_ORDER_BYTES = 320;
 
-    function setTypeHash(UserOrderBuffer memory self, OrderVariantMap variant) internal pure {
+    function setTypeHash(UserOrderBuffer memory self, UserOrderVariantMap variant) internal pure {
         if (variant.quantitiesPartial()) {
             if (variant.isStanding()) {
                 self.typeHash = OrdersLib.PARTIAL_STANDING_ORDER_TYPEHASH;
@@ -54,22 +54,26 @@ library UserOrderBufferLib {
         }
     }
 
-    function _hash(UserOrderBuffer memory self, OrderVariantMap variant) internal pure returns (bytes32 hashed) {
+    function _hash(UserOrderBuffer memory self, UserOrderVariantMap variant)
+        internal
+        pure
+        returns (bytes32 hashed)
+    {
         uint256 structLength = variant.isStanding() ? STANDING_ORDER_BYTES : FLASH_ORDER_BYTES;
         assembly ("memory-safe") {
             hashed := keccak256(self, structLength)
         }
     }
 
-    function hash712(UserOrderBuffer memory self, OrderVariantMap variant, TypedDataHasher typedHasher)
-        internal
-        pure
-        returns (bytes32)
-    {
+    function hash712(
+        UserOrderBuffer memory self,
+        UserOrderVariantMap variant,
+        TypedDataHasher typedHasher
+    ) internal pure returns (bytes32) {
         return typedHasher.hashTypedData(self._hash(variant));
     }
 
-    function logBytes(UserOrderBuffer memory self, OrderVariantMap variant) internal pure {
+    function logBytes(UserOrderBuffer memory self, UserOrderVariantMap variant) internal pure {
         uint256 structLength = variant.isStanding() ? STANDING_ORDER_BYTES : FLASH_ORDER_BYTES;
         uint256 offset;
         assembly ("memory-safe") {
@@ -82,7 +86,7 @@ library UserOrderBufferLib {
     function loadAndComputeQuantity(
         UserOrderBuffer memory self,
         CalldataReader reader,
-        OrderVariantMap variant,
+        UserOrderVariantMap variant,
         PriceOutVsIn price,
         uint256 feeRay
     ) internal pure returns (CalldataReader, AmountIn quantityIn, AmountOut quantityOut) {
@@ -118,11 +122,11 @@ library UserOrderBufferLib {
         return (reader, quantityIn, quantityOut);
     }
 
-    function readOrderValidation(UserOrderBuffer memory self, CalldataReader reader, OrderVariantMap variant)
-        internal
-        view
-        returns (CalldataReader)
-    {
+    function readOrderValidation(
+        UserOrderBuffer memory self,
+        CalldataReader reader,
+        UserOrderVariantMap variant
+    ) internal view returns (CalldataReader) {
         if (variant.isStanding()) {
             // Copy slices directly from calldata into memory.
             assembly ("memory-safe") {
