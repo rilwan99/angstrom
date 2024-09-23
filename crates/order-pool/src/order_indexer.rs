@@ -15,7 +15,6 @@ use angstrom_types::{
         rpc_orders::TopOfBlockOrder
     }
 };
-use futures::channel::mpsc::Sender;
 use futures_util::{Stream, StreamExt};
 use reth_network_peers::PeerId;
 use reth_primitives::Address;
@@ -36,8 +35,6 @@ use crate::{
 const ETH_BLOCK_TIME: Duration = Duration::from_secs(12);
 // mostly arbitrary
 const SEEN_INVALID_ORDERS_CAPACITY: usize = 10000;
-// mostly arbitrary
-const CANCELLED_ORDERS_CAPACITY: usize = 10000;
 
 pub struct OrderIndexer<V: OrderValidatorHandle> {
     /// order storage
@@ -76,16 +73,33 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
             order_hash_to_order_id: HashMap::new(),
             order_hash_to_peer_id: HashMap::new(),
             seen_invalid_orders: HashSet::with_capacity(SEEN_INVALID_ORDERS_CAPACITY),
-            cancelled_orders: HashSet::with_capacity(CANCELLED_ORDERS_CAPACITY),
+            cancelled_orders: HashSet::new(),
             order_validation_subs: HashMap::new(),
             validator: OrderValidator::new(validator),
             orders_subscriber_tx
         }
     }
 
-    pub fn is_valid_order(&self, order: &AllOrders) -> bool {
-        let hash = order.order_hash();
-        self.order_hash_to_order_id.contains_key(&hash)
+    fn is_missing(&self, order_hash: &B256) -> bool {
+        !self.order_hash_to_order_id.contains_key(order_hash)
+    }
+
+    fn is_seen_invalid(&self, order_hash: &B256) -> bool {
+        self.seen_invalid_orders.contains(order_hash)
+    }
+
+    fn is_cancelled(&self, order_hash: &B256) -> bool {
+        self.cancelled_orders.contains(order_hash)
+    }
+
+    fn is_duplicate(&self, order_hash: &B256) -> bool {
+        if self.order_hash_to_order_id.contains_key(order_hash) || self.is_seen_invalid(order_hash)
+        {
+            trace!(?order_hash, "got duplicate order");
+            return true
+        }
+
+        false
     }
 
     pub fn new_rpc_order(
@@ -102,8 +116,9 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
     }
 
     pub fn cancel_order(&mut self, from: Address, order_hash: B256) -> bool {
-        if self.seen_invalid_orders.contains(&order_hash)
-            || !self.order_hash_to_order_id.contains_key(&order_hash)
+        if self.is_seen_invalid(&order_hash)
+            || self.is_missing(&order_hash)
+            || self.is_cancelled(&order_hash)
         {
             return true
         }
@@ -152,20 +167,6 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
                 .push(validation_tx);
         }
         self.validator.validate_order(origin, order);
-    }
-
-    fn is_cancelled(&self, hash: &B256) -> bool {
-        self.cancelled_orders.contains(hash)
-    }
-
-    fn is_duplicate(&self, hash: &B256) -> bool {
-        if self.order_hash_to_order_id.contains_key(hash) || self.seen_invalid_orders.contains(hash)
-        {
-            trace!(?hash, "got duplicate order");
-            return true
-        }
-
-        false
     }
 
     /// used to remove orders that expire before the next ethereum block
@@ -415,6 +416,7 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         // add expired orders to completed
         completed_orders.extend(self.remove_expired_orders(block));
 
+        self.cancelled_orders.clear();
         self.validator
             .notify_validation_on_changes(block, completed_orders, address_changes);
     }
