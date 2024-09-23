@@ -25,35 +25,37 @@ macro_rules! prim_decode {
     ($( $x:ty ), *) => {
         $(
             impl PadeDecode for $x {
+                #[allow(unused)]
                 fn pade_decode(mut buf: &mut [u8]) -> Result<Self, ()>
                 where
                     Self: Sized
                 {
-                    let bytes = $x::BITS / 8;
-                    let mut con_buf = [0u8; bytes];
-                    for i in bytes {
+                    const BYTES : usize  = <$x>::BITS as usize / 8usize;
+                    let mut con_buf = [0u8; BYTES];
+                    for i in 0..BYTES{
                         con_buf[i] = buf[i];
                     }
-                    let res = $x::from_be_bytes(con_buf);
-                    buf = &mut buf[bytes..];
+                    let res = <$x>::from_be_bytes(con_buf);
+                    buf = &mut buf[BYTES..];
                     Ok(res)
                 }
 
+                #[allow(unused)]
                 fn pade_decode_with_width(mut buf: &mut [u8], size: usize) -> Result<Self, ()>
                 where
                     Self: Sized
                 {
-                    let bytes = $x::BITS / 8;
+                    const BYTES : usize  = <$x>::BITS as usize / 8usize;
                     // grab the padding amount
-                    let offset = size - bytes;
+                    let offset = size - BYTES as usize;
                     let subslice = &buf[offset..size];
 
-                    let mut con_buf = [0u8; bytes];
-                    for i in bytes {
-                        con_buf[i] = buf[i];
+                    let mut con_buf = [0u8; BYTES];
+                    for i in 0..BYTES{
+                        con_buf[i] = subslice[i];
                     }
 
-                    let res = $x::from_be_bytes(con_buf);
+                    let res = <$x>::from_be_bytes(con_buf);
                     buf = &mut buf[size..];
 
                     Ok(res)
@@ -62,31 +64,8 @@ macro_rules! prim_decode {
         )*
     };
 }
-prim_decode!(u16, u64);
 
-
-impl PadeDecode for u64 {
-    fn pade_decode(mut buf: &mut [u8]) -> Result<Self, ()>
-    where
-        Self: Sized
-    {
-        let res =
-            u64::from_be_bytes([buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]]);
-        buf = &mut buf[8..];
-        Ok(res)
-    }
-
-    fn pade_decode_with_width(buf: &mut [u8], size: usize) -> Result<Self, ()>
-    where
-        Self: Sized
-    {
-        let subslice = &buf[0..size];
-
-        // because rust has u8 and u16, there is no point here
-        unreachable!()
-    }
-}
-
+prim_decode!(u16, u64, i32, I24, U256, u128);
 use_alloy_default!(u16, u64, i32, I24, U256, u128, Address, Bytes);
 
 // Custom impl for Signature which needs validation
