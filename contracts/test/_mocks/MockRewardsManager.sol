@@ -3,6 +3,9 @@ pragma solidity ^0.8.0;
 
 import {CalldataReader, CalldataReaderLib} from "../../src/types/CalldataReader.sol";
 import {Asset, AssetArray, AssetLib} from "../../src/types/Asset.sol";
+import {PairArray, PairLib} from "src/types/Pair.sol";
+import {UniSwapCallBuffer, UniCallLib} from "../../src/libraries/UniCallLib.sol";
+import {PoolConfigStore} from "../../src/libraries/pool-config/PoolConfigStore.sol";
 import {PoolUpdateManager} from "../../src/modules/PoolUpdateManager.sol";
 import {SettlementManager} from "../../src/modules/SettlementManager.sol";
 import {NodeManager} from "src/modules/NodeManager.sol";
@@ -26,14 +29,18 @@ contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager
         console.log("rewards manager deployed");
     }
 
-    /// @param encoded PADE `(List<Asset>, PoolUpdate)`.
+    /// @param encoded PADE `(List<Asset>, List<Pair>, PoolUpdate)`.
     function update(bytes calldata encoded) public {
         CalldataReader reader = CalldataReaderLib.from(encoded);
 
         AssetArray assets;
         (reader, assets) = AssetLib.readFromAndValidate(reader);
+        PairArray pairs;
+        (reader, pairs) =
+            PairLib.readFromAndValidate(reader, assets, configs, PoolConfigStore.wrap(_configStore));
 
-        reader = _updatePool(reader, tBundleDeltas, PoolConfigStoreLib.NULL_CONFIG_CACHE, assets);
+        UniSwapCallBuffer memory swapCall = UniCallLib.newSwapCall(address(this));
+        reader = _updatePool(reader, swapCall, tBundleDeltas, pairs);
 
         reader.requireAtEndOf(encoded);
     }
@@ -60,7 +67,7 @@ contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager
             (initialized, nextTickUp) = _findNextTickUp(id, tick, tickSpacing);
         } while (!initialized);
         _checkTickReal(id, nextTickUp, "nextTickUp");
-        return poolRewards[id].getGrowthInside(_getCurrentTick(id), tick, nextTickUp);
+        return poolRewards[id].getGrowthInside(UNI_V4.getSlot0(id).tick(), tick, nextTickUp);
     }
 
     function getGrowthInsideRange(PoolId id, int24 lowerTick, int24 upperTick)
@@ -70,7 +77,7 @@ contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager
     {
         _checkTickReal(id, lowerTick, "lowerTick");
         _checkTickReal(id, upperTick, "upperTick");
-        return poolRewards[id].getGrowthInside(_getCurrentTick(id), lowerTick, upperTick);
+        return poolRewards[id].getGrowthInside(UNI_V4.getSlot0(id).tick(), lowerTick, upperTick);
     }
 
     function _checkTickReal(PoolId id, int24 tick, string memory name) internal view {

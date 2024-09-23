@@ -20,7 +20,8 @@ abstract contract RewardsUpdater {
 
     error WrongEndLiquidity(uint128 endLiquidity, uint128 actualCurrentLiquidity);
 
-    struct PoolInterface {
+    // Stack too deep shenanigan.
+    struct RewardParams {
         PoolId id;
         int24 tickSpacing;
         int24 currentTick;
@@ -28,9 +29,10 @@ abstract contract RewardsUpdater {
 
     function _decodeAndReward(
         CalldataReader reader,
-        PoolRewards storage poolRewards,
+        PoolRewards storage poolRewards_,
         PoolId id,
-        int24 tickSpacing
+        int24 tickSpacing,
+        int24 currentTick
     ) internal returns (CalldataReader, uint256) {
         {
             bool onlyCurrent;
@@ -39,7 +41,7 @@ abstract contract RewardsUpdater {
             if (onlyCurrent) {
                 uint128 amount;
                 (reader, amount) = reader.readU128();
-                poolRewards.globalGrowth += flatDivWad(amount, _getCurrentLiquidity(id));
+                poolRewards_.globalGrowth += flatDivWad(amount, _getCurrentLiquidity(id));
 
                 return (reader, amount);
             }
@@ -54,8 +56,11 @@ abstract contract RewardsUpdater {
         (reader, liquidity) = reader.readU128();
         (CalldataReader newReader, CalldataReader amountsEnd) = reader.readU24End();
 
+        // Stack too deep shenanigan.
+        PoolRewards storage poolRewards = poolRewards_;
+
         uint256 total;
-        PoolInterface memory pool = PoolInterface(id, tickSpacing, _getCurrentTick(id));
+        RewardParams memory pool = RewardParams(id, tickSpacing, currentTick);
         (newReader, total, cumulativeGrowth, endLiquidity) = startTick <= pool.currentTick
             ? _rewardBelow(poolRewards.rewardGrowthOutside, startTick, newReader, liquidity, pool)
             : _rewardAbove(poolRewards.rewardGrowthOutside, startTick, newReader, liquidity, pool);
@@ -67,7 +72,7 @@ abstract contract RewardsUpdater {
 
         newReader.requireAtEndOf(amountsEnd);
 
-        uint128 currentLiquidity = _getCurrentLiquidity(id);
+        uint128 currentLiquidity = _getCurrentLiquidity(pool.id);
         if (endLiquidity != currentLiquidity) {
             revert WrongEndLiquidity(endLiquidity, currentLiquidity);
         }
@@ -82,13 +87,13 @@ abstract contract RewardsUpdater {
         int24 rewardTick,
         CalldataReader reader,
         uint128 liquidity,
-        PoolInterface memory pool
+        RewardParams memory pool
     ) internal returns (CalldataReader, uint256, uint256, uint128) {
         bool initialized = true;
         uint256 total = 0;
         uint256 cumulativeGrowth = 0;
 
-        while (rewardTick <= pool.currentTick) {
+        do {
             if (initialized) {
                 uint256 amount;
                 (reader, amount) = reader.readU128();
@@ -100,7 +105,7 @@ abstract contract RewardsUpdater {
                 liquidity = MixedSignLib.add(liquidity, _getNetTickLiquidity(pool.id, rewardTick));
             }
             (initialized, rewardTick) = _findNextTickUp(pool.id, rewardTick, pool.tickSpacing);
-        }
+        } while (rewardTick <= pool.currentTick);
 
         return (reader, total, cumulativeGrowth, liquidity);
     }
@@ -110,13 +115,13 @@ abstract contract RewardsUpdater {
         int24 rewardTick,
         CalldataReader reader,
         uint128 liquidity,
-        PoolInterface memory pool
+        RewardParams memory pool
     ) internal returns (CalldataReader, uint256, uint256, uint128) {
         bool initialized = true;
         uint256 total = 0;
         uint256 cumulativeGrowth = 0;
 
-        while (rewardTick > pool.currentTick) {
+        do {
             if (initialized) {
                 uint256 amount;
                 (reader, amount) = reader.readU128();
@@ -128,7 +133,7 @@ abstract contract RewardsUpdater {
                 liquidity = MixedSignLib.sub(liquidity, _getNetTickLiquidity(pool.id, rewardTick));
             }
             (initialized, rewardTick) = _findNextTickDown(pool.id, rewardTick, pool.tickSpacing);
-        }
+        } while (rewardTick > pool.currentTick);
 
         return (reader, total, cumulativeGrowth, liquidity);
     }
@@ -167,5 +172,4 @@ abstract contract RewardsUpdater {
     function _getPoolBitmapInfo(PoolId id, int16 wordPos) internal view virtual returns (uint256);
     function _getNetTickLiquidity(PoolId id, int24 tick) internal view virtual returns (int128);
     function _getCurrentLiquidity(PoolId id) internal view virtual returns (uint128);
-    function _getCurrentTick(PoolId id) internal view virtual returns (int24);
 }

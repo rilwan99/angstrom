@@ -8,21 +8,19 @@ import {NodeManager} from "./NodeManager.sol";
 import {IBeforeAddLiquidityHook, IBeforeRemoveLiquidityHook} from "../interfaces/IHooks.sol";
 
 import {DeltaTracker} from "../types/DeltaTracker.sol";
-import {AssetArray} from "../types/Asset.sol";
+import {PairArray} from "../types/Pair.sol";
 import {CalldataReader} from "../types/CalldataReader.sol";
 import {PoolRewards} from "../types/PoolRewards.sol";
 import {Positions, Position} from "src/libraries/Positions.sol";
-import {PoolConfigsLib} from "../libraries/pool-config/PoolConfigs.sol";
-import {PoolConfigStore} from "../libraries/pool-config/PoolConfigStore.sol";
+import {UniCallLib, UniSwapCallBuffer} from "src/libraries/UniCallLib.sol";
 
+import {ConversionLib} from "src/libraries/ConversionLib.sol";
 import {SignedUnsignedLib} from "super-sol/libraries/SignedUnsignedLib.sol";
 import {IUniV4} from "../interfaces/IUniV4.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
-import {ConversionLib} from "../libraries/ConversionLib.sol";
 import {IPoolManager} from "../interfaces/IUniV4.sol";
-import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
+import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
-import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {MixedSignLib} from "../libraries/MixedSignLib.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
 /// @custom:mounted uint256 (external)
@@ -49,11 +47,6 @@ abstract contract PoolUpdateManager is
     using IUniV4 for IPoolManager;
     using FixedPointMathLib for uint256;
     using SignedUnsignedLib for *;
-
-    /// @dev Uniswap's `MIN_SQRT_RATIO + 1` to pass the limit check.
-    uint160 internal constant MIN_SQRT_RATIO = 4295128740;
-    /// @dev Uniswap's `MAX_SQRT_RATIO - 1` to pass the limit check.
-    uint160 internal constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970341;
 
     Positions internal positions;
     mapping(PoolId id => PoolRewards) internal poolRewards;
@@ -135,16 +128,15 @@ abstract contract PoolUpdateManager is
         return this.beforeRemoveLiquidity.selector;
     }
 
-    function _updatePools(
-        CalldataReader reader,
-        DeltaTracker storage deltas,
-        PoolConfigStore configCache,
-        AssetArray assets
-    ) internal returns (CalldataReader) {
+    function _updatePools(CalldataReader reader, DeltaTracker storage deltas, PairArray pairs)
+        internal
+        returns (CalldataReader)
+    {
         CalldataReader end;
         (reader, end) = reader.readU24End();
+        UniSwapCallBuffer memory swapCall = UniCallLib.newSwapCall(address(this));
         while (reader != end) {
-            reader = _updatePool(reader, deltas, configCache, assets);
+            reader = _updatePool(reader, swapCall, deltas, pairs);
         }
 
         return reader;
@@ -152,52 +144,43 @@ abstract contract PoolUpdateManager is
 
     function _updatePool(
         CalldataReader reader,
+        UniSwapCallBuffer memory swapCall,
         DeltaTracker storage deltas,
-        PoolConfigStore configCache,
-        AssetArray assets
+        PairArray pairs
     ) internal returns (CalldataReader) {
-        address asset0;
-        address asset1;
         bool zeroForOne;
-        int24 tickSpacing;
-        {
-            uint16 assetIndex;
-            (reader, assetIndex) = reader.readU16();
-            address assetIn = assets.get(assetIndex).addr();
-            (reader, assetIndex) = reader.readU16();
-            address assetOut = assets.get(assetIndex).addr();
-            zeroForOne = assetIn < assetOut;
-            (asset0, asset1) = zeroForOne ? (assetIn, assetOut) : (assetOut, assetIn);
-            bytes32 fullKey = PoolConfigsLib.getFullKeyUnchecked(asset0, asset1);
-            uint16 relativeIndex;
-            (reader, relativeIndex) = reader.readU16();
-            (tickSpacing,) = configs.getWithCache(configCache, fullKey, relativeIndex);
-        }
-        PoolKey memory poolKey = ConversionLib.toPoolKey(address(this), asset0, asset1, tickSpacing);
-        PoolId id = PoolIdLibrary.toId(poolKey);
+        (reader, zeroForOne) = reader.readBool();
+        swapCall.setZeroForOne(zeroForOne);
+        uint16 pairIndex;
+        (reader, pairIndex) = reader.readU16();
+        (swapCall.asset0, swapCall.asset1, swapCall.tickSpacing) =
+            pairs.get(pairIndex).getPoolInfo();
+
+        PoolId id = swapCall.getId();
 
         uint256 amountIn;
         (reader, amountIn) = reader.readU128();
 
+        int24 currentTick;
         if (amountIn > 0) {
             int24 tickBefore = UNI_V4.getSlot0(id).tick();
-            UNI_V4.swap(
-                poolKey,
-                IPoolManager.SwapParams({
-                    zeroForOne: zeroForOne,
-                    amountSpecified: SignedUnsignedLib.neg(amountIn),
-                    sqrtPriceLimitX96: zeroForOne ? MIN_SQRT_RATIO : MAX_SQRT_RATIO
-                }),
-                ""
-            );
-            int24 tickAfter = UNI_V4.getSlot0(id).tick();
+            swapCall.amountSpecified = SignedUnsignedLib.neg(amountIn);
+            // The swap delta is tracked on Uniswap's side so we don't need to here. It's accounted for in the asset
+            // take & settle steps.
+            swapCall.call(UNI_V4);
+            currentTick = UNI_V4.getSlot0(id).tick();
 
-            poolRewards[id].updateAfterTickMove(id, UNI_V4, tickBefore, tickAfter, tickSpacing);
+            poolRewards[id].updateAfterTickMove(
+                id, UNI_V4, tickBefore, currentTick, swapCall.tickSpacing
+            );
+        } else {
+            currentTick = UNI_V4.getSlot0(id).tick();
         }
 
         uint256 rewardTotal;
-        (reader, rewardTotal) = _decodeAndReward(reader, poolRewards[id], id, tickSpacing);
-        deltas.sub(asset0, rewardTotal);
+        (reader, rewardTotal) =
+            _decodeAndReward(reader, poolRewards[id], id, swapCall.tickSpacing, currentTick);
+        deltas.sub(swapCall.asset0, rewardTotal);
 
         return reader;
     }
@@ -222,9 +205,5 @@ abstract contract PoolUpdateManager is
 
     function _getCurrentLiquidity(PoolId id) internal view override returns (uint128 liquidity) {
         liquidity = UNI_V4.getPoolLiquidity(id);
-    }
-
-    function _getCurrentTick(PoolId id) internal view override returns (int24 tick) {
-        tick = UNI_V4.getSlot0(id).tick();
     }
 }

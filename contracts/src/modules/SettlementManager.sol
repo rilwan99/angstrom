@@ -6,7 +6,6 @@ import {UniConsumer} from "./UniConsumer.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {DeltaTracker} from "../types/DeltaTracker.sol";
 import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
-import {PoolSwap, PoolSwapLib} from "../types/PoolSwap.sol";
 import {AssetArray, Asset} from "../types/Asset.sol";
 import {
     PriceAB as PriceOutVsIn, AmountA as AmountOut, AmountB as AmountIn

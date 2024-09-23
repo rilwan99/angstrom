@@ -157,7 +157,7 @@ library RewardLib {
     ) internal view returns (RewardsUpdate memory update) {
         require(rewards.length > 0, "No rewards");
 
-        update.below = true;
+        // update.below = true;
 
         // Create list of initialized ticks, including start (checked before) and the tick of the
         // current range.
@@ -211,7 +211,7 @@ library RewardLib {
     ) internal view returns (RewardsUpdate memory update) {
         require(rewards.length > 0, "No rewards");
 
-        update.below = false;
+        // update.below = false;
 
         UintVec memory amounts = VecLib.uint_with_cap(rewards.length * 2);
 

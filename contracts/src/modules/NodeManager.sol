@@ -16,8 +16,8 @@ abstract contract NodeManager {
     mapping(address => bool) internal _isNode;
 
     PoolConfigs configs;
-    uint64 public lastBlockUpdated;
-    address internal configStore;
+    uint64 internal _lastBlockUpdated;
+    address internal _configStore;
 
     constructor(address controller) {
         _CONTROLLER = controller;
@@ -33,9 +33,9 @@ abstract contract NodeManager {
         external
         onlyController
     {
-        if (asset1 >= asset0) revert AssetsUnsorted();
+        if (asset1 <= asset0) revert AssetsUnsorted();
         bytes32 fullKey = PoolConfigsLib.getFullKeyUnchecked(asset0, asset1);
-        configStore = configs.setConfig(configStore, fullKey, tickSpacing, feeInE6);
+        _configStore = configs.setConfig(_configStore, fullKey, tickSpacing, feeInE6);
     }
 
     function govToggleNodes(address[] calldata nodes) external onlyController {
@@ -49,8 +49,8 @@ abstract contract NodeManager {
     /// Blocks reentrant calls as well as separate calls in the same block.
     function _nodeBundleLock() internal {
         // Block-wide reentrancy lock. Prevents general reentrancy and replay of flash orders.
-        if (lastBlockUpdated == block.number) revert OnlyOncePerBlock();
+        if (_lastBlockUpdated == block.number) revert OnlyOncePerBlock();
         if (!_isNode[msg.sender]) revert NotNode();
-        lastBlockUpdated = SafeCastLib.toUint64(block.number);
+        _lastBlockUpdated = SafeCastLib.toUint64(block.number);
     }
 }

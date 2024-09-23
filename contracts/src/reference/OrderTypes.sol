@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {OrderVariantMap} from "../types/OrderVariantMap.sol";
+import {UserOrderVariantMap} from "../types/UserOrderVariantMap.sol";
 import {OrderVariant as RefOrderVariant} from "../reference/OrderVariant.sol";
 import {UserOrderBufferLib} from "../types/UserOrderBuffer.sol";
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
@@ -285,7 +285,7 @@ library OrdersLib {
 
         return bytes.concat(
             bytes.concat(
-                bytes1(OrderVariantMap.unwrap(variantMap.encode())),
+                bytes1(UserOrderVariantMap.unwrap(variantMap.encode())),
                 bytes2(pairIndex),
                 bytes32(order.minPrice),
                 _encodeRecipient(order.recipient),
@@ -319,7 +319,7 @@ library OrdersLib {
         });
 
         return bytes.concat(
-            bytes1(OrderVariantMap.unwrap(variantMap.encode())),
+            bytes1(UserOrderVariantMap.unwrap(variantMap.encode())),
             bytes2(pairIndex),
             bytes32(order.minPrice),
             _encodeRecipient(order.recipient),
@@ -350,7 +350,7 @@ library OrdersLib {
         });
 
         return bytes.concat(
-            bytes1(OrderVariantMap.unwrap(variantMap.encode())),
+            bytes1(UserOrderVariantMap.unwrap(variantMap.encode())),
             bytes2(pairIndex),
             bytes32(order.minPrice),
             _encodeRecipient(order.recipient),
@@ -381,7 +381,7 @@ library OrdersLib {
         });
 
         return bytes.concat(
-            bytes1(OrderVariantMap.unwrap(variantMap.encode())),
+            bytes1(UserOrderVariantMap.unwrap(variantMap.encode())),
             bytes2(pairIndex),
             bytes32(order.minPrice),
             _encodeRecipient(order.recipient),
@@ -420,7 +420,7 @@ library OrdersLib {
         });
 
         return bytes.concat(
-            bytes1(OrderVariantMap.unwrap(variantMap.encode())),
+            bytes1(UserOrderVariantMap.unwrap(variantMap.encode())),
             bytes16(order.quantityIn),
             bytes16(order.quantityOut),
             bytes2(assets.getIndex(order.assetIn).toUint16()),
