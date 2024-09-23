@@ -46,6 +46,14 @@ impl Add for Ray {
     }
 }
 
+impl Add<usize> for Ray {
+    type Output = Ray;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        Self(self.0 + Uint::from(rhs))
+    }
+}
+
 impl AddAssign for Ray {
     fn add_assign(&mut self, rhs: Self) {
         *self = Self(self.0 + rhs.0);
@@ -66,8 +74,13 @@ impl From<Ray> for U256 {
 
 impl From<u8> for Ray {
     fn from(value: u8) -> Self {
-        let inner = Uint::from(value);
-        Self(inner)
+        Self(Uint::from(value))
+    }
+}
+
+impl From<usize> for Ray {
+    fn from(value: usize) -> Self {
+        Self(Uint::from(value))
     }
 }
 

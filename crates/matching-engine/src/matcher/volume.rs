@@ -270,8 +270,8 @@ impl<'a> VolumeFillMatcher<'a> {
     fn next_order_from_book<'b>(
         is_bid: bool,
         index: &Cell<usize>,
-        book: &'a Vec<OrderWithStorageData<GroupedVanillaOrder>>,
-        fill_state: &Vec<OrderFillState>,
+        book: &'a [OrderWithStorageData<GroupedVanillaOrder>],
+        fill_state: &[OrderFillState],
         amm: Option<&MarketPrice<'a>>
     ) -> Option<OrderContainer<'a, 'b>> {
         let mut cur_idx = index.get();
@@ -329,7 +329,12 @@ mod tests {
     use std::cell::Cell;
 
     use alloy::primitives::Uint;
-    use angstrom_types::{matching::Ray, primitive::PoolId};
+    use angstrom_types::{
+        matching::Ray,
+        orders::OrderFillState,
+        primitive::PoolId,
+        sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
+    };
     use testing_tools::type_generator::orders::UserOrderBuilder;
 
     use super::VolumeFillMatcher;
@@ -368,7 +373,7 @@ mod tests {
             .build();
         let book = OrderBook::new(pool_id, None, vec![bid_order.clone()], vec![ask_order], None);
         let mut matcher = VolumeFillMatcher::new(&book);
-        let fill_outcome = matcher.fill();
+        let _fill_outcome = matcher.fill();
         let solution = matcher.from_checkpoint().unwrap().solution(None);
         assert!(
             solution.ucp == high_price,
@@ -397,7 +402,7 @@ mod tests {
             .build();
         let book = OrderBook::new(pool_id, None, vec![bid_order.clone()], vec![ask_order], None);
         let mut matcher = VolumeFillMatcher::new(&book);
-        let fill_outcome = matcher.fill();
+        let _fill_outcome = matcher.fill();
         let solution = matcher.from_checkpoint().unwrap().solution(None);
         assert!(
             solution.ucp == low_price,
@@ -405,13 +410,34 @@ mod tests {
         );
     }
 
+    fn basic_order_book(
+        is_bid: bool,
+        count: usize,
+        target_price: Ray,
+        price_step: usize
+    ) -> Vec<OrderWithStorageData<GroupedVanillaOrder>> {
+        (0..count)
+            .map(|i| {
+                UserOrderBuilder::new()
+                    .min_price(target_price + (i * price_step))
+                    .amount(100)
+                    .with_storage()
+                    .is_bid(is_bid)
+                    .build()
+            })
+            .collect()
+    }
+
     #[test]
     fn gets_next_book_order() {
         let is_bid = true;
         let index = Cell::new(10);
-        let book = vec![];
-        let fill_state = vec![];
+        let book = basic_order_book(true, 100, Ray::from(10000_usize), 10);
+        let fill_state: Vec<OrderFillState> =
+            book.iter().map(|_| OrderFillState::Unfilled).collect();
         let amm = None;
-        VolumeFillMatcher::next_order_from_book(is_bid, &index, &book, &fill_state, amm);
+        let next_order =
+            VolumeFillMatcher::next_order_from_book(is_bid, &index, &book, &fill_state, amm);
+        assert!(next_order.is_none())
     }
 }
