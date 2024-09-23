@@ -1,43 +1,32 @@
 use std::fmt::Debug;
 
-pub trait PadeDecode {
-    const PADE_HEADER_BITS: usize = 0;
-    const PADE_VARIANT_MAP_BITS: usize = 0;
-
-    fn pade_decode(buf: &mut &[u8]) -> Result<Self, ()>
+pub trait PadeDecode: super::PadeEncode {
+    /// the varient that was used if enum.
+    fn pade_decode(buf: &mut &[u8], var: u8) -> Result<Self, ()>
     where
         Self: Sized;
 
-    fn pade_decode_with_width(buf: &mut &[u8], width: usize) -> Result<Self, ()>
+    /// the varient that was used if enum.
+    fn pade_decode_with_width(buf: &mut &[u8], width: usize, var: u8) -> Result<Self, ()>
     where
         Self: Sized;
-
-    #[inline]
-    fn pade_header_bits(&self) -> usize {
-        Self::PADE_HEADER_BITS
-    }
-
-    #[inline]
-    fn pade_variant_map_bits(&self) -> usize {
-        Self::PADE_VARIANT_MAP_BITS
-    }
 }
 
 //Implementation for arrays
 impl<T: PadeDecode + Debug, const N: usize> PadeDecode for [T; N] {
-    fn pade_decode(buf: &mut &[u8]) -> Result<Self, ()> {
+    fn pade_decode(buf: &mut &[u8], var: u8) -> Result<Self, ()> {
         let mut this = vec![];
         for _ in 0..N {
-            this.push(T::pade_decode(buf)?);
+            this.push(T::pade_decode(buf, var)?);
         }
 
         Ok(this.try_into().unwrap())
     }
 
-    fn pade_decode_with_width(buf: &mut &[u8], width: usize) -> Result<Self, ()> {
+    fn pade_decode_with_width(buf: &mut &[u8], width: usize, var: u8) -> Result<Self, ()> {
         let mut this = vec![];
         for _ in 0..N {
-            this.push(T::pade_decode_with_width(buf, width)?);
+            this.push(T::pade_decode_with_width(buf, width, var)?);
         }
 
         Ok(this.try_into().unwrap())
@@ -46,7 +35,7 @@ impl<T: PadeDecode + Debug, const N: usize> PadeDecode for [T; N] {
 
 // Option<T: PadeEncode> encodes as an enum
 impl<T: PadeDecode> PadeDecode for Option<T> {
-    fn pade_decode(buf: &mut &[u8]) -> Result<Self, ()> {
+    fn pade_decode(buf: &mut &[u8], var: u8) -> Result<Self, ()> {
         if buf.len() == 0 {
             return Err(())
         }
@@ -56,13 +45,13 @@ impl<T: PadeDecode> PadeDecode for Option<T> {
         *buf = &buf[1..];
 
         if ctr {
-            Ok(Some(T::pade_decode(buf)?))
+            Ok(Some(T::pade_decode(buf, var)?))
         } else {
             Ok(None)
         }
     }
 
-    fn pade_decode_with_width(buf: &mut &[u8], width: usize) -> Result<Self, ()> {
+    fn pade_decode_with_width(buf: &mut &[u8], width: usize, var: u8) -> Result<Self, ()> {
         if buf.len() == 0 {
             return Err(())
         }
@@ -72,20 +61,15 @@ impl<T: PadeDecode> PadeDecode for Option<T> {
         *buf = &buf[1..];
 
         if ctr {
-            Ok(Some(T::pade_decode_with_width(buf, width)?))
+            Ok(Some(T::pade_decode_with_width(buf, width, var)?))
         } else {
             Ok(None)
         }
-    }
-
-    #[inline]
-    fn pade_variant_map_bits(&self) -> usize {
-        1
     }
 }
 
 impl PadeDecode for bool {
-    fn pade_decode(buf: &mut &[u8]) -> Result<Self, ()> {
+    fn pade_decode(buf: &mut &[u8], var: u8) -> Result<Self, ()> {
         if buf.len() == 0 {
             return Err(())
         }
@@ -96,21 +80,14 @@ impl PadeDecode for bool {
         Ok(ctr)
     }
 
-    fn pade_decode_with_width(_: &mut &[u8], _: usize) -> Result<Self, ()> {
+    fn pade_decode_with_width(_: &mut &[u8], _: usize, _: u8) -> Result<Self, ()> {
         unreachable!()
-    }
-
-    #[inline]
-    fn pade_variant_map_bits(&self) -> usize {
-        1
     }
 }
 
 // Decided on a generic List<3> implementation - no variant bits because we
 // don't want to hoist them in a struct
 impl<T: PadeDecode> PadeDecode for Vec<T> {
-    const PADE_HEADER_BITS: usize = 24;
-
     fn pade_decode(buf: &mut &[u8]) -> Result<Self, ()> {
         if buf.len() < 3 {
             return Err(())

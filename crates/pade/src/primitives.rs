@@ -66,17 +66,14 @@ macro_rules! prim_decode {
     };
 }
 
-impl PadeEncode for Bytes {
-    fn pade_encode(&self) -> Vec<u8> {
-        let bytes = self.to_vec();
-        let len = bytes.len().to_be_bytes();
-
-        [vec![len[5], len[6], len[7]], bytes].concat()
-    }
-}
-
 prim_decode!(u8, u16, u64, i32, I24, U256, u128);
 use_alloy_default!(u16, u64, i32, I24, U256, u128, Address);
+
+impl PadeEncode for u8 {
+    fn pade_encode(&self) -> Vec<u8> {
+        vec![*self]
+    }
+}
 
 impl PadeDecode for Address {
     fn pade_decode(buf: &mut &[u8]) -> Result<Self, ()>
@@ -130,6 +127,15 @@ impl PadeDecode for Bytes {
         Self: Sized
     {
         unreachable!()
+    }
+}
+
+impl PadeEncode for Bytes {
+    fn pade_encode(&self) -> Vec<u8> {
+        let bytes = self.to_vec();
+        let len = bytes.len().to_be_bytes();
+
+        [vec![len[5], len[6], len[7]], bytes].concat()
     }
 }
 
