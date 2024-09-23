@@ -1,9 +1,9 @@
-use alloy_primitives::Log;
+use alloy::primitives::{FixedBytes, Log};
 use reth_primitives::Address;
 
 use crate::contract_bindings::poolmanager::PoolManager::Initialize;
 
-pub type PoolId = usize;
+pub type PoolId = FixedBytes<32>;
 
 pub type PoolIdWithDirection = (bool, PoolId);
 

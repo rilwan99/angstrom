@@ -11,5 +11,5 @@ pub use pool_state::*;
 // pub use external_state_sim::*;
 pub use signature::*;
 
-pub type PoolId = FixedBytes<32>;
+
 pub type PeerId = FixedBytes<64>;
