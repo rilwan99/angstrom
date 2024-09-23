@@ -90,6 +90,7 @@ impl<T: PadeEncode> PadeEncode for Vec<T> {
 
     fn pade_encode(&self) -> Vec<u8> {
         let items: Vec<u8> = self.iter().flat_map(|i| i.pade_encode()).collect();
+
         let len_bytes = items.len().to_be_bytes();
         let len = vec![len_bytes[5], len_bytes[6], len_bytes[7]];
         [len, items].concat()
