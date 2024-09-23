@@ -109,7 +109,8 @@ contract UserOrderExecution is BaseTest, HookDeployer {
     }
 
     mapping(uint256 => bool) usedIndices;
-    mapping(address trader => mapping(bool isInternal => mapping(address asset => uint256))) traderTotalIn;
+    mapping(address trader => mapping(bool isInternal => mapping(address asset => uint256)))
+        traderTotalIn;
 
     mapping(address => uint256) totalOuts;
 
@@ -201,7 +202,8 @@ contract UserOrderExecution is BaseTest, HookDeployer {
 
                 v.assetOut = v.aToB ? pair.assetB : pair.assetA;
                 v.assetIn = v.aToB ? pair.assetA : pair.assetB;
-                v.priceOutVsIn = PriceOutVsIn.wrap(v.aToB ? pair.priceAB.into().invRay() : pair.priceAB.into());
+                v.priceOutVsIn =
+                    PriceOutVsIn.wrap(v.aToB ? pair.priceAB.into().invRay() : pair.priceAB.into());
 
                 v.amountOut = AmountOut.wrap(
                     isLast
@@ -210,7 +212,10 @@ contract UserOrderExecution is BaseTest, HookDeployer {
                                 ? (pair.priceAB.convert(v.totalAOut) - v.totalBOut).into()
                                 : (pair.priceAB.convert(v.totalBOut) - v.totalAOut).into()
                         )
-                        : rng.randmag((v.priceOutVsIn.into() / 10).rayToWad(), (v.priceOutVsIn.into() * 10).rayToWad())
+                        : rng.randmag(
+                            (v.priceOutVsIn.into() / 10).rayToWad(),
+                            (v.priceOutVsIn.into() * 10).rayToWad()
+                        )
                 );
                 v.amountIn = v.priceOutVsIn.convert(v.amountOut);
 
@@ -228,8 +233,10 @@ contract UserOrderExecution is BaseTest, HookDeployer {
 
                 v.p = rng.randuint(1e18);
                 if (v.p <= 0.4e18) {
-                    v.minAmountIn = v.amountIn.into().mulWad(rng.randuint(0.2e18, 1.0e18)).toUint128();
-                    v.maxAmountIn = v.amountIn.into().mulWad(rng.randuint(1.0e18, 10.0e18)).toUint128();
+                    v.minAmountIn =
+                        v.amountIn.into().mulWad(rng.randuint(0.2e18, 1.0e18)).toUint128();
+                    v.maxAmountIn =
+                        v.amountIn.into().mulWad(rng.randuint(1.0e18, 10.0e18)).toUint128();
                     useInternal = rng.randbool();
                     // Partial order
                     v.b.userOrders[oi] = v.isFlash
@@ -370,7 +377,8 @@ contract UserOrderExecution is BaseTest, HookDeployer {
         address angstromAddr = address(angstrom);
         uint256 before = gasleft();
         assembly {
-            let success := call(gas(), angstromAddr, 0, add(execPayload, 0x20), mload(execPayload), 0, 0)
+            let success :=
+                call(gas(), angstromAddr, 0, add(execPayload, 0x20), mload(execPayload), 0, 0)
             if iszero(success) {
                 let free := mload(0x40)
                 returndatacopy(free, 0, returndatasize())
@@ -386,7 +394,11 @@ contract UserOrderExecution is BaseTest, HookDeployer {
         return PRNG(uint256(seed));
     }
 
-    function _randPrices(PRNG memory rng, uint256 n) internal pure returns (PriceAB[] memory prices) {
+    function _randPrices(PRNG memory rng, uint256 n)
+        internal
+        pure
+        returns (PriceAB[] memory prices)
+    {
         prices = new PriceAB[](n);
         for (uint256 i = 0; i < n; i++) {
             prices[i] = PriceAB.wrap(rng.randmag(0.01e27, 100.0e27));

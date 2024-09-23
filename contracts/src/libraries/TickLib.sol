@@ -13,7 +13,11 @@ library TickLib {
         return word & (uint256(1) << bitPos) != 0;
     }
 
-    function nextBitPosLte(uint256 word, uint8 bitPos) internal pure returns (bool initialized, uint8 nextBitPos) {
+    function nextBitPosLte(uint256 word, uint8 bitPos)
+        internal
+        pure
+        returns (bool initialized, uint8 nextBitPos)
+    {
         unchecked {
             uint8 offset = 0xff - bitPos;
             uint256 relativePos = LibBit.fls(word << offset);
@@ -22,7 +26,11 @@ library TickLib {
         }
     }
 
-    function nextBitPosGte(uint256 word, uint8 bitPos) internal pure returns (bool initialized, uint8 nextBitPos) {
+    function nextBitPosGte(uint256 word, uint8 bitPos)
+        internal
+        pure
+        returns (bool initialized, uint8 nextBitPos)
+    {
         unchecked {
             uint256 relativePos = LibBit.ffs(word >> bitPos);
             initialized = relativePos != 256;

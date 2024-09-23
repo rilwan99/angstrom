@@ -64,7 +64,11 @@ library PoolConfigsLib {
     uint256 internal constant STORE_DEPLOYER = 0x600b380380600b5f395ff300;
     uint256 internal constant STORE_DEPLOYER_BYTES = 12;
 
-    function getFullKeyUnsorted(address assetA, address assetB) internal pure returns (bytes32 fullKey) {
+    function getFullKeyUnsorted(address assetA, address assetB)
+        internal
+        pure
+        returns (bytes32 fullKey)
+    {
         assembly ("memory-safe") {
             let aOffset := shl(5, gt(assetA, assetB))
             mstore(aOffset, assetA)
@@ -73,7 +77,11 @@ library PoolConfigsLib {
         }
     }
 
-    function getFullKeyUnchecked(address asset0, address asset1) internal pure returns (bytes32 fullKey) {
+    function getFullKeyUnchecked(address asset0, address asset1)
+        internal
+        pure
+        returns (bytes32 fullKey)
+    {
         assembly ("memory-safe") {
             mstore(0x00, asset0)
             mstore(0x20, asset1)
@@ -126,7 +134,12 @@ library PoolConfigsLib {
             totalEntryBytes := add(totalEntryBytes, shl(5, lt(entryOffset, entriesEnd)))
             // Add deployment code to the front and deploy
             mstore(free, STORE_DEPLOYER)
-            newStore := create(0, add(free, sub(32, STORE_DEPLOYER_BYTES)), add(totalEntryBytes, STORE_DEPLOYER_BYTES))
+            newStore :=
+                create(
+                    0,
+                    add(free, sub(32, STORE_DEPLOYER_BYTES)),
+                    add(totalEntryBytes, STORE_DEPLOYER_BYTES)
+                )
         }
 
         if (newStore == address(0)) revert FailedToDeployNewStore();
@@ -153,7 +166,11 @@ library PoolConfigsLib {
         if (tickSpacing <= 0) revert InvalidTickSpacing();
     }
 
-    function get(PoolConfigs storage configs, bytes32 fullKey) internal pure returns (PoolConfig storage config) {
+    function get(PoolConfigs storage configs, bytes32 fullKey)
+        internal
+        pure
+        returns (PoolConfig storage config)
+    {
         assembly ("memory-safe") {
             mstore(0x00, fullKey)
             mstore(0x20, configs.slot)

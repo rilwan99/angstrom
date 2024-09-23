@@ -79,7 +79,8 @@ library PoolRewardsLib {
             (initialized, tick) = uniV4.getNextTickGt(id, tick, tickSpacing);
 
             if (tick <= newTick && initialized) {
-                self.rewardGrowthOutside[uint24(tick)] = globalGrowth - self.rewardGrowthOutside[uint24(tick)];
+                self.rewardGrowthOutside[uint24(tick)] =
+                    globalGrowth - self.rewardGrowthOutside[uint24(tick)];
             }
         } while (tick < newTick);
     }
@@ -100,7 +101,8 @@ library PoolRewardsLib {
 
             if (newTick < tick) {
                 if (initialized) {
-                    self.rewardGrowthOutside[uint24(tick)] = globalGrowth - self.rewardGrowthOutside[uint24(tick)];
+                    self.rewardGrowthOutside[uint24(tick)] =
+                        globalGrowth - self.rewardGrowthOutside[uint24(tick)];
                 }
             } else {
                 break;

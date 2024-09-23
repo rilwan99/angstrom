@@ -54,18 +54,22 @@ library UserOrderBufferLib {
         }
     }
 
-    function _hash(UserOrderBuffer memory self, OrderVariantMap variant) internal pure returns (bytes32 hashed) {
+    function _hash(UserOrderBuffer memory self, OrderVariantMap variant)
+        internal
+        pure
+        returns (bytes32 hashed)
+    {
         uint256 structLength = variant.isStanding() ? STANDING_ORDER_BYTES : FLASH_ORDER_BYTES;
         assembly ("memory-safe") {
             hashed := keccak256(self, structLength)
         }
     }
 
-    function hash712(UserOrderBuffer memory self, OrderVariantMap variant, TypedDataHasher typedHasher)
-        internal
-        pure
-        returns (bytes32)
-    {
+    function hash712(
+        UserOrderBuffer memory self,
+        OrderVariantMap variant,
+        TypedDataHasher typedHasher
+    ) internal pure returns (bytes32) {
         return typedHasher.hashTypedData(self._hash(variant));
     }
 
@@ -118,11 +122,11 @@ library UserOrderBufferLib {
         return (reader, quantityIn, quantityOut);
     }
 
-    function readOrderValidation(UserOrderBuffer memory self, CalldataReader reader, OrderVariantMap variant)
-        internal
-        view
-        returns (CalldataReader)
-    {
+    function readOrderValidation(
+        UserOrderBuffer memory self,
+        CalldataReader reader,
+        OrderVariantMap variant
+    ) internal view returns (CalldataReader) {
         if (variant.isStanding()) {
             // Copy slices directly from calldata into memory.
             assembly ("memory-safe") {

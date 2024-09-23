@@ -26,10 +26,12 @@ abstract contract RewardsUpdater {
         int24 currentTick;
     }
 
-    function _decodeAndReward(CalldataReader reader, PoolRewards storage poolRewards, PoolId id, int24 tickSpacing)
-        internal
-        returns (CalldataReader, uint256)
-    {
+    function _decodeAndReward(
+        CalldataReader reader,
+        PoolRewards storage poolRewards,
+        PoolId id,
+        int24 tickSpacing
+    ) internal returns (CalldataReader, uint256) {
         {
             bool onlyCurrent;
             (reader, onlyCurrent) = reader.readBool();
@@ -66,7 +68,9 @@ abstract contract RewardsUpdater {
         newReader.requireAtEndOf(amountsEnd);
 
         uint128 currentLiquidity = _getCurrentLiquidity(id);
-        if (endLiquidity != currentLiquidity) revert WrongEndLiquidity(endLiquidity, currentLiquidity);
+        if (endLiquidity != currentLiquidity) {
+            revert WrongEndLiquidity(endLiquidity, currentLiquidity);
+        }
 
         poolRewards.globalGrowth += cumulativeGrowth;
 

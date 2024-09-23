@@ -27,7 +27,11 @@ library AssetLib {
     uint256 internal constant SAVE_OFFSET = 36;
     uint256 internal constant SETTLE_OFFSET = 52;
 
-    function readFromAndValidate(CalldataReader reader) internal pure returns (CalldataReader, AssetArray) {
+    function readFromAndValidate(CalldataReader reader)
+        internal
+        pure
+        returns (CalldataReader, AssetArray)
+    {
         uint256 packed;
         (reader, packed) = StructArrayLib.readPackedFrom(reader, ASSET_BYTES);
         return (reader, AssetArray.wrap(packed)._validated());

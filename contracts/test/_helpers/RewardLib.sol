@@ -70,7 +70,8 @@ library RewardLib {
         // Ensure current tick update doesn't get separated into its own update.
         if (rewards[0].tick == currentTickNormalized) {
             updates = new RewardsUpdate[](1);
-            updates[0] = createRewardUpdateAbove(uni, id, rewards, currentTickNormalized, tickSpacing);
+            updates[0] =
+                createRewardUpdateAbove(uni, id, rewards, currentTickNormalized, tickSpacing);
             return updates;
         } else if (rewards[rewards.length - 1].tick == currentTickNormalized) {
             updates = new RewardsUpdate[](1);
@@ -91,7 +92,8 @@ library RewardLib {
 
         if (rewardsBelow.length == 0) {
             updates = new RewardsUpdate[](1);
-            updates[0] = createRewardUpdateAbove(uni, id, rewardsAbove, currentTickNormalized, tickSpacing);
+            updates[0] =
+                createRewardUpdateAbove(uni, id, rewardsAbove, currentTickNormalized, tickSpacing);
             return updates;
         } else if (rewardsAbove.length == 0) {
             updates = new RewardsUpdate[](1);
@@ -99,16 +101,19 @@ library RewardLib {
             return updates;
         } else {
             updates = new RewardsUpdate[](2);
-            updates[0] = createRewardUpdateAbove(uni, id, rewardsAbove, currentTickNormalized, tickSpacing);
+            updates[0] =
+                createRewardUpdateAbove(uni, id, rewardsAbove, currentTickNormalized, tickSpacing);
             updates[1] = createRewardUpdateBelow(uni, id, rewardsBelow, currentTick, tickSpacing);
             return updates;
         }
     }
 
-    function _checkTicksInitialized(IPoolManager uni, PoolId id, TickReward[] memory rewards, int24 tickSpacing)
-        private
-        view
-    {
+    function _checkTicksInitialized(
+        IPoolManager uni,
+        PoolId id,
+        TickReward[] memory rewards,
+        int24 tickSpacing
+    ) private view {
         for (uint256 i = 0; i < rewards.length; i++) {
             int24 tick = rewards[i].tick;
             (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick, tickSpacing));
@@ -129,11 +134,12 @@ library RewardLib {
         }
     }
 
-    function getCurrentTickRangeStart(IPoolManager uni, PoolId id, int24 currentTick, int24 tickSpacing)
-        internal
-        view
-        returns (int24)
-    {
+    function getCurrentTickRangeStart(
+        IPoolManager uni,
+        PoolId id,
+        int24 currentTick,
+        int24 tickSpacing
+    ) internal view returns (int24) {
         bool initialized;
         while (true) {
             (initialized, currentTick) = uni.getNextTickLe(id, currentTick, tickSpacing);
@@ -190,7 +196,8 @@ library RewardLib {
 
         require(ri == rewards.length, "Not all rewards used?");
 
-        update.startTick = initializedTicks.length > 0 ? int24(uint24(initializedTicks.get(0))) : currentTick + 1;
+        update.startTick =
+            initializedTicks.length > 0 ? int24(uint24(initializedTicks.get(0))) : currentTick + 1;
         uint128 poolLiq = uni.getPoolLiquidity(id);
         update.startLiquidity = MixedSignLib.sub(poolLiq, cumulativeNetLiquidity);
     }

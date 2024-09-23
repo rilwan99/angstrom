@@ -54,7 +54,8 @@ contract PoolRewardsInvariantTest is BaseTest, HookDeployer {
         gate = new PoolGate(address(uniV4));
 
         int24 startTick = 0;
-        refId = PoolIdLibrary.toId(address(0).toPoolKey(address(asset0), address(asset1), TICK_SPACING));
+        refId =
+            PoolIdLibrary.toId(address(0).toPoolKey(address(asset0), address(asset1), TICK_SPACING));
         gate.setHook(address(0));
         gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick());
 
@@ -96,7 +97,8 @@ contract PoolRewardsInvariantTest is BaseTest, HookDeployer {
             for (uint256 j = 0; j < rewards.length; j++) {
                 TickReward memory reward = rewards[j];
                 if (pos.lowerTick <= reward.tick && reward.tick < pos.upperTick) {
-                    totalReward += reward.amount * pos.liquidity / handler.ghost_liquidityAtTick(reward.tick);
+                    totalReward +=
+                        reward.amount * pos.liquidity / handler.ghost_liquidityAtTick(reward.tick);
                 }
             }
             uint256 computed = angstrom.positionRewards(
@@ -359,6 +361,8 @@ contract PoolRewardsInvariantTest is BaseTest, HookDeployer {
     }
 
     function poolKey() internal view returns (PoolKey memory) {
-        return ConversionLib.toPoolKey(address(angstrom), address(asset0), address(asset1), TICK_SPACING);
+        return ConversionLib.toPoolKey(
+            address(angstrom), address(asset0), address(asset1), TICK_SPACING
+        );
     }
 }

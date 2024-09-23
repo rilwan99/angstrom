@@ -11,7 +11,7 @@ import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {POOL_FEE} from "../../src/Constants.sol";
 import {IUniV4, IPoolManager} from "../../src/interfaces/IUniV4.sol";
 
-import {PoolConfigStoreCacheLib} from "src/libraries/pool-config/PoolConfigStoreCache.sol";
+import {PoolConfigStoreLib} from "src/libraries/pool-config/PoolConfigStore.sol";
 
 import {console} from "forge-std/console.sol";
 
@@ -19,7 +19,10 @@ import {console} from "forge-std/console.sol";
 contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager {
     using IUniV4 for IPoolManager;
 
-    constructor(address uniV4PoolManager, address controller) UniConsumer(uniV4PoolManager) NodeManager(controller) {
+    constructor(address uniV4PoolManager, address controller)
+        UniConsumer(uniV4PoolManager)
+        NodeManager(controller)
+    {
         console.log("rewards manager deployed");
     }
 
@@ -30,12 +33,14 @@ contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager
         AssetArray assets;
         (reader, assets) = AssetLib.readFromAndValidate(reader);
 
-        reader = _updatePool(reader, tBundleDeltas, PoolConfigStoreCacheLib.NULL_CONFIG_CACHE, assets);
+        reader = _updatePool(reader, tBundleDeltas, PoolConfigStoreLib.NULL_CONFIG_CACHE, assets);
 
         reader.requireAtEndOf(encoded);
     }
 
-    function updateAfterTickMove(PoolId id, int24 lastTick, int24 newTick, int24 tickSpacing) external {
+    function updateAfterTickMove(PoolId id, int24 lastTick, int24 newTick, int24 tickSpacing)
+        external
+    {
         poolRewards[id].updateAfterTickMove(id, UNI_V4, lastTick, newTick, tickSpacing);
     }
 
@@ -43,7 +48,11 @@ contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager
         poolFee = POOL_FEE;
     }
 
-    function getGrowthInsideTick(PoolId id, int24 tick, int24 tickSpacing) public view returns (uint256) {
+    function getGrowthInsideTick(PoolId id, int24 tick, int24 tickSpacing)
+        public
+        view
+        returns (uint256)
+    {
         _checkTickReal(id, tick, "tick");
         bool initialized;
         int24 nextTickUp;
@@ -54,7 +63,11 @@ contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager
         return poolRewards[id].getGrowthInside(_getCurrentTick(id), tick, nextTickUp);
     }
 
-    function getGrowthInsideRange(PoolId id, int24 lowerTick, int24 upperTick) public view returns (uint256) {
+    function getGrowthInsideRange(PoolId id, int24 lowerTick, int24 upperTick)
+        public
+        view
+        returns (uint256)
+    {
         _checkTickReal(id, lowerTick, "lowerTick");
         _checkTickReal(id, upperTick, "upperTick");
         return poolRewards[id].getGrowthInside(_getCurrentTick(id), lowerTick, upperTick);

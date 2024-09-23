@@ -36,7 +36,11 @@ library PairLib {
         return bytes.concat(bytes2(indexA), bytes2(indexB), bytes32(self.priceAB.into()));
     }
 
-    function encode(Pair[] memory pairs, Asset[] memory assets) internal pure returns (bytes memory b) {
+    function encode(Pair[] memory pairs, Asset[] memory assets)
+        internal
+        pure
+        returns (bytes memory b)
+    {
         for (uint256 i = 0; i < pairs.length; i++) {
             b = bytes.concat(b, pairs[i].encode(assets));
         }

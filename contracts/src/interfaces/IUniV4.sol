@@ -46,7 +46,11 @@ library IUniV4 {
      * @dev WARNING: use of this method with a dirty `int16` for `wordPos` may be vulnerable as the
      * value is taken as is and used in assembly. If not sign extended will result in useless slots.
      */
-    function computeBitmapWordSlot(IPoolManager, PoolId id, int16 wordPos) internal pure returns (uint256 slot) {
+    function computeBitmapWordSlot(IPoolManager, PoolId id, int16 wordPos)
+        internal
+        pure
+        returns (uint256 slot)
+    {
         assembly ("memory-safe") {
             mstore(0x00, id)
             mstore(0x20, _POOLS_SLOT)
@@ -63,7 +67,11 @@ library IUniV4 {
      * @dev WARNING: Calling this method without first sanitizing `tick` (to ensure it's sign
      * extended) is unsafe.
      */
-    function computeTickInfoSlot(IPoolManager, PoolId id, int24 tick) internal pure returns (bytes32 slot) {
+    function computeTickInfoSlot(IPoolManager, PoolId id, int24 tick)
+        internal
+        pure
+        returns (bytes32 slot)
+    {
         assembly ("memory-safe") {
             mstore(0x00, id)
             mstore(0x20, _POOLS_SLOT)
@@ -99,7 +107,11 @@ library IUniV4 {
      * @dev WARNING: use of this method with a dirty `int16` for `wordPos` may be vulnerable as the
      * value is taken as is and used in assembly. If not sign extended will result in useless slots.
      */
-    function getPoolBitmapInfo(IPoolManager self, PoolId id, int16 wordPos) internal view returns (uint256) {
+    function getPoolBitmapInfo(IPoolManager self, PoolId id, int16 wordPos)
+        internal
+        view
+        returns (uint256)
+    {
         uint256 slot = self.computeBitmapWordSlot(id, wordPos);
         return self.extsload(slot);
     }
@@ -121,7 +133,11 @@ library IUniV4 {
         }
     }
 
-    function getPositionLiquidity(IPoolManager self, PoolId id, bytes32 positionKey) internal view returns (uint128) {
+    function getPositionLiquidity(IPoolManager self, PoolId id, bytes32 positionKey)
+        internal
+        view
+        returns (uint128)
+    {
         unchecked {
             uint256 positionStateSlot = self.computePositionStateSlot(id, positionKey);
             uint256 rawLiquidity = self.extsload(positionStateSlot + _POSITION_LIQUIDITY_OFFSET);
@@ -137,7 +153,11 @@ library IUniV4 {
         }
     }
 
-    function getDelta(IPoolManager self, address owner, address asset) internal view returns (int256 delta) {
+    function getDelta(IPoolManager self, address owner, address asset)
+        internal
+        view
+        returns (int256 delta)
+    {
         bytes32 tslot;
         assembly ("memory-safe") {
             mstore(0x00, owner)

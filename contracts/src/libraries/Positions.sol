@@ -17,11 +17,14 @@ using PositionsLib for Positions global;
 
 /// @author philogy <https://github.com/philogy>
 library PositionsLib {
-    function get(Positions storage positions, PoolId id, address sender, int24 lowerTick, int24 upperTick, bytes32 salt)
-        internal
-        pure
-        returns (Position storage position, bytes32 positionKey)
-    {
+    function get(
+        Positions storage positions,
+        PoolId id,
+        address sender,
+        int24 lowerTick,
+        int24 upperTick,
+        bytes32 salt
+    ) internal pure returns (Position storage position, bytes32 positionKey) {
         assembly ("memory-safe") {
             let free := mload(0x40)
 

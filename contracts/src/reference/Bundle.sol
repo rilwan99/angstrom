@@ -42,7 +42,10 @@ library BundleLib {
         );
     }
 
-    function addDeltas(Bundle memory self, uint256 index0, uint256 index1, BalanceDelta deltas) internal pure {
+    function addDeltas(Bundle memory self, uint256 index0, uint256 index1, BalanceDelta deltas)
+        internal
+        pure
+    {
         self.assets[index0].addDelta(deltas.amount0());
         self.assets[index1].addDelta(deltas.amount1());
     }
