@@ -11,8 +11,7 @@ import {BalanceDelta} from "v4-core/src/types/BalanceDelta.sol";
 import {console} from "forge-std/console.sol";
 
 struct Bundle {
-    uint16 cacheEntryOffset;
-    uint16 cacheTotalEntries;
+    bool useCache;
     Asset[] assets;
     Pair[] pairs;
     PoolUpdate[] poolUpdates;
@@ -30,13 +29,12 @@ library BundleLib {
     using PairLib for Pair[];
     using PoolUpdateLib for PoolUpdate[];
 
-    function encode(Bundle memory self) internal pure returns (bytes memory) {
+    function encode(Bundle memory self, address configStore) internal view returns (bytes memory) {
         return bytes.concat(
-            bytes2(self.cacheEntryOffset),
-            bytes2(self.cacheTotalEntries),
+            bytes1(self.useCache ? 1 : 0),
             self.assets.encode(),
             self.pairs.encode(self.assets),
-            self.poolUpdates.encode(self.assets),
+            self.poolUpdates.encode(self.assets, configStore),
             self.toBOrders.encode(self.assets),
             self.userOrders.encode(self.pairs)
         );
