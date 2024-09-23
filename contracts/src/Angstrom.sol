@@ -67,11 +67,9 @@ contract Angstrom is
 
         PoolConfigStore cache;
         {
-            uint16 entryOffset;
-            (reader, entryOffset) = reader.readU16();
-            uint16 totalEntries;
-            (reader, totalEntries) = reader.readU16();
-            cache = PoolConfigStoreCacheLib.cacheStore(configStore, entryOffset, totalEntries);
+            bool useCache;
+            (reader, useCache) = reader.readBool();
+            cache = PoolConfigStore.wrap(configStore);
         }
         AssetArray assets;
         (reader, assets) = AssetLib.readFromAndValidate(reader);

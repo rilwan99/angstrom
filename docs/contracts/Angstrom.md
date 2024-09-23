@@ -69,6 +69,7 @@ The `data` payload is the PADE encoding of the following struct:
 
 ```rust
 struct Bundle {
+    useStore: bool,
     assets: List<Asset>,
     pairs: List<Pair>,
     pool_updates: List<PoolUpdate>,
@@ -76,6 +77,10 @@ struct Bundle {
     user_orders: List<UserOrder>,
 }
 ```
+
+|Field|Description|
+|-----|-----------|
+|`useStore: bool`| Whether to use storage or the store for retrieving pool configs. |
 
 #### `Asset`
 
@@ -139,6 +144,7 @@ encoding (`src/reference/PoolSwap.sol`)](../../contracts/src/reference/PoolSwap.
 struct PoolUpdate {
     asset_in_index: u16,
     asset_out_index: u16,
+    store_index: u16,
     swap_in_quantity: u128,
     rewards_update: RewardsUpdate
 }
@@ -153,6 +159,7 @@ recommended to net out multiple swaps against the same pool into one to save on 
 |-----|-----------|
 |`asset_in_index: u16`|Swap's input asset as index into the assets array|
 |`asset_out_index: u16`|Swap's output asset as index into the assets array|
+|`store_index: u16`|Index of the pool's info in the store (can be whatever if `useStore = false`).|
 |`swap_in_quantity: u128`|The swap input quantity in the input asset's base units.|
 |`rewards_update: RewardsUpdate`| The pool's LP rewards to distribute *after* the pool swap is executed  |
 

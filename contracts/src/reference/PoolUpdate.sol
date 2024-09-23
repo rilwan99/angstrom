@@ -3,17 +3,17 @@ pragma solidity ^0.8.13;
 
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 import {Asset, AssetLib} from "./Asset.sol";
+import {PoolStoreLib} from "./PoolStoreLib.sol";
 
 struct PoolUpdate {
     address assetIn;
     address assetOut;
-    uint16 poolCacheRelativeIndex;
     uint128 amountIn;
     RewardsUpdate rewardUpdate;
 }
 
 struct RewardsUpdate {
-    bool below;
+    bool onlyCurrent;
     int24 startTick;
     uint128 startLiquidity;
     uint128[] quantities;
@@ -27,33 +27,46 @@ library PoolUpdateLib {
     using SafeCastLib for uint256;
     using AssetLib for Asset[];
 
-    function encode(PoolUpdate[] memory updates, Asset[] memory assets) internal pure returns (bytes memory b) {
+    function encode(PoolUpdate[] memory updates, Asset[] memory assets, address configStore)
+        internal
+        view
+        returns (bytes memory b)
+    {
         for (uint256 i = 0; i < updates.length; i++) {
-            b = bytes.concat(b, updates[i].encode(assets));
+            b = bytes.concat(b, updates[i].encode(assets, configStore));
         }
         b = bytes.concat(bytes3(b.length.toUint24()), b);
     }
 
-    function encode(PoolUpdate memory self, Asset[] memory assets) internal pure returns (bytes memory) {
-        (uint16 indexA, uint16 indexB) = assets.getIndexPair({assetA: self.assetIn, assetB: self.assetOut});
+    function encode(PoolUpdate memory self, Asset[] memory assets, address configStore)
+        internal
+        view
+        returns (bytes memory)
+    {
+        (uint16 indexA, uint16 indexB) =
+            assets.getIndexPair({assetA: self.assetIn, assetB: self.assetOut});
         return bytes.concat(
             bytes2(indexA),
             bytes2(indexB),
-            bytes2(self.poolCacheRelativeIndex),
+            bytes2(PoolStoreLib.getStoreIndex(configStore, self.assetIn, self.assetOut)),
             bytes16(self.amountIn),
             self.rewardUpdate.encode()
         );
     }
 
     function encode(RewardsUpdate memory self) internal pure returns (bytes memory) {
+        if (self.onlyCurrent) {
+            return bytes.concat(bytes1(0x01), bytes16(self.quantities[0]));
+        }
         bytes memory encodedQuantities;
         for (uint256 i = 0; i < self.quantities.length; i++) {
             encodedQuantities = bytes.concat(encodedQuantities, bytes16(self.quantities[i]));
         }
-        encodedQuantities = bytes.concat(bytes3(encodedQuantities.length.toUint24()), encodedQuantities);
+        encodedQuantities =
+            bytes.concat(bytes3(encodedQuantities.length.toUint24()), encodedQuantities);
 
         return bytes.concat(
-            self.below ? bytes1(0x01) : bytes1(0x00),
+            bytes1(0x00),
             bytes3(uint24(self.startTick)),
             bytes16(self.startLiquidity),
             encodedQuantities
