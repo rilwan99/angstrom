@@ -20,8 +20,10 @@ import {OrderVariantMap} from "./types/OrderVariantMap.sol";
 import {HookBuffer, HookBufferLib} from "./types/HookBuffer.sol";
 import {CalldataReader, CalldataReaderLib} from "./types/CalldataReader.sol";
 import {SignatureLib} from "./libraries/SignatureLib.sol";
-import {PriceAB as PriceOutVsIn, AmountA as AmountOut, AmountB as AmountIn} from "./types/Price.sol";
 import {PoolConfigStoreCache, PoolConfigStoreCacheLib} from "./libraries/pool-config/PoolConfigStoreCache.sol";
+import {
+    PriceAB as PriceOutVsIn, AmountA as AmountOut, AmountB as AmountIn
+} from "./types/Price.sol";
 
 import {RayMathLib} from "./libraries/RayMathLib.sol";
 
@@ -45,14 +47,22 @@ contract Angstrom is
 
     error LimitViolated();
 
-    constructor(address uniV4PoolManager, address governance) UniConsumer(uniV4PoolManager) NodeManager(governance) {}
+    constructor(address uniV4PoolManager, address governance)
+        UniConsumer(uniV4PoolManager)
+        NodeManager(governance)
+    {}
 
     function execute(bytes calldata encoded) external {
         _nodeBundleLock();
         UNI_V4.unlock(encoded);
     }
 
-    function unlockCallback(bytes calldata data) external override onlyUniV4 returns (bytes memory) {
+    function unlockCallback(bytes calldata data)
+        external
+        override
+        onlyUniV4
+        returns (bytes memory)
+    {
         CalldataReader reader = CalldataReaderLib.from(data);
 
         PoolConfigStoreCache cache;
@@ -79,7 +89,10 @@ contract Angstrom is
         return new bytes(0);
     }
 
-    function _validateAndExecuteToBOrders(CalldataReader reader, AssetArray assets) internal returns (CalldataReader) {
+    function _validateAndExecuteToBOrders(CalldataReader reader, AssetArray assets)
+        internal
+        returns (CalldataReader)
+    {
         CalldataReader end;
         (reader, end) = reader.readU24End();
 
@@ -120,7 +133,8 @@ contract Angstrom is
             buffer.assetOut = assets.get(indexB).addr();
         }
 
-        (reader, buffer.recipient) = variant.recipientIsSome() ? reader.readAddr() : (reader, address(0));
+        (reader, buffer.recipient) =
+            variant.recipientIsSome() ? reader.readAddr() : (reader, address(0));
 
         HookBuffer hook;
         (reader, hook, buffer.hookDataHash) = HookBufferLib.readFrom(reader, variant.noHook());
@@ -137,16 +151,21 @@ contract Angstrom is
 
         hook.tryTrigger(from);
 
-        _settleOrderIn(from, buffer.assetIn, AmountIn.wrap(buffer.quantityIn), variant.useInternal());
+        _settleOrderIn(
+            from, buffer.assetIn, AmountIn.wrap(buffer.quantityIn), variant.useInternal()
+        );
         address to = _defaultOr(buffer.recipient, from);
-        _settleOrderOut(to, buffer.assetOut, AmountOut.wrap(buffer.quantityOut), variant.useInternal());
+        _settleOrderOut(
+            to, buffer.assetOut, AmountOut.wrap(buffer.quantityOut), variant.useInternal()
+        );
         return reader;
     }
 
-    function _validateAndExecuteUserOrders(CalldataReader reader, AssetArray assets, PairArray pairs)
-        internal
-        returns (CalldataReader)
-    {
+    function _validateAndExecuteUserOrders(
+        CalldataReader reader,
+        AssetArray assets,
+        PairArray pairs
+    ) internal returns (CalldataReader) {
         TypedDataHasher typedHasher = _erc712Hasher();
         UserOrderBuffer memory buffer;
 
@@ -187,7 +206,8 @@ contract Angstrom is
         (reader, buffer.minPrice) = reader.readU256();
         if (price.into() < buffer.minPrice) revert LimitViolated();
 
-        (reader, buffer.recipient) = variant.recipientIsSome() ? reader.readAddr() : (reader, address(0));
+        (reader, buffer.recipient) =
+            variant.recipientIsSome() ? reader.readAddr() : (reader, address(0));
 
         HookBuffer hook;
         (reader, hook, buffer.hookDataHash) = HookBufferLib.readFrom(reader, variant.noHook());

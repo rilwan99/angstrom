@@ -20,6 +20,10 @@ remappings = [
   "solmate/=lib/solmate/"
 ]
 
+[profile.default.fmt]
+line_length = 100
+
+
 [profile.default.invariant]
 fail_on_revert = true
 

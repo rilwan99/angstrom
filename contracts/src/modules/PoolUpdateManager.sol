@@ -121,14 +121,16 @@ abstract contract PoolUpdateManager is
         (Position storage position, bytes32 positionKey) =
             positions.get(id, sender, params.tickLower, params.tickUpper, params.salt);
         int24 currentTick = UNI_V4.getSlot0(id).tick();
-        uint256 growthInside = poolRewards[id].getGrowthInside(currentTick, params.tickLower, params.tickUpper);
+        uint256 growthInside =
+            poolRewards[id].getGrowthInside(currentTick, params.tickLower, params.tickUpper);
 
         uint128 positionTotalLiquidity = UNI_V4.getPositionLiquidity(id, positionKey);
         uint256 rewards = growthInside.mulWad(positionTotalLiquidity) - position.pastRewards;
 
         _settleRewardViaUniswapTo(sender, key.currency0, rewards);
 
-        position.pastRewards = growthInside.mulWad(positionTotalLiquidity - liquidityDelta.toUint128());
+        position.pastRewards =
+            growthInside.mulWad(positionTotalLiquidity - liquidityDelta.toUint128());
 
         return this.beforeRemoveLiquidity.selector;
     }
@@ -200,11 +202,21 @@ abstract contract PoolUpdateManager is
         return reader;
     }
 
-    function _getPoolBitmapInfo(PoolId id, int16 wordPos) internal view override returns (uint256) {
+    function _getPoolBitmapInfo(PoolId id, int16 wordPos)
+        internal
+        view
+        override
+        returns (uint256)
+    {
         return UNI_V4.getPoolBitmapInfo(id, wordPos);
     }
 
-    function _getNetTickLiquidity(PoolId id, int24 tick) internal view override returns (int128 liquidityNet) {
+    function _getNetTickLiquidity(PoolId id, int24 tick)
+        internal
+        view
+        override
+        returns (int128 liquidityNet)
+    {
         (, liquidityNet) = UNI_V4.getTickLiquidity(id, tick);
     }
 

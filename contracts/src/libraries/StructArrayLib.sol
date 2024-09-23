@@ -38,31 +38,51 @@ library StructArrayLib {
         return packed & CALLDATA_PTR_MASK;
     }
 
-    function readU16MemberFromPtr(uint256 cdPtr, uint256 memberOffset) internal pure returns (uint16 value) {
+    function readU16MemberFromPtr(uint256 cdPtr, uint256 memberOffset)
+        internal
+        pure
+        returns (uint16 value)
+    {
         assembly {
             value := shr(240, calldataload(add(cdPtr, memberOffset)))
         }
     }
 
-    function readU32MemberFromPtr(uint256 cdPtr, uint256 memberOffset) internal pure returns (uint32 value) {
+    function readU32MemberFromPtr(uint256 cdPtr, uint256 memberOffset)
+        internal
+        pure
+        returns (uint32 value)
+    {
         assembly {
             value := shr(224, calldataload(add(cdPtr, memberOffset)))
         }
     }
 
-    function readU128MemberFromPtr(uint256 cdPtr, uint256 memberOffset) internal pure returns (uint128 value) {
+    function readU128MemberFromPtr(uint256 cdPtr, uint256 memberOffset)
+        internal
+        pure
+        returns (uint128 value)
+    {
         assembly {
             value := shr(128, calldataload(add(cdPtr, memberOffset)))
         }
     }
 
-    function readU256MemberFromPtr(uint256 cdPtr, uint256 memberOffset) internal pure returns (uint256 value) {
+    function readU256MemberFromPtr(uint256 cdPtr, uint256 memberOffset)
+        internal
+        pure
+        returns (uint256 value)
+    {
         assembly {
             value := calldataload(add(cdPtr, memberOffset))
         }
     }
 
-    function readAddressMemberFromPtr(uint256 cdPtr, uint256 memberOffset) internal pure returns (address addr) {
+    function readAddressMemberFromPtr(uint256 cdPtr, uint256 memberOffset)
+        internal
+        pure
+        returns (address addr)
+    {
         assembly {
             addr := shr(96, calldataload(add(cdPtr, memberOffset)))
         }

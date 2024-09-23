@@ -45,17 +45,25 @@ contract PoolGate is IUnlockCallback, CommonBase {
         _tickSpacing = spacing;
     }
 
-    function initializePool(address asset0, address asset1, uint160 initialSqrtPriceX96) public returns (int24 tick) {
-        bytes memory data = UNI_V4.unlock(abi.encodeCall(this.__initializePool, (asset0, asset1, initialSqrtPriceX96)));
+    function initializePool(address asset0, address asset1, uint160 initialSqrtPriceX96)
+        public
+        returns (int24 tick)
+    {
+        bytes memory data = UNI_V4.unlock(
+            abi.encodeCall(this.__initializePool, (asset0, asset1, initialSqrtPriceX96))
+        );
         return abi.decode(data, (int24));
     }
 
-    function swap(address assetIn, address assetOut, int256 amountSpecified, uint160 sqrtPriceLimitX96)
-        public
-        returns (BalanceDelta delta)
-    {
-        bytes memory data =
-            UNI_V4.unlock(abi.encodeCall(this.__swap, (assetIn, assetOut, amountSpecified, sqrtPriceLimitX96)));
+    function swap(
+        address assetIn,
+        address assetOut,
+        int256 amountSpecified,
+        uint160 sqrtPriceLimitX96
+    ) public returns (BalanceDelta delta) {
+        bytes memory data = UNI_V4.unlock(
+            abi.encodeCall(this.__swap, (assetIn, assetOut, amountSpecified, sqrtPriceLimitX96))
+        );
         delta = abi.decode(data, (BalanceDelta));
     }
 
@@ -73,7 +81,8 @@ contract PoolGate is IUnlockCallback, CommonBase {
             liquidityDelta: liquidity.signed(),
             salt: salt
         });
-        bytes memory data = UNI_V4.unlock(abi.encodeCall(this.__addLiquidity, (asset0, asset1, msg.sender, params)));
+        bytes memory data =
+            UNI_V4.unlock(abi.encodeCall(this.__addLiquidity, (asset0, asset1, msg.sender, params)));
         BalanceDelta delta = abi.decode(data, (BalanceDelta));
         amount0 = uint128(-delta.amount0());
         amount1 = uint128(-delta.amount1());
@@ -93,7 +102,9 @@ contract PoolGate is IUnlockCallback, CommonBase {
             liquidityDelta: liquidity.neg(),
             salt: salt
         });
-        bytes memory data = UNI_V4.unlock(abi.encodeCall(this.__removeLiquidity, (asset0, asset1, msg.sender, params)));
+        bytes memory data = UNI_V4.unlock(
+            abi.encodeCall(this.__removeLiquidity, (asset0, asset1, msg.sender, params))
+        );
         BalanceDelta delta = abi.decode(data, (BalanceDelta));
         amount0 = uint128(delta.amount0());
         amount1 = uint128(delta.amount1());
@@ -121,15 +132,19 @@ contract PoolGate is IUnlockCallback, CommonBase {
         return retData;
     }
 
-    function __swap(address assetIn, address assetOut, int256 amountSpecified, uint160 sqrtPriceLimitX96)
-        public
-        returns (BalanceDelta swapDelta)
-    {
+    function __swap(
+        address assetIn,
+        address assetOut,
+        int256 amountSpecified,
+        uint160 sqrtPriceLimitX96
+    ) public returns (BalanceDelta swapDelta) {
         bool zeroForOne = assetIn < assetOut;
         PoolKey memory key = zeroForOne
             ? hook.toPoolKey(assetIn, assetOut, _tickSpacing)
             : hook.toPoolKey(assetOut, assetIn, _tickSpacing);
-        swapDelta = UNI_V4.swap(key, IPoolManager.SwapParams(zeroForOne, amountSpecified, sqrtPriceLimitX96), "");
+        swapDelta = UNI_V4.swap(
+            key, IPoolManager.SwapParams(zeroForOne, amountSpecified, sqrtPriceLimitX96), ""
+        );
         _clearDelta(Currency.unwrap(key.currency0), swapDelta.amount0());
         _clearDelta(Currency.unwrap(key.currency1), swapDelta.amount1());
     }
@@ -153,7 +168,10 @@ contract PoolGate is IUnlockCallback, CommonBase {
         BalanceDelta feeDelta;
         (callerDelta, feeDelta) = UNI_V4.modifyLiquidity(poolKey, params, "");
         require(feeDelta.amount0() == 0 && feeDelta.amount1() == 0, "Getting fees?");
-        require(callerDelta.amount0() <= 0 && callerDelta.amount1() <= 0, "getting tokens for adding liquidity");
+        require(
+            callerDelta.amount0() <= 0 && callerDelta.amount1() <= 0,
+            "getting tokens for adding liquidity"
+        );
         _clear(asset0, asset1, callerDelta);
         vm.stopPrank();
     }
@@ -172,7 +190,8 @@ contract PoolGate is IUnlockCallback, CommonBase {
         bytes32 delta1Slot = keccak256(abi.encode(sender, asset1));
         bytes32 rawDelta0 = UNI_V4.exttload(delta0Slot);
         bytes32 rawDelta1 = UNI_V4.exttload(delta1Slot);
-        delta = delta + toBalanceDelta(int128(int256(uint256(rawDelta0))), int128(int256(uint256(rawDelta1))));
+        delta = delta
+            + toBalanceDelta(int128(int256(uint256(rawDelta0))), int128(int256(uint256(rawDelta1))));
 
         require(delta.amount0() >= 0 && delta.amount1() >= 0, "losing money for removing liquidity");
         _clear(asset0, asset1, delta);

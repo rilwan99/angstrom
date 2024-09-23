@@ -129,7 +129,10 @@ contract BaseTest is Test {
         }
     }
 
-    function sign(Account memory account, OrderMeta memory targetMeta, bytes32 hash) internal pure {
+    function sign(Account memory account, OrderMeta memory targetMeta, bytes32 hash)
+        internal
+        pure
+    {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(account.key, hash);
         targetMeta.isEcdsa = true;
         targetMeta.from = account.addr;

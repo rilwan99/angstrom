@@ -31,7 +31,11 @@ library PairLib {
     uint256 internal constant INDEX_B_OFFSET = 2;
     uint256 internal constant PRICE_AB_OFFSET = 4;
 
-    function readFromAndValidate(CalldataReader reader) internal pure returns (CalldataReader, PairArray) {
+    function readFromAndValidate(CalldataReader reader)
+        internal
+        pure
+        returns (CalldataReader, PairArray)
+    {
         uint256 packed;
         (reader, packed) = StructArrayLib.readPackedFrom(reader, PAIR_BYTES);
         return (reader, PairArray.wrap(packed)._validated());
@@ -84,7 +88,12 @@ library PairLib {
         priceAB_ = self.into().readU256MemberFromPtr(PRICE_AB_OFFSET);
     }
 
-    function decodeAndLookupPair(PairArray self, CalldataReader reader, AssetArray assets, bool aToB)
+    function decodeAndLookupPair(
+        PairArray self,
+        CalldataReader reader,
+        AssetArray assets,
+        bool aToB
+    )
         internal
         pure
         returns (CalldataReader, address assetIn, address assetOut, uint256 priceOutVsIn)
@@ -97,7 +106,8 @@ library PairLib {
         address assetA = assets.get(pair.indexA()).addr();
         address assetB = assets.get(pair.indexB()).addr();
 
-        (assetIn, assetOut, priceOutVsIn) = aToB ? (assetA, assetB, pAB.invRay()) : (assetB, assetA, pAB);
+        (assetIn, assetOut, priceOutVsIn) =
+            aToB ? (assetA, assetB, pAB.invRay()) : (assetB, assetA, pAB);
 
         return (reader, assetIn, assetOut, priceOutVsIn);
     }
