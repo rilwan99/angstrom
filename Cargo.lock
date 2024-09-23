@@ -5778,6 +5778,7 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "bitvec",
+ "bytes",
 ]
 
 [[package]]
