@@ -63,6 +63,9 @@ contract PoolUpdateManagerTest is BaseTest, HookDeployer {
         angstrom = ExtAngstrom(angstromAddr);
         id = PoolIdLibrary.toId(poolKey());
 
+        vm.prank(gov);
+        angstrom.configurePool(address(asset0), address(asset1), uint16(uint24(TICK_SPACING)), 0);
+
         gate.setHook(angstromAddr);
         gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick());
 

@@ -30,10 +30,15 @@ library PairLib {
         if (pair.assetB <= pair.assetA) revert PairAssetsWrong(pair);
     }
 
-    function encode(Pair memory self, Asset[] memory assets) internal pure returns (bytes memory) {
+    function encode(Pair memory self, Asset[] memory assets)
+        internal
+        pure
+        returns (bytes memory b)
+    {
         self._checkOrdered();
         (uint16 indexA, uint16 indexB) = assets.getIndexPair(self.assetA, self.assetB);
-        return bytes.concat(bytes2(indexA), bytes2(indexB), bytes32(self.priceAB.into()));
+        b = bytes.concat(bytes2(indexA), bytes2(indexB), bytes32(self.priceAB.into()));
+        require(b.length == ActualPairLib.PAIR_CD_BYTES);
     }
 
     function encode(Pair[] memory pairs, Asset[] memory assets)

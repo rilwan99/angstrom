@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {OrderVariantMap} from "./OrderVariantMap.sol";
-
 import {console} from "forge-std/console.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 import {LibString} from "solady/src/utils/LibString.sol";
@@ -146,18 +144,6 @@ library CalldataReaderLib {
             self := add(self, 32)
         }
         return (self, value);
-    }
-
-    function readVariant(CalldataReader self)
-        internal
-        pure
-        returns (CalldataReader, OrderVariantMap variant)
-    {
-        assembly {
-            variant := shr(248, calldataload(self))
-            self := add(self, 1)
-        }
-        return (self, variant);
     }
 
     function readU24End(CalldataReader self)

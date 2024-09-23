@@ -26,8 +26,9 @@ abstract contract HookManager is UniConsumer, NodeManager, IBeforeInitializeHook
         onlyUniV4
         returns (bytes4)
     {
-        bytes32 fullKey =
-            PoolConfigsLib.getFullKeyUnchecked(Currency.unwrap(poolKey.currency0), Currency.unwrap(poolKey.currency1));
+        bytes32 fullKey = PoolConfigsLib.getFullKeyUnchecked(
+            Currency.unwrap(poolKey.currency0), Currency.unwrap(poolKey.currency1)
+        );
         int24 tickSpacing = configs.get(fullKey).tickSpacing;
         if (poolKey.tickSpacing != tickSpacing || poolKey.fee != POOL_FEE) revert InvalidPoolKey();
         return this.beforeInitialize.selector;

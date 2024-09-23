@@ -352,7 +352,7 @@ contract UserOrderExecution is BaseTest, HookDeployer {
         v.b.assets.sort();
         v.b.pairs.sort();
 
-        bytes memory payload = v.b.encode();
+        bytes memory payload = v.b.encode(angstrom.configStore());
 
         uint256 zeros;
         uint256 nonZeros;

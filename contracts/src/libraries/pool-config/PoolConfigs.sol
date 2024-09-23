@@ -145,13 +145,13 @@ library PoolConfigsLib {
         if (newStore == address(0)) revert FailedToDeployNewStore();
     }
 
-    function getWithCache(
+    function getWithStore(
         PoolConfigs storage configs,
-        PoolConfigStore cache,
+        PoolConfigStore store,
         bytes32 fullKey,
         uint256 relativeIndex
     ) internal view returns (int24 tickSpacing, uint24 feeInE6) {
-        if (cache.isNull()) {
+        if (store.isNull()) {
             PoolConfig storage config = configs.get(fullKey);
             tickSpacing = config.tickSpacing;
             // If config was never set `feeInE6` will be the default 0.
@@ -159,7 +159,7 @@ library PoolConfigsLib {
         } else {
             // `entry` will be empty if the index was out of bounds or the key did not match the fetched entry.
             ConfigEntry entry =
-                cache.getOrDefaultEmpty(PartialKeyLib.toPartialKey(fullKey), relativeIndex);
+                store.getOrDefaultEmpty(PartialKeyLib.toPartialKey(fullKey), relativeIndex);
             tickSpacing = entry.tickSpacing();
             // Will default to 0 if the entry is empty.
             feeInE6 = entry.feeInE6();

@@ -23,8 +23,16 @@ contract ExtAngstrom is Angstrom {
         _angstromReserves[to][asset] += amount;
     }
 
+    function lastBlockUpdated() public view returns (uint64) {
+        return _lastBlockUpdated;
+    }
+
+    function configStore() public view returns (address) {
+        return _configStore;
+    }
+
     function updateLastBlock() public {
-        lastBlockUpdated = SafeCastLib.toUint64(block.number);
+        _lastBlockUpdated = SafeCastLib.toUint64(block.number);
     }
 
     function isNode(address addr) public view returns (bool) {

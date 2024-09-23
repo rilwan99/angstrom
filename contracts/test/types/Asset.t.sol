@@ -5,7 +5,6 @@ import {Test} from "forge-std/Test.sol";
 import {Asset as RefAsset, AssetLib as RefAssetLib} from "../../src/reference/Asset.sol";
 import {CalldataReader, CalldataReaderLib} from "../../src/types/CalldataReader.sol";
 import {Asset, AssetArray, AssetLib} from "../../src/types/Asset.sol";
-import {StructArrayLib} from "../../src/libraries/StructArrayLib.sol";
 
 import {console} from "forge-std/console.sol";
 
@@ -28,7 +27,7 @@ contract AssetTest is Test {
     }
 
     function test_fuzzing_sortedArrayIsAccepted(RefAsset[] memory assets) public view {
-        vm.assume(assets.length <= type(uint24).max / AssetLib.ASSET_BYTES);
+        vm.assume(assets.length <= type(uint24).max / AssetLib.ASSET_CD_BYTES);
         assets.sort();
         vm.assume(_uniqueAndOrdered(assets));
         bytes memory data = assets.encode();
@@ -53,7 +52,7 @@ contract AssetTest is Test {
     }
 
     function test_fuzzing_revertsOutOfBoundAccess(RefAsset[] memory assets, uint256 index) public {
-        vm.assume(assets.length <= type(uint24).max / AssetLib.ASSET_BYTES);
+        vm.assume(assets.length <= type(uint24).max / AssetLib.ASSET_CD_BYTES);
         assets.sort();
         vm.assume(_uniqueAndOrdered(assets));
         index = bound(index, assets.length, type(uint256).max);
@@ -66,7 +65,7 @@ contract AssetTest is Test {
         (, AssetArray encodedAssets) = AssetLib.readFromAndValidate(reader);
         vm.expectRevert(
             abi.encodeWithSelector(
-                StructArrayLib.OutOfBoundRead.selector, index, encodedAssets.len()
+                AssetLib.AssetAccessOutOfBounds.selector, index, encodedAssets.len()
             )
         );
         encodedAssets.get(index);
@@ -103,7 +102,7 @@ contract AssetTest is Test {
         uint256 duplicateFromIndex,
         uint256 duplicateToIndex
     ) public {
-        vm.assume(assets.length <= type(uint24).max / AssetLib.ASSET_BYTES);
+        vm.assume(assets.length <= type(uint24).max / AssetLib.ASSET_CD_BYTES);
         vm.assume(assets.length >= 2);
         assets.sort();
         vm.assume(_uniqueAndOrdered(assets));

@@ -216,15 +216,16 @@ contract PoolRewardsHandler is BaseTest {
             uint128[] memory quantities = new uint128[](1);
 
             poolUpdate.rewardUpdate = RewardsUpdate({
-                below: true,
+                onlyCurrent: false,
                 startTick: currentTick + 1,
                 startLiquidity: liquidity,
                 quantities: quantities
             });
         }
 
+        address store = angstrom.configStore();
         vm.prank(rewarder.addr);
-        bytes memory encoded = bundle.encode();
+        bytes memory encoded = bundle.encode(store);
         angstrom.execute(encoded);
     }
 
@@ -264,8 +265,9 @@ contract PoolRewardsHandler is BaseTest {
             poolUpdate.rewardUpdate = rewardUpdates[i];
         }
 
+        address store = angstrom.configStore();
         vm.prank(rewarder.addr);
-        bytes memory encoded = bundle.encode();
+        bytes memory encoded = bundle.encode(store);
         angstrom.execute(encoded);
     }
 
