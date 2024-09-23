@@ -131,7 +131,7 @@ library PoolConfigsLib {
                 }
             }
             // Increase `totalEntryBytes` by 0x20 if we broke in the loop.
-            totalEntryBytes := add(totalEntryBytes, shl(5, lt(entryOffset, entriesEnd)))
+            totalEntryBytes := add(totalEntryBytes, shl(5, eq(entryOffset, entriesEnd)))
             // Add deployment code to the front and deploy
             mstore(free, STORE_DEPLOYER)
             newStore :=
