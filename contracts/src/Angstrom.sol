@@ -20,10 +20,10 @@ import {OrderVariantMap} from "./types/OrderVariantMap.sol";
 import {HookBuffer, HookBufferLib} from "./types/HookBuffer.sol";
 import {CalldataReader, CalldataReaderLib} from "./types/CalldataReader.sol";
 import {SignatureLib} from "./libraries/SignatureLib.sol";
-import {PoolConfigStoreCache, PoolConfigStoreCacheLib} from "./libraries/pool-config/PoolConfigStoreCache.sol";
 import {
     PriceAB as PriceOutVsIn, AmountA as AmountOut, AmountB as AmountIn
 } from "./types/Price.sol";
+import {PoolConfigStore} from "./libraries/pool-config/PoolConfigStore.sol";
 
 import {RayMathLib} from "./libraries/RayMathLib.sol";
 
@@ -65,7 +65,7 @@ contract Angstrom is
     {
         CalldataReader reader = CalldataReaderLib.from(data);
 
-        PoolConfigStoreCache cache;
+        PoolConfigStore cache;
         {
             uint16 entryOffset;
             (reader, entryOffset) = reader.readU16();
