@@ -44,25 +44,39 @@ library PoolRewardsLib {
         return growthInside = self.globalGrowth - lowerGrowth - upperGrowth;
     }
 
-    function updateAfterTickMove(PoolRewards storage self, PoolId id, IPoolManager uniV4, int24 prevTick, int24 newTick)
-        internal
-    {
-        prevTick = prevTick.normalize();
-        newTick = newTick.normalize();
+    function updateAfterTickMove(
+        PoolRewards storage self,
+        PoolId id,
+        IPoolManager uniV4,
+        int24 prevTick,
+        int24 newTick,
+        int24 tickSpacing
+    ) internal {
+        prevTick = prevTick.normalize(tickSpacing);
+        newTick = newTick.normalize(tickSpacing);
         if (newTick > prevTick) {
-            _updateTickMoveUp(self, uniV4, id, prevTick, newTick);
+            if (newTick.normalize(tickSpacing) > prevTick) {
+                _updateTickMoveUp(self, uniV4, id, prevTick, newTick, tickSpacing);
+            }
         } else if (newTick < prevTick) {
-            _updateTickMoveDown(self, uniV4, id, prevTick, newTick);
+            if (newTick < prevTick.normalize(tickSpacing)) {
+                _updateTickMoveDown(self, uniV4, id, prevTick, newTick, tickSpacing);
+            }
         }
     }
 
-    function _updateTickMoveUp(PoolRewards storage self, IPoolManager uniV4, PoolId id, int24 tick, int24 newTick)
-        private
-    {
+    function _updateTickMoveUp(
+        PoolRewards storage self,
+        IPoolManager uniV4,
+        PoolId id,
+        int24 tick,
+        int24 newTick,
+        int24 tickSpacing
+    ) private {
         uint256 globalGrowth = self.globalGrowth;
         do {
             bool initialized;
-            (initialized, tick) = uniV4.getNextTickGt(id, tick);
+            (initialized, tick) = uniV4.getNextTickGt(id, tick, tickSpacing);
 
             if (tick <= newTick && initialized) {
                 self.rewardGrowthOutside[uint24(tick)] = globalGrowth - self.rewardGrowthOutside[uint24(tick)];
@@ -70,14 +84,19 @@ library PoolRewardsLib {
         } while (tick < newTick);
     }
 
-    function _updateTickMoveDown(PoolRewards storage self, IPoolManager uniV4, PoolId id, int24 tick, int24 newTick)
-        private
-    {
+    function _updateTickMoveDown(
+        PoolRewards storage self,
+        IPoolManager uniV4,
+        PoolId id,
+        int24 tick,
+        int24 newTick,
+        int24 tickSpacing
+    ) private {
         uint256 globalGrowth = self.globalGrowth;
 
         while (true) {
             bool initialized;
-            (initialized, tick) = uniV4.getNextTickLe(id, tick);
+            (initialized, tick) = uniV4.getNextTickLe(id, tick, tickSpacing);
 
             if (newTick < tick) {
                 if (initialized) {

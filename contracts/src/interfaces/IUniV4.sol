@@ -148,39 +148,43 @@ library IUniV4 {
         delta = int256(uint256(value));
     }
 
-    function isInitialized(IPoolManager self, PoolId id, int24 tick) internal view returns (bool initialized) {
-        (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick) - 1);
+    function isInitialized(IPoolManager self, PoolId id, int24 tick, int24 tickSpacing)
+        internal
+        view
+        returns (bool initialized)
+    {
+        (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick, tickSpacing) - 1);
         initialized = self.getPoolBitmapInfo(id, wordPos).isInitialized(bitPos);
     }
 
     /// @dev Gets the next tick down such that `tick ∉ [nextTick; nextTick + TICK_SPACING)`
-    function getNextTickLt(IPoolManager self, PoolId id, int24 tick)
+    function getNextTickLt(IPoolManager self, PoolId id, int24 tick, int24 tickSpacing)
         internal
         view
         returns (bool initialized, int24 nextTick)
     {
-        (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick) - 1);
+        (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick, tickSpacing) - 1);
         (initialized, bitPos) = self.getPoolBitmapInfo(id, wordPos).nextBitPosLte(bitPos);
-        nextTick = TickLib.toTick(wordPos, bitPos);
+        nextTick = TickLib.toTick(wordPos, bitPos, tickSpacing);
     }
 
-    function getNextTickLe(IPoolManager self, PoolId id, int24 tick)
+    function getNextTickLe(IPoolManager self, PoolId id, int24 tick, int24 tickSpacing)
         internal
         view
         returns (bool initialized, int24 nextTick)
     {
-        (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick));
+        (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick, tickSpacing));
         (initialized, bitPos) = self.getPoolBitmapInfo(id, wordPos).nextBitPosLte(bitPos);
-        nextTick = TickLib.toTick(wordPos, bitPos);
+        nextTick = TickLib.toTick(wordPos, bitPos, tickSpacing);
     }
 
-    function getNextTickGt(IPoolManager self, PoolId id, int24 tick)
+    function getNextTickGt(IPoolManager self, PoolId id, int24 tick, int24 tickSpacing)
         internal
         view
         returns (bool initialized, int24 nextTick)
     {
-        (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick) + 1);
+        (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick, tickSpacing) + 1);
         (initialized, bitPos) = self.getPoolBitmapInfo(id, wordPos).nextBitPosGte(bitPos);
-        nextTick = TickLib.toTick(wordPos, bitPos);
+        nextTick = TickLib.toTick(wordPos, bitPos, tickSpacing);
     }
 }

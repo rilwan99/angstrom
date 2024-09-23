@@ -5,10 +5,13 @@ import {CalldataReader, CalldataReaderLib} from "../../src/types/CalldataReader.
 import {Asset, AssetArray, AssetLib} from "../../src/types/Asset.sol";
 import {PoolUpdateManager} from "../../src/modules/PoolUpdateManager.sol";
 import {SettlementManager} from "../../src/modules/SettlementManager.sol";
+import {NodeManager} from "src/modules/NodeManager.sol";
 import {UniConsumer} from "../../src/modules/UniConsumer.sol";
 import {PoolId} from "v4-core/src/types/PoolId.sol";
-import {TICK_SPACING, POOL_FEE} from "../../src/Constants.sol";
+import {POOL_FEE} from "../../src/Constants.sol";
 import {IUniV4, IPoolManager} from "../../src/interfaces/IUniV4.sol";
+
+import {PoolConfigStoreCacheLib} from "src/libraries/pool-config/PoolConfigStoreCache.sol";
 
 import {console} from "forge-std/console.sol";
 
@@ -16,7 +19,7 @@ import {console} from "forge-std/console.sol";
 contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager {
     using IUniV4 for IPoolManager;
 
-    constructor(address uniV4PoolManager) UniConsumer(uniV4PoolManager) {
+    constructor(address uniV4PoolManager, address controller) UniConsumer(uniV4PoolManager) NodeManager(controller) {
         console.log("rewards manager deployed");
     }
 
@@ -27,26 +30,25 @@ contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager
         AssetArray assets;
         (reader, assets) = AssetLib.readFromAndValidate(reader);
 
-        reader = _updatePool(reader, tBundleDeltas, assets);
+        reader = _updatePool(reader, tBundleDeltas, PoolConfigStoreCacheLib.NULL_CONFIG_CACHE, assets);
 
         reader.requireAtEndOf(encoded);
     }
 
-    function updateAfterTickMove(PoolId id, int24 lastTick, int24 newTick) external {
-        poolRewards[id].updateAfterTickMove(id, UNI_V4, lastTick, newTick);
+    function updateAfterTickMove(PoolId id, int24 lastTick, int24 newTick, int24 tickSpacing) external {
+        poolRewards[id].updateAfterTickMove(id, UNI_V4, lastTick, newTick, tickSpacing);
     }
 
-    function consts() external pure returns (int24 tickSpacing, uint24 poolFee) {
-        tickSpacing = TICK_SPACING;
+    function consts() external pure returns (uint24 poolFee) {
         poolFee = POOL_FEE;
     }
 
-    function getGrowthInsideTick(PoolId id, int24 tick) public view returns (uint256) {
+    function getGrowthInsideTick(PoolId id, int24 tick, int24 tickSpacing) public view returns (uint256) {
         _checkTickReal(id, tick, "tick");
         bool initialized;
         int24 nextTickUp;
         do {
-            (initialized, nextTickUp) = _findNextTickUp(id, tick);
+            (initialized, nextTickUp) = _findNextTickUp(id, tick, tickSpacing);
         } while (!initialized);
         _checkTickReal(id, nextTickUp, "nextTickUp");
         return poolRewards[id].getGrowthInside(_getCurrentTick(id), tick, nextTickUp);
@@ -59,7 +61,6 @@ contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager
     }
 
     function _checkTickReal(PoolId id, int24 tick, string memory name) internal view {
-        require(tick % TICK_SPACING == 0, string.concat(name, " not from regular spacing"));
         (uint256 grossLiquidity,) = UNI_V4.getTickLiquidity(id, tick);
         require(grossLiquidity > 0, string.concat(name, " not initialized"));
     }

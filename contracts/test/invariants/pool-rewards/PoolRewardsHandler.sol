@@ -5,7 +5,6 @@ import {BaseTest} from "test/_helpers/BaseTest.sol";
 import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {PRNG} from "super-sol/collections/PRNG.sol";
 import {MockERC20} from "super-sol/mocks/MockERC20.sol";
-import {TICK_SPACING} from "src/Constants.sol";
 import {ExtAngstrom} from "../../_view-ext/ExtAngstrom.sol";
 import {UniV4Inspector} from "test/_view-ext/UniV4Inspector.sol";
 import {PoolGate} from "test/_helpers/PoolGate.sol";
@@ -26,6 +25,8 @@ import {TopOfBlockOrder} from "src/reference/OrderTypes.sol";
 
 import {EnumerableSetLib} from "solady/src/utils/EnumerableSetLib.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
+
+int24 constant TICK_SPACING = 60;
 
 /// @author philogy <https://github.com/philogy>
 contract PoolRewardsHandler is BaseTest {
@@ -239,7 +240,7 @@ contract PoolRewardsHandler is BaseTest {
             _ghost_tickRewards.push(reward);
         }
 
-        RewardsUpdate[] memory rewardUpdates = rewards.toUpdates(uniV4, id);
+        RewardsUpdate[] memory rewardUpdates = rewards.toUpdates(uniV4, id, TICK_SPACING);
         Bundle memory bundle = _newBundle(total, 0);
         bundle.poolUpdates = new PoolUpdate[](rewardUpdates.length);
 

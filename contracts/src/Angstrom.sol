@@ -21,6 +21,7 @@ import {HookBuffer, HookBufferLib} from "./types/HookBuffer.sol";
 import {CalldataReader, CalldataReaderLib} from "./types/CalldataReader.sol";
 import {SignatureLib} from "./libraries/SignatureLib.sol";
 import {PriceAB as PriceOutVsIn, AmountA as AmountOut, AmountB as AmountIn} from "./types/Price.sol";
+import {PoolConfigStoreCache, PoolConfigStoreCacheLib} from "./libraries/pool-config/PoolConfigStoreCache.sol";
 
 import {RayMathLib} from "./libraries/RayMathLib.sol";
 
@@ -33,9 +34,9 @@ contract Angstrom is
     ERC712,
     InvalidationManager,
     SettlementManager,
-    PoolUpdateManager,
     NodeManager,
     HookManager,
+    PoolUpdateManager,
     IUnlockCallback
 {
     using RayMathLib for uint256;
@@ -54,13 +55,21 @@ contract Angstrom is
     function unlockCallback(bytes calldata data) external override onlyUniV4 returns (bytes memory) {
         CalldataReader reader = CalldataReaderLib.from(data);
 
+        PoolConfigStoreCache cache;
+        {
+            uint16 entryOffset;
+            (reader, entryOffset) = reader.readU16();
+            uint16 totalEntries;
+            (reader, totalEntries) = reader.readU16();
+            cache = PoolConfigStoreCacheLib.cacheStore(configStore, entryOffset, totalEntries);
+        }
         AssetArray assets;
         (reader, assets) = AssetLib.readFromAndValidate(reader);
         PairArray pairs;
         (reader, pairs) = PairLib.readFromAndValidate(reader);
 
         _takeAssets(assets);
-        reader = _updatePools(reader, tBundleDeltas, assets);
+        reader = _updatePools(reader, tBundleDeltas, cache, assets);
         reader = _validateAndExecuteToBOrders(reader, assets);
         reader = _validateAndExecuteUserOrders(reader, assets, pairs);
         _saveAndSettle(assets);
@@ -189,7 +198,8 @@ contract Angstrom is
 
         AmountIn amountIn;
         AmountOut amountOut;
-        (reader, amountIn, amountOut) = buffer.loadAndComputeQuantity(reader, variant, price, halfSpreadRay);
+        // TODO: Fee
+        (reader, amountIn, amountOut) = buffer.loadAndComputeQuantity(reader, variant, price, 0);
 
         bytes32 orderHash = buffer.hash712(variant, typedHasher);
 

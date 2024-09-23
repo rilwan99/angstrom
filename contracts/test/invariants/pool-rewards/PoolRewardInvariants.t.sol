@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {BaseTest} from "test/_helpers/BaseTest.sol";
-import {TICK_SPACING, POOL_FEE, ANGSTROM_HOOK_FLAGS} from "src/Constants.sol";
+import {POOL_FEE, ANGSTROM_HOOK_FLAGS} from "src/Constants.sol";
 import {PoolRewardsHandler} from "./PoolRewardsHandler.sol";
 
 import {PoolGate} from "test/_helpers/PoolGate.sol";
@@ -22,6 +22,8 @@ import {HookDeployer} from "test/_helpers/HookDeployer.sol";
 
 import {console} from "forge-std/console.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
+
+int24 constant TICK_SPACING = 60;
 
 /// @author philogy <https://github.com/philogy>
 contract PoolRewardsInvariantTest is BaseTest, HookDeployer {
@@ -52,7 +54,7 @@ contract PoolRewardsInvariantTest is BaseTest, HookDeployer {
         gate = new PoolGate(address(uniV4));
 
         int24 startTick = 0;
-        refId = PoolIdLibrary.toId(address(0).toPoolKey(address(asset0), address(asset1)));
+        refId = PoolIdLibrary.toId(address(0).toPoolKey(address(asset0), address(asset1), TICK_SPACING));
         gate.setHook(address(0));
         gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick());
 
@@ -357,6 +359,6 @@ contract PoolRewardsInvariantTest is BaseTest, HookDeployer {
     }
 
     function poolKey() internal view returns (PoolKey memory) {
-        return ConversionLib.toPoolKey(address(angstrom), address(asset0), address(asset1));
+        return ConversionLib.toPoolKey(address(angstrom), address(asset0), address(asset1), TICK_SPACING);
     }
 }

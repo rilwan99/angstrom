@@ -7,6 +7,7 @@ import {Asset, AssetLib} from "./Asset.sol";
 struct PoolUpdate {
     address assetIn;
     address assetOut;
+    uint16 poolCacheRelativeIndex;
     uint128 amountIn;
     RewardsUpdate rewardUpdate;
 }
@@ -35,7 +36,13 @@ library PoolUpdateLib {
 
     function encode(PoolUpdate memory self, Asset[] memory assets) internal pure returns (bytes memory) {
         (uint16 indexA, uint16 indexB) = assets.getIndexPair({assetA: self.assetIn, assetB: self.assetOut});
-        return bytes.concat(bytes2(indexA), bytes2(indexB), bytes16(self.amountIn), self.rewardUpdate.encode());
+        return bytes.concat(
+            bytes2(indexA),
+            bytes2(indexB),
+            bytes2(self.poolCacheRelativeIndex),
+            bytes16(self.amountIn),
+            self.rewardUpdate.encode()
+        );
     }
 
     function encode(RewardsUpdate memory self) internal pure returns (bytes memory) {

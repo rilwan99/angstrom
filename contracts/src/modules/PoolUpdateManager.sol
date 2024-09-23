@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {RewardsUpdater} from "./RewardsUpdater.sol";
 import {UniConsumer} from "./UniConsumer.sol";
 import {SettlementManager} from "./SettlementManager.sol";
+import {NodeManager} from "./NodeManager.sol";
 import {IBeforeAddLiquidityHook, IBeforeRemoveLiquidityHook} from "../interfaces/IHooks.sol";
 
 import {DeltaTracker} from "../types/DeltaTracker.sol";
@@ -11,6 +12,8 @@ import {AssetArray} from "../types/Asset.sol";
 import {CalldataReader} from "../types/CalldataReader.sol";
 import {PoolRewards} from "../types/PoolRewards.sol";
 import {Positions, Position} from "src/libraries/Positions.sol";
+import {PoolConfigsLib} from "../libraries/pool-config/PoolConfigs.sol";
+import {PoolConfigStoreCache} from "../libraries/pool-config/PoolConfigStoreCache.sol";
 
 import {SignedUnsignedLib} from "super-sol/libraries/SignedUnsignedLib.sol";
 import {IUniV4} from "../interfaces/IUniV4.sol";
@@ -35,6 +38,7 @@ abstract contract PoolUpdateManager is
     RewardsUpdater,
     UniConsumer,
     SettlementManager,
+    NodeManager,
     IBeforeAddLiquidityHook,
     IBeforeRemoveLiquidityHook
 {
@@ -129,26 +133,31 @@ abstract contract PoolUpdateManager is
         return this.beforeRemoveLiquidity.selector;
     }
 
-    function _updatePools(CalldataReader reader, DeltaTracker storage deltas, AssetArray assets)
-        internal
-        returns (CalldataReader)
-    {
+    function _updatePools(
+        CalldataReader reader,
+        DeltaTracker storage deltas,
+        PoolConfigStoreCache configCache,
+        AssetArray assets
+    ) internal returns (CalldataReader) {
         CalldataReader end;
         (reader, end) = reader.readU24End();
         while (reader != end) {
-            reader = _updatePool(reader, deltas, assets);
+            reader = _updatePool(reader, deltas, configCache, assets);
         }
 
         return reader;
     }
 
-    function _updatePool(CalldataReader reader, DeltaTracker storage deltas, AssetArray assets)
-        internal
-        returns (CalldataReader)
-    {
+    function _updatePool(
+        CalldataReader reader,
+        DeltaTracker storage deltas,
+        PoolConfigStoreCache configCache,
+        AssetArray assets
+    ) internal returns (CalldataReader) {
         address asset0;
         address asset1;
         bool zeroForOne;
+        int24 tickSpacing;
         {
             uint16 assetIndex;
             (reader, assetIndex) = reader.readU16();
@@ -157,8 +166,12 @@ abstract contract PoolUpdateManager is
             address assetOut = assets.get(assetIndex).addr();
             zeroForOne = assetIn < assetOut;
             (asset0, asset1) = zeroForOne ? (assetIn, assetOut) : (assetOut, assetIn);
+            bytes32 fullKey = PoolConfigsLib.getFullKeyUnchecked(asset0, asset1);
+            uint16 relativeIndex;
+            (reader, relativeIndex) = reader.readU16();
+            (tickSpacing,) = configs.getWithCache(configCache, fullKey, relativeIndex);
         }
-        PoolKey memory poolKey = ConversionLib.toPoolKey(address(this), asset0, asset1);
+        PoolKey memory poolKey = ConversionLib.toPoolKey(address(this), asset0, asset1, tickSpacing);
         PoolId id = PoolIdLibrary.toId(poolKey);
 
         uint256 amountIn;
@@ -177,11 +190,11 @@ abstract contract PoolUpdateManager is
             );
             int24 tickAfter = UNI_V4.getSlot0(id).tick();
 
-            poolRewards[id].updateAfterTickMove(id, UNI_V4, tickBefore, tickAfter);
+            poolRewards[id].updateAfterTickMove(id, UNI_V4, tickBefore, tickAfter, tickSpacing);
         }
 
         uint256 rewardTotal;
-        (reader, rewardTotal) = _decodeAndReward(reader, poolRewards[id], id);
+        (reader, rewardTotal) = _decodeAndReward(reader, poolRewards[id], id, tickSpacing);
         deltas.sub(asset0, rewardTotal);
 
         return reader;

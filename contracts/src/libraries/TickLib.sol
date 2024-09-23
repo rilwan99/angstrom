@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import {LibBit} from "solady/src/utils/LibBit.sol";
-import {TICK_SPACING} from "../Constants.sol";
 
 /// @author philogy <https://github.com/philogy>
 /// @custom:mounted int24, uint256
@@ -31,14 +30,14 @@ library TickLib {
         }
     }
 
-    function compress(int24 tick) internal pure returns (int24 compressed) {
+    function compress(int24 tick, int24 tickSpacing) internal pure returns (int24 compressed) {
         assembly {
-            compressed := sub(sdiv(tick, TICK_SPACING), slt(smod(tick, TICK_SPACING), 0))
+            compressed := sub(sdiv(tick, tickSpacing), slt(smod(tick, tickSpacing), 0))
         }
     }
 
-    function normalize(int24 tick) internal pure returns (int24) {
-        return TickLib.compress(tick) * TICK_SPACING;
+    function normalize(int24 tick, int24 tickSpacing) internal pure returns (int24) {
+        return TickLib.compress(tick, tickSpacing) * tickSpacing;
     }
 
     function position(int24 compressed) internal pure returns (int16 wordPos, uint8 bitPos) {
@@ -48,7 +47,7 @@ library TickLib {
         }
     }
 
-    function toTick(int16 wordPos, uint8 bitPos) internal pure returns (int24) {
-        return (int24(wordPos) * 256 + int24(uint24(bitPos))) * TICK_SPACING;
+    function toTick(int16 wordPos, uint8 bitPos, int24 tickSpacing) internal pure returns (int24) {
+        return (int24(wordPos) * 256 + int24(uint24(bitPos))) * tickSpacing;
     }
 }

@@ -6,7 +6,6 @@ import {RewardLib, TickReward} from "../RewardLib.sol";
 import {PoolManager} from "v4-core/src/PoolManager.sol";
 import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {TickLib} from "src/libraries/TickLib.sol";
-import {TICK_SPACING} from "src/Constants.sol";
 import {SuperConversionLib} from "super-sol/libraries/SuperConversionLib.sol";
 import {RewardsUpdate} from "../../../src/reference/PoolUpdate.sol";
 
@@ -14,6 +13,8 @@ import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 import {console} from "forge-std/console.sol";
 
 PoolId constant id = PoolId.wrap(0);
+
+int24 constant TICK_SPACING = 60;
 
 contract FakeUni is PoolManager {
     using FormatLib for *;
@@ -23,7 +24,7 @@ contract FakeUni is PoolManager {
 
     function setCurrentTick(int24 tick) public {
         _pools[id].slot0 = _pools[id].slot0.setTick(tick);
-        _pools[id].liquidity = tickLiq[tick.normalize()];
+        _pools[id].liquidity = tickLiq[tick.normalize(TICK_SPACING)];
     }
 
     function liq() public view returns (uint128) {
@@ -35,8 +36,6 @@ contract FakeUni is PoolManager {
         _initialize(upperTick);
         _pools[id].ticks[lowerTick].liquidityNet += int128(liquidity);
         _pools[id].ticks[upperTick].liquidityNet -= int128(liquidity);
-        console.log("  %s net: %s", lowerTick.toStr(), _pools[id].ticks[lowerTick].liquidityNet.toStr());
-        console.log("  %s net: %s", upperTick.toStr(), _pools[id].ticks[upperTick].liquidityNet.toStr());
         int24 tick = _pools[id].slot0.tick();
 
         if (lowerTick <= tick && tick < upperTick) {
@@ -49,7 +48,7 @@ contract FakeUni is PoolManager {
     }
 
     function _initialize(int24 tick) internal {
-        (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick));
+        (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick, TICK_SPACING));
         _pools[id].tickBitmap[wordPos] |= (1 << uint256(bitPos));
     }
 }
@@ -196,7 +195,7 @@ contract RewardLibTest is BaseTest {
     }
 
     function assertCreatesUpdates(TickReward[] memory r, RewardsUpdate memory expected) internal view {
-        RewardsUpdate[] memory updates = RewardLib.toUpdates(r, uni, id);
+        RewardsUpdate[] memory updates = RewardLib.toUpdates(r, uni, id, TICK_SPACING);
         assertEq(updates.length, 1, "Expected update");
         RewardsUpdate memory update = updates[0];
         assertEq(update.below, expected.below, "below: given != expected");
