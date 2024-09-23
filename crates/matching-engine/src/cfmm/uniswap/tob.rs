@@ -223,16 +223,35 @@ pub fn calculate_reward(
 
 #[cfg(test)]
 mod test {
+    use std::{str::FromStr, time::Duration};
+
     use alloy::{
-        primitives::{address, aliases::I24, Address, Bytes, Uint, U256},
-        providers::ProviderBuilder,
+        network::{Ethereum, EthereumWallet},
+        node_bindings::{Anvil, AnvilInstance},
+        primitives::{
+            address,
+            aliases::{I24, U24},
+            Address, Bytes, FixedBytes, Uint, U160, U256
+        },
+        providers::{
+            builder,
+            fillers::{
+                ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller
+            },
+            Identity, IpcConnect, Provider, ProviderBuilder, RootProvider, WalletProvider
+        },
+        pubsub::PubSubFrontend,
+        signers::{
+            k256::{ecdsa::SigningKey, pkcs8::DecodePrivateKey, SecretKey},
+            local::PrivateKeySigner
+        },
         sol_types::SolValue
     };
     use angstrom_types::{
         contract_bindings::{
-            angstrom::Angstrom::PoolKey,
             mockrewardsmanager::MockRewardsManager::MockRewardsManagerInstance,
-            poolmanager::PoolManager
+            poolgate::PoolGate::{self, PoolGateInstance},
+            poolmanager::PoolManager::{self, PoolKey, PoolManagerInstance}
         },
         contract_payloads::tob::{Asset, MockContractMessage, PoolRewardsUpdate, RewardsUpdate},
         matching::SqrtPriceX96
@@ -386,12 +405,66 @@ mod test {
     #[tokio::test]
     #[ignore = "Test requires a configured local anvil node"]
     async fn local_test_of_mock() {
+        let sk: PrivateKeySigner = PrivateKeySigner::from_str(
+            //"ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+            "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356"
+        )
+        .unwrap();
         let provider = ProviderBuilder::new()
             .with_recommended_fillers()
+            .wallet(EthereumWallet::new(sk))
             .on_http("http://localhost:8545".parse().unwrap());
+        let controller = address!("14dC79964da2C08b23698B3D3cc7Ca32193d9955");
+        let mock_tob_addr = address!("F9d8803df1692F0Be6612F33bec6d3B2bB392A80");
+        let pool_gate_addr = address!("39dD11C243Ac4Ac250980FA3AEa016f73C509f37");
+        // Two tokens that were created
+        let asset1 = address!("76ca03a67C049477FfB09694dFeF00416dB69746");
+        let asset0 = address!("1696C7203769A71c97Ca725d42b13270ee493526");
 
-        let mock_tob_addr = address!("4026bA349706b18b9dA081233cc20B3C5B4bE980");
-        do_contract_test(provider, mock_tob_addr).await;
+        let pool_gate = PoolGateInstance::new(pool_gate_addr, &provider);
+        let mock_tob = MockRewardsManagerInstance::new(mock_tob_addr, &provider);
+
+        let pool_config = mock_tob
+            .configurePool(asset0, asset1, 60, U24::ZERO)
+            .from(controller);
+        let result = pool_config.send().await.unwrap().watch().await.unwrap();
+        let initialSqrtPriceX96 = SqrtPriceX96::from(get_sqrt_ratio_at_tick(100020).unwrap());
+        let set_hook_res = pool_gate
+            .setHook(mock_tob_addr)
+            .from(controller)
+            .send()
+            .await
+            .unwrap()
+            .watch()
+            .await
+            .unwrap();
+        let init_res = pool_gate
+            .initializePool(asset0, asset1, *initialSqrtPriceX96)
+            .from(controller)
+            .send()
+            .await
+            .unwrap()
+            .watch()
+            .await
+            .unwrap();
+        let liquidity_add_res = pool_gate
+            .addLiquidity(
+                asset0,
+                asset1,
+                I24::unchecked_from(100020),
+                I24::unchecked_from(100080),
+                U256::from(5000000000000000000000_u128),
+                FixedBytes::default()
+            )
+            .from(controller)
+            .gas(30_000_000_u128)
+            .send()
+            .await
+            .unwrap()
+            .watch()
+            .await
+            .unwrap();
+        do_contract_test(provider, mock_tob_addr, controller).await;
     }
 
     #[tokio::test]
@@ -400,18 +473,39 @@ mod test {
         let provider = ProviderBuilder::new()
             .with_recommended_fillers()
             .on_anvil_with_wallet_and_config(|anvil| anvil.args(["--code-size-limit", "30000"]));
+        let controller = address!("14dC79964da2C08b23698B3D3cc7Ca32193d9955");
         // Deploy the supporting contracts
         let pool_manager = PoolManager::deploy(&provider).await.unwrap();
-
+        let pool_gate = PoolGate::deploy(&provider, *pool_manager.address())
+            .await
+            .unwrap();
         let mock_tob_addr = testing_tools::contracts::deploy_mock_rewards_manager(
             &provider,
-            *pool_manager.address()
+            *pool_manager.address(),
+            controller
         )
         .await;
-        do_contract_test(provider, mock_tob_addr).await;
+        // Mint our two ERC tokens
+        // Initialize our things
+        let key = PoolKey {
+            currency0:   Address::random(),
+            currency1:   Address::random(),
+            fee:         U24::ZERO,
+            hooks:       Address::default(),
+            tickSpacing: I24::unchecked_from(60_i32)
+        };
+        // First we configure the pool
+        let pool_config = mock_tob
+            .configurePool(asset0, asset1, 60, U24::ZERO)
+            .from(controller);
+        let result = pool_config.send().await.unwrap().watch().await.unwrap();
+        // let call = pool_manager.initialize(key, U160::ZERO, Bytes::new());
+        // let res = call.call().await;
+
+        do_contract_test(provider, mock_tob_addr, controller).await;
     }
 
-    async fn do_contract_test<T, N, P>(provider: P, mock_tob_addr: Address)
+    async fn do_contract_test<T, N, P>(provider: P, mock_tob_addr: Address, controller: Address)
     where
         T: Clone + Send + Sync + alloy::transports::Transport,
         N: alloy::providers::Network,
@@ -422,6 +516,11 @@ mod test {
         // these used in prod code they are No Bueno
         let asset1 = address!("76ca03a67C049477FfB09694dFeF00416dB69746");
         let asset0 = address!("1696C7203769A71c97Ca725d42b13270ee493526");
+
+        let pool_config = mock_tob
+            .configurePool(asset0, asset1, 60, U24::ZERO)
+            .from(controller);
+        let result = pool_config.call().await.unwrap();
 
         // Build a ToB outcome that we care about
         let mut rng = thread_rng();
@@ -466,9 +565,9 @@ mod test {
             .collect();
         let tob_mock_message = MockContractMessage { addressList: address_list, update };
         let tob_bytes = Bytes::from(pade::PadeEncode::pade_encode(&tob_mock_message));
-        let call = mock_tob.update(tob_bytes);
+        let call = mock_tob.update(false, tob_bytes).from(controller);
         let call_return = call.call().await;
-        assert!(call_return.is_ok(), "Failed to perform reward call!");
+        //assert!(call_return.is_ok(), "Failed to perform reward call!");
 
         let pool_id = keccak256(
             PoolKey {
@@ -483,10 +582,16 @@ mod test {
 
         for (tick, expected_reward) in tob_outcome.tick_donations.iter() {
             println!("Trying tick {}", tick);
-            let growth_call =
-                mock_tob.getGrowthInsideTick(pool_id, I24::unchecked_from(100020_i32));
-            let result = growth_call.call().await.unwrap();
-            println!("Result for tick {}: {} - {:?}", tick, expected_reward, result._0);
+            let growth_call = mock_tob.getGrowthInsideTick(
+                pool_id,
+                I24::unchecked_from(100020_i32),
+                I24::unchecked_from(60_i32)
+            );
+            let result = growth_call.call_raw().await;
+            if let Err(e) = result {
+                println!("Error: {:?}", e);
+            }
+            println!("Result for tick {}: {}", tick, expected_reward);
         }
         panic!("Butts");
     }

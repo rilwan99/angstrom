@@ -34,6 +34,7 @@ contract MockRewardsManagerScript is Test, Script, HookDeployer {
         assertTrue(suc);
 
         console.log("mockRewardsAddr: %s", mockRewardsAddr);
+        console.log("controllerAddr: %s", vm.addr(key));
 
         vm.stopBroadcast();
     }

@@ -46,7 +46,8 @@ pub async fn deploy_mock_rewards_manager<
     N: alloy::contract::private::Network
 >(
     provider: &P,
-    pool_manager: Address
+    pool_manager: Address,
+    controller: Address
 ) -> Address
 where {
     // Setup our flags and mask
@@ -54,12 +55,13 @@ where {
     let before_swap = U160::from(1_u8) << 7;
     let before_initialize = U160::from(1_u8) << 13;
     let before_add_liquidity = U160::from(1_u8) << 11;
+    let before_remove_liquidity = U160::from(1_u8) << 9;
     let after_remove_liquidity = U160::from(1_u8) << 8;
 
-    let flags = before_swap | before_initialize | before_add_liquidity | after_remove_liquidity;
+    let flags = before_swap | before_initialize | before_add_liquidity | before_remove_liquidity;
     let mask: U160 = (U160::from(1_u8) << 14) - U160::from(1_u8);
 
-    let mock_builder = MockRewardsManager::deploy_builder(&provider, pool_manager);
+    let mock_builder = MockRewardsManager::deploy_builder(&provider, pool_manager, controller);
     let (mock_tob, salt) = mine_address(flags, mask, mock_builder.calldata());
     let final_mock_initcode = [salt.abi_encode(), mock_builder.calldata().to_vec()].concat();
     let raw_deploy = RawCallBuilder::new_raw_deploy(&provider, final_mock_initcode.into());

@@ -29,7 +29,7 @@ contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager
         UniConsumer(uniV4PoolManager)
         NodeManager(controller)
     {
-        console.log("rewards manager deployed");
+        console.log("rewards manager deployed with controller address %s", controller);
     }
 
     /// @param encoded PADE `(List<Asset>, List<Pair>, PoolUpdate)`.
@@ -62,6 +62,7 @@ contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager
         view
         returns (uint256)
     {
+        console.log("getGrowthInsideTick has been called");
         _checkTickReal(id, tick, "tick");
         bool initialized;
         int24 nextTickUp;
