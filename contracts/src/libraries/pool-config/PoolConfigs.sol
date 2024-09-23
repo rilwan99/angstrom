@@ -3,22 +3,22 @@ pragma solidity ^0.8.0;
 
 import {POOL_CONFIG_STORAGE_PREFIX} from "src/Constants.sol";
 import {
-    PoolConfigEntry,
-    PoolConfigEntryLib,
+    ConfigEntry,
+    ConfigEntryLib,
     ENTRY_SIZE,
     KEY_MASK,
     TICK_SPACING_OFFSET,
     TICK_SPACING_MASK,
     FEE_OFFSET,
     FEE_MASK
-} from "./PoolConfigEntry.sol";
+} from "./ConfigEntry.sol";
 import {PartialKey, PartialKeyLib} from "./PartialKey.sol";
 import {
-    PoolConfigStoreCache,
-    PoolConfigStoreCacheLib,
+    PoolConfigStore,
+    PoolConfigStoreLib,
     MEMORY_OFFSET_OFFSET,
     STORE_HEADER_SIZE
-} from "./PoolConfigStoreCache.sol";
+} from "./PoolConfigStore.sol";
 
 struct PoolConfig {
     int24 tickSpacing;
@@ -42,9 +42,9 @@ library PoolConfigsLib {
 
     /*
      * @dev Generated from ./StoreDeployer.huff using https://github.com/Philogy/py-huff (commit: 44bbb4b)
-     *  PC   Op Bytes   Instruction   Stack (Top -> Down)          Comment
+     *  PC   OP BYTES   INSTRUCTION   STACK (Top -> Down)          COMMENT
      * ----------------------------------------------------------------------------------------------
-     * CONSTRUCTOR CODE
+     * Constructor Code
      *   0   600b       PUSH1 11      [11]                         Push constructor size
      *   2   38         CODESIZE      [codesize, 11]               Sum of all bytes including runtime
      *   3   03         SUB           [run_size]                   Subtracting to compute the runtime size
@@ -56,7 +56,7 @@ library PoolConfigsLib {
      *   9   5f         PUSH0         [0, run_size]
      *  10   f3         RETURN        []                           Return runtime from memory as final code
      *                                                             (`runtime = memory[0:runsize]`)
-     * RUNTIME CODE
+     * Runtime Code
      *   0   00         STOP          []                           Stop execution. Ensure that even if
      *                                                             called the store contract cannot do
      *                                                             anything like SELFDESTRUCTing itself.
@@ -147,7 +147,7 @@ library PoolConfigsLib {
 
     function getWithCache(
         PoolConfigs storage configs,
-        PoolConfigStoreCache cache,
+        PoolConfigStore cache,
         bytes32 fullKey,
         uint256 relativeIndex
     ) internal view returns (int24 tickSpacing, uint24 feeInE6) {
@@ -158,7 +158,8 @@ library PoolConfigsLib {
             feeInE6 = config.feeInE6;
         } else {
             // `entry` will be empty if the index was out of bounds or the key did not match the fetched entry.
-            PoolConfigEntry entry = cache.getOrDefaultEmpty(PartialKeyLib.toPartialKey(fullKey), relativeIndex);
+            ConfigEntry entry =
+                cache.getOrDefaultEmpty(PartialKeyLib.toPartialKey(fullKey), relativeIndex);
             tickSpacing = entry.tickSpacing();
             // Will default to 0 if the entry is empty.
             feeInE6 = entry.feeInE6();

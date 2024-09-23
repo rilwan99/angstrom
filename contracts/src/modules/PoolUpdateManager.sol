@@ -13,7 +13,7 @@ import {CalldataReader} from "../types/CalldataReader.sol";
 import {PoolRewards} from "../types/PoolRewards.sol";
 import {Positions, Position} from "src/libraries/Positions.sol";
 import {PoolConfigsLib} from "../libraries/pool-config/PoolConfigs.sol";
-import {PoolConfigStoreCache} from "../libraries/pool-config/PoolConfigStoreCache.sol";
+import {PoolConfigStore} from "../libraries/pool-config/PoolConfigStore.sol";
 
 import {SignedUnsignedLib} from "super-sol/libraries/SignedUnsignedLib.sol";
 import {IUniV4} from "../interfaces/IUniV4.sol";
@@ -138,7 +138,7 @@ abstract contract PoolUpdateManager is
     function _updatePools(
         CalldataReader reader,
         DeltaTracker storage deltas,
-        PoolConfigStoreCache configCache,
+        PoolConfigStore configCache,
         AssetArray assets
     ) internal returns (CalldataReader) {
         CalldataReader end;
@@ -153,7 +153,7 @@ abstract contract PoolUpdateManager is
     function _updatePool(
         CalldataReader reader,
         DeltaTracker storage deltas,
-        PoolConfigStoreCache configCache,
+        PoolConfigStore configCache,
         AssetArray assets
     ) internal returns (CalldataReader) {
         address asset0;
