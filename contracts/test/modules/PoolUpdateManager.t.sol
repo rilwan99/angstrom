@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {BaseTest} from "test/_helpers/BaseTest.sol";
 import {PoolRewardsHandler} from "../invariants/pool-rewards/PoolRewardsHandler.sol";
-import {TICK_SPACING, POOL_FEE, ANGSTROM_HOOK_FLAGS} from "src/Constants.sol";
+import {POOL_FEE, ANGSTROM_HOOK_FLAGS} from "src/Constants.sol";
 
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
@@ -19,6 +19,8 @@ import {Position} from "v4-core/src/libraries/Position.sol";
 
 import {TickReward, RewardLib} from "test/_helpers/RewardLib.sol";
 import {console} from "forge-std/console.sol";
+
+int24 constant TICK_SPACING = 60;
 
 /// @author philogy <https://github.com/philogy>
 contract PoolUpdateManagerTest is BaseTest, HookDeployer {
@@ -45,7 +47,7 @@ contract PoolUpdateManagerTest is BaseTest, HookDeployer {
         gate = new PoolGate(address(uniV4));
 
         int24 startTick = 0;
-        refId = PoolIdLibrary.toId(ConversionLib.toPoolKey(address(0), address(asset0), address(asset1)));
+        refId = PoolIdLibrary.toId(ConversionLib.toPoolKey(address(0), address(asset0), address(asset1), TICK_SPACING));
         gate.setHook(address(0));
         gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick());
 
@@ -167,7 +169,7 @@ contract PoolUpdateManagerTest is BaseTest, HookDeployer {
     }
 
     function poolKey() internal view returns (PoolKey memory) {
-        return ConversionLib.toPoolKey(address(angstrom), address(asset0), address(asset1));
+        return ConversionLib.toPoolKey(address(angstrom), address(asset0), address(asset1), TICK_SPACING);
     }
 
     function re(TickReward memory reward) internal pure returns (TickReward[] memory r) {

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.26;
 
+import {PoolConfigs, PoolConfigsLib} from "../libraries/pool-config/PoolConfigs.sol";
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 
 /// @author philogy <https://github.com/philogy>
@@ -8,13 +9,15 @@ abstract contract NodeManager {
     error NotController();
     error OnlyOncePerBlock();
     error NotNode();
+    error AssetsUnsorted();
 
     address internal immutable _CONTROLLER;
 
     mapping(address => bool) internal _isNode;
 
+    PoolConfigs configs;
     uint64 public lastBlockUpdated;
-    uint96 public halfSpreadRay;
+    address internal configStore;
 
     constructor(address controller) {
         _CONTROLLER = controller;
@@ -25,8 +28,14 @@ abstract contract NodeManager {
         _;
     }
 
-    function govUpdateHalfSpread(uint96 newHalfSpreadRay) external onlyController {
-        halfSpreadRay = newHalfSpreadRay;
+    /// @dev Allow controller to set parameters of a given pool.
+    function configurePool(address asset0, address asset1, uint16 tickSpacing, uint24 feeInE6)
+        external
+        onlyController
+    {
+        if (asset1 >= asset0) revert AssetsUnsorted();
+        bytes32 fullKey = PoolConfigsLib.getFullKeyUnchecked(asset0, asset1);
+        configStore = configs.setConfig(configStore, fullKey, tickSpacing, feeInE6);
     }
 
     function govToggleNodes(address[] calldata nodes) external onlyController {

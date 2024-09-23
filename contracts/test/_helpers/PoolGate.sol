@@ -31,12 +31,18 @@ contract PoolGate is IUnlockCallback, CommonBase {
     IPoolManager internal immutable UNI_V4;
     address public hook;
 
+    int24 internal _tickSpacing = 60;
+
     constructor(address uniV4) {
         UNI_V4 = IPoolManager(uniV4);
     }
 
     function setHook(address hook_) external {
         hook = hook_;
+    }
+
+    function tickSpacing(int24 spacing) external {
+        _tickSpacing = spacing;
     }
 
     function initializePool(address asset0, address asset1, uint160 initialSqrtPriceX96) public returns (int24 tick) {
@@ -102,7 +108,7 @@ contract PoolGate is IUnlockCallback, CommonBase {
     }
 
     function isInitialized(address asset0, address asset1) public view returns (bool) {
-        PoolKey memory poolKey = hook.toPoolKey(asset0, asset1);
+        PoolKey memory poolKey = hook.toPoolKey(asset0, asset1, _tickSpacing);
         Slot0 slot0 = UNI_V4.getSlot0(poolKey.toId());
         return slot0.sqrtPriceX96() != 0;
     }
@@ -120,7 +126,9 @@ contract PoolGate is IUnlockCallback, CommonBase {
         returns (BalanceDelta swapDelta)
     {
         bool zeroForOne = assetIn < assetOut;
-        PoolKey memory key = zeroForOne ? hook.toPoolKey(assetIn, assetOut) : hook.toPoolKey(assetOut, assetIn);
+        PoolKey memory key = zeroForOne
+            ? hook.toPoolKey(assetIn, assetOut, _tickSpacing)
+            : hook.toPoolKey(assetOut, assetIn, _tickSpacing);
         swapDelta = UNI_V4.swap(key, IPoolManager.SwapParams(zeroForOne, amountSpecified, sqrtPriceLimitX96), "");
         _clearDelta(Currency.unwrap(key.currency0), swapDelta.amount0());
         _clearDelta(Currency.unwrap(key.currency1), swapDelta.amount1());
@@ -130,7 +138,7 @@ contract PoolGate is IUnlockCallback, CommonBase {
         public
         returns (int24 tick)
     {
-        PoolKey memory poolKey = hook.toPoolKey(asset0, asset1);
+        PoolKey memory poolKey = hook.toPoolKey(asset0, asset1, _tickSpacing);
         tick = UNI_V4.initialize(poolKey, initialSqrtPriceX96, "");
     }
 
@@ -140,7 +148,7 @@ contract PoolGate is IUnlockCallback, CommonBase {
         address sender,
         IPoolManager.ModifyLiquidityParams calldata params
     ) public returns (BalanceDelta callerDelta) {
-        PoolKey memory poolKey = hook.toPoolKey(asset0, asset1);
+        PoolKey memory poolKey = hook.toPoolKey(asset0, asset1, _tickSpacing);
         vm.startPrank(sender);
         BalanceDelta feeDelta;
         (callerDelta, feeDelta) = UNI_V4.modifyLiquidity(poolKey, params, "");
@@ -156,7 +164,7 @@ contract PoolGate is IUnlockCallback, CommonBase {
         address sender,
         IPoolManager.ModifyLiquidityParams calldata params
     ) public returns (BalanceDelta delta) {
-        PoolKey memory poolKey = hook.toPoolKey(asset0, asset1);
+        PoolKey memory poolKey = hook.toPoolKey(asset0, asset1, _tickSpacing);
         vm.startPrank(sender);
         (delta,) = UNI_V4.modifyLiquidity(poolKey, params, "");
 
