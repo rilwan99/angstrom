@@ -169,7 +169,7 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         order_hash: &B256,
         deadline: Option<U256>
     ) {
-        let valid_until: u64 = deadline.map_or_else(
+        let valid_until = deadline.map_or_else(
             || {
                 // if no deadline is provided the cancellation request is valid until block
                 // transition
@@ -179,16 +179,13 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
                     .as_secs()
             },
             |deadline| {
+                let bytes: [u8; U256::BYTES] = deadline.to_le_bytes();
                 // should be safe
-                let u256: [u8; U256::BYTES] = deadline.to_le_bytes();
-                let mut buf = [0u8; 8];
-                let len = 8.min(u256.len());
-                buf[..len].copy_from_slice(&u256[..len]);
-                u64::from_le_bytes(buf)
+                u64::from_le_bytes(bytes[..8].try_into().unwrap())
             }
         );
         self.cancelled_orders
-            .insert(order_hash.clone(), CancelOrderRequest { from, valid_until });
+            .insert(*order_hash, CancelOrderRequest { from, valid_until });
     }
 
     fn new_order(
