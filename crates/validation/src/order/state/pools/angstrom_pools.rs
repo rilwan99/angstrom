@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use alloy::primitives::{Address, FixedBytes};
-use angstrom_types::primitive::PoolId;
+use angstrom_types::primitive::{NewInitializedPool, PoolId};
 use dashmap::DashMap;
 
 #[derive(Clone)]
@@ -66,7 +66,8 @@ impl AngstromPools {
     }
 
     pub fn new_pool(&mut self, pool: NewInitializedPool) {
-        self.0
-            .insert(AngstromPools::get_key(pool.currency_in, pool.currency_out), pool.id);
+        let (key, id) = (AngstromPools::build_key(pool.currency_in, pool.currency_out), pool.id.1);
+        self.key_to_id.insert(key, id);
+        self.id_to_key.insert(id, key);
     }
 }

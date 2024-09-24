@@ -1,6 +1,9 @@
 use alloy::primitives::Address;
 use angstrom_pools::AngstromPools;
-use angstrom_types::{primitive::NewInitializedPool, sol_bindings::ext::RawPoolOrder};
+use angstrom_types::{
+    primitive::{NewInitializedPool, PoolId},
+    sol_bindings::ext::RawPoolOrder
+};
 use dashmap::DashMap;
 
 use super::config::ValidationConfig;
@@ -67,7 +70,7 @@ impl PoolsTracker for AngstromPoolsTracker {
 
 #[cfg(test)]
 pub mod pool_tracker_mock {
-    use alloy_primitives::{Address, FixedBytes};
+    use alloy::primitives::{Address, FixedBytes};
     use angstrom_types::primitive::PoolIdWithDirection;
     use dashmap::DashMap;
 
@@ -79,9 +82,9 @@ pub mod pool_tracker_mock {
     }
 
     impl MockPoolTracker {
-        pub fn add_pool(&self, token0: Address, token1: Address, pool: u16) {
-            self.pools.insert((token0, token1), (true, pool as usize));
-            self.pools.insert((token1, token0), (false, pool as usize));
+        pub fn add_pool(&self, token0: Address, token1: Address, pool: PoolId) {
+            self.pools.insert((token0, token1), (true, pool));
+            self.pools.insert((token1, token0), (false, pool));
         }
     }
 

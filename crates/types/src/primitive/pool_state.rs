@@ -22,7 +22,7 @@ impl From<Log<Initialize>> for NewInitializedPool {
             currency_in:  value.currency0,
             currency_out: value.currency1,
             // where is this generated
-            id:           (true, 0)
+            id:           (true, value.id)
         }
     }
 }

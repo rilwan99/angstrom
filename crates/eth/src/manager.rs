@@ -4,7 +4,11 @@ use std::{
     task::{Context, Poll}
 };
 
-use alloy::primitives::{Address, B256};
+use alloy::{
+    primitives::{Address, B256},
+    sol_types::SolEvent
+};
+use angstrom_types::{contract_bindings, primitive::NewInitializedPool};
 use futures::Future;
 use futures_util::{FutureExt, StreamExt};
 use reth_provider::{CanonStateNotification, CanonStateNotifications, Chain, StateProviderFactory};
@@ -137,10 +141,11 @@ where
             .unwrap()
             .iter()
             .flat_map(|receipt| {
-                receipt
-                    .logs
-                    .iter()
-                    .filter_map(|log| Initialize::decode_log(&log, true).map(Into::into).ok())
+                receipt.logs.iter().filter_map(|log| {
+                    contract_bindings::poolmanager::PoolManager::Initialize::decode_log(&log, true)
+                        .map(Into::into)
+                        .ok()
+                })
             })
             .collect::<Vec<_>>()
     }
