@@ -66,16 +66,11 @@ contract Angstrom is
     {
         CalldataReader reader = CalldataReaderLib.from(data);
 
-        PoolConfigStore store;
-        {
-            bool useStore;
-            (reader, useStore) = reader.readBool();
-            if (useStore) store = PoolConfigStore.wrap(_configStore);
-        }
+        PoolConfigStore store = PoolConfigStore.wrap(_configStore);
         AssetArray assets;
         (reader, assets) = AssetLib.readFromAndValidate(reader);
         PairArray pairs;
-        (reader, pairs) = PairLib.readFromAndValidate(reader, assets, configs, store);
+        (reader, pairs) = PairLib.readFromAndValidate(reader, assets, store);
 
         _takeAssets(assets);
         reader = _updatePools(reader, tBundleDeltas, pairs);

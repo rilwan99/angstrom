@@ -4,8 +4,8 @@ pragma solidity ^0.8.13;
 import {CalldataReader} from "./CalldataReader.sol";
 import {AssetArray} from "./Asset.sol";
 import {RayMathLib} from "../libraries/RayMathLib.sol";
-import {PoolConfigs} from "../libraries/pool-config/PoolConfigs.sol";
 import {PoolConfigStore} from "../libraries/pool-config/PoolConfigStore.sol";
+import {PartialKey, PartialKeyLib} from "../libraries/pool-config/PartialKey.sol";
 // TODO: Remove
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 import {console} from "forge-std/console.sol";
@@ -46,12 +46,11 @@ library PairLib {
 
     uint256 internal constant PAIR_CD_BYTES = 38;
 
-    function readFromAndValidate(
-        CalldataReader reader,
-        AssetArray assets,
-        PoolConfigs storage configs,
-        PoolConfigStore store
-    ) internal view returns (CalldataReader, PairArray pairs) {
+    function readFromAndValidate(CalldataReader reader, AssetArray assets, PoolConfigStore store)
+        internal
+        view
+        returns (CalldataReader, PairArray pairs)
+    {
         uint256 raw_memoryOffset;
         uint256 raw_memoryEnd;
 
@@ -100,7 +99,7 @@ library PairLib {
                 (reader, storeIndex) = reader.readU16();
 
                 (int24 tickSpacing, uint24 feeIne6) =
-                    configs.getWithStore(store, fullKey, storeIndex);
+                    store.getAndCheck(PartialKeyLib.toPartialKey(fullKey), storeIndex);
 
                 assembly ("memory-safe") {
                     mstore(add(raw_memoryOffset, PAIR_TICK_SPACING_OFFSET), tickSpacing)
