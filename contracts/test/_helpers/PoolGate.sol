@@ -168,7 +168,7 @@ contract PoolGate is IUnlockCallback, CommonBase {
         IPoolManager.ModifyLiquidityParams calldata params
     ) public returns (BalanceDelta callerDelta) {
         PoolKey memory poolKey = hook.toPoolKey(asset0, asset1, _tickSpacing);
-        vm.startPrank(sender);
+        if (address(vm).code.length > 0) vm.startPrank(sender);
         BalanceDelta feeDelta;
         (callerDelta, feeDelta) = UNI_V4.modifyLiquidity(poolKey, params, "");
         require(feeDelta.amount0() == 0 && feeDelta.amount1() == 0, "Getting fees?");
@@ -177,7 +177,7 @@ contract PoolGate is IUnlockCallback, CommonBase {
             "getting tokens for adding liquidity"
         );
         _clear(asset0, asset1, callerDelta);
-        vm.stopPrank();
+        if (address(vm).code.length > 0) vm.stopPrank();
     }
 
     function __removeLiquidity(
@@ -187,7 +187,7 @@ contract PoolGate is IUnlockCallback, CommonBase {
         IPoolManager.ModifyLiquidityParams calldata params
     ) public returns (BalanceDelta delta) {
         PoolKey memory poolKey = hook.toPoolKey(asset0, asset1, _tickSpacing);
-        vm.startPrank(sender);
+        if (address(vm).code.length > 0) vm.startPrank(sender);
         (delta,) = UNI_V4.modifyLiquidity(poolKey, params, "");
 
         bytes32 delta0Slot = keccak256(abi.encode(sender, asset0));
@@ -200,7 +200,7 @@ contract PoolGate is IUnlockCallback, CommonBase {
         require(delta.amount0() >= 0 && delta.amount1() >= 0, "losing money for removing liquidity");
         _clear(asset0, asset1, delta);
 
-        vm.stopPrank();
+        if (address(vm).code.length > 0) vm.stopPrank();
     }
 
     function __mint(address to, address asset, uint256 amount) public {
