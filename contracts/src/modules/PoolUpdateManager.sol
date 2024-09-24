@@ -158,6 +158,7 @@ abstract contract PoolUpdateManager is
         swapCall.setZeroForOne(variantMap.zeroForOne());
         uint16 pairIndex;
         (reader, pairIndex) = reader.readU16();
+        console.log("pairIndex: %s", pairIndex);
         (swapCall.asset0, swapCall.asset1, swapCall.tickSpacing) =
             pairs.get(pairIndex).getPoolInfo();
 
@@ -165,7 +166,7 @@ abstract contract PoolUpdateManager is
 
         uint256 amountIn;
         (reader, amountIn) = reader.readU128();
-
+        console.log("amountIn: %s", amountIn);
         int24 currentTick;
         if (amountIn > 0) {
             int24 tickBefore = UNI_V4.getSlot0(id).tick();

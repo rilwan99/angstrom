@@ -2644,8 +2644,12 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "angstrom-types",
+ "eyre",
+ "pade",
  "testing-tools",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
  "uniswap_v3_math",
 ]
 
@@ -5790,6 +5794,7 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "bitvec",
+ "pade-macro",
 ]
 
 [[package]]

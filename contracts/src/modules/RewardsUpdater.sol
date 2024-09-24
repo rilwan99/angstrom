@@ -52,8 +52,10 @@ abstract contract RewardsUpdater is UniConsumer {
 
         int24 startTick;
         (reader, startTick) = reader.readI24();
+        console.log("startTick: %s", startTick);
         uint128 liquidity;
         (reader, liquidity) = reader.readU128();
+        console.log("liquidity: %s", liquidity);
         (CalldataReader newReader, CalldataReader amountsEnd) = reader.readU24End();
 
         // Stack too deep shenanigan.
@@ -65,14 +67,18 @@ abstract contract RewardsUpdater is UniConsumer {
             ? _rewardBelow(poolRewards.rewardGrowthOutside, startTick, newReader, liquidity, pool)
             : _rewardAbove(poolRewards.rewardGrowthOutside, startTick, newReader, liquidity, pool);
 
+        console.log("Done rewarding, trying to get reward for current tick");
         uint128 donateToCurrent;
         (newReader, donateToCurrent) = newReader.readU128();
+        console.log("donateToCurrent: %s", donateToCurrent);
         cumulativeGrowth += flatDivWad(donateToCurrent, endLiquidity);
         total += donateToCurrent;
 
         newReader.requireAtEndOf(amountsEnd);
 
         uint128 currentLiquidity = UNI_V4.getPoolLiquidity(pool.id);
+        console.log("currentLiquidity: %s", currentLiquidity);
+        console.log("endLiquidity: %s", endLiquidity);
         if (endLiquidity != currentLiquidity) {
             revert WrongEndLiquidity(endLiquidity, currentLiquidity);
         }
@@ -92,7 +98,7 @@ abstract contract RewardsUpdater is UniConsumer {
         bool initialized = true;
         uint256 total = 0;
         uint256 cumulativeGrowth = 0;
-
+        console.log("in _rewardBelow but we shouldn't be");
         do {
             if (initialized) {
                 uint256 amount;
@@ -121,22 +127,31 @@ abstract contract RewardsUpdater is UniConsumer {
         bool initialized = true;
         uint256 total = 0;
         uint256 cumulativeGrowth = 0;
-
+        console.log("in _rewardAbove");
+        console.log("start liquidity: %s", liquidity);
         do {
+            console.log("Trying to reward tick: %s", rewardTick);
             if (initialized) {
+                console.log("Tick is initialized");
                 uint256 amount;
                 (reader, amount) = reader.readU128();
+                console.log("Got reward amount: %s", amount);
 
                 total += amount;
                 cumulativeGrowth += flatDivWad(amount, liquidity);
                 rewardGrowthOutside[uint24(rewardTick)] += cumulativeGrowth;
 
                 (, int128 netLiquidity) = UNI_V4.getTickLiquidity(pool.id, rewardTick);
+                console.log("netLiquidity: %s", netLiquidity);
                 liquidity = MixedSignLib.sub(liquidity, netLiquidity);
+                console.log("new liquidity: %s", liquidity);
+            } else {
+                console.log("Tick is not initialized");
             }
             (initialized, rewardTick) = UNI_V4.getNextTickLt(pool.id, rewardTick, pool.tickSpacing);
         } while (rewardTick > pool.currentTick);
-
+        console.log("Done rewarding.  Total: %s", total);
+        console.log("Done rewarding.  Final liquidity: %s", liquidity);
         return (reader, total, cumulativeGrowth, liquidity);
     }
 

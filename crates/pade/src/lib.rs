@@ -6,6 +6,11 @@ mod primitives;
 // Re-export bitvec so our macro crate can rely on it
 pub use bitvec;
 
+// Publicly export the PadeEncode macro
+pub mod derive {
+    pub use pade_macro::PadeEncode;
+}
+
 pub struct Sequence<const B: usize, T>(std::marker::PhantomData<T>);
 impl<const B: usize, T> Sequence<B, T> {}
 

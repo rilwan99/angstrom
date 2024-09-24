@@ -62,9 +62,19 @@ where {
     let mask: U160 = (U160::from(1_u8) << 14) - U160::from(1_u8);
 
     let mock_builder = MockRewardsManager::deploy_builder(&provider, pool_manager, controller);
-    let (mock_tob, salt) = mine_address(flags, mask, mock_builder.calldata());
+    let (mock_tob_address, salt) = mine_address(flags, mask, mock_builder.calldata());
     let final_mock_initcode = [salt.abi_encode(), mock_builder.calldata().to_vec()].concat();
-    let raw_deploy = RawCallBuilder::new_raw_deploy(&provider, final_mock_initcode.into());
-    raw_deploy.call_raw().await.unwrap();
-    mock_tob
+    RawCallBuilder::new_raw(&provider, final_mock_initcode.into())
+        .to(CREATE2_FACTORY)
+        .gas(10_000_000_u128)
+        .send()
+        .await
+        .unwrap()
+        .watch()
+        .await
+        .unwrap();
+    // let raw_deploy = RawCallBuilder::new_raw_deploy(&provider,
+    // final_mock_initcode.into()); raw_deploy.send().await.unwrap().watch().
+    // await.unwrap(); raw_deploy.call_raw().await.unwrap();
+    mock_tob_address
 }

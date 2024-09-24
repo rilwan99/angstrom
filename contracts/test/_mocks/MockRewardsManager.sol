@@ -34,17 +34,22 @@ contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager
 
     /// @param encoded PADE `(List<Asset>, List<Pair>, PoolUpdate)`.
     function update(bytes calldata encoded) public {
+        console.log("Update called");
         CalldataReader reader = CalldataReaderLib.from(encoded);
 
         AssetArray assets;
         (reader, assets) = AssetLib.readFromAndValidate(reader);
+        console.log("Assets decoded");
         PairArray pairs;
         (reader, pairs) = PairLib.readFromAndValidate(reader, assets, _configStore);
+        console.log("Pairs decoded");
 
         UniSwapCallBuffer memory swapCall = UniCallLib.newSwapCall(address(this));
         reader = _updatePool(reader, swapCall, tBundleDeltas, pairs);
+        console.log("Pool updated");
 
         reader.requireAtEndOf(encoded);
+        console.log("Turns out we're at the end");
     }
 
     function updateAfterTickMove(PoolId id, int24 lastTick, int24 newTick, int24 tickSpacing)

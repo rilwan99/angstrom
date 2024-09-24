@@ -35,6 +35,11 @@ abstract contract HookManager is UniConsumer, NodeManager, IBeforeInitializeHook
             Currency.unwrap(poolKey.currency0), Currency.unwrap(poolKey.currency1)
         );
         (int24 tickSpacing,) = _configStore.get(key, uint16(bytes2(storeIndexBytes)));
+        console.log("Got pool key");
+        console.log("Comparing key spacing");
+        console.logInt(poolKey.tickSpacing);
+        console.logInt(tickSpacing);
+        console.log("Comparing key fee %s to expected fee %s", poolKey.fee, POOL_FEE);
         if (poolKey.tickSpacing != tickSpacing || poolKey.fee != POOL_FEE) revert InvalidPoolKey();
         return this.beforeInitialize.selector;
     }
