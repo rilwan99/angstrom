@@ -72,7 +72,7 @@ impl SearcherPool {
     pub fn new_pool(&mut self, pool: NewInitializedPool) {
         let old_is_none = self
             .searcher_orders
-            .insert(pool.id.1, PendingPool::new())
+            .insert(pool.id, PendingPool::new())
             .is_none();
         assert!(old_is_none);
     }

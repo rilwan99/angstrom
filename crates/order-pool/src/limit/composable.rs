@@ -48,7 +48,7 @@ impl ComposableLimitPool {
     }
 
     pub fn new_pool(&mut self, pool: NewInitializedPool) {
-        let old_is_none = self.map.insert(pool.id.1, PendingPool::new()).is_none();
+        let old_is_none = self.map.insert(pool.id, PendingPool::new()).is_none();
         assert!(old_is_none);
     }
 }

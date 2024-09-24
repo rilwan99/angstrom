@@ -66,7 +66,7 @@ impl AngstromPools {
     }
 
     pub fn new_pool(&mut self, pool: NewInitializedPool) {
-        let (key, id) = (AngstromPools::build_key(pool.currency_in, pool.currency_out), pool.id.1);
+        let (key, id) = (AngstromPools::build_key(pool.currency_in, pool.currency_out), pool.id);
         self.key_to_id.insert(key, id);
         self.id_to_key.insert(id, key);
     }

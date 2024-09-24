@@ -1,5 +1,6 @@
 use std::{
     collections::HashSet,
+    slice::Iter,
     sync::Arc,
     task::{Context, Poll}
 };
@@ -114,9 +115,7 @@ where
     }
 
     fn handle_new_pools(&mut self, chain: Arc<Chain>) {
-        let pools = Self::get_new_pools(chain);
-        pools
-            .into_iter()
+        Self::get_new_pools(&chain)
             .map(EthEvent::NewPool)
             .for_each(|pool_event| self.send_events(pool_event));
     }
@@ -135,11 +134,11 @@ where
 
     /// gets any newly initialized pools in this block
     /// do we want to use logs here?
-    fn get_new_pools(chain: Arc<Chain>) -> Vec<NewInitializedPool> {
+    fn get_new_pools(chain: &Chain) -> impl Iterator<Item = NewInitializedPool> + '_ {
         chain
             .receipts_by_block_hash(chain.tip().hash())
             .unwrap()
-            .iter()
+            .into_iter()
             .flat_map(|receipt| {
                 receipt.logs.iter().filter_map(|log| {
                     contract_bindings::poolmanager::PoolManager::Initialize::decode_log(&log, true)
@@ -147,7 +146,6 @@ where
                         .ok()
                 })
             })
-            .collect::<Vec<_>>()
     }
 }
 

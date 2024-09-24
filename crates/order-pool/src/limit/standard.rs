@@ -89,13 +89,13 @@ impl LimitPool {
     pub fn new_pool(&mut self, pool: NewInitializedPool) {
         let old_is_none = self
             .pending_orders
-            .insert(pool.id.1, PendingPool::new())
+            .insert(pool.id, PendingPool::new())
             .is_none();
         assert!(old_is_none);
 
         let old_is_none = self
             .parked_orders
-            .insert(pool.id.1, ParkedPool::new())
+            .insert(pool.id, ParkedPool::new())
             .is_none();
         assert!(old_is_none);
     }

@@ -12,17 +12,16 @@ pub type PoolIdWithDirection = (bool, PoolId);
 pub struct NewInitializedPool {
     pub currency_in:  Address,
     pub currency_out: Address,
-    pub id:           PoolIdWithDirection
+    pub id:           PoolId
 }
 
 impl From<Log<Initialize>> for NewInitializedPool {
     fn from(value: Log<Initialize>) -> Self {
-        // tf do the indexes come from
         Self {
             currency_in:  value.currency0,
             currency_out: value.currency1,
-            // where is this generated
-            id:           (true, value.id)
+            // where is this `bool` value generated?
+            id:           value.id
         }
     }
 }

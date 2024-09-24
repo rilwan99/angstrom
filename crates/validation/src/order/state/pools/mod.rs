@@ -71,20 +71,20 @@ impl PoolsTracker for AngstromPoolsTracker {
 #[cfg(test)]
 pub mod pool_tracker_mock {
     use alloy::primitives::{Address, FixedBytes};
-    use angstrom_types::primitive::PoolIdWithDirection;
+    use angstrom_types::primitive::PoolId;
     use dashmap::DashMap;
 
     use super::*;
 
     #[derive(Clone, Default)]
     pub struct MockPoolTracker {
-        pools: DashMap<(Address, Address), PoolIdWithDirection>
+        pools: DashMap<(Address, Address), PoolId>
     }
 
     impl MockPoolTracker {
         pub fn add_pool(&self, token0: Address, token1: Address, pool: PoolId) {
-            self.pools.insert((token0, token1), (true, pool));
-            self.pools.insert((token1, token0), (false, pool));
+            self.pools.insert((token0, token1), pool);
+            self.pools.insert((token1, token0), pool);
         }
     }
 
@@ -93,12 +93,11 @@ pub mod pool_tracker_mock {
             &self,
             order: &O
         ) -> Option<UserOrderPoolInfo> {
-            let binding = self.pools.get(&(order.token_in(), order.token_out()))?;
-            let (is_bid, pool_id) = binding.value();
+            let pool_id = self.pools.get(&(order.token_in(), order.token_out()))?;
 
             let user_info = UserOrderPoolInfo {
                 pool_id: *pool_id,
-                is_bid:  *is_bid,
+                is_bid:  order.token_in() > order.token_out(),
                 token:   order.token_in()
             };
 
