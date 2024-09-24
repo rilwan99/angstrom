@@ -7,13 +7,13 @@ use std::{
 };
 
 use alloy::primitives::{B256, U256};
+use angstrom_types::sol_bindings::RawPoolOrder;
 use angstrom_types::{
     orders::{OrderId, OrderOrigin, OrderSet},
     primitive::PoolId,
     sol_bindings::{
         grouped_orders::{AllOrders, OrderWithStorageData, *},
-        rpc_orders::TopOfBlockOrder,
-        RawPoolOrder
+        rpc_orders::TopOfBlockOrder
     }
 };
 use futures_util::{Stream, StreamExt};
@@ -36,15 +36,14 @@ use crate::{
 const ETH_BLOCK_TIME: Duration = Duration::from_secs(12);
 /// mostly arbitrary
 const SEEN_INVALID_ORDERS_CAPACITY: usize = 10000;
-/// represents the number of blocks for which we consider a cancel request
-/// valid. (again mostly arbitrary)
+/// represents the number of blocks for which we consider a cancel request valid. (again mostly arbitrary)
 const CANCEL_ORDER_REQUEST_VALIDITY: u64 = 7000;
 
 struct CancelOrderRequest {
     /// The address of the entity requesting the cancellation.
-    pub from:      Address,
+    pub from: Address,
     /// unix epoch when the cancellation request was received.
-    pub timestamp: u64
+    pub timestamp: u64,
 }
 
 pub struct OrderIndexer<V: OrderValidatorHandle> {
@@ -131,18 +130,11 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
             return true
         }
 
-        let cancel_order_request = CancelOrderRequest {
-            from,
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs()
-        };
+        let cancel_order_request = CancelOrderRequest { from, timestamp: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() };
         // the cancel arrived before the new order request
         // nothing more needs to be done, since new_order() will return early
         if self.is_missing(&order_hash) {
-            self.cancelled_orders
-                .insert(order_hash, cancel_order_request);
+            self.cancelled_orders.insert(order_hash, cancel_order_request);
             self.notify_order_subscribers(PoolManagerUpdate::CancelledOrder(order_hash));
             return true;
         }
@@ -156,8 +148,7 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         if removed.is_some() {
             self.order_hash_to_order_id.remove(&order_hash);
             self.order_hash_to_peer_id.remove(&order_hash);
-            self.cancelled_orders
-                .insert(order_hash, cancel_order_request);
+            self.cancelled_orders.insert(order_hash, cancel_order_request);
             self.notify_order_subscribers(PoolManagerUpdate::CancelledOrder(order_hash));
         }
 
@@ -172,9 +163,8 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         validation_res_sub: Option<Sender<OrderValidationResults>>
     ) {
         let hash = order.order_hash();
-        let cancel_request = self.cancelled_orders.get(&hash);
-        let is_valid_cancel_request =
-            cancel_request.is_some() && cancel_request.unwrap().from == order.from();
+        let cancel_request  = self.cancelled_orders.get(&hash);
+        let is_valid_cancel_request = cancel_request.is_some() && cancel_request.unwrap().from == order.from();
         if self.is_duplicate(&hash) || is_valid_cancel_request {
             if is_valid_cancel_request {
                 self.order_storage.log_cancel_order(&order);
@@ -447,13 +437,9 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         // add expired orders to completed
         completed_orders.extend(self.remove_expired_orders(block));
 
-        let time_now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let time_now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
         self.cancelled_orders.retain(|_, request| {
-            let valid_until =
-                request.timestamp + CANCEL_ORDER_REQUEST_VALIDITY * ETH_BLOCK_TIME.as_secs();
+            let valid_until = request.timestamp + CANCEL_ORDER_REQUEST_VALIDITY * ETH_BLOCK_TIME.as_secs();
             valid_until >= time_now
         });
         self.validator

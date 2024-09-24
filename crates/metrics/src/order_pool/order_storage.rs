@@ -17,7 +17,7 @@ struct OrderStorageMetrics {
     // number of cancelled composable orders
     cancelled_composable_orders: IntGauge,
     // number of cancelled searcher orders
-    cancelled_searcher_orders:   IntGauge
+    cancelled_searcher_orders:   IntGauge,
 }
 
 impl Default for OrderStorageMetrics {
@@ -71,7 +71,7 @@ impl Default for OrderStorageMetrics {
             composable_limit_orders,
             cancelled_vanilla_orders,
             cancelled_composable_orders,
-            cancelled_searcher_orders
+            cancelled_searcher_orders,
         }
     }
 }

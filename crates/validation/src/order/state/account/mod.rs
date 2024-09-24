@@ -1,10 +1,8 @@
 //! keeps track of account state for orders
 
 use alloy::primitives::{Address, B256};
-use angstrom_types::{
-    orders::OrderId,
-    sol_bindings::{ext::RawPoolOrder, grouped_orders::OrderWithStorageData}
-};
+use angstrom_types::orders::OrderId;
+use angstrom_types::sol_bindings::{ext::RawPoolOrder, grouped_orders::OrderWithStorageData};
 use dashmap::DashSet;
 use thiserror::Error;
 use user::UserAccounts;

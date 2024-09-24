@@ -156,7 +156,11 @@ pub mod test_fetching {
     }
 
     impl StateFetchUtils for MockFetch {
-        fn is_valid_nonce(&self, user: reth_primitives::Address, nonce: u64) -> bool {
+        fn is_valid_nonce(
+            &self,
+            user: reth_primitives::Address,
+            nonce: u64,
+        ) -> bool {
             self.used_nonces
                 .get(&user)
                 .map(|v| !v.value().contains(&nonce))
@@ -172,7 +176,11 @@ pub mod test_fetching {
             todo!("not implemented for mocker")
         }
 
-        fn fetch_approval_balance_for_token(&self, user: Address, token: Address) -> Option<U256> {
+        fn fetch_approval_balance_for_token(
+            &self,
+            user: Address,
+            token: Address,
+        ) -> Option<U256> {
             self.approval_values
                 .get(&user)
                 .and_then(|inner| inner.value().get(&token).cloned())
@@ -187,7 +195,11 @@ pub mod test_fetching {
             todo!("not implemented for mocker")
         }
 
-        fn fetch_balance_for_token(&self, user: Address, token: Address) -> Option<U256> {
+        fn fetch_balance_for_token(
+            &self,
+            user: Address,
+            token: Address,
+        ) -> Option<U256> {
             self.balance_values
                 .get(&user)
                 .and_then(|inner| inner.value().get(&token).cloned())

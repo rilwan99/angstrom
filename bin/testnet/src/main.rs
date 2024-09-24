@@ -1,4 +1,7 @@
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::Arc,
+    time::Duration
+};
 
 use alloy::{primitives::Address, providers::Provider, sol_types::SolValue};
 use angstrom::cli::{initialize_strom_handles, StromHandles};
