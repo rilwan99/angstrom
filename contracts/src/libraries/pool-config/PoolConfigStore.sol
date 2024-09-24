@@ -18,20 +18,23 @@ using PoolConfigStoreLib for PoolConfigStore global;
 library PoolConfigStoreLib {
     PoolConfigStore internal constant NULL_CONFIG_CACHE = PoolConfigStore.wrap(address(0));
 
-    function isNull(PoolConfigStore self) internal pure returns (bool) {
-        return PoolConfigStore.unwrap(self) == PoolConfigStore.unwrap(NULL_CONFIG_CACHE);
-    }
+    error NoEntry();
 
-    function getOrDefaultEmpty(PoolConfigStore self, PartialKey pkey, uint256 index)
+    function getAndCheck(PoolConfigStore self, PartialKey pkey, uint256 index)
         internal
         view
-        returns (ConfigEntry entry)
+        returns (int24 tickSpacing, uint24 feeInE6)
     {
+        ConfigEntry entry;
         assembly {
             // Copy from store into scratch space.
             extcodecopy(self, 0x00, add(STORE_HEADER_SIZE, mul(ENTRY_SIZE, index)), ENTRY_SIZE)
             // Zero out entry if keys do not match.
-            entry := mul(mload(0x00), eq(pkey, and(entry, KEY_MASK)))
+            entry := mload(0x00)
+            entry := mul(entry, eq(pkey, and(entry, KEY_MASK)))
         }
+        if (entry.isEmpty()) revert NoEntry();
+        tickSpacing = entry.tickSpacing();
+        feeInE6 = entry.feeInE6();
     }
 }

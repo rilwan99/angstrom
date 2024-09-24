@@ -6,6 +6,11 @@ import {Asset, AssetLib} from "./Asset.sol";
 import {RayMathLib} from "../libraries/RayMathLib.sol";
 import {PairLib as ActualPairLib} from "../types/Pair.sol";
 import {PriceAB} from "../types/Price.sol";
+import {PoolConfigsLib} from "src/libraries/pool-config/PoolConfigs.sol";
+import {PoolConfigStore} from "src/libraries/pool-config/PoolConfigStore.sol";
+import {ConfigEntry} from "src/libraries/pool-config/ConfigEntry.sol";
+import {PartialKey, PartialKeyLib} from "src/libraries/pool-config/PartialKey.sol";
+import {ENTRY_SIZE} from "src/libraries/pool-config/ConfigEntry.sol";
 
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
@@ -30,24 +35,27 @@ library PairLib {
         if (pair.assetB <= pair.assetA) revert PairAssetsWrong(pair);
     }
 
-    function encode(Pair memory self, Asset[] memory assets)
+    function encode(Pair memory self, Asset[] memory assets, address configStore)
         internal
-        pure
+        view
         returns (bytes memory b)
     {
         self._checkOrdered();
         (uint16 indexA, uint16 indexB) = assets.getIndexPair(self.assetA, self.assetB);
-        b = bytes.concat(bytes2(indexA), bytes2(indexB), bytes32(self.priceAB.into()));
+        uint16 storeIndex = getStoreIndex(configStore, self.assetA, self.assetB);
+        b = bytes.concat(
+            bytes2(indexA), bytes2(indexB), bytes2(storeIndex), bytes32(self.priceAB.into())
+        );
         require(b.length == ActualPairLib.PAIR_CD_BYTES);
     }
 
-    function encode(Pair[] memory pairs, Asset[] memory assets)
+    function encode(Pair[] memory pairs, Asset[] memory assets, address configStore)
         internal
-        pure
+        view
         returns (bytes memory b)
     {
         for (uint256 i = 0; i < pairs.length; i++) {
-            b = bytes.concat(b, pairs[i].encode(assets));
+            b = bytes.concat(b, pairs[i].encode(assets, configStore));
         }
         b = bytes.concat(bytes3(b.length.toUint24()), b);
     }
@@ -86,6 +94,22 @@ library PairLib {
             if (pair.assetA == assetA && pair.assetB == assetB) break;
         }
         require(index < pairs.length, "Pair not found");
+    }
+
+    function getStoreIndex(address store, address assetA, address assetB)
+        internal
+        view
+        returns (uint16 index)
+    {
+        PartialKey pkey =
+            PartialKeyLib.toPartialKey(PoolConfigsLib.getFullKeyUnsorted(assetA, assetB));
+        uint256 totalEntries = store.code.length / ENTRY_SIZE;
+        PoolConfigStore configStore = PoolConfigStore.wrap(store);
+        for (index = 0; index < totalEntries; index++) {
+            (int24 tickSpacing,) = configStore.getAndCheck(pkey, index);
+            if (tickSpacing > 0) return index;
+        }
+        revert("Pool not enabled");
     }
 
     function toStr(Pair memory self) internal pure returns (string memory) {

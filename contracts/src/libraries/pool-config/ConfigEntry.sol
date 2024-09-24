@@ -27,7 +27,7 @@ library ConfigEntryLib {
         }
     }
 
-    function feeInE6(ConfigEntry self) internal pure returns (uint24) {
+    function feeInE6(ConfigEntry self) internal pure returns (uint24 fee) {
         return uint24(ConfigEntry.unwrap(self) >> FEE_OFFSET);
     }
 }

@@ -2,8 +2,7 @@
 pragma solidity ^0.8.13;
 
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
-import {Asset, AssetLib} from "./Asset.sol";
-import {PoolStoreLib} from "./PoolStoreLib.sol";
+import {Pair, PairLib} from "./Pair.sol";
 
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
@@ -29,30 +28,28 @@ using PoolUpdateLib for RewardsUpdate global;
 library PoolUpdateLib {
     using FormatLib for *;
     using SafeCastLib for uint256;
-    using AssetLib for Asset[];
+    using PairLib for Pair[];
 
-    function encode(PoolUpdate[] memory updates, Asset[] memory assets, address configStore)
+    function encode(PoolUpdate[] memory updates, Pair[] memory pairs)
         internal
-        view
+        pure
         returns (bytes memory b)
     {
         for (uint256 i = 0; i < updates.length; i++) {
-            b = bytes.concat(b, updates[i].encode(assets, configStore));
+            b = bytes.concat(b, updates[i].encode(pairs));
         }
         b = bytes.concat(bytes3(b.length.toUint24()), b);
     }
 
-    function encode(PoolUpdate memory self, Asset[] memory assets, address configStore)
+    function encode(PoolUpdate memory self, Pair[] memory pairs)
         internal
-        view
+        pure
         returns (bytes memory)
     {
-        (uint16 indexA, uint16 indexB) =
-            assets.getIndexPair({assetA: self.assetIn, assetB: self.assetOut});
+        (uint16 pairIndex, bool zeroToOne) = pairs.getIndex(self.assetIn, self.assetOut);
         return bytes.concat(
-            bytes2(indexA),
-            bytes2(indexB),
-            bytes2(PoolStoreLib.getStoreIndex(configStore, self.assetIn, self.assetOut)),
+            bytes1(zeroToOne ? 1 : 0),
+            bytes2(pairIndex),
             bytes16(self.amountIn),
             self.rewardUpdate.encode()
         );
