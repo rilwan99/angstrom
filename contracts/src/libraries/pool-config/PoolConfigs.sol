@@ -145,28 +145,6 @@ library PoolConfigsLib {
         if (newStore == address(0)) revert FailedToDeployNewStore();
     }
 
-    function getWithStore(
-        PoolConfigs storage configs,
-        PoolConfigStore store,
-        bytes32 fullKey,
-        uint256 relativeIndex
-    ) internal view returns (int24 tickSpacing, uint24 feeInE6) {
-        if (store.isNull()) {
-            PoolConfig storage config = configs.get(fullKey);
-            tickSpacing = config.tickSpacing;
-            // If config was never set `feeInE6` will be the default 0.
-            feeInE6 = config.feeInE6;
-        } else {
-            // `entry` will be empty if the index was out of bounds or the key did not match the fetched entry.
-            ConfigEntry entry =
-                store.getOrDefaultEmpty(PartialKeyLib.toPartialKey(fullKey), relativeIndex);
-            tickSpacing = entry.tickSpacing();
-            // Will default to 0 if the entry is empty.
-            feeInE6 = entry.feeInE6();
-        }
-        if (tickSpacing <= 0) revert InvalidTickSpacing();
-    }
-
     function get(PoolConfigs storage configs, bytes32 fullKey)
         internal
         pure
