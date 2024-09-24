@@ -211,17 +211,7 @@ contract PoolRewardsHandler is BaseTest {
         poolUpdate.amountIn = zeroForOne ? uint128(-delta.amount0()) : uint128(-delta.amount1());
         bundle.addDeltas(0, 1, delta);
 
-        {
-            (, int24 currentTick,,,,, uint128 liquidity) = uniV4.getPool(refId);
-            uint128[] memory quantities = new uint128[](1);
-
-            poolUpdate.rewardUpdate = RewardsUpdate({
-                onlyCurrent: false,
-                startTick: currentTick + 1,
-                startLiquidity: liquidity,
-                quantities: quantities
-            });
-        }
+        poolUpdate.rewardUpdate.onlyCurrent = true;
 
         address store = angstrom.configStore();
         vm.prank(rewarder.addr);

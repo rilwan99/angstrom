@@ -69,7 +69,6 @@ The `data` payload is the PADE encoding of the following struct:
 
 ```rust
 struct Bundle {
-    use_store: bool,
     assets: List<Asset>,
     pairs: List<Pair>,
     pool_updates: List<PoolUpdate>,
