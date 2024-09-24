@@ -90,13 +90,11 @@ impl LimitPool {
         let old_is_none = self
             .pending_orders
             .insert(pool.id.1, PendingPool::new())
-            .is_none();
-        assert!(old_is_none);
-
-        let old_is_none = self
+            .is_none() || self
             .parked_orders
             .insert(pool.id.1, ParkedPool::new())
             .is_none();
+            
         assert!(old_is_none);
     }
 }
