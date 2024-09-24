@@ -1,9 +1,10 @@
 //! extension functionality to sol types
 use std::fmt;
 
-use crate::orders::OrderLocation;
 use alloy::primitives::{Address, TxHash, U256};
 use serde::{Deserialize, Serialize};
+
+use crate::orders::OrderLocation;
 
 pub mod contract_bundle_ext;
 pub mod grouped_orders;

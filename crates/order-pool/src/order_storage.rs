@@ -1,31 +1,34 @@
-use crate::{
-    finalization_pool::FinalizationPool,
-    limit::{LimitOrderPool, LimitPoolError},
-    searcher::{SearcherPool, SearcherPoolError},
-    PoolConfig
+use std::{
+    collections::HashMap,
+    default::Default,
+    fmt::Debug,
+    sync::{Arc, Mutex},
+    time::Instant
 };
-use alloy::consensus::EnvKzgSettings::Default;
-use alloy::primitives::FixedBytes;
-use alloy::rpc::types::TransactionIndex::All;
+
+use alloy::{
+    consensus::EnvKzgSettings::Default, primitives::FixedBytes, rpc::types::TransactionIndex::All
+};
 use angstrom_metrics::OrderStorageMetricsWrapper;
-use angstrom_types::orders::OrderLocation;
-use angstrom_types::primitive::PoolId;
-use angstrom_types::sol_bindings::grouped_orders::StandingVariants;
 use angstrom_types::{
-    orders::{OrderId, OrderSet},
+    orders::{OrderId, OrderLocation, OrderSet},
+    primitive::PoolId,
     sol_bindings::{
-        grouped_orders::{AllOrders, GroupedUserOrder, GroupedVanillaOrder, OrderWithStorageData},
+        grouped_orders::{
+            AllOrders, GroupedUserOrder, GroupedVanillaOrder, OrderWithStorageData,
+            StandingVariants
+        },
         rpc_orders::TopOfBlockOrder
     }
 };
 use reth_primitives::B256;
 use reth_transaction_pool::maintain::TransactionsBackupError::Pool;
-use std::default::Default;
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    sync::{Arc, Mutex},
-    time::Instant
+
+use crate::{
+    finalization_pool::FinalizationPool,
+    limit::{LimitOrderPool, LimitPoolError},
+    searcher::{SearcherPool, SearcherPoolError},
+    PoolConfig
 };
 
 /// The Storage of all verified orders.
@@ -74,7 +77,7 @@ impl OrderStorage {
         let order_id = OrderId::from_all_orders(order, PoolId::default());
         match order_id.location {
             OrderLocation::Limit => self.metrics.incr_cancelled_vanilla_orders(),
-            OrderLocation::Searcher => self.metrics.incr_cancelled_searcher_orders(),
+            OrderLocation::Searcher => self.metrics.incr_cancelled_searcher_orders()
         }
     }
 
