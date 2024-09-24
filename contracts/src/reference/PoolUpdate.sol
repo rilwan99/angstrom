@@ -5,6 +5,8 @@ import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 import {Asset, AssetLib} from "./Asset.sol";
 import {PoolStoreLib} from "./PoolStoreLib.sol";
 
+import {FormatLib} from "super-sol/libraries/FormatLib.sol";
+
 struct PoolUpdate {
     address assetIn;
     address assetOut;
@@ -14,6 +16,7 @@ struct PoolUpdate {
 
 struct RewardsUpdate {
     bool onlyCurrent;
+    uint128 onlyCurrentQuantity;
     int24 startTick;
     uint128 startLiquidity;
     uint128[] quantities;
@@ -24,6 +27,7 @@ using PoolUpdateLib for RewardsUpdate global;
 
 /// @author philogy <https://github.com/philogy>
 library PoolUpdateLib {
+    using FormatLib for *;
     using SafeCastLib for uint256;
     using AssetLib for Asset[];
 
@@ -56,7 +60,7 @@ library PoolUpdateLib {
 
     function encode(RewardsUpdate memory self) internal pure returns (bytes memory) {
         if (self.onlyCurrent) {
-            return bytes.concat(bytes1(0x01), bytes16(self.quantities[0]));
+            return bytes.concat(bytes1(0x01), bytes16(self.onlyCurrentQuantity));
         }
         bytes memory encodedQuantities;
         for (uint256 i = 0; i < self.quantities.length; i++) {
@@ -70,6 +74,27 @@ library PoolUpdateLib {
             bytes3(uint24(self.startTick)),
             bytes16(self.startLiquidity),
             encodedQuantities
+        );
+    }
+
+    function toStr(RewardsUpdate memory self) internal pure returns (string memory) {
+        if (self.onlyCurrent) {
+            return string.concat(
+                "RewardsUpdate::CurrentOnly { amount: ", self.onlyCurrentQuantity.toStr(), " }"
+            );
+        }
+        string memory quantities = "";
+        for (uint256 i = 0; i < self.quantities.length; i++) {
+            quantities = string.concat(quantities, self.quantities[i].toStr(), ", ");
+        }
+        return string.concat(
+            "RewardsUpdate::MultiTick { start_tick: ",
+            self.startTick.toStr(),
+            ", start_liquidity: ",
+            self.startLiquidity.toStr(),
+            ", quantities: [",
+            quantities,
+            "] }"
         );
     }
 }
