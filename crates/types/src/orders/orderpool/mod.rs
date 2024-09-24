@@ -26,7 +26,7 @@ pub struct OrderId {
 }
 
 impl OrderId {
-    pub fn from_all_orders<T: RawPoolOrder>(order: T, pool_id: PoolId) -> Self {
+    pub fn from_all_orders<T: RawPoolOrder>(order: &T, pool_id: PoolId) -> Self {
         OrderId {
             reuse_avoidance: order.respend_avoidance_strategy(),
             flash_block: order.flash_block(),

@@ -36,15 +36,15 @@ use crate::{
 const ETH_BLOCK_TIME: Duration = Duration::from_secs(12);
 /// mostly arbitrary
 const SEEN_INVALID_ORDERS_CAPACITY: usize = 10000;
-/// represents the number of blocks for which we consider a cancel request
-/// valid. (again mostly arbitrary)
-const CANCEL_ORDER_REQUEST_VALIDITY: u64 = 7000;
+/// represents the maximum number of blocks that we allow for new orders to not
+/// propagate (again mostly arbitrary)
+const MAX_NEW_ORDER_DELAY_PROPAGATION: u64 = 7000;
 
 struct CancelOrderRequest {
     /// The address of the entity requesting the cancellation.
-    pub from:      Address,
-    /// unix epoch when the cancellation request was received.
-    pub timestamp: u64
+    pub from:        Address,
+    // The time until the cancellation request is valid.
+    pub valid_until: u64
 }
 
 pub struct OrderIndexer<V: OrderValidatorHandle> {
@@ -131,18 +131,16 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
             return true
         }
 
-        let cancel_order_request = CancelOrderRequest {
-            from,
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs()
-        };
         // the cancel arrived before the new order request
         // nothing more needs to be done, since new_order() will return early
         if self.is_missing(&order_hash) {
-            self.cancelled_orders
-                .insert(order_hash, cancel_order_request);
+            // optimistically assuming that orders won't take longer than a day to propagate
+            let deadline = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                + MAX_NEW_ORDER_DELAY_PROPAGATION * ETH_BLOCK_TIME.as_secs();
+            self.insert_cancel_request_with_deadline(from, &order_hash, Some(U256::from(deadline)));
             self.notify_order_subscribers(PoolManagerUpdate::CancelledOrder(order_hash));
             return true;
         }
@@ -153,15 +151,44 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         }
 
         let removed = self.order_storage.cancel_order(order_id);
-        if removed.is_some() {
+        let removed_from_storage = removed.is_some();
+        if removed_from_storage {
+            let order = removed.unwrap();
             self.order_hash_to_order_id.remove(&order_hash);
             self.order_hash_to_peer_id.remove(&order_hash);
-            self.cancelled_orders
-                .insert(order_hash, cancel_order_request);
+            self.insert_cancel_request_with_deadline(from, &order_hash, order.deadline());
             self.notify_order_subscribers(PoolManagerUpdate::CancelledOrder(order_hash));
         }
 
-        removed.is_some()
+        removed_from_storage
+    }
+
+    fn insert_cancel_request_with_deadline(
+        &mut self,
+        from: Address,
+        order_hash: &B256,
+        deadline: Option<U256>
+    ) {
+        let valid_until: u64 = deadline.map_or_else(
+            || {
+                // if no deadline is provided the cancellation request is valid until block
+                // transition
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+            },
+            |deadline| {
+                // should be safe
+                let u256: [u8; U256::BYTES] = deadline.to_le_bytes();
+                let mut buf = [0u8; 8];
+                let len = 8.min(u256.len());
+                buf[..len].copy_from_slice(&u256[..len]);
+                u64::from_le_bytes(buf)
+            }
+        );
+        self.cancelled_orders
+            .insert(order_hash.clone(), CancelOrderRequest { from, valid_until });
     }
 
     fn new_order(
@@ -177,6 +204,7 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
             cancel_request.is_some() && cancel_request.unwrap().from == order.from();
         if self.is_duplicate(&hash) || is_valid_cancel_request {
             if is_valid_cancel_request {
+                self.insert_cancel_request_with_deadline(order.from(), &hash, order.deadline());
                 self.order_storage.log_cancel_order(&order);
             }
             self.notify_validation_subscribers(&hash, OrderValidationResults::Invalid(hash));
@@ -451,11 +479,8 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        self.cancelled_orders.retain(|_, request| {
-            let valid_until =
-                request.timestamp + CANCEL_ORDER_REQUEST_VALIDITY * ETH_BLOCK_TIME.as_secs();
-            valid_until >= time_now
-        });
+        self.cancelled_orders
+            .retain(|_, request| request.valid_until >= time_now);
         self.validator
             .notify_validation_on_changes(block, completed_orders, address_changes);
     }

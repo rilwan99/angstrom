@@ -6,9 +6,7 @@ use std::{
     time::Instant
 };
 
-use alloy::{
-    consensus::EnvKzgSettings::Default, primitives::FixedBytes, rpc::types::TransactionIndex::All
-};
+use alloy::primitives::FixedBytes;
 use angstrom_metrics::OrderStorageMetricsWrapper;
 use angstrom_types::{
     orders::{OrderId, OrderLocation, OrderSet},
@@ -22,7 +20,6 @@ use angstrom_types::{
     }
 };
 use reth_primitives::B256;
-use reth_transaction_pool::maintain::TransactionsBackupError::Pool;
 
 use crate::{
     finalization_pool::FinalizationPool,
