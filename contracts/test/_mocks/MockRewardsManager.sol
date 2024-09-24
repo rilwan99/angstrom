@@ -18,9 +18,11 @@ import {IUniV4, IPoolManager} from "../../src/interfaces/IUniV4.sol";
 import {PoolConfigStoreLib} from "src/libraries/pool-config/PoolConfigStore.sol";
 
 import {console} from "forge-std/console.sol";
+import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 /// @author philogy <https://github.com/philogy>
 contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager, HookManager {
+    using FormatLib for *;
     using IUniV4 for IPoolManager;
 
     constructor(address uniV4PoolManager, address controller)
@@ -84,6 +86,6 @@ contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager
 
     function _checkTickReal(PoolId id, int24 tick, string memory name) internal view {
         (uint256 grossLiquidity,) = UNI_V4.getTickLiquidity(id, tick);
-        require(grossLiquidity > 0, string.concat(name, " not initialized"));
+        require(grossLiquidity > 0, string.concat(name, " [", tick.toStr(), "] not initialized"));
     }
 }
