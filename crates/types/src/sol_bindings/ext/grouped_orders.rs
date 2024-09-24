@@ -5,10 +5,9 @@ use reth_primitives::B256;
 use serde::{Deserialize, Serialize};
 
 use super::{RawPoolOrder, RespendAvoidanceMethod};
-use crate::orders::OrderLocation;
 use crate::{
     matching::Ray,
-    orders::{OrderId, OrderPriorityData},
+    orders::{OrderId, OrderLocation, OrderPriorityData},
     primitive::{PoolId, Signature, ANGSTROM_DOMAIN},
     sol_bindings::rpc_orders::{
         ExactFlashOrder, ExactStandingOrder, OmitOrderMeta, PartialFlashOrder,
@@ -837,7 +836,7 @@ impl RawPoolOrder for AllOrders {
         match &self {
             AllOrders::Standing(_) => OrderLocation::Limit,
             AllOrders::Flash(_) => OrderLocation::Limit,
-            AllOrders::TOB(_) => OrderLocation::Searcher,
+            AllOrders::TOB(_) => OrderLocation::Searcher
         }
     }
 }
@@ -923,7 +922,7 @@ impl RawPoolOrder for GroupedVanillaOrder {
     fn order_location(&self) -> OrderLocation {
         match &self {
             GroupedVanillaOrder::Standing(_) => OrderLocation::Limit,
-            GroupedVanillaOrder::KillOrFill(_) => OrderLocation::Limit,
+            GroupedVanillaOrder::KillOrFill(_) => OrderLocation::Limit
         }
     }
 }
@@ -1009,7 +1008,7 @@ impl RawPoolOrder for GroupedComposableOrder {
     fn order_location(&self) -> OrderLocation {
         match &self {
             GroupedComposableOrder::Partial(_) => OrderLocation::Limit,
-            GroupedComposableOrder::KillOrFill(_) => OrderLocation::Limit,
+            GroupedComposableOrder::KillOrFill(_) => OrderLocation::Limit
         }
     }
 }

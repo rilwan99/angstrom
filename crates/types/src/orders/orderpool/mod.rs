@@ -4,8 +4,10 @@ use alloy::primitives::{Address, B256, U256};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::sol_bindings::RawPoolOrder;
-use crate::{primitive::PoolId, sol_bindings::ext::RespendAvoidanceMethod};
+use crate::{
+    primitive::PoolId,
+    sol_bindings::{ext::RespendAvoidanceMethod, RawPoolOrder}
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct OrderId {
@@ -20,19 +22,19 @@ pub struct OrderId {
     pub deadline:        Option<U256>,
     pub flash_block:     Option<u64>,
     /// Order Location
-    pub location:        OrderLocation,
+    pub location:        OrderLocation
 }
 
-impl OrderId { 
-    pub fn from_all_orders<T: RawPoolOrder>(order: T, pool_id: PoolId) -> Self{
-            OrderId {
+impl OrderId {
+    pub fn from_all_orders<T: RawPoolOrder>(order: T, pool_id: PoolId) -> Self {
+        OrderId {
             reuse_avoidance: order.respend_avoidance_strategy(),
-            flash_block:     order.flash_block(),
-            address:         order.from(),
+            flash_block: order.flash_block(),
+            address: order.from(),
             pool_id,
-            hash:            order.order_hash(),
-            deadline:        order.deadline(),
-            location:        order.order_location(),
+            hash: order.order_hash(),
+            deadline: order.deadline(),
+            location: order.order_location()
         }
     }
 }
