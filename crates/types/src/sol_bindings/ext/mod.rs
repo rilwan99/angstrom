@@ -1,6 +1,7 @@
 //! extension functionality to sol types
 use std::fmt;
 
+use crate::orders::OrderLocation;
 use alloy::primitives::{Address, TxHash, U256};
 use serde::{Deserialize, Serialize};
 
@@ -40,6 +41,8 @@ pub trait RawPoolOrder: fmt::Debug + Send + Sync + Clone + Unpin + 'static {
     fn token_out(&self) -> Address;
 
     fn is_valid_signature(&self) -> bool;
+
+    fn order_location(&self) -> OrderLocation;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, Copy)]

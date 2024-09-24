@@ -1,12 +1,16 @@
-use std::{
-    collections::HashMap,
-    fmt::Debug,
-    sync::{Arc, Mutex},
-    time::Instant
+use crate::{
+    finalization_pool::FinalizationPool,
+    limit::{LimitOrderPool, LimitPoolError},
+    searcher::{SearcherPool, SearcherPoolError},
+    PoolConfig
 };
-
+use alloy::consensus::EnvKzgSettings::Default;
 use alloy::primitives::FixedBytes;
+use alloy::rpc::types::TransactionIndex::All;
 use angstrom_metrics::OrderStorageMetricsWrapper;
+use angstrom_types::orders::OrderLocation;
+use angstrom_types::primitive::PoolId;
+use angstrom_types::sol_bindings::grouped_orders::StandingVariants;
 use angstrom_types::{
     orders::{OrderId, OrderSet},
     sol_bindings::{
@@ -15,12 +19,13 @@ use angstrom_types::{
     }
 };
 use reth_primitives::B256;
-
-use crate::{
-    finalization_pool::FinalizationPool,
-    limit::{LimitOrderPool, LimitPoolError},
-    searcher::{SearcherPool, SearcherPoolError},
-    PoolConfig
+use reth_transaction_pool::maintain::TransactionsBackupError::Pool;
+use std::default::Default;
+use std::{
+    collections::HashMap,
+    fmt::Debug,
+    sync::{Arc, Mutex},
+    time::Instant
 };
 
 /// The Storage of all verified orders.
@@ -60,6 +65,16 @@ impl OrderStorage {
             searcher_orders,
             pending_finalization_orders,
             metrics: OrderStorageMetricsWrapper::default()
+        }
+    }
+
+    // unfortunately, any other solution is just as ugly
+    // this needs to be revisited once composable orders are in place
+    pub fn log_cancel_order(&self, order: &AllOrders) {
+        let order_id = OrderId::from_all_orders(order, PoolId::default());
+        match order_id.location {
+            OrderLocation::Limit => self.metrics.incr_cancelled_vanilla_orders(),
+            OrderLocation::Searcher => self.metrics.incr_cancelled_searcher_orders(),
         }
     }
 
