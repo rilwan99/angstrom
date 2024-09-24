@@ -199,6 +199,7 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         let cancel_request = self.cancelled_orders.get(&hash);
         let is_valid_cancel_request =
             cancel_request.is_some() && cancel_request.unwrap().from == order.from();
+        // network spammers will get penalized only once
         if self.is_duplicate(&hash) || is_valid_cancel_request {
             if is_valid_cancel_request {
                 self.insert_cancel_request_with_deadline(order.from(), &hash, order.deadline());
