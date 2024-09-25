@@ -6,9 +6,9 @@ import {OrderVariant as RefOrderVariant} from "../reference/OrderVariant.sol";
 import {UserOrderBufferLib} from "../types/UserOrderBuffer.sol";
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 import {Pair, PairLib} from "./Pair.sol";
-import {Asset, AssetLib} from "./Asset.sol";
 
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
+import {console} from "forge-std/console.sol";
 
 struct OrderMeta {
     bool isEcdsa;
@@ -97,7 +97,6 @@ using OrdersLib for ExactFlashOrder global;
 using OrdersLib for TopOfBlockOrder global;
 
 library OrdersLib {
-    using AssetLib for *;
     using PairLib for *;
     using FormatLib for *;
     using SafeCastLib for *;
@@ -391,40 +390,33 @@ library OrdersLib {
         );
     }
 
-    function encode(TopOfBlockOrder[] memory orders, Asset[] memory assets)
+    function encode(TopOfBlockOrder[] memory orders, Pair[] memory pairs)
         internal
         pure
         returns (bytes memory b)
     {
         for (uint256 i = 0; i < orders.length; i++) {
-            b = bytes.concat(b, orders[i].encode(assets));
+            b = bytes.concat(b, orders[i].encode(pairs));
         }
         b = bytes.concat(bytes3(b.length.toUint24()), b);
     }
 
-    function encode(TopOfBlockOrder memory order, Asset[] memory assets)
+    function encode(TopOfBlockOrder memory order, Pair[] memory pairs)
         internal
         pure
         returns (bytes memory)
     {
-        // TODO: Update encoding.
-        RefOrderVariant memory variantMap = RefOrderVariant({
-            noHook: order.hook == address(0),
-            useInternal: order.useInternal,
-            hasRecipient: order.recipient != address(0),
-            isEcdsa: order.meta.isEcdsa,
-            aToB: order.assetIn < order.assetOut,
-            isExact: false,
-            isFlash: false,
-            isOut: false
-        });
+        (uint16 pairIndex, bool zeroForOne) = pairs.getIndex(order.assetIn, order.assetOut);
+
+        uint8 varMap = (order.useInternal ? 1 : 0) | (zeroForOne ? 2 : 0)
+            | (order.recipient != address(0) ? 4 : 0) | (order.hook != address(0) ? 8 : 0)
+            | (order.meta.isEcdsa ? 16 : 0);
 
         return bytes.concat(
-            bytes1(UserOrderVariantMap.unwrap(variantMap.encode())),
+            bytes1(varMap),
             bytes16(order.quantityIn),
             bytes16(order.quantityOut),
-            bytes2(assets.getIndex(order.assetIn).toUint16()),
-            bytes2(assets.getIndex(order.assetOut).toUint16()),
+            bytes2(pairIndex),
             _encodeRecipient(order.recipient),
             _encodeHookData(order.hook, order.hookPayload),
             _encodeSig(order.meta)
@@ -587,7 +579,8 @@ library OrdersLib {
         if (hook == address(0)) {
             return new bytes(0);
         }
-        return bytes.concat(bytes20(hook), bytes3(hookPayload.length.toUint24()), hookPayload);
+        return
+            bytes.concat(bytes3((hookPayload.length + 20).toUint24()), bytes20(hook), hookPayload);
     }
 
     function _toHookData(address hook, bytes memory hookPayload)

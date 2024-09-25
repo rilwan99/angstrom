@@ -33,7 +33,7 @@ library BundleLib {
             self.assets.encode(),
             self.pairs.encode(self.assets, configStore),
             self.poolUpdates.encode(self.pairs),
-            self.toBOrders.encode(self.assets),
+            self.toBOrders.encode(self.pairs),
             self.userOrders.encode(self.pairs)
         );
     }
