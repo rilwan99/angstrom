@@ -38,7 +38,7 @@ abstract contract NodeManager {
         _configStore = configs.setConfig(_configStore, fullKey, tickSpacing, feeInE6);
     }
 
-    function govToggleNodes(address[] calldata nodes) external onlyController {
+    function toggleNodes(address[] calldata nodes) external onlyController {
         for (uint256 i = 0; i < nodes.length; i++) {
             address node = nodes[i];
             _isNode[node] = !_isNode[node];
