@@ -2,7 +2,7 @@
 
 use alloy::primitives::{Address, B256};
 use angstrom_types::{
-    orders::OrderLocation,
+    orders::OrderId,
     sol_bindings::{ext::RawPoolOrder, grouped_orders::OrderWithStorageData}
 };
 use dashmap::DashSet;
@@ -139,19 +139,7 @@ pub trait StorageWithData: RawPoolOrder {
             is_bid: pool_info.is_bid,
             is_valid,
             valid_block: block,
-            order_id: angstrom_types::orders::OrderId {
-                reuse_avoidance: self.respend_avoidance_strategy(),
-                flash_block:     self.flash_block(),
-                address:         self.from(),
-                pool_id:         pool_info.pool_id,
-                hash:            self.order_hash(),
-                deadline:        self.deadline(),
-                location:        if is_limit {
-                    OrderLocation::Limit
-                } else {
-                    OrderLocation::Searcher
-                }
-            },
+            order_id: OrderId::from_all_orders(&self, pool_info.pool_id),
             invalidates,
             order: self
         }
