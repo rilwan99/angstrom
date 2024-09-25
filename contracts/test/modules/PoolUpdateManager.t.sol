@@ -32,15 +32,15 @@ contract PoolUpdateManagerTest is HookDeployer, BaseTest {
     PoolId public id;
     PoolId public refId;
 
-    MockERC20 public asset0 = new MockERC20();
-    MockERC20 public asset1 = new MockERC20();
+    address public asset0;
+    address public asset1;
     address public uniOwner = makeAddr("uniOwner");
     address public gov = makeAddr("gov");
 
     PoolRewardsHandler handler;
 
     function setUp() public {
-        if (asset1 < asset0) (asset0, asset1) = (asset1, asset0);
+        (asset0, asset1) = deployTokensSorted();
 
         vm.prank(uniOwner);
         uniV4 = new UniV4Inspector();
@@ -66,22 +66,26 @@ contract PoolUpdateManagerTest is HookDeployer, BaseTest {
     }
 
     function test_addOverExistingPosition() public {
+        console.log("1");
         address lp = makeAddr("lp");
         uint128 liq1 = 1e21;
         handler.addLiquidity(lp, -180, 180, liq1);
 
         assertEq(positionRewards(lp, -180, 180, liq1), 0);
 
+        console.log("2");
         uint128 amount1 = 23.872987e18;
         bumpBlock();
         handler.rewardTicks(re(TickReward({tick: -180, amount: amount1})));
 
         assertEq(positionRewards(lp, -180, 180, liq1), amount1);
 
+        console.log("3");
         uint128 liq2 = 1.5e21;
         handler.addLiquidity(lp, -180, 180, liq2);
         assertEq(positionRewards(lp, -180, 180, liq1 + liq2), amount1);
 
+        console.log("4");
         uint128 amount2 = 4.12e18;
         bumpBlock();
         handler.rewardTicks(re(TickReward({tick: -180, amount: amount2})));

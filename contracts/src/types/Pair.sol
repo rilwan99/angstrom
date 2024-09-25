@@ -78,16 +78,16 @@ library PairLib {
             {
                 uint32 indices;
                 (reader, indices) = reader.readU32();
-                address assetA = assets.get(indices >> INDEX_A_OFFSET).addr();
-                address assetB = assets.get(indices & INDEX_B_MASK).addr();
+                address asset0 = assets.get(indices >> INDEX_A_OFFSET).addr();
+                address asset1 = assets.get(indices & INDEX_B_MASK).addr();
                 // We ensure pair uniqueness by ensuring that the list is sorted and that every pair
-                // is unique by ensuring there's only one valid ordering of A vs. B.
-                if (indices <= lastIndices || assetA >= assetB) revert OutOfOrderOrDuplicatePairs();
+                // is unique by ensuring there's only one valid ordering of asset 0 & 1.
+                if (indices <= lastIndices || asset0 >= asset1) revert OutOfOrderOrDuplicatePairs();
                 lastIndices = indices;
 
                 assembly ("memory-safe") {
-                    mstore(add(raw_memoryOffset, PAIR_ASSET0_OFFSET), assetA)
-                    mstore(add(raw_memoryOffset, PAIR_ASSET1_OFFSET), assetB)
+                    mstore(add(raw_memoryOffset, PAIR_ASSET0_OFFSET), asset0)
+                    mstore(add(raw_memoryOffset, PAIR_ASSET1_OFFSET), asset1)
                 }
             }
 
@@ -114,12 +114,12 @@ library PairLib {
 
             // Load main AB price, compute inverse, store both.
             {
-                uint256 priceAB_;
-                (reader, priceAB_) = reader.readU256();
-                uint256 priceBA = priceAB_.invRay();
+                uint256 price1Over0;
+                (reader, price1Over0) = reader.readU256();
+                uint256 price0Over1 = price1Over0.invRayUnchecked();
                 assembly ("memory-safe") {
-                    mstore(add(raw_memoryOffset, PAIR_PRICE_10_OFFSET), priceBA)
-                    mstore(add(raw_memoryOffset, PAIR_PRICE_01_OFFSET), priceAB_)
+                    mstore(add(raw_memoryOffset, PAIR_PRICE_10_OFFSET), price1Over0)
+                    mstore(add(raw_memoryOffset, PAIR_PRICE_01_OFFSET), price0Over1)
                 }
             }
 
