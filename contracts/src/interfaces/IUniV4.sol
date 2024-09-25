@@ -10,28 +10,44 @@ library IUniV4 {
     using IUniV4 for IPoolManager;
     using TickLib for uint256;
 
-    uint256 internal constant _OWNER_SLOT = 0;
-    uint256 internal constant _PROTOCOL_FEES_SLOT = 1;
-    uint256 internal constant _PROTOCOL_FEE_CONTROLLER_SLOT = 2;
-    uint256 internal constant _IS_OPERATOR_SLOT = 3;
-    uint256 internal constant _BALANCE_OF_SLOT = 4;
-    uint256 internal constant _ALLOWANCE_SLOT = 5;
-    uint256 internal constant _POOLS_SLOT = 6;
+    error ExtsloadFailed();
 
-    uint256 internal constant _POOL_STATE_SLOT0_OFFSET = 0;
-    uint256 internal constant _POOL_STATE_FEE0_OFFSET = 1;
-    uint256 internal constant _POOL_STATE_FEE1_OFFSET = 2;
-    uint256 internal constant _POOL_STATE_LIQUIDITY_OFFSET = 3;
-    uint256 internal constant _POOL_STATE_TICKS_OFFSET = 4;
-    uint256 internal constant _POOL_STATE_BITMAP_OFFSET = 5;
-    uint256 internal constant _POOL_STATE_POSITIONS_OFFSET = 6;
+    uint256 internal constant EXTSLOAD_SELECTOR = 0x1e2eaeaf;
 
-    uint256 internal constant _POSITION_LIQUIDITY_OFFSET = 0;
-    uint256 internal constant _POSITION_FEE_GROWTH_OUTSIDE0_OFFSET = 1;
-    uint256 internal constant _POSITION_FEE_GROWTH_OUTSIDE1_OFFSET = 2;
+    uint256 private constant _OWNER_SLOT = 0;
+    uint256 private constant _PROTOCOL_FEES_SLOT = 1;
+    uint256 private constant _PROTOCOL_FEE_CONTROLLER_SLOT = 2;
+    uint256 private constant _IS_OPERATOR_SLOT = 3;
+    uint256 private constant _BALANCE_OF_SLOT = 4;
+    uint256 private constant _ALLOWANCE_SLOT = 5;
+    uint256 private constant _POOLS_SLOT = 6;
 
-    function extsload(IPoolManager self, uint256 slot) internal view returns (uint256 rawValue) {
-        rawValue = uint256(self.extsload(bytes32(slot)));
+    uint256 private constant _POOL_STATE_SLOT0_OFFSET = 0;
+    uint256 private constant _POOL_STATE_FEE0_OFFSET = 1;
+    uint256 private constant _POOL_STATE_FEE1_OFFSET = 2;
+    uint256 private constant _POOL_STATE_LIQUIDITY_OFFSET = 3;
+    uint256 private constant _POOL_STATE_TICKS_OFFSET = 4;
+    uint256 private constant _POOL_STATE_BITMAP_OFFSET = 5;
+    uint256 private constant _POOL_STATE_POSITIONS_OFFSET = 6;
+
+    uint256 private constant _POSITION_LIQUIDITY_OFFSET = 0;
+    uint256 private constant _POSITION_FEE_GROWTH_OUTSIDE0_OFFSET = 1;
+    uint256 private constant _POSITION_FEE_GROWTH_OUTSIDE1_OFFSET = 2;
+
+    function gudExtsload(IPoolManager self, uint256 slot)
+        internal
+        view
+        returns (uint256 rawValue)
+    {
+        assembly ("memory-safe") {
+            mstore(0x20, slot)
+            mstore(0x00, EXTSLOAD_SELECTOR)
+            if iszero(staticcall(gas(), self, 0x1c, 0x24, 0x00, 0x20)) {
+                mstore(0x00, 0x535cf94b /* ExtsloadFailed() */ )
+                revert(0x1c, 0x04)
+            }
+            rawValue := mload(0x00)
+        }
     }
 
     function computePoolStateSlot(IPoolManager, PoolId id) internal pure returns (uint256 slot) {
@@ -52,9 +68,9 @@ library IUniV4 {
         returns (uint256 slot)
     {
         assembly ("memory-safe") {
+            // Pool state slot.
             mstore(0x00, id)
             mstore(0x20, _POOLS_SLOT)
-            // Pool state slot.
             slot := keccak256(0x00, 0x40)
             // Compute relative map slot (Note: assumes `wordPos` is sanitized i.e. sign extended).
             mstore(0x00, wordPos)
@@ -63,44 +79,9 @@ library IUniV4 {
         }
     }
 
-    /**
-     * @dev WARNING: Calling this method without first sanitizing `tick` (to ensure it's sign
-     * extended) is unsafe.
-     */
-    function computeTickInfoSlot(IPoolManager, PoolId id, int24 tick)
-        internal
-        pure
-        returns (bytes32 slot)
-    {
-        assembly ("memory-safe") {
-            mstore(0x00, id)
-            mstore(0x20, _POOLS_SLOT)
-            // Pool state slot.
-            slot := keccak256(0x00, 0x40)
-            // Compute relative map slot (WARNING: assumes `tick` is sanitized i.e. sign extended).
-            mstore(0x00, tick)
-            mstore(0x20, add(slot, _POOL_STATE_TICKS_OFFSET))
-            slot := keccak256(0x00, 0x40)
-        }
-    }
-
-    function computePositionStateSlot(IPoolManager self, PoolId id, bytes32 positionKey)
-        internal
-        pure
-        returns (uint256 slot)
-    {
-        uint256 poolStateSlot = self.computePoolStateSlot(id);
-
-        assembly ("memory-safe") {
-            mstore(0x00, positionKey)
-            mstore(0x20, add(poolStateSlot, _POOL_STATE_POSITIONS_OFFSET))
-            slot := keccak256(0x00, 0x40)
-        }
-    }
-
     function getSlot0(IPoolManager self, PoolId id) internal view returns (Slot0) {
         uint256 slot = self.computePoolStateSlot(id);
-        return Slot0.wrap(self.extsload(bytes32(slot)));
+        return Slot0.wrap(bytes32(self.gudExtsload(slot)));
     }
 
     /**
@@ -113,7 +94,7 @@ library IUniV4 {
         returns (uint256)
     {
         uint256 slot = self.computeBitmapWordSlot(id, wordPos);
-        return self.extsload(slot);
+        return self.gudExtsload(slot);
     }
 
     /**
@@ -125,9 +106,21 @@ library IUniV4 {
         view
         returns (uint128 liquidityGross, int128 liquidityNet)
     {
-        bytes32 slot = self.computeTickInfoSlot(id, tick);
-        bytes32 packed = self.extsload(slot);
-        assembly {
+        assembly ("memory-safe") {
+            // Pool state slot derivation.
+            mstore(0x20, _POOLS_SLOT)
+            mstore(0x00, id)
+            // Compute relative map slot (WARNING: assumes `tick` is sanitized i.e. sign extended).
+            mstore(0x20, add(keccak256(0x00, 0x40), _POOL_STATE_TICKS_OFFSET))
+            mstore(0x00, tick)
+            // Encode calldata.
+            mstore(0x20, keccak256(0x00, 0x40))
+            mstore(0x00, EXTSLOAD_SELECTOR)
+            if iszero(staticcall(gas(), self, 0x1c, 0x24, 0x00, 0x20)) {
+                mstore(0x00, 0x535cf94b /* ExtsloadFailed() */ )
+                revert(0x1c, 0x04)
+            }
+            let packed := mload(0x00)
             liquidityGross := shr(128, shl(128, packed))
             liquidityNet := sar(128, packed)
         }
@@ -136,19 +129,30 @@ library IUniV4 {
     function getPositionLiquidity(IPoolManager self, PoolId id, bytes32 positionKey)
         internal
         view
-        returns (uint128)
+        returns (uint128 liquidity)
     {
-        unchecked {
-            uint256 positionStateSlot = self.computePositionStateSlot(id, positionKey);
-            uint256 rawLiquidity = self.extsload(positionStateSlot + _POSITION_LIQUIDITY_OFFSET);
-            return uint128(rawLiquidity);
+        assembly ("memory-safe") {
+            // Pool state slot.
+            mstore(0x20, _POOLS_SLOT)
+            mstore(0x00, id)
+            // Position state slot.
+            mstore(0x20, add(keccak256(0x00, 0x40), _POOL_STATE_POSITIONS_OFFSET))
+            mstore(0x00, positionKey)
+            // Inilined gudExtsload.
+            mstore(0x20, keccak256(0x00, 0x40))
+            mstore(0x00, EXTSLOAD_SELECTOR)
+            if iszero(staticcall(gas(), self, 0x1c, 0x24, 0x00, 0x20)) {
+                mstore(0x00, 0x535cf94b /* ExtsloadFailed() */ )
+                revert(0x1c, 0x04)
+            }
+            liquidity := and(0xffffffffffffffffffffffffffffffff, mload(0x00))
         }
     }
 
     function getPoolLiquidity(IPoolManager self, PoolId id) internal view returns (uint128) {
         uint256 slot = self.computePoolStateSlot(id);
         unchecked {
-            uint256 rawLiquidity = self.extsload(slot + _POOL_STATE_LIQUIDITY_OFFSET);
+            uint256 rawLiquidity = self.gudExtsload(slot + _POOL_STATE_LIQUIDITY_OFFSET);
             return uint128(rawLiquidity);
         }
     }
