@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {Test} from "forge-std/Test.sol";
 import {Trader} from "./types/Trader.sol";
 import {console2 as console} from "forge-std/console2.sol";
@@ -8,14 +9,32 @@ import {HookDeployer} from "./HookDeployer.sol";
 import {stdError} from "forge-std/StdError.sol";
 import {OrderMeta} from "src/reference/OrderTypes.sol";
 import {TickLib} from "src/libraries/TickLib.sol";
+import {HookDeployer} from "./HookDeployer.sol";
+import {ANGSTROM_HOOK_FLAGS} from "src/Constants.sol";
+import {TypedDataHasherLib} from "src/types/TypedDataHasher.sol";
+
+import {MockERC20} from "super-sol/mocks/MockERC20.sol";
 
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract BaseTest is Test {
+contract BaseTest is Test, HookDeployer {
     using FormatLib for *;
 
     uint256 internal constant REAL_TIMESTAMP = 1721652639;
+
+    function deployAngstrom(bytes memory initcode, IPoolManager uni, address controller)
+        internal
+        returns (address addr)
+    {
+        bool success;
+        (success, addr,) = deployHook(
+            bytes.concat(initcode, abi.encode(uni, controller)),
+            ANGSTROM_HOOK_FLAGS,
+            CREATE2_FACTORY
+        );
+        assertTrue(success);
+    }
 
     function i24(uint256 x) internal pure returns (int24 y) {
         assertLe(x, uint24(type(int24).max), "Unsafe cast to int24");
@@ -139,7 +158,28 @@ contract BaseTest is Test {
         targetMeta.signature = abi.encodePacked(v, r, s);
     }
 
+    function sign(Trader memory account, OrderMeta memory targetMeta, bytes32 hash) internal pure {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(account.key, hash);
+        targetMeta.isEcdsa = true;
+        targetMeta.from = account.addr;
+        targetMeta.signature = abi.encodePacked(v, r, s);
+    }
+
+    function erc712Hash(bytes32 domainSeparator, bytes32 structHash)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return TypedDataHasherLib.init(domainSeparator).hashTypedData(structHash);
+    }
+
     function bumpBlock() internal {
         vm.roll(block.number + 1);
+    }
+
+    function deployTokensSorted() internal returns (address, address) {
+        address asset0 = address(new MockERC20());
+        address asset1 = address(new MockERC20());
+        return asset0 < asset1 ? (asset0, asset1) : (asset1, asset0);
     }
 }

@@ -18,7 +18,6 @@ import {UsedIndexMap} from "super-sol/collections/UsedIndexMap.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {ConversionLib} from "src/libraries/ConversionLib.sol";
-import {HookDeployer} from "test/_helpers/HookDeployer.sol";
 
 import {console} from "forge-std/console.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
@@ -26,7 +25,7 @@ import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 int24 constant TICK_SPACING = 60;
 
 /// @author philogy <https://github.com/philogy>
-contract PoolRewardsInvariantTest is BaseTest, HookDeployer {
+contract PoolRewardsInvariantTest is BaseTest {
     using FormatLib for *;
 
     using TickMath for int24;
@@ -59,17 +58,10 @@ contract PoolRewardsInvariantTest is BaseTest, HookDeployer {
         gate.setHook(address(0));
         gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick());
 
-        (bool success, address angstromAddr,) = deployHook(
-            abi.encodePacked(type(ExtAngstrom).creationCode, abi.encode(uniV4, gov)),
-            ANGSTROM_HOOK_FLAGS,
-            CREATE2_FACTORY
-        );
-
-        assertTrue(success, "Failed to deploy angstrom");
-        angstrom = ExtAngstrom(angstromAddr);
+        angstrom = ExtAngstrom(deployAngstrom(type(ExtAngstrom).creationCode, uniV4, gov));
         id = PoolIdLibrary.toId(poolKey());
 
-        gate.setHook(angstromAddr);
+        gate.setHook(address(angstrom));
         gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick());
 
         handler = new PoolRewardsHandler(uniV4, angstrom, gate, id, refId, asset0, asset1, gov);

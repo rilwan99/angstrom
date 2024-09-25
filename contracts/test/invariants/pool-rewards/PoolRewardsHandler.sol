@@ -79,7 +79,7 @@ contract PoolRewardsHandler is BaseTest {
             address[] memory newNodes = new address[](1);
             newNodes[0] = rewarder.addr;
             vm.prank(gov);
-            angstrom.govToggleNodes(newNodes);
+            angstrom.toggleNodes(newNodes);
         }
     }
 

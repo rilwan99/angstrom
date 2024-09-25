@@ -19,7 +19,6 @@ import {ArrayLib} from "super-sol/libraries/ArrayLib.sol";
 import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {UniV4Inspector} from "../_view-ext/UniV4Inspector.sol";
 import {MockERC20} from "super-sol/mocks/MockERC20.sol";
-import {HookDeployer} from "../_helpers/HookDeployer.sol";
 import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
 import {RayMathLib} from "../../src/libraries/RayMathLib.sol";
 import {PairIterator, PairItem, PairIteratorLib} from "./_helpers/PairIterator.sol";
@@ -46,7 +45,7 @@ import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 import {console} from "forge-std/console.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract UserOrderExecution is BaseTest, HookDeployer {
+contract UserOrderExecution is BaseTest {
     using AssetLib for *;
     using PairLib for *;
 
@@ -92,20 +91,14 @@ contract UserOrderExecution is BaseTest, HookDeployer {
         gate = new PoolGate(address(uniV4));
         vm.stopPrank();
 
-        (bool succ, address addr,) = deployHook(
-            abi.encodePacked(type(ExtAngstrom).creationCode, abi.encode(address(uniV4), gov)),
-            ANGSTROM_HOOK_FLAGS,
-            _newFactory()
-        );
-        assertTrue(succ, "Failed to deploy angstrom");
-        angstrom = ExtAngstrom(addr);
+        angstrom = ExtAngstrom(deployAngstrom(type(ExtAngstrom).creationCode, uniV4, gov));
 
         vm.warp(REAL_TIMESTAMP);
 
         address[] memory nodes = new address[](1);
         nodes[0] = node;
         vm.prank(gov);
-        angstrom.govToggleNodes(nodes);
+        angstrom.toggleNodes(nodes);
     }
 
     mapping(uint256 => bool) usedIndices;
