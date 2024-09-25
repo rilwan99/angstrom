@@ -29,7 +29,6 @@ import {Asset, AssetLib} from "src/reference/Asset.sol";
 import {Pair, PairLib} from "src/reference/Pair.sol";
 import {
     PriceAB,
-    PriceAB,
     AmountA,
     AmountB,
     PriceAB as PriceOutVsIn,
@@ -147,9 +146,9 @@ contract UserOrderExecution is BaseTest {
             for (uint256 i = 0; i < TOTAL_ASSETS; i++) {
                 for (uint256 j = i + 1; j < TOTAL_ASSETS; j++) {
                     Pair memory pair = v.b.pairs[pairIndex];
-                    pair.priceAB = prices[pairIndex];
-                    pair.assetA = assets[i];
-                    pair.assetB = assets[j];
+                    pair.price10 = PriceAB.wrap(PriceAB.unwrap(prices[pairIndex]).invRay());
+                    pair.asset0 = assets[i];
+                    pair.asset1 = assets[j];
                     pairIndex++;
                     pair._checkOrdered();
                 }
@@ -191,7 +190,7 @@ contract UserOrderExecution is BaseTest {
                 usedIndices[oi] = true;
 
                 bool isLast = i == v.pairOrderCounts[j] - 1;
-                v.aToB = isLast ? v.totalBOut < pair.priceAB.convert(v.totalAOut) : rng.randbool();
+                v.aToB = isLast ? v.totalBOut < pair.price10.convert(v.totalAOut) : rng.randbool();
 
                 v.assetOut = v.aToB ? pair.assetB : pair.assetA;
                 v.assetIn = v.aToB ? pair.assetA : pair.assetB;
