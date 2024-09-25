@@ -48,9 +48,9 @@ contract Angstrom is
 
     error LimitViolated();
 
-    constructor(address uniV4PoolManager, address governance)
+    constructor(address uniV4PoolManager, address controller)
         UniConsumer(uniV4PoolManager)
-        NodeManager(governance)
+        NodeManager(controller)
     {}
 
     function execute(bytes calldata encoded) external {
