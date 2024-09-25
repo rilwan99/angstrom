@@ -23,7 +23,7 @@ import {console} from "forge-std/console.sol";
 int24 constant TICK_SPACING = 60;
 
 /// @author philogy <https://github.com/philogy>
-contract PoolUpdateManagerTest is BaseTest, HookDeployer {
+contract PoolUpdateManagerTest is HookDeployer, BaseTest {
     using TickMath for int24;
 
     UniV4Inspector public uniV4;
@@ -53,20 +53,13 @@ contract PoolUpdateManagerTest is BaseTest, HookDeployer {
         gate.setHook(address(0));
         gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick());
 
-        (bool success, address angstromAddr,) = deployHook(
-            abi.encodePacked(type(ExtAngstrom).creationCode, abi.encode(uniV4, gov)),
-            ANGSTROM_HOOK_FLAGS,
-            CREATE2_FACTORY
-        );
-
-        assertTrue(success, "Failed to deploy angstrom");
-        angstrom = ExtAngstrom(angstromAddr);
+        angstrom = ExtAngstrom(deployAngstrom(type(ExtAngstrom).creationCode, uniV4, gov));
         id = PoolIdLibrary.toId(poolKey());
 
         vm.prank(gov);
         angstrom.configurePool(address(asset0), address(asset1), uint16(uint24(TICK_SPACING)), 0);
 
-        gate.setHook(angstromAddr);
+        gate.setHook(address(angstrom));
         gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick());
 
         handler = new PoolRewardsHandler(uniV4, angstrom, gate, id, refId, asset0, asset1, gov);
