@@ -13,8 +13,9 @@ use order_pool::{OrderPoolHandle, PoolManagerUpdate};
 use reth_tasks::TaskSpawner;
 
 use crate::{
-    api::OrderApiServer,
-    types::{OrderSubscriptionKind, OrderSubscriptionResult}
+    api::{CancelOrderRequest, OrderApiServer},
+    types::{OrderSubscriptionKind, OrderSubscriptionResult},
+    OrderApiError::InvalidSignature
 };
 
 pub struct OrderApi<OrderPool, Spawner> {
@@ -59,6 +60,14 @@ where
         Ok(self.pool.new_order(OrderOrigin::External, order).await)
     }
 
+    async fn cancel_order(&self, request: CancelOrderRequest) -> RpcResult<bool> {
+        let sender = request.signature.recover_signer(request.hash);
+        if sender.is_none() {
+            return Err(InvalidSignature.into());
+        }
+        Ok(self.pool.cancel_order(sender.unwrap(), request.hash).await)
+    }
+
     async fn subscribe_orders(
         &self,
         pending: PendingSubscriptionSink,
@@ -73,33 +82,7 @@ where
                     break;
                 }
 
-                let msg = match (&kind, order) {
-                    (
-                        OrderSubscriptionKind::NewOrders,
-                        PoolManagerUpdate::NewOrder(order_update)
-                    ) => Some(OrderSubscriptionResult::NewOrder(order_update)),
-                    (
-                        OrderSubscriptionKind::FilledOrders,
-                        PoolManagerUpdate::FilledOrder((block_number, filled_order))
-                    ) => Some(OrderSubscriptionResult::FilledOrder((block_number, filled_order))),
-                    (
-                        OrderSubscriptionKind::UnfilleOrders,
-                        PoolManagerUpdate::UnfilledOrders(unfilled_order)
-                    ) => Some(OrderSubscriptionResult::UnfilledOrder(unfilled_order)),
-                    (OrderSubscriptionKind::NewOrders, PoolManagerUpdate::FilledOrder(_)) => None,
-                    (OrderSubscriptionKind::NewOrders, PoolManagerUpdate::UnfilledOrders(_)) => {
-                        None
-                    }
-                    (OrderSubscriptionKind::FilledOrders, PoolManagerUpdate::NewOrder(_)) => None,
-                    (OrderSubscriptionKind::FilledOrders, PoolManagerUpdate::UnfilledOrders(_)) => {
-                        None
-                    }
-                    (OrderSubscriptionKind::UnfilleOrders, PoolManagerUpdate::NewOrder(_)) => None,
-                    (OrderSubscriptionKind::UnfilleOrders, PoolManagerUpdate::FilledOrder(_)) => {
-                        None
-                    }
-                };
-
+                let msg = Self::return_order(&kind, order);
                 if let Some(result) = msg {
                     match SubscriptionMessage::from_json(&result) {
                         Ok(message) => {
@@ -116,6 +99,80 @@ where
         }));
 
         Ok(())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum OrderApiError {
+    #[error("invalid transaction signature")]
+    InvalidSignature
+}
+
+impl From<OrderApiError> for jsonrpsee::types::ErrorObjectOwned {
+    fn from(error: OrderApiError) -> Self {
+        match error {
+            OrderApiError::InvalidSignature => invalid_params_rpc_err(error.to_string())
+        }
+    }
+}
+
+pub fn invalid_params_rpc_err(msg: impl Into<String>) -> jsonrpsee::types::ErrorObjectOwned {
+    rpc_err(jsonrpsee::types::error::INVALID_PARAMS_CODE, msg, None)
+}
+
+pub fn rpc_err(
+    code: i32,
+    msg: impl Into<String>,
+    data: Option<&[u8]>
+) -> jsonrpsee::types::error::ErrorObjectOwned {
+    jsonrpsee::types::error::ErrorObject::owned(
+        code,
+        msg.into(),
+        data.map(|data| {
+            jsonrpsee::core::to_json_raw_value(&reth_primitives::hex::encode_prefixed(data))
+                .expect("serializing String can't fail")
+        })
+    )
+}
+
+impl<OrderPool, Spawner> OrderApi<OrderPool, Spawner>
+where
+    OrderPool: OrderPoolHandle,
+    Spawner: 'static + TaskSpawner
+{
+    fn return_order(
+        kind: &OrderSubscriptionKind,
+        order: PoolManagerUpdate
+    ) -> Option<OrderSubscriptionResult> {
+        match (&kind, order) {
+            (OrderSubscriptionKind::NewOrders, PoolManagerUpdate::NewOrder(order_update)) => {
+                Some(OrderSubscriptionResult::NewOrder(order_update))
+            }
+            (
+                OrderSubscriptionKind::FilledOrders,
+                PoolManagerUpdate::FilledOrder((block_number, filled_order))
+            ) => Some(OrderSubscriptionResult::FilledOrder((block_number, filled_order))),
+            (
+                OrderSubscriptionKind::UnfilleOrders,
+                PoolManagerUpdate::UnfilledOrders(unfilled_order)
+            ) => Some(OrderSubscriptionResult::UnfilledOrder(unfilled_order)),
+            (
+                OrderSubscriptionKind::CancelledOrders,
+                PoolManagerUpdate::CancelledOrder(order_hash)
+            ) => Some(OrderSubscriptionResult::CancelledOrder(order_hash)),
+            (OrderSubscriptionKind::NewOrders, PoolManagerUpdate::FilledOrder(_)) => None,
+            (OrderSubscriptionKind::NewOrders, PoolManagerUpdate::UnfilledOrders(_)) => None,
+            (OrderSubscriptionKind::FilledOrders, PoolManagerUpdate::NewOrder(_)) => None,
+            (OrderSubscriptionKind::FilledOrders, PoolManagerUpdate::UnfilledOrders(_)) => None,
+            (OrderSubscriptionKind::UnfilleOrders, PoolManagerUpdate::NewOrder(_)) => None,
+            (OrderSubscriptionKind::UnfilleOrders, PoolManagerUpdate::FilledOrder(_)) => None,
+            (OrderSubscriptionKind::NewOrders, PoolManagerUpdate::CancelledOrder(_)) => None,
+            (OrderSubscriptionKind::FilledOrders, PoolManagerUpdate::CancelledOrder(_)) => None,
+            (OrderSubscriptionKind::UnfilleOrders, PoolManagerUpdate::CancelledOrder(_)) => None,
+            (OrderSubscriptionKind::CancelledOrders, PoolManagerUpdate::NewOrder(_)) => None,
+            (OrderSubscriptionKind::CancelledOrders, PoolManagerUpdate::FilledOrder(_)) => None,
+            (OrderSubscriptionKind::CancelledOrders, PoolManagerUpdate::UnfilledOrders(_)) => None
+        }
     }
 }
 
@@ -221,6 +278,19 @@ mod tests {
 
         fn subscribe_orders(&self) -> Receiver<PoolManagerUpdate> {
             unimplemented!("Not needed for this test")
+        }
+
+        fn cancel_order(
+            &self,
+            from: Address,
+            order_hash: B256
+        ) -> impl Future<Output = bool> + Send {
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            let res = self
+                .sender
+                .send(OrderCommand::CancelOrder(from, order_hash, tx))
+                .is_ok();
+            future::ready(true)
         }
     }
 }

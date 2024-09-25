@@ -61,7 +61,7 @@ impl<DB: StateProviderFactory + Clone + Unpin + 'static> TestOrderValidator<DB> 
         let val = Validator::new(rx, order_validator);
         let client = ValidationClient(tx);
 
-        Self { revm_lru, client, underlying: val, config }
+        Self { revm_lru, client, underlying: val, config: validation_config }
     }
 
     pub async fn poll_for(&mut self, duration: Duration) {
