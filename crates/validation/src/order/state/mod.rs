@@ -2,9 +2,13 @@ use std::{collections::HashMap, sync::Arc};
 
 use account::UserAccountProcessor;
 use alloy::primitives::{Address, B256, U256};
-use angstrom_types::sol_bindings::{ext::RawPoolOrder, grouped_orders::AllOrders};
+use angstrom_types::{
+    primitive::NewInitializedPool,
+    sol_bindings::{ext::RawPoolOrder, grouped_orders::AllOrders}
+};
 use db_state_utils::StateFetchUtils;
 use futures::{Stream, StreamExt};
+use parking_lot::RwLock;
 use pools::PoolsTracker;
 
 use super::{OrderValidation, OrderValidationResults};
@@ -29,13 +33,13 @@ pub struct StateValidation<Pools, Fetch> {
     /// tracks everything user related.
     user_account_tracker: Arc<UserAccountProcessor<Fetch>>,
     /// tracks all info about the current angstrom pool state.
-    pool_tacker:          Arc<Pools>
+    pool_tacker:          Arc<RwLock<Pools>>
 }
 
 impl<Pools: PoolsTracker, Fetch: StateFetchUtils> StateValidation<Pools, Fetch> {
     pub fn new(user_account_tracker: UserAccountProcessor<Fetch>, pools: Pools) -> Self {
         Self {
-            pool_tacker:          Arc::new(pools),
+            pool_tacker:          Arc::new(RwLock::new(pools)),
             user_account_tracker: Arc::new(user_account_tracker)
         }
     }
@@ -61,14 +65,17 @@ impl<Pools: PoolsTracker, Fetch: StateFetchUtils> StateValidation<Pools, Fetch> 
             return OrderValidationResults::Invalid(order_hash)
         }
 
-        let Some((pool_info, wrapped_order)) = self.pool_tacker.fetch_pool_info_for_order(order)
+        let Some(pool_info) = self
+            .pool_tacker
+            .read_arc()
+            .fetch_pool_info_for_order(&order)
         else {
             return OrderValidationResults::Invalid(order_hash)
         };
 
         self.user_account_tracker
-            .verify_order(wrapped_order, pool_info, block, is_limit)
-            .map(|o| {
+            .verify_order::<O>(order, pool_info, block, is_limit)
+            .map(|o: _| {
                 OrderValidationResults::Valid(o.try_map_inner(|inner| Ok(inner.into())).unwrap())
             })
             .unwrap_or_else(|_| OrderValidationResults::Invalid(order_hash))
@@ -86,5 +93,9 @@ impl<Pools: PoolsTracker, Fetch: StateFetchUtils> StateValidation<Pools, Fetch> 
             }
             _ => unreachable!()
         }
+    }
+
+    pub fn index_new_pool(&mut self, pool: NewInitializedPool) {
+        self.pool_tacker.write_arc().index_new_pool(pool);
     }
 }

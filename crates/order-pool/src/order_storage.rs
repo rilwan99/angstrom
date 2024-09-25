@@ -10,7 +10,7 @@ use alloy::primitives::FixedBytes;
 use angstrom_metrics::OrderStorageMetricsWrapper;
 use angstrom_types::{
     orders::{OrderId, OrderLocation, OrderSet},
-    primitive::PoolId,
+    primitive::{NewInitializedPool, PoolId},
     sol_bindings::{
         grouped_orders::{
             AllOrders, GroupedUserOrder, GroupedVanillaOrder, OrderWithStorageData,
@@ -261,5 +261,13 @@ impl OrderStorage {
             .get_all_orders();
 
         OrderSet { limit, searcher }
+    }
+
+    pub fn new_pool(&self, pool: NewInitializedPool) {
+        self.limit_orders.lock().expect("poisoned").new_pool(pool);
+        self.searcher_orders
+            .lock()
+            .expect("poisoned")
+            .new_pool(pool);
     }
 }

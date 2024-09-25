@@ -180,6 +180,7 @@ where
 mod tests {
     use std::{future, future::Future};
 
+    use alloy_primitives::{Address, B256};
     use angstrom_network::pool_manager::OrderCommand;
     use angstrom_types::sol_bindings::rpc_orders::{
         ExactFlashOrder, ExactStandingOrder, PartialFlashOrder, PartialStandingOrder,

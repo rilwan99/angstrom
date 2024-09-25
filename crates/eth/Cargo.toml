@@ -12,6 +12,7 @@ exclude.workspace = true
 [dependencies]
 angstrom-types.workspace = true
 angstrom-utils.workspace = true
+alloy-sol-types.workspace = true
 
 tokio.workspace = true
 futures.workspace = true

@@ -1,10 +1,15 @@
 use std::{
     collections::HashSet,
+    slice::Iter,
     sync::Arc,
     task::{Context, Poll}
 };
 
-use alloy::primitives::{Address, B256};
+use alloy::{
+    primitives::{Address, B256},
+    sol_types::SolEvent
+};
+use angstrom_types::{contract_bindings, primitive::NewInitializedPool};
 use futures::Future;
 use futures_util::{FutureExt, StreamExt};
 use reth_provider::{CanonStateNotification, CanonStateNotifications, Chain, StateProviderFactory};
@@ -95,6 +100,9 @@ where
     }
 
     fn handle_commit(&mut self, new: Arc<Chain>) {
+        // handle this first so the newest state is the first available
+        self.handle_new_pools(new.clone());
+
         let filled_orders = Self::fetch_filled_orders(new.clone()).collect::<Vec<_>>();
         let eoas = Self::get_eoa(new.clone());
 
@@ -104,6 +112,12 @@ where
             address_changeset: eoas
         };
         self.send_events(transitions);
+    }
+
+    fn handle_new_pools(&mut self, chain: Arc<Chain>) {
+        Self::get_new_pools(&chain)
+            .map(EthEvent::NewPool)
+            .for_each(|pool_event| self.send_events(pool_event));
     }
 
     /// TODO: check contract for state change. if there is change. fetch the
@@ -116,6 +130,22 @@ where
     fn get_eoa(_chain: Arc<Chain>) -> Vec<Address> {
         //
         vec![]
+    }
+
+    /// gets any newly initialized pools in this block
+    /// do we want to use logs here?
+    fn get_new_pools(chain: &Chain) -> impl Iterator<Item = NewInitializedPool> + '_ {
+        chain
+            .receipts_by_block_hash(chain.tip().hash())
+            .unwrap()
+            .into_iter()
+            .flat_map(|receipt| {
+                receipt.logs.iter().filter_map(|log| {
+                    contract_bindings::poolmanager::PoolManager::Initialize::decode_log(&log, true)
+                        .map(Into::into)
+                        .ok()
+                })
+            })
     }
 }
 
@@ -157,5 +187,6 @@ pub enum EthEvent {
         address_changeset: Vec<Address>
     },
     ReorgedOrders(Vec<B256>),
-    FinalizedBlock(u64)
+    FinalizedBlock(u64),
+    NewPool(NewInitializedPool)
 }

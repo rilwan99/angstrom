@@ -123,7 +123,7 @@ impl<DB: BlockStateProviderFactory> FetchUtils<DB> {
 pub mod test_fetching {
     use std::collections::{HashMap, HashSet};
 
-    use alloy_primitives::U256;
+    use alloy::primitives::U256;
     use dashmap::DashMap;
 
     use super::{StateFetchUtils, *};

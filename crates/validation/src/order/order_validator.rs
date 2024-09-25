@@ -5,6 +5,7 @@ use std::{
 };
 
 use alloy::primitives::{Address, B256};
+use angstrom_types::primitive::NewInitializedPool;
 use angstrom_utils::key_split_threadpool::KeySplitThreadpool;
 use futures::{Future, StreamExt};
 use tokio::runtime::Handle;
@@ -81,6 +82,10 @@ where
                 cloned_state.validate_state_of_regular_order(order_validation, block_number)
             })
         );
+    }
+
+    pub fn index_new_pool(&mut self, pool: NewInitializedPool) {
+        self.state.index_new_pool(pool);
     }
 }
 
