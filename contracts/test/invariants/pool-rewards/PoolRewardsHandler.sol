@@ -18,13 +18,14 @@ import {ConversionLib} from "src/libraries/ConversionLib.sol";
 
 import {LibSort} from "solady/src/utils/LibSort.sol";
 
-import {Bundle} from "src/reference/Bundle.sol";
+import {Bundle, Pair} from "src/reference/Bundle.sol";
 import {Asset} from "src/reference/Asset.sol";
 import {PoolUpdate, RewardsUpdate} from "src/reference/PoolUpdate.sol";
 import {TopOfBlockOrder} from "src/reference/OrderTypes.sol";
 
 import {EnumerableSetLib} from "solady/src/utils/EnumerableSetLib.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
+import {console} from "forge-std/console.sol";
 
 int24 constant TICK_SPACING = 60;
 
@@ -48,8 +49,10 @@ contract PoolRewardsHandler is BaseTest {
     /// @dev Uniswap's `MAX_SQRT_RATIO - 1` to pass the limit check.
     uint160 internal constant MAX_SQRT_RATIO = 1461446703485210103287273052203988822378723970341;
 
-    MockERC20 public immutable asset0;
-    MockERC20 public immutable asset1;
+    address public immutable asset0;
+    address public immutable asset1;
+    MockERC20 public immutable token0;
+    MockERC20 public immutable token1;
     Account public rewarder = makeAccount("rewarder");
 
     constructor(
@@ -58,8 +61,8 @@ contract PoolRewardsHandler is BaseTest {
         PoolGate gate_,
         PoolId id_,
         PoolId refId_,
-        MockERC20 asset0_,
-        MockERC20 asset1_,
+        address asset0_,
+        address asset1_,
         address gov
     ) {
         uniV4 = uniV4_;
@@ -68,12 +71,14 @@ contract PoolRewardsHandler is BaseTest {
         id = id_;
         refId = refId_;
         asset0 = asset0_;
+        token0 = MockERC20(asset0_);
         asset1 = asset1_;
+        token1 = MockERC20(asset1_);
 
         vm.prank(rewarder.addr);
-        asset0.approve(address(angstrom), type(uint256).max);
+        token0.approve(address(angstrom), type(uint256).max);
         vm.prank(rewarder.addr);
-        asset1.approve(address(angstrom), type(uint256).max);
+        token1.approve(address(angstrom), type(uint256).max);
 
         {
             address[] memory newNodes = new address[](1);
@@ -180,7 +185,7 @@ contract PoolRewardsHandler is BaseTest {
         if (targetSqrtPrice == currentPrice) return;
 
         bool zeroForOne = targetSqrtPrice < currentPrice;
-        (MockERC20 assetIn, MockERC20 assetOut) = zeroForOne ? (asset0, asset1) : (asset1, asset0);
+        (MockERC20 assetIn, MockERC20 assetOut) = zeroForOne ? (token0, token1) : (token1, token0);
 
         gate.setHook(address(0));
         // Do initial swap to price to get delta.
@@ -221,6 +226,8 @@ contract PoolRewardsHandler is BaseTest {
 
     function rewardLiquidity(uint256 ticksToReward, PRNG memory rng) public passesTime {
         uint256 totalTicks = _ghost_liquidInitializedTicks.length();
+        console.log("totalTicks: %s", totalTicks);
+
         ticksToReward = bound(ticksToReward, 0, totalTicks);
 
         // Select ticks & amounts to reward with.
@@ -231,7 +238,10 @@ contract PoolRewardsHandler is BaseTest {
             int24 tick = int24(_ghost_liquidInitializedTicks.at(rng.useRandIndex(map)));
             uint128 amount = u128(rng.randchoice(0.1e18, 0, rng.randmag(0.01e18, 100.0e18)));
             rewards[i] = TickReward({tick: tick, amount: amount});
+            console.log("  %s: TickReward({tick: %s, amount: %s})", i, tick.toStr(), amount);
         }
+
+        console.log("rewardTicks");
 
         rewardTicks(rewards);
     }
@@ -273,18 +283,22 @@ contract PoolRewardsHandler is BaseTest {
 
     function _newBundle(uint128 amount0, uint128 amount1) internal returns (Bundle memory bundle) {
         bundle.assets = new Asset[](2);
-        bundle.assets[0].addr = address(asset0);
-        bundle.assets[1].addr = address(asset1);
+        bundle.assets[0].addr = asset0;
+        bundle.assets[1].addr = asset1;
+        bundle.pairs = new Pair[](1);
+        bundle.pairs[0].asset0 = asset0;
+        bundle.pairs[0].asset1 = asset1;
+
         uint256 length = (amount0 > 0 ? 1 : 0) + (amount1 > 0 ? 1 : 0);
         bundle.toBOrders = new TopOfBlockOrder[](length);
         if (amount0 > 0) {
-            asset0.mint(rewarder.addr, amount0);
+            MockERC20(asset0).mint(rewarder.addr, amount0);
             TopOfBlockOrder memory tob = bundle.toBOrders[0];
             tob.quantityIn = amount0;
             _fillAndSign(tob, true);
         }
         if (amount1 > 0) {
-            asset1.mint(rewarder.addr, amount1);
+            MockERC20(asset1).mint(rewarder.addr, amount1);
             TopOfBlockOrder memory tob = bundle.toBOrders[amount0 > 0 ? 1 : 0];
             tob.quantityIn = amount1;
             _fillAndSign(tob, false);

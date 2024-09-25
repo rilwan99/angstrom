@@ -37,20 +37,21 @@ contract PoolRewardsInvariantTest is BaseTest {
     PoolId public id;
     PoolId public refId;
 
-    MockERC20 public asset0 = new MockERC20();
-    MockERC20 public asset1 = new MockERC20();
+    address public asset0;
+    address public asset1;
     address public owner = makeAddr("owner");
-    address public gov = makeAddr("gov");
+    address public controller = makeAddr("controller");
 
     PoolRewardsHandler handler;
     bytes4[] handlerSelectors;
 
     function setUp() public {
-        if (asset1 < asset0) (asset0, asset1) = (asset1, asset0);
+        (asset0, asset1) = deployTokensSorted();
 
         vm.prank(owner);
         uniV4 = new UniV4Inspector();
         gate = new PoolGate(address(uniV4));
+        gate.tickSpacing(TICK_SPACING);
 
         int24 startTick = 0;
         refId =
@@ -58,13 +59,17 @@ contract PoolRewardsInvariantTest is BaseTest {
         gate.setHook(address(0));
         gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick(), 0);
 
-        angstrom = ExtAngstrom(deployAngstrom(type(ExtAngstrom).creationCode, uniV4, gov));
+        angstrom = ExtAngstrom(deployAngstrom(type(ExtAngstrom).creationCode, uniV4, controller));
         id = PoolIdLibrary.toId(poolKey());
+
+        vm.prank(controller);
+        angstrom.configurePool(asset0, asset1, uint16(uint24(TICK_SPACING)), 0);
 
         gate.setHook(address(angstrom));
         gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick(), 0);
 
-        handler = new PoolRewardsHandler(uniV4, angstrom, gate, id, refId, asset0, asset1, gov);
+        handler =
+            new PoolRewardsHandler(uniV4, angstrom, gate, id, refId, asset0, asset1, controller);
 
         handlerSelectors.push(PoolRewardsHandler.rewardLiquidity.selector);
         handlerSelectors.push(PoolRewardsHandler.swapToPrice.selector);

@@ -115,7 +115,7 @@ struct Pair {
     index0: u16,
     index1: u16,
     store_index: u16,
-    price_0over1: u256
+    price_1over0: u256
 }
 ```
 
@@ -126,10 +126,10 @@ Note that to ensure pair uniqueness `.index0` **must** be less than `.index1`.
 
 |Field|Description|
 |-----|-----------|
-|`index0: u16`|Pair's asset A as index into the asset array|
-|`index1: u16`|Pair's asset B as index into the asset array|
+|`index0: u16`|Pair's asset 0 as index into the asset array|
+|`index1: u16`|Pair's asset 1 as index into the asset array|
 |`store_index: u16`|The pair's [store index](./bundle-building.md#Store-Index)|
-|`price_0over1: u256`|Uniform clearing price of pair in asset A **over** asset B base units in Ray e.g. `13.2e27` represents 13.2 base units of A for every base unit of A.|
+|`price_1over0: u256`|Uniform clearing price of pair in asset 1 **over** asset 0 base units in Ray e.g. `13.2e27` represents 13.2 base units of 1 for every base unit of 0.|
 
 
 
