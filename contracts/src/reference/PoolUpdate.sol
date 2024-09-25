@@ -74,6 +74,16 @@ library PoolUpdateLib {
         );
     }
 
+    function total(RewardsUpdate memory self) internal pure returns (uint128 sum) {
+        if (self.onlyCurrent) {
+            sum = self.onlyCurrentQuantity;
+        } else {
+            for (uint256 i = 0; i < self.quantities.length; i++) {
+                sum += self.quantities[i];
+            }
+        }
+    }
+
     function toStr(RewardsUpdate memory self) internal pure returns (string memory) {
         if (self.onlyCurrent) {
             return string.concat(

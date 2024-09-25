@@ -9,7 +9,7 @@ import {IUnlockCallback} from "v4-core/src/interfaces/callback/IUnlockCallback.s
 import {Angstrom} from "../../src/Angstrom.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {IUniV4} from "../../src/interfaces/IUniV4.sol";
-import {PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
+import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {Slot0} from "v4-core/src/types/Slot0.sol";
 import {ConversionLib} from "../../src/libraries/ConversionLib.sol";
 import {Currency} from "v4-core/src/types/Currency.sol";
@@ -47,12 +47,12 @@ contract PoolGate is IUnlockCallback, CommonBase {
 
     function initializePool(address asset0, address asset1, uint160 initialSqrtPriceX96)
         public
-        returns (int24 tick)
+        returns (PoolId)
     {
         bytes memory data = UNI_V4.unlock(
             abi.encodeCall(this.__initializePool, (asset0, asset1, initialSqrtPriceX96))
         );
-        return abi.decode(data, (int24));
+        return abi.decode(data, (PoolId));
     }
 
     function swap(
@@ -155,10 +155,11 @@ contract PoolGate is IUnlockCallback, CommonBase {
 
     function __initializePool(address asset0, address asset1, uint160 initialSqrtPriceX96)
         public
-        returns (int24 tick)
+        returns (PoolId)
     {
         PoolKey memory poolKey = hook.toPoolKey(asset0, asset1, _tickSpacing);
-        tick = UNI_V4.initialize(poolKey, initialSqrtPriceX96, "");
+        UNI_V4.initialize(poolKey, initialSqrtPriceX96, "");
+        return PoolIdLibrary.toId(poolKey);
     }
 
     function __addLiquidity(

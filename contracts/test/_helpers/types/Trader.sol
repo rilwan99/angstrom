@@ -34,6 +34,8 @@ library TraderLib {
         (v, r, s) = vm.sign(self.key, hash);
     }
 
+    function sign(Trader memory self, bytes32 domainSeparator, bytes32 hash) internal pure {}
+
     function sign(Trader memory self, UserOrder order, TypedDataHasher typedHasher) internal pure {
         bytes32 hash = order.hash712(typedHasher);
         (bytes32 r, bytes32 s, uint8 v) = self.sign(hash);

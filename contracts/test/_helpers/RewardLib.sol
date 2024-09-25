@@ -47,31 +47,37 @@ library RewardLib {
         return rewards.length;
     }
 
+    function current(uint128 amount) internal pure returns (RewardsUpdate memory update) {
+        update.onlyCurrent = true;
+        update.onlyCurrentQuantity = amount;
+    }
+
     function toUpdates(TickReward[] memory rewards, IPoolManager uni, PoolId id, int24 tickSpacing)
         internal
         view
         returns (RewardsUpdate[] memory updates)
     {
-        updates = _toUpdates(rewards, uni, id, tickSpacing);
+        int24 currentTick = uni.getSlot0(id).tick();
+        updates = toUpdates(
+            rewards,
+            uni,
+            id,
+            tickSpacing,
+            getCurrentTickRangeStart(uni, id, currentTick, tickSpacing)
+        );
     }
 
-    function _toUpdates(TickReward[] memory rewards, IPoolManager uni, PoolId id, int24 tickSpacing)
-        internal
-        view
-        returns (RewardsUpdate[] memory updates)
-    {
+    function toUpdates(
+        TickReward[] memory rewards,
+        IPoolManager uni,
+        PoolId id,
+        int24 tickSpacing,
+        int24 currentTick
+    ) internal view returns (RewardsUpdate[] memory updates) {
         if (rewards.length == 0) return updates;
 
         _checkTicksInitialized(uni, id, rewards, tickSpacing);
         _checkSortedUnique(rewards);
-
-        int24 currentTick = uni.getSlot0(id).tick();
-        while (true) {
-            bool initialized;
-            (initialized, currentTick) = uni.getNextTickLe(id, currentTick, tickSpacing);
-            if (initialized) break;
-            currentTick--;
-        }
 
         // Ensure current tick update doesn't get separated into its own update.
         if (currentTick <= rewards[0].tick) {
@@ -143,10 +149,11 @@ library RewardLib {
         int24 currentTick,
         int24 tickSpacing
     ) internal view returns (int24) {
-        bool initialized;
         while (true) {
+            bool initialized;
             (initialized, currentTick) = uni.getNextTickLe(id, currentTick, tickSpacing);
             if (initialized) return currentTick;
+            currentTick--;
         }
         revert("unreachable");
     }
@@ -207,7 +214,7 @@ library RewardLib {
 
         update.startTick =
             initializedTicks.length > 0 ? int24(uint24(initializedTicks.get(0))) : currentTick + 1;
-        uint128 poolLiq = uni.getPoolLiquidity(id);
+        uint128 poolLiq = getLiquidityAtTick(uni, id, currentTick, tickSpacing);
         update.startLiquidity = MixedSignLib.sub(poolLiq, cumulativeNetLiquidity);
     }
 
@@ -267,7 +274,65 @@ library RewardLib {
 
         require(ri == 0, "Not all rewards used?");
 
-        uint128 poolLiq = uni.getPoolLiquidity(id);
+        uint128 poolLiq = getLiquidityAtTick(uni, id, currentTick, tickSpacing);
         update.startLiquidity = MixedSignLib.add(poolLiq, cumulativeNetLiquidity);
+    }
+
+    function getLiquidityAtTick(
+        IPoolManager uni,
+        PoolId id,
+        int24 futureCurrentTick,
+        int24 tickSpacing
+    ) internal view returns (uint128) {
+        int24 currentTick = getCurrentTickRangeStart(uni, id, uni.getSlot0(id).tick(), tickSpacing);
+        uint128 realCurrentLiq = uni.getPoolLiquidity(id);
+        if (currentTick < futureCurrentTick) {
+            bool initialized;
+
+            do {
+                (initialized, currentTick) = uni.getNextTickGt(id, currentTick, tickSpacing);
+                if (initialized) {
+                    (, int128 tickNetLiquidity) = uni.getTickLiquidity(id, currentTick);
+                    realCurrentLiq = MixedSignLib.add(realCurrentLiq, tickNetLiquidity);
+                }
+            } while (currentTick < futureCurrentTick);
+        } else if (futureCurrentTick < currentTick) {
+            bool initialized = true;
+            do {
+                if (initialized) {
+                    (, int128 tickNetLiquidity) = uni.getTickLiquidity(id, currentTick);
+                    realCurrentLiq = MixedSignLib.sub(realCurrentLiq, tickNetLiquidity);
+                }
+                (initialized, currentTick) = uni.getNextTickLt(id, currentTick, tickSpacing);
+            } while (futureCurrentTick < currentTick);
+        }
+
+        return realCurrentLiq;
+    }
+
+    function re(TickReward memory reward) internal pure returns (TickReward[] memory r) {
+        r = new TickReward[](1);
+        r[0] = reward;
+    }
+
+    function re(TickReward memory r1, TickReward memory r2)
+        internal
+        pure
+        returns (TickReward[] memory r)
+    {
+        r = new TickReward[](2);
+        r[0] = r1;
+        r[1] = r2;
+    }
+
+    function re(TickReward memory r1, TickReward memory r2, TickReward memory r3)
+        internal
+        pure
+        returns (TickReward[] memory r)
+    {
+        r = new TickReward[](3);
+        r[0] = r1;
+        r[1] = r2;
+        r[2] = r3;
     }
 }

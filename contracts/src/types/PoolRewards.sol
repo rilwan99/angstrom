@@ -73,16 +73,16 @@ library PoolRewardsLib {
         int24 newTick,
         int24 tickSpacing
     ) private {
-        uint256 globalGrowth = self.globalGrowth;
-        do {
+        while (true) {
             bool initialized;
             (initialized, tick) = uniV4.getNextTickGt(id, tick, tickSpacing);
 
-            if (tick <= newTick && initialized) {
+            if (newTick < tick) break;
+            if (initialized) {
                 self.rewardGrowthOutside[uint24(tick)] =
-                    globalGrowth - self.rewardGrowthOutside[uint24(tick)];
+                    self.globalGrowth - self.rewardGrowthOutside[uint24(tick)];
             }
-        } while (tick < newTick);
+        }
     }
 
     function _updateTickMoveDown(
@@ -93,19 +93,15 @@ library PoolRewardsLib {
         int24 newTick,
         int24 tickSpacing
     ) private {
-        uint256 globalGrowth = self.globalGrowth;
-
         while (true) {
             bool initialized;
             (initialized, tick) = uniV4.getNextTickLe(id, tick, tickSpacing);
 
-            if (newTick < tick) {
-                if (initialized) {
-                    self.rewardGrowthOutside[uint24(tick)] =
-                        globalGrowth - self.rewardGrowthOutside[uint24(tick)];
-                }
-            } else {
-                break;
+            if (tick <= newTick) break;
+
+            if (initialized) {
+                self.rewardGrowthOutside[uint24(tick)] =
+                    self.globalGrowth - self.rewardGrowthOutside[uint24(tick)];
             }
             tick--;
         }
