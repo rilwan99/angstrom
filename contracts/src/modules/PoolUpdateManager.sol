@@ -33,8 +33,8 @@ import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 /// @author philogy <https://github.com/philogy>
 abstract contract PoolUpdateManager is
-    RewardsUpdater,
     UniConsumer,
+    RewardsUpdater,
     SettlementManager,
     NodeManager,
     IBeforeAddLiquidityHook,
@@ -183,27 +183,5 @@ abstract contract PoolUpdateManager is
         deltas.sub(swapCall.asset0, rewardTotal);
 
         return reader;
-    }
-
-    function _getPoolBitmapInfo(PoolId id, int16 wordPos)
-        internal
-        view
-        override
-        returns (uint256)
-    {
-        return UNI_V4.getPoolBitmapInfo(id, wordPos);
-    }
-
-    function _getNetTickLiquidity(PoolId id, int24 tick)
-        internal
-        view
-        override
-        returns (int128 liquidityNet)
-    {
-        (, liquidityNet) = UNI_V4.getTickLiquidity(id, tick);
-    }
-
-    function _getCurrentLiquidity(PoolId id) internal view override returns (uint128 liquidity) {
-        liquidity = UNI_V4.getPoolLiquidity(id);
     }
 }

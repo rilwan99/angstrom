@@ -68,7 +68,7 @@ contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager
         bool initialized;
         int24 nextTickUp;
         do {
-            (initialized, nextTickUp) = _findNextTickUp(id, tick, tickSpacing);
+            (initialized, nextTickUp) = UNI_V4.getNextTickGt(id, tick, tickSpacing);
         } while (!initialized);
         _checkTickReal(id, nextTickUp, "nextTickUp");
         return poolRewards[id].getGrowthInside(UNI_V4.getSlot0(id).tick(), tick, nextTickUp);

@@ -129,11 +129,11 @@ contract PoolRewardsTest is BaseTest {
         updatePoolZeroToOne(0, RewardLib.current(3.2e18));
     }
 
-    function test_bench_rewardCurrent_crossTick() public {
-        updatePoolZeroToOne(0.4e18, RewardLib.current(3.2e18));
+    function test_bench_rewardCurrent_crossTick() public reportTickChange {
+        updatePoolZeroToOne(1.4e18, RewardLib.current(3.2e18));
     }
 
-    function test_bench_rewardMultiOneWord_swapWithin() public {
+    function test_bench_rewardMultiOneWord_swapWithin() public reportTickChange {
         RewardsUpdate[] memory updates = RewardLib.toUpdates(
             RewardLib.re(TickReward(60, 1.0e18), TickReward(0, 1.0e18)), uni, id, tickSpacing
         );
@@ -216,6 +216,7 @@ contract PoolRewardsTest is BaseTest {
         sign(searcher, tob.meta, erc712Hash(domainSeparator, tob.hash()));
 
         bytes memory encodedPayload = bundle.encode(configStore);
+        vm.breakpoint("c");
         vm.prank(controller);
         angstrom.execute(encodedPayload);
     }

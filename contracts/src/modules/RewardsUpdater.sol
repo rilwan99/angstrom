@@ -4,6 +4,8 @@ pragma solidity ^0.8.24;
 import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {PoolRewards, REWARD_GROWTH_SIZE} from "../types/PoolRewards.sol";
 import {CalldataReader} from "../types/CalldataReader.sol";
+import {IPoolManager, IUniV4} from "../interfaces/IUniV4.sol";
+import {UniConsumer} from "./UniConsumer.sol";
 
 import {TickLib} from "../libraries/TickLib.sol";
 import {MixedSignLib} from "../libraries/MixedSignLib.sol";
@@ -13,9 +15,11 @@ import {console} from "forge-std/console.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 /// @author philogy <https://github.com/philogy>
-abstract contract RewardsUpdater {
+abstract contract RewardsUpdater is UniConsumer {
+    using IUniV4 for IPoolManager;
     using FixedPointMathLib for uint256;
     using TickLib for uint256;
+    // TODO: Remove
     using FormatLib for *;
 
     error WrongEndLiquidity(uint128 endLiquidity, uint128 actualCurrentLiquidity);
@@ -41,7 +45,7 @@ abstract contract RewardsUpdater {
             if (onlyCurrent) {
                 uint128 amount;
                 (reader, amount) = reader.readU128();
-                poolRewards_.globalGrowth += flatDivWad(amount, _getCurrentLiquidity(id));
+                poolRewards_.globalGrowth += flatDivWad(amount, UNI_V4.getPoolLiquidity(id));
 
                 return (reader, amount);
             }
@@ -72,7 +76,7 @@ abstract contract RewardsUpdater {
 
         newReader.requireAtEndOf(amountsEnd);
 
-        uint128 currentLiquidity = _getCurrentLiquidity(pool.id);
+        uint128 currentLiquidity = UNI_V4.getPoolLiquidity(pool.id);
         if (endLiquidity != currentLiquidity) {
             revert WrongEndLiquidity(endLiquidity, currentLiquidity);
         }
@@ -102,9 +106,10 @@ abstract contract RewardsUpdater {
                 cumulativeGrowth += flatDivWad(amount, liquidity);
                 rewardGrowthOutside[uint24(rewardTick)] += cumulativeGrowth;
 
-                liquidity = MixedSignLib.add(liquidity, _getNetTickLiquidity(pool.id, rewardTick));
+                (, int128 netLiquidity) = UNI_V4.getTickLiquidity(pool.id, rewardTick);
+                liquidity = MixedSignLib.add(liquidity, netLiquidity);
             }
-            (initialized, rewardTick) = _findNextTickUp(pool.id, rewardTick, pool.tickSpacing);
+            (initialized, rewardTick) = UNI_V4.getNextTickGt(pool.id, rewardTick, pool.tickSpacing);
         } while (rewardTick <= pool.currentTick);
 
         return (reader, total, cumulativeGrowth, liquidity);
@@ -130,32 +135,13 @@ abstract contract RewardsUpdater {
                 cumulativeGrowth += flatDivWad(amount, liquidity);
                 rewardGrowthOutside[uint24(rewardTick)] += cumulativeGrowth;
 
-                liquidity = MixedSignLib.sub(liquidity, _getNetTickLiquidity(pool.id, rewardTick));
+                (, int128 netLiquidity) = UNI_V4.getTickLiquidity(pool.id, rewardTick);
+                liquidity = MixedSignLib.sub(liquidity, netLiquidity);
             }
-            (initialized, rewardTick) = _findNextTickDown(pool.id, rewardTick, pool.tickSpacing);
+            (initialized, rewardTick) = UNI_V4.getNextTickLt(pool.id, rewardTick, pool.tickSpacing);
         } while (rewardTick > pool.currentTick);
 
         return (reader, total, cumulativeGrowth, liquidity);
-    }
-
-    function _findNextTickUp(PoolId id, int24 tick, int24 tickSpacing)
-        internal
-        view
-        returns (bool initialized, int24 newTick)
-    {
-        (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick, tickSpacing) + 1);
-        (initialized, bitPos) = _getPoolBitmapInfo(id, wordPos).nextBitPosGte(bitPos);
-        newTick = TickLib.toTick(wordPos, bitPos, tickSpacing);
-    }
-
-    function _findNextTickDown(PoolId id, int24 tick, int24 tickSpacing)
-        internal
-        view
-        returns (bool initialized, int24 newTick)
-    {
-        (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick - 1, tickSpacing));
-        (initialized, bitPos) = _getPoolBitmapInfo(id, wordPos).nextBitPosLte(bitPos);
-        newTick = TickLib.toTick(wordPos, bitPos, tickSpacing);
     }
 
     /**
@@ -164,12 +150,4 @@ abstract contract RewardsUpdater {
     function flatDivWad(uint256 x, uint256 y) internal pure returns (uint256) {
         return (x * FixedPointMathLib.WAD).rawDiv(y);
     }
-
-    ////////////////////////////////////////////////////////////////
-    //                       POOL INTERFACE                       //
-    ////////////////////////////////////////////////////////////////
-
-    function _getPoolBitmapInfo(PoolId id, int16 wordPos) internal view virtual returns (uint256);
-    function _getNetTickLiquidity(PoolId id, int24 tick) internal view virtual returns (int128);
-    function _getCurrentLiquidity(PoolId id) internal view virtual returns (uint128);
 }
