@@ -82,6 +82,13 @@ contract Angstrom is
         return new bytes(0);
     }
 
+    function extsload(bytes32 slot) external view returns (bytes32) {
+        assembly ("memory-safe") {
+            mstore(0x00, sload(slot))
+            return(0x00, 0x20)
+        }
+    }
+
     function _validateAndExecuteToBOrders(CalldataReader reader, PairArray pairs)
         internal
         returns (CalldataReader)
