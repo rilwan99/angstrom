@@ -51,7 +51,7 @@ contract PoolUpdateManagerTest is HookDeployer, BaseTest {
             ConversionLib.toPoolKey(address(0), address(asset0), address(asset1), TICK_SPACING)
         );
         gate.setHook(address(0));
-        gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick());
+        gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick(), 0);
 
         angstrom = ExtAngstrom(deployAngstrom(type(ExtAngstrom).creationCode, uniV4, gov));
         id = PoolIdLibrary.toId(poolKey());
@@ -60,7 +60,7 @@ contract PoolUpdateManagerTest is HookDeployer, BaseTest {
         angstrom.configurePool(address(asset0), address(asset1), uint16(uint24(TICK_SPACING)), 0);
 
         gate.setHook(address(angstrom));
-        gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick());
+        gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick(), 0);
 
         handler = new PoolRewardsHandler(uniV4, angstrom, gate, id, refId, asset0, asset1, gov);
     }

@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.26;
 
-import {PoolConfigs, PoolConfigsLib} from "../libraries/pool-config/PoolConfigs.sol";
+import {
+    PoolConfigStore,
+    PoolConfigStoreLib,
+    StoreKey
+} from "../libraries/pool-config/PoolConfigStore.sol";
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 
 /// @author philogy <https://github.com/philogy>
@@ -9,15 +13,13 @@ abstract contract NodeManager {
     error NotController();
     error OnlyOncePerBlock();
     error NotNode();
-    error AssetsUnsorted();
 
     address internal immutable _CONTROLLER;
 
     mapping(address => bool) internal _isNode;
 
-    PoolConfigs configs;
     uint64 internal _lastBlockUpdated;
-    address internal _configStore;
+    PoolConfigStore internal _configStore;
 
     constructor(address controller) {
         _CONTROLLER = controller;
@@ -33,9 +35,7 @@ abstract contract NodeManager {
         external
         onlyController
     {
-        if (asset1 <= asset0) revert AssetsUnsorted();
-        bytes32 fullKey = PoolConfigsLib.getFullKeyUnchecked(asset0, asset1);
-        _configStore = configs.setConfig(_configStore, fullKey, tickSpacing, feeInE6);
+        _configStore = _configStore.setIntoNew(asset0, asset1, tickSpacing, feeInE6);
     }
 
     function toggleNodes(address[] calldata nodes) external onlyController {
