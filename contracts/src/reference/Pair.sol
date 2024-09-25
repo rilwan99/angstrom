@@ -6,11 +6,13 @@ import {Asset, AssetLib} from "./Asset.sol";
 import {RayMathLib} from "../libraries/RayMathLib.sol";
 import {PairLib as ActualPairLib} from "../types/Pair.sol";
 import {PriceAB} from "../types/Price.sol";
-import {PoolConfigsLib} from "src/libraries/pool-config/PoolConfigs.sol";
-import {PoolConfigStore} from "src/libraries/pool-config/PoolConfigStore.sol";
-import {ConfigEntry} from "src/libraries/pool-config/ConfigEntry.sol";
-import {PartialKey, PartialKeyLib} from "src/libraries/pool-config/PartialKey.sol";
-import {ENTRY_SIZE} from "src/libraries/pool-config/ConfigEntry.sol";
+import {
+    PoolConfigStore,
+    PoolConfigStoreLib,
+    StoreKey,
+    STORE_HEADER_SIZE
+} from "src/libraries/pool-config/PoolConfigStore.sol";
+import {ConfigEntry, ENTRY_SIZE} from "src/libraries/pool-config/ConfigEntry.sol";
 
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
@@ -96,18 +98,24 @@ library PairLib {
         require(index < pairs.length, "Pair not found");
     }
 
-    function getStoreIndex(address store, address assetA, address assetB)
+    function getStoreIndex(address store, address asset0, address asset1)
         internal
         view
         returns (uint16 index)
     {
-        PartialKey pkey =
-            PartialKeyLib.toPartialKey(PoolConfigsLib.getFullKeyUnsorted(assetA, assetB));
+        require(asset0 < asset1, "getStoreIndex:assets unsorted");
+        StoreKey key = PoolConfigStoreLib.keyFromAssetsUnchecked(asset0, asset1);
         uint256 totalEntries = store.code.length / ENTRY_SIZE;
         PoolConfigStore configStore = PoolConfigStore.wrap(store);
         for (index = 0; index < totalEntries; index++) {
-            (int24 tickSpacing,) = configStore.getAndCheck(pkey, index);
-            if (tickSpacing > 0) return index;
+            StoreKey entryKey;
+            assembly ("memory-safe") {
+                extcodecopy(
+                    configStore, 0x00, add(STORE_HEADER_SIZE, mul(ENTRY_SIZE, index)), ENTRY_SIZE
+                )
+                entryKey := mload(0x40)
+            }
+            if (StoreKey.unwrap(entryKey) == StoreKey.unwrap(key)) return index;
         }
         revert("Pool not enabled");
     }

@@ -23,6 +23,8 @@ contract BaseTest is Test, HookDeployer {
 
     uint256 internal constant REAL_TIMESTAMP = 1721652639;
 
+    bytes32 internal constant ANG_CONFIG_STORE_SLOT = bytes32(uint256(0x5));
+
     function deployAngstrom(bytes memory initcode, IPoolManager uni, address controller)
         internal
         returns (address addr)

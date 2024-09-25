@@ -7,6 +7,7 @@ import {IUniV4, IPoolManager} from "../../src/interfaces/IUniV4.sol";
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
 import {Position} from "src/libraries/Positions.sol";
+import {PoolConfigStore} from "src/libraries/pool-config/PoolConfigStore.sol";
 
 import {console} from "forge-std/console.sol";
 
@@ -28,7 +29,7 @@ contract ExtAngstrom is Angstrom {
     }
 
     function configStore() public view returns (address) {
-        return _configStore;
+        return PoolConfigStore.unwrap(_configStore);
     }
 
     function updateLastBlock() public {

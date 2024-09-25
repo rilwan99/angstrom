@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.13;
 
-import {PartialKey} from "./PartialKey.sol";
-
-/// @dev Packed `partialKey:u216 ++ tickSpacing:u16 ++ feeInE6:u24`
+/// @dev Packed `storeKey:u216 ++ tickSpacing:u16 ++ feeInE6:u24`
 type ConfigEntry is uint256;
 
 uint256 constant ENTRY_SIZE = 32;

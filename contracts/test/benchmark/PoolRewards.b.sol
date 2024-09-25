@@ -17,7 +17,8 @@ import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {console} from "forge-std/console.sol";
 
 import {Bundle, Asset, Pair, PoolUpdate} from "src/reference/Bundle.sol";
-import {PriceAB} from "src/reference/Pair.sol";
+import {PairLib} from "src/reference/Pair.sol";
+import {PriceAB} from "src/types/Price.sol";
 import {TopOfBlockOrder} from "src/reference/OrderTypes.sol";
 import {PoolUpdate, RewardsUpdate} from "src/reference/PoolUpdate.sol";
 
@@ -66,8 +67,7 @@ contract PoolRewardsTest is BaseTest {
         vm.prank(controller);
         angstrom.configurePool(asset0, asset1, 60, 0);
         // Note hardcoded slot for `Angstrom.sol`, might be different for test derivations.
-        configStore =
-            address(uint160(uint256(vm.load(address(angstrom), bytes32(uint256(6))) >> 64)));
+        configStore = address(bytes20(vm.load(address(angstrom), ANG_CONFIG_STORE_SLOT) << 32));
         domainSeparator = keccak256(
             abi.encode(
                 keccak256(
@@ -81,7 +81,12 @@ contract PoolRewardsTest is BaseTest {
         );
 
         gate.tickSpacing(tickSpacing = 60);
-        id = gate.initializePool(asset0, asset1, int24(4).getSqrtPriceAtTick());
+        id = gate.initializePool(
+            asset0,
+            asset1,
+            int24(4).getSqrtPriceAtTick(),
+            PairLib.getStoreIndex(configStore, asset0, asset1)
+        );
 
         gate.addLiquidity(asset0, asset1, -60, 0, 1e21, bytes32(0));
         gate.addLiquidity(asset0, asset1, 0, 60, 1e21, bytes32(0));

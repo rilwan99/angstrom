@@ -4,8 +4,11 @@ pragma solidity ^0.8.13;
 import {CalldataReader} from "./CalldataReader.sol";
 import {AssetArray} from "./Asset.sol";
 import {RayMathLib} from "../libraries/RayMathLib.sol";
-import {PoolConfigStore} from "../libraries/pool-config/PoolConfigStore.sol";
-import {PartialKey, PartialKeyLib} from "../libraries/pool-config/PartialKey.sol";
+import {
+    PoolConfigStore,
+    StoreKey,
+    HASH_TO_STORE_KEY_SHIFT
+} from "../libraries/pool-config/PoolConfigStore.sol";
 // TODO: Remove
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 import {console} from "forge-std/console.sol";
@@ -90,16 +93,18 @@ library PairLib {
 
             // Load and store pool config.
             {
-                bytes32 fullKey;
+                StoreKey key;
                 assembly ("memory-safe") {
-                    fullKey := keccak256(add(raw_memoryOffset, PAIR_ASSET0_OFFSET), 0x40)
+                    key :=
+                        shl(
+                            HASH_TO_STORE_KEY_SHIFT,
+                            keccak256(add(raw_memoryOffset, PAIR_ASSET0_OFFSET), 0x40)
+                        )
                 }
 
                 uint16 storeIndex;
                 (reader, storeIndex) = reader.readU16();
-
-                (int24 tickSpacing, uint24 feeIne6) =
-                    store.getAndCheck(PartialKeyLib.toPartialKey(fullKey), storeIndex);
+                (int24 tickSpacing, uint24 feeIne6) = store.get(key, storeIndex);
 
                 assembly ("memory-safe") {
                     mstore(add(raw_memoryOffset, PAIR_TICK_SPACING_OFFSET), tickSpacing)

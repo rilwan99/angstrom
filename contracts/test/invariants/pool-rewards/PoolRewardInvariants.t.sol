@@ -56,13 +56,13 @@ contract PoolRewardsInvariantTest is BaseTest {
         refId =
             PoolIdLibrary.toId(address(0).toPoolKey(address(asset0), address(asset1), TICK_SPACING));
         gate.setHook(address(0));
-        gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick());
+        gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick(), 0);
 
         angstrom = ExtAngstrom(deployAngstrom(type(ExtAngstrom).creationCode, uniV4, gov));
         id = PoolIdLibrary.toId(poolKey());
 
         gate.setHook(address(angstrom));
-        gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick());
+        gate.initializePool(address(asset0), address(asset1), startTick.getSqrtPriceAtTick(), 0);
 
         handler = new PoolRewardsHandler(uniV4, angstrom, gate, id, refId, asset0, asset1, gov);
 

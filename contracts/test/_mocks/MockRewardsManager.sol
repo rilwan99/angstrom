@@ -33,15 +33,13 @@ contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager
     }
 
     /// @param encoded PADE `(List<Asset>, List<Pair>, PoolUpdate)`.
-    function update(bool useStore, bytes calldata encoded) public {
+    function update(bytes calldata encoded) public {
         CalldataReader reader = CalldataReaderLib.from(encoded);
 
         AssetArray assets;
         (reader, assets) = AssetLib.readFromAndValidate(reader);
         PairArray pairs;
-        PoolConfigStore configStore;
-        if (useStore) configStore = PoolConfigStore.wrap(_configStore);
-        (reader, pairs) = PairLib.readFromAndValidate(reader, assets, configStore);
+        (reader, pairs) = PairLib.readFromAndValidate(reader, assets, _configStore);
 
         UniSwapCallBuffer memory swapCall = UniCallLib.newSwapCall(address(this));
         reader = _updatePool(reader, swapCall, tBundleDeltas, pairs);
