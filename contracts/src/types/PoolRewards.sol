@@ -44,6 +44,9 @@ library PoolRewardsLib {
         return growthInside = self.globalGrowth - lowerGrowth - upperGrowth;
     }
 
+    /// @dev Update growth values for a valid tick move from `prevTick` to `newTick`. Expects
+    /// `prevTick` and `newTick` to be valid Uniswap ticks (defined as tick ∈ [TickMath.MIN_TICK;
+    /// TickMath.MAX_TICK]).
     function updateAfterTickMove(
         PoolRewards storage self,
         PoolId id,
@@ -52,14 +55,14 @@ library PoolRewardsLib {
         int24 newTick,
         int24 tickSpacing
     ) internal {
-        prevTick = prevTick.normalize(tickSpacing);
-        newTick = newTick.normalize(tickSpacing);
         if (newTick > prevTick) {
-            if (newTick.normalize(tickSpacing) > prevTick) {
+            // We assume the ticks are valid so no risk of underflow with these calls.
+            if (newTick.normalizeUnchecked(tickSpacing) > prevTick) {
                 _updateTickMoveUp(self, uniV4, id, prevTick, newTick, tickSpacing);
             }
         } else if (newTick < prevTick) {
-            if (newTick < prevTick.normalize(tickSpacing)) {
+            // We assume the ticks are valid so no risk of underflow with these calls.
+            if (newTick < prevTick.normalizeUnchecked(tickSpacing)) {
                 _updateTickMoveDown(self, uniV4, id, prevTick, newTick, tickSpacing);
             }
         }

@@ -44,8 +44,17 @@ library TickLib {
         }
     }
 
-    function normalize(int24 tick, int24 tickSpacing) internal pure returns (int24) {
-        return TickLib.compress(tick, tickSpacing) * tickSpacing;
+    /// @dev Normalize tick to its tick boundary (rounding towards negative infinity). WARN: Can underflow
+    /// for values of `tick < mul(sdiv(type(int24).min, tickSpacing), tickSpacing)`.
+    function normalizeUnchecked(int24 tick, int24 tickSpacing)
+        internal
+        pure
+        returns (int24 normalized)
+    {
+        assembly {
+            normalized :=
+                mul(sub(sdiv(tick, tickSpacing), slt(smod(tick, tickSpacing), 0)), tickSpacing)
+        }
     }
 
     function position(int24 compressed) internal pure returns (int16 wordPos, uint8 bitPos) {
