@@ -306,11 +306,7 @@ where
                 self.order_indexer.finalized_block(block);
             }
             EthEvent::NewPool(pool) => self.order_indexer.new_pool(pool),
-            EthEvent::NewBlock(block) => {
-                for (peer_id, info) in self.peer_to_info.iter_mut() {
-                    info.orders.clear()
-                }
-            }
+            EthEvent::NewBlock(block) => {}
         }
     }
 

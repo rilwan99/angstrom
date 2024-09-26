@@ -59,11 +59,6 @@ impl<T: Hash + Eq> LruCache<T> {
     pub fn iter(&self) -> impl Iterator<Item = &T> + '_ {
         self.inner.iter()
     }
-
-    /// Clears cache
-    pub fn clear(&mut self) {
-        self.inner.clear()
-    }
 }
 
 impl<T> Extend<T> for LruCache<T>

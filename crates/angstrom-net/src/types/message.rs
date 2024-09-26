@@ -1,5 +1,5 @@
 #![allow(missing_docs)]
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use alloy::rlp::{Decodable, Encodable};
 use angstrom_types::{
@@ -144,11 +144,11 @@ impl StromMessage {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StromBroadcastMessage {
     // Consensus Broadcast
-    PrePropose(PreProposal),
-    Propose(Proposal),
-    Commit(Commit),
+    PrePropose(Arc<PreProposal>),
+    Propose(Arc<Proposal>),
+    Commit(Arc<Commit>),
     // Order Broadcast
-    PropagatePooledOrders(Vec<AllOrders>)
+    PropagatePooledOrders(Arc<Vec<AllOrders>>)
 }
 
 impl StromBroadcastMessage {
