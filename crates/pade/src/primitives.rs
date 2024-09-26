@@ -164,7 +164,14 @@ impl PadeDecode for Signature {
     where
         Self: Sized
     {
-        todo!()
+        let bytes = &buf[0..65];
+        let v = bytes[0];
+        let r = U256::from_be_slice(&bytes[1..33]);
+        let s = U256::from_be_slice(&bytes[33..65]);
+
+        *buf = &buf[65..];
+
+        Ok(Signature::new(r, s, alloy::primitives::Parity::Parity(v != 0)))
     }
 
     fn pade_decode_with_width(_: &mut &[u8], _: usize, _: Option<u8>) -> Result<Self, ()>
