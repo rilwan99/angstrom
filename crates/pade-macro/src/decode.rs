@@ -90,9 +90,9 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
 
     let struct_building = if matches!(s.fields, Fields::Unnamed(_)) {
         quote! (
-              Ok(Self(#(#assigned_name)*))
+              Ok(Self(#(#assigned_name),*))
         )
-    }  else {
+    } else {
         quote! (
               Ok(Self {
                   #(
@@ -101,8 +101,6 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
               })
         )
     };
-
-
 
     quote! (
       impl #impl_gen pade::PadeDecode for #name #ty_gen #where_clause {
