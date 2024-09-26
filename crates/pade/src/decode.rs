@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 
-
 pub trait PadeDecode: super::PadeEncode {
     fn pade_decode(buf: &mut &[u8], var: Option<u8>) -> Result<Self, ()>
     where

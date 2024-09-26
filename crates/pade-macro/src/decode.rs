@@ -51,15 +51,15 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                         .map(|w| {
                             quote_spanned! { attr.span() =>
                                 // value is some if we have a enum varient.
-                                let is_enum = Some(<$field_type>::PADE_VARIANT_MAP_BITS).filter(|b| b != 0);
+                                let is_enum = Some(<#field_type>::PADE_VARIANT_MAP_BITS).filter(|b| b != &0);
                                 let #name = if let Some(is_enum) = is_enum {
                                     // the split here naturally will extract out the bitmap fields
                                     let variant_bits = bitmap.split_off(is_enum);
                                     let var_e: u8 = variant_bits.load_be();
-                                     <$field_type>::pade_decode_with_width(buf, #w, Some(var_e))?
+                                     <#field_type>::pade_decode_with_width(buf, #w, Some(var_e))?
                                 } else {
-                                     #field_type::pade_decode_with_width(buf, #w, None)?
-                                }
+                                     <#field_type>::pade_decode_with_width(buf, #w, None)?
+                                };
                             }
                         })
                         .unwrap_or_else(|_| {
@@ -72,15 +72,15 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                 })
                 .unwrap_or_else(
                     || quote_spanned! { f.span() => 
-                        let is_enum = Some(<$field_type>::PADE_VARIANT_MAP_BITS).filter(|b| b != 0);
+                        let is_enum = Some(<#field_type>::PADE_VARIANT_MAP_BITS).filter(|b| b != &0);
                         let #name = if let Some(is_enum) = is_enum {
                             // the split here naturally will extract out the bitmap fields
                             let variant_bits = bitmap.split_off(is_enum);
                             let var_e: u8 = variant_bits.load_be();
-                             <$field_type>::pade_decode(buf, Some(var_e))?
+                             <#field_type>::pade_decode(buf, Some(var_e))?
                         } else {
-                             #field_type::pade_decode(buf,  None)?
-                        }
+                             <#field_type>::pade_decode(buf, None)?
+                        };
 
                     }
                 );
@@ -92,7 +92,7 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
       impl #impl_gen pade::PadeDecode for #name #ty_gen #where_clause {
           fn pade_decode(buf: &mut &[u8], var: Option<u8>) -> Result<Self, ()> {
               let bitmap_bytes = Self::PADE_VARIANT_MAP_BITS.div_ceil(8);
-              let mut bitmap = pade::bitvec::BitVec::<u8, bitvec::order::Msb0>::from_slice(&buf[0..bitmap_bytes]);
+              let mut bitmap = ::pade::bitvec::vec::BitVec::<u8, ::pade::bitvec::order::Msb0>::from_slice(&buf[0..bitmap_bytes]);
               #(#field_decoders)*
 
               Ok(Self {
@@ -100,8 +100,14 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                       #default_name: #assigned_name,
                   )*
               })
-
           }
+
+            fn pade_decode_with_width(buf: &mut &[u8], width: usize, var: Option<u8>) -> Result<Self, ()>
+            where
+                Self: Sized
+            {
+                todo!("decode width not supported for non primitives")
+            }
       }
     )
 }
@@ -122,7 +128,7 @@ fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStre
                     (
                         name,
                         quote! (
-                                let #name = #ty::pade_decode(buf, None)?;
+                            let #name = #ty::pade_decode(buf, None)?;
                         )
                     )
                 });

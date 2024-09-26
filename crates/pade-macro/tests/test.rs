@@ -1,9 +1,9 @@
-use pade::PadeEncode;
-use pade_macro::PadeEncode;
+use pade::{bitvec::field::BitField, PadeEncode};
+use pade_macro::{PadeDecode, PadeEncode};
 
 #[test]
 fn can_derive_on_struct() {
-    #[derive(PadeEncode)]
+    #[derive(PadeEncode, PadeDecode)]
     struct Test {
         index:  u128,
         vector: Vec<u128>
@@ -15,7 +15,7 @@ fn can_derive_on_struct() {
 
 #[test]
 fn can_derive_on_unnamed_struct() {
-    #[derive(PadeEncode)]
+    #[derive(PadeEncode, PadeDecode)]
     struct UnNamed(u128, u128);
 
     let test_struct = UnNamed(12345, 23456);
@@ -24,13 +24,13 @@ fn can_derive_on_unnamed_struct() {
 
 #[test]
 fn can_derive_on_nested_struct() {
-    #[derive(PadeEncode)]
+    #[derive(PadeEncode, PadeDecode)]
     struct Inside {
         number:  u128,
         another: u128
     }
 
-    #[derive(PadeEncode)]
+    #[derive(PadeEncode, PadeDecode)]
     struct Outside {
         inner: Inside
     }
@@ -41,7 +41,7 @@ fn can_derive_on_nested_struct() {
 
 #[test]
 fn can_derive_on_basic_enum() {
-    #[derive(PadeEncode)]
+    #[derive(PadeEncode, PadeDecode)]
     enum BasicEnum {
         StateA,
         StateB,
@@ -54,7 +54,7 @@ fn can_derive_on_basic_enum() {
 
 #[test]
 fn can_derive_on_enums_with_data() {
-    #[derive(PadeEncode)]
+    #[derive(PadeEncode, PadeDecode)]
     enum DataEnum {
         Point(u128),
         Line(u128, u128, u128)
@@ -66,7 +66,7 @@ fn can_derive_on_enums_with_data() {
 
 #[test]
 fn can_derive_on_structlike_enums() {
-    #[derive(PadeEncode)]
+    #[derive(PadeEncode, PadeDecode)]
     enum StructEnum {
         Once { x: u128, y: u128 },
         Twice { a: u128, b: u128 }
@@ -78,7 +78,7 @@ fn can_derive_on_structlike_enums() {
 
 #[test]
 fn will_respect_item_width() {
-    #[derive(PadeEncode)]
+    #[derive(PadeEncode, PadeDecode)]
     struct TooBig {
         #[pade_width(3)]
         x: i32
