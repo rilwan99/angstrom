@@ -1,12 +1,11 @@
 #![allow(missing_docs)]
-use std::{fmt::Debug, sync::Arc};
+use std::fmt::Debug;
 
 use alloy::rlp::{Decodable, Encodable};
 use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
     sol_bindings::grouped_orders::AllOrders
 };
-use bincode::{deserialize, serialize};
 use reth_eth_wire::{protocol::Protocol, Capability};
 use reth_network_p2p::error::RequestError;
 use reth_primitives::bytes::{Buf, BufMut};
@@ -145,11 +144,11 @@ impl StromMessage {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StromBroadcastMessage {
     // Consensus Broadcast
-    PrePropose(Arc<PreProposal>),
-    Propose(Arc<Proposal>),
-    Commit(Arc<Commit>),
+    PrePropose(PreProposal),
+    Propose(Proposal),
+    Commit(Commit),
     // Order Broadcast
-    PropagatePooledOrders(Arc<Vec<AllOrders>>)
+    PropagatePooledOrders(Vec<AllOrders>)
 }
 
 impl StromBroadcastMessage {

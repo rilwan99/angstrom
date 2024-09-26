@@ -1,10 +1,6 @@
-use std::{
-    net::SocketAddr,
-    sync::{atomic::AtomicUsize, Arc}
-};
+use std::sync::{atomic::AtomicUsize, Arc};
 
 use angstrom_types::sol_bindings::grouped_orders::AllOrders;
-use order_pool::OrderPoolHandle;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
 use reth_network::DisconnectReason;
 use reth_rpc_types::PeerId;
@@ -41,11 +37,27 @@ impl StromNetworkHandle {
 
     /// Send full transactions to the peer
     pub fn send_transactions(&self, peer_id: PeerId, msg: StromMessage) {
-        self.send_message(StromNetworkHandleMsg::SendOrders { peer_id, msg })
+        match msg {
+            StromMessage::PropagatePooledOrders(_) => {
+                self.send_message(StromNetworkHandleMsg::SendOrders { peer_id, msg })
+            }
+            StromMessage::Status(_)
+            | StromMessage::PrePropose(_)
+            | StromMessage::Propose(_)
+            | StromMessage::Commit(_) => {}
+        }
     }
 
     pub fn broadcast_tx(&self, msg: StromMessage) {
-        self.send_message(StromNetworkHandleMsg::BroadcastOrder { msg });
+        match msg {
+            StromMessage::PropagatePooledOrders(_) => {
+                self.send_message(StromNetworkHandleMsg::BroadcastOrder { msg })
+            }
+            StromMessage::Status(_)
+            | StromMessage::PrePropose(_)
+            | StromMessage::Propose(_)
+            | StromMessage::Commit(_) => {}
+        }
     }
 
     pub fn peer_reputation_change(&self, peer: PeerId, change: ReputationChangeKind) {

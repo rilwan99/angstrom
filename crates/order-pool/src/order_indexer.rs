@@ -348,6 +348,7 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         match res {
             OrderValidationResults::Valid(valid) => {
                 let hash = valid.order_hash();
+                let peers = self.order_hash_to_peer_id.remove(&hash).unwrap_or_default();
 
                 // what about the deadline?
                 if valid.valid_block != self.block_number {
@@ -357,7 +358,6 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
                     );
 
                     self.seen_invalid_orders.insert(hash);
-                    let peers = self.order_hash_to_peer_id.remove(&hash).unwrap_or_default();
                     return Ok(PoolInnerEvent::BadOrderMessages(peers));
                 }
 
