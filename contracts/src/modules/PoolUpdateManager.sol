@@ -13,6 +13,7 @@ import {CalldataReader} from "../types/CalldataReader.sol";
 import {PoolRewards} from "../types/PoolRewards.sol";
 import {Positions, Position} from "src/libraries/Positions.sol";
 import {UniCallLib, UniSwapCallBuffer} from "src/libraries/UniCallLib.sol";
+import {PoolUpdateVariantMap} from "src/types/PoolUpdateVariantMap.sol";
 
 import {ConversionLib} from "src/libraries/ConversionLib.sol";
 import {SignedUnsignedLib} from "super-sol/libraries/SignedUnsignedLib.sol";
@@ -148,9 +149,13 @@ abstract contract PoolUpdateManager is
         DeltaTracker storage deltas,
         PairArray pairs
     ) internal returns (CalldataReader) {
-        bool zeroForOne;
-        (reader, zeroForOne) = reader.readBool();
-        swapCall.setZeroForOne(zeroForOne);
+        PoolUpdateVariantMap variantMap;
+        {
+            uint8 variantByte;
+            (reader, variantByte) = reader.readU8();
+            variantMap = PoolUpdateVariantMap.wrap(variantByte);
+        }
+        swapCall.setZeroForOne(variantMap.zeroForOne());
         uint16 pairIndex;
         (reader, pairIndex) = reader.readU16();
         (swapCall.asset0, swapCall.asset1, swapCall.tickSpacing) =
@@ -178,8 +183,9 @@ abstract contract PoolUpdateManager is
         }
 
         uint256 rewardTotal;
-        (reader, rewardTotal) =
-            _decodeAndReward(reader, poolRewards[id], id, swapCall.tickSpacing, currentTick);
+        (reader, rewardTotal) = _decodeAndReward(
+            variantMap.currentOnly(), reader, poolRewards[id], id, swapCall.tickSpacing, currentTick
+        );
         deltas.sub(swapCall.asset0, rewardTotal);
 
         return reader;

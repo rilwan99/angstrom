@@ -32,23 +32,19 @@ abstract contract RewardsUpdater is UniConsumer {
     }
 
     function _decodeAndReward(
+        bool currentOnly,
         CalldataReader reader,
         PoolRewards storage poolRewards_,
         PoolId id,
         int24 tickSpacing,
         int24 currentTick
     ) internal returns (CalldataReader, uint256) {
-        {
-            bool onlyCurrent;
-            (reader, onlyCurrent) = reader.readBool();
+        if (currentOnly) {
+            uint128 amount;
+            (reader, amount) = reader.readU128();
+            poolRewards_.globalGrowth += flatDivWad(amount, UNI_V4.getPoolLiquidity(id));
 
-            if (onlyCurrent) {
-                uint128 amount;
-                (reader, amount) = reader.readU128();
-                poolRewards_.globalGrowth += flatDivWad(amount, UNI_V4.getPoolLiquidity(id));
-
-                return (reader, amount);
-            }
+            return (reader, amount);
         }
 
         uint256 cumulativeGrowth;
