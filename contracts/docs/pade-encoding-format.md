@@ -138,6 +138,8 @@ field / struct).
 
 ```python
 
+LIST_MAX_LENGTH_BYTES = 3
+
 def pade_encode(x: PadeValue, T: PadeType) -> bytes:
     if T.is_abi_primitve():
         return x.abi_encode_packed()
@@ -157,7 +159,7 @@ def pade_encode(x: PadeValue, T: PadeType) -> bytes:
             pade_encode(item)
             for item in x.items
         ])
-        length_bytes = len(encoded_items).to_bytes(T.max_length_bytes, 'big')
+        length_bytes = len(encoded_items).to_bytes(LIST_MAX_LENGTH_BYTES, 'big')
         return length_bytes + encoded_items
     if T.is_struct():
         # the variants of enum fields are packed together
