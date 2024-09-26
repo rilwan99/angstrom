@@ -375,6 +375,10 @@ where
             })
             .collect::<Vec<_>>();
 
+        self.broadcast_orders_to_peers(valid_orders);
+    }
+
+    fn broadcast_orders_to_peers(&mut self, valid_orders: Vec<AllOrders>) {
         for order in valid_orders.iter() {
             for (peer_id, info) in self.peer_to_info.iter_mut() {
                 let order_hash = order.order_hash();
