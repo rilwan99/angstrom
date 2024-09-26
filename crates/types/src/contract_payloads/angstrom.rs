@@ -2,7 +2,7 @@ use alloy::{
     primitives::{Address, Bytes},
     sol
 };
-use pade_macro::PadeEncode;
+use pade_macro::{PadeDecode, PadeEncode};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -14,7 +14,9 @@ use crate::{
 
 // This currently exists in types::sol_bindings as well, but that one is
 // outdated so I'm building a new one here for now and then migrating
-#[derive(PadeEncode, Clone, Default, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    PadeEncode, PadeDecode, Clone, Default, Debug, Hash, PartialEq, Eq, Serialize, Deserialize,
+)]
 pub struct TopOfBlockOrder {
     pub use_internal:    bool,
     pub quantity_in:     u128,

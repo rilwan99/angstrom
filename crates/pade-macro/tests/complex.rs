@@ -28,7 +28,7 @@ fn supports_struct_with_enum() {
     }
 
     let outer = OuterStruct {
-        x:      -34342,
+        x:      34342,
         enum1:  Cases::Twice { a: 10, b: 2000000 },
         list:   vec![1, 2, 3, 4023, 323424],
         inside: Inside {

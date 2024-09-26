@@ -51,11 +51,11 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                         .map(|w| {
                             quote_spanned! { attr.span() =>
                                 // value is some if we have a enum varient.
-                                let is_enum = Some(<#field_type>::PADE_VARIANT_MAP_BITS).filter(|b| b != &0);
+                                let is_enum = Some(<#field_type as pade::PadeEncode>::PADE_VARIANT_MAP_BITS).filter(|b| b != &0);
                                 let #name = if let Some(is_enum) = is_enum {
                                     // the split here naturally will extract out the bitmap fields
                                         let rem = bitmap.split_off(is_enum);
-                                        let var_e: u8 = bitmap.load_le();
+                                        let var_e: u8 = pade::bitvec::field::BitField::load_le(&bitmap);
                                         bitmap = rem;
                                      <#field_type>::pade_decode_with_width(buf, #w, Some(var_e))?
                                 } else {
@@ -73,11 +73,11 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                 })
                 .unwrap_or_else(
                     || quote_spanned! { f.span() => 
-                        let is_enum = Some(<#field_type>::PADE_VARIANT_MAP_BITS).filter(|b| b != &0);
+                        let is_enum = Some(<#field_type as pade::PadeEncode>::PADE_VARIANT_MAP_BITS).filter(|b| b != &0);
                         let #name = if let Some(is_enum) = is_enum {
                             // the split here naturally will extract out the bitmap fields
                             let rem = bitmap.split_off(is_enum);
-                            let var_e: u8 = bitmap.load_le();
+                            let var_e: u8 = pade::bitvec::field::BitField::load_le(&bitmap);
                             bitmap = rem;
 
                              <#field_type>::pade_decode(buf, Some(var_e))?
@@ -112,7 +112,7 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
               let mut bitmap_bits = 0usize;
               #(
                   bitmap_bits +=
-                  <#tys>::PADE_VARIANT_MAP_BITS;
+                  <#tys as pade::PadeEncode>::PADE_VARIANT_MAP_BITS;
 
               )*
              let bitmap_bytes = bitmap_bits.div_ceil(8);
