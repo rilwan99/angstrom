@@ -109,70 +109,100 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
 fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStream {
     let (impl_gen, ty_gen, where_clause) = generics.split_for_impl();
     let variant_count = e.variants.len();
-    // This will panic if there are no variants, is that a legal state?
-    let variant_bits = (variant_count.ilog2() + 1) as usize;
-    let variant_bytes = variant_bits.div_ceil(8);
+
     // Each variant gets a clause in the match
-    let clauses = e.variants.iter().enumerate().map(|(i, v)| {
-        let raw_number = number_to_literals(i, variant_bytes);
-        let number_encoder = std::iter::once(quote! {
-            [#(#raw_number),*].to_vec()
-        });
+    let branches = e.variants.iter().enumerate().map(|(i, v)| {
+        let raw_number = number_to_literal(i, 1);
+
+
         let name = &v.ident;
         match v.fields {
             Fields::Named(ref fields) => {
                 let unnamed_fields = fields.named.iter().map(|f| {
                     let name = f.ident.as_ref().unwrap();
-                    let field_encoder = quote_spanned! {f.span()=>
-                        pade::PadeEncode::pade_encode(#name)
-                    };
-                    (name, field_encoder)
+                    let ty = &f.ty;
+
+                    (name, 
+                     quote! (
+                            let #name = #ty::pade_decode(buf, None)?;
+                    ))
                 });
-                let (field_names, field_encoders): (Vec<&Ident>, Vec<TokenStream>) =
+
+                let (field_names, field_decoders): (Vec<&Ident>, Vec<TokenStream>) =
                     unnamed_fields.unzip();
-                let all_encoders = number_encoder.chain(field_encoders);
+
                 quote! {
-                    Self::#name { #(#field_names),* } => [#(#all_encoders),*].concat()
+                    #raw_number => {
+                        #(#field_decoders)*
+
+                        Ok(Self::#name {
+                            #(#field_names),*
+                        })
+                    }
                 }
             }
             Fields::Unnamed(ref fields) => {
                 let unnamed_fields = fields.unnamed.iter().enumerate().map(|(i, f)| {
                     let num = Index::from(i);
                     let field_name = format_ident!("field_{}", num);
+                    let ty = &f.ty;
                     let field_encoder = quote_spanned! {f.span()=>
-                        pade::PadeEncode::pade_encode(#field_name)
+                            let #field_name = #ty::pade_decode(buf, None)?;
                     };
                     (field_name, field_encoder)
                 });
-                let (field_names, field_encoders): (Vec<Ident>, Vec<TokenStream>) =
+                let (field_names, field_decoders): (Vec<Ident>, Vec<TokenStream>) =
                     unnamed_fields.unzip();
-                let all_encoders = number_encoder.chain(field_encoders);
                 quote! {
-                    Self::#name(#(#field_names),*) => [#(#all_encoders),*].concat()
+                    #raw_number => {
+                        #(#field_decoders)*
+
+                        Ok(Self::#name(
+                            #(#field_names),*
+                        ))
+                    }
                 }
             }
             Fields::Unit => {
                 quote! {
-                    Self::#name => [#(#raw_number),*].to_vec()
+                    #raw_number => {
+                        Ok(Self::#name)
+                    }
                 }
             }
         }
     });
+
     quote! {
-        impl #impl_gen pade::PadeEncode for #name #ty_gen #where_clause {
-            const PADE_VARIANT_MAP_BITS: usize = #variant_bits;
-            fn pade_encode(&self) -> Vec<u8> {
-                match self {
-                    #(#clauses),*
+        impl #impl_gen pade::PadeDecode for #name #ty_gen #where_clause {
+            fn pade_decode(buf: &mut &[u8], var: Option<u8>) -> Result<Self, ()>
+            where
+                Self: Sized
+            {
+                // the variant will either be the first byte or passed in
+                let variant = var.unwrap_or_else(|| {
+                    let ch = buf[0];
+                    *buf = &buf[1..];
+                    ch
+                });
+
+                match variant {
+                    #(#branches)*
+                    _ => return Err(())
                 }
+
+            }
+
+            fn pade_decode_with_width(buf: &mut &[u8], width: usize, var: Option<u8>) -> Result<Self, ()>
+            where
+                Self: Sized
+            {
+                todo!("decode width not supported for enums")
             }
         }
     }
 }
 
-fn number_to_literals(value: usize, bytes: usize) -> Vec<Literal> {
-    value.to_le_bytes()[0..bytes]
-        .iter()
-        .map(|n| Literal::u8_suffixed(*n))
-        .collect()
+fn number_to_literal(value: usize, bytes: usize) -> Literal {
+    Literal::u8_unsuffixed(value.to_le_bytes()[0])
 }
