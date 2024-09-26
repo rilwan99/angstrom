@@ -108,12 +108,9 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
 
 fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStream {
     let (impl_gen, ty_gen, where_clause) = generics.split_for_impl();
-    let variant_count = e.variants.len();
-
     // Each variant gets a clause in the match
     let branches = e.variants.iter().enumerate().map(|(i, v)| {
-        let raw_number = number_to_literal(i, 1);
-
+        let raw_number = number_to_literal(i);
 
         let name = &v.ident;
         match v.fields {
@@ -122,10 +119,12 @@ fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStre
                     let name = f.ident.as_ref().unwrap();
                     let ty = &f.ty;
 
-                    (name, 
-                     quote! (
-                            let #name = #ty::pade_decode(buf, None)?;
-                    ))
+                    (
+                        name,
+                        quote! (
+                                let #name = #ty::pade_decode(buf, None)?;
+                        )
+                    )
                 });
 
                 let (field_names, field_decoders): (Vec<&Ident>, Vec<TokenStream>) =
@@ -203,6 +202,6 @@ fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStre
     }
 }
 
-fn number_to_literal(value: usize, bytes: usize) -> Literal {
+fn number_to_literal(value: usize) -> Literal {
     Literal::u8_unsuffixed(value.to_le_bytes()[0])
 }
