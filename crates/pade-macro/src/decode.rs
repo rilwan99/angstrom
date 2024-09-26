@@ -88,6 +88,22 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                 (name, default_name, decode_command)
         }));
 
+    let struct_building = if matches!(s.fields, Fields::Unnamed(_)) {
+        quote! (
+              Ok(Self(#(#assigned_name)*))
+        )
+    }  else {
+        quote! (
+              Ok(Self {
+                  #(
+                      #default_name: #assigned_name,
+                  )*
+              })
+        )
+    };
+
+
+
     quote! (
       impl #impl_gen pade::PadeDecode for #name #ty_gen #where_clause {
           fn pade_decode(buf: &mut &[u8], var: Option<u8>) -> Result<Self, ()> {
@@ -95,11 +111,7 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
               let mut bitmap = ::pade::bitvec::vec::BitVec::<u8, ::pade::bitvec::order::Msb0>::from_slice(&buf[0..bitmap_bytes]);
               #(#field_decoders)*
 
-              Ok(Self {
-                  #(
-                      #default_name: #assigned_name,
-                  )*
-              })
+              #struct_building
           }
 
             fn pade_decode_with_width(buf: &mut &[u8], width: usize, var: Option<u8>) -> Result<Self, ()>
