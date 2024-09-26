@@ -383,7 +383,7 @@ where
             for (peer_id, info) in self.peer_to_info.iter_mut() {
                 let order_hash = order.order_hash();
                 if !info.orders.contains(&order_hash) {
-                    self.network.send_transactions(
+                    self.network.send_message(
                         *peer_id,
                         StromMessage::PropagatePooledOrders(vec![order.clone()])
                     );
