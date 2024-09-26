@@ -2,7 +2,7 @@ use itertools::multiunzip;
 use proc_macro2::{Literal, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
 use syn::{
-    spanned::Spanned, Data, DataEnum, DataStruct, DeriveInput, Fields, Generics, Ident, Index
+    spanned::Spanned, Data, DataEnum, DataStruct, DeriveInput, Fields, Generics, Ident, Index, Type
 };
 
 pub fn build_decode(input: DeriveInput) -> proc_macro::TokenStream {
@@ -23,7 +23,7 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
         _ => unimplemented!()
     };
 
-    let (assigned_name, default_name, field_decoders): (Vec<TokenStream>, Vec<TokenStream>,Vec<TokenStream>) = multiunzip(field_list
+    let (assigned_name, default_name, field_decoders, tys): (Vec<TokenStream>, Vec<TokenStream>,Vec<TokenStream>, Vec<Type>) = multiunzip(field_list
         .iter()
         .enumerate()
         .map(|(idx, f)| {
@@ -54,8 +54,9 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                                 let is_enum = Some(<#field_type>::PADE_VARIANT_MAP_BITS).filter(|b| b != &0);
                                 let #name = if let Some(is_enum) = is_enum {
                                     // the split here naturally will extract out the bitmap fields
-                                    let variant_bits = bitmap.split_off(is_enum);
-                                    let var_e: u8 = variant_bits.load_be();
+                                        let rem = bitmap.split_off(is_enum);
+                                        let var_e: u8 = bitmap.load_le();
+                                        bitmap = rem;
                                      <#field_type>::pade_decode_with_width(buf, #w, Some(var_e))?
                                 } else {
                                      <#field_type>::pade_decode_with_width(buf, #w, None)?
@@ -75,8 +76,10 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                         let is_enum = Some(<#field_type>::PADE_VARIANT_MAP_BITS).filter(|b| b != &0);
                         let #name = if let Some(is_enum) = is_enum {
                             // the split here naturally will extract out the bitmap fields
-                            let variant_bits = bitmap.split_off(is_enum);
-                            let var_e: u8 = variant_bits.load_be();
+                            let rem = bitmap.split_off(is_enum);
+                            let var_e: u8 = bitmap.load_le();
+                            bitmap = rem;
+
                              <#field_type>::pade_decode(buf, Some(var_e))?
                         } else {
                              <#field_type>::pade_decode(buf, None)?
@@ -85,7 +88,7 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                     }
                 );
 
-                (name, default_name, decode_command)
+                (name, default_name, decode_command, field_type.clone())
         }));
 
     let struct_building = if matches!(s.fields, Fields::Unnamed(_)) {
@@ -104,9 +107,19 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
 
     quote! (
       impl #impl_gen pade::PadeDecode for #name #ty_gen #where_clause {
+          #[allow(unused)]
           fn pade_decode(buf: &mut &[u8], var: Option<u8>) -> Result<Self, ()> {
-              let bitmap_bytes = Self::PADE_VARIANT_MAP_BITS.div_ceil(8);
+              let mut bitmap_bits = 0usize;
+              #(
+                  bitmap_bits +=
+                  <#tys>::PADE_VARIANT_MAP_BITS;
+
+              )*
+             let bitmap_bytes = bitmap_bits.div_ceil(8);
               let mut bitmap = ::pade::bitvec::vec::BitVec::<u8, ::pade::bitvec::order::Msb0>::from_slice(&buf[0..bitmap_bytes]);
+              bitmap = bitmap.split_off(bitmap_bytes * 8 - bitmap_bits);
+              *buf = &buf[bitmap_bytes..];
+
               #(#field_decoders)*
 
               #struct_building

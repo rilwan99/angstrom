@@ -72,10 +72,13 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                 let #variant_map_bytes = #name.pade_variant_map_bits().div_ceil(8);
                 output.extend(
                     if #variant_map_bytes > 0 {
-                        headers.extend_from_bitslice(
-                            pade::bitvec::view::BitView::view_bits::<pade::bitvec::order::Msb0>(
+
+                        let mut new_vec = pade::bitvec::view::BitView::view_bits::<pade::bitvec::order::Msb0>(
                                 &#encoded[0..#variant_map_bytes]
-                            ).split_at(#name.pade_variant_map_bits()).0);
+                            ).split_at(8 - #name.pade_variant_map_bits()).1.to_vec();
+                        new_vec.extend_from_bitslice(headers.as_slice());
+                        headers = new_vec;
+
                     #encoded[#variant_map_bytes..].iter()
                 } else { #encoded[0..].iter() });
             }
@@ -88,7 +91,10 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                 let mut headers = pade::bitvec::vec::BitVec::<u8, pade::bitvec::order::Msb0>::new();
                 let mut output: Vec<u8> = Vec::new();
                 #(#field_encoders)*
-                [headers.as_raw_slice().to_vec(), output].concat()
+
+                let raw = headers.as_raw_slice().to_vec();
+
+                 [raw, output].concat()
             }
         }
     }

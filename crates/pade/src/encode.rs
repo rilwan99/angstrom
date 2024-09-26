@@ -1,6 +1,7 @@
 pub trait PadeEncode {
     const PADE_HEADER_BITS: usize = 0;
     const PADE_VARIANT_MAP_BITS: usize = 0;
+
     fn pade_encode(&self) -> Vec<u8>;
 
     fn pade_encode_with_width(&self, width: usize) -> Vec<u8> {
