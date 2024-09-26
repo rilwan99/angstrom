@@ -47,8 +47,9 @@ library PoolUpdateLib {
         returns (bytes memory)
     {
         (uint16 pairIndex, bool zeroToOne) = pairs.getIndex(self.assetIn, self.assetOut);
+        uint8 variantByte = (zeroToOne ? 1 : 0) | (self.rewardUpdate.onlyCurrent ? 2 : 0);
         return bytes.concat(
-            bytes1(zeroToOne ? 1 : 0),
+            bytes1(variantByte),
             bytes2(pairIndex),
             bytes16(self.amountIn),
             self.rewardUpdate.encode()
@@ -57,7 +58,7 @@ library PoolUpdateLib {
 
     function encode(RewardsUpdate memory self) internal pure returns (bytes memory) {
         if (self.onlyCurrent) {
-            return bytes.concat(bytes1(0x01), bytes16(self.onlyCurrentQuantity));
+            return bytes.concat(bytes16(self.onlyCurrentQuantity));
         }
         bytes memory encodedQuantities;
         for (uint256 i = 0; i < self.quantities.length; i++) {
@@ -67,10 +68,7 @@ library PoolUpdateLib {
             bytes.concat(bytes3(encodedQuantities.length.toUint24()), encodedQuantities);
 
         return bytes.concat(
-            bytes1(0x00),
-            bytes3(uint24(self.startTick)),
-            bytes16(self.startLiquidity),
-            encodedQuantities
+            bytes3(uint24(self.startTick)), bytes16(self.startLiquidity), encodedQuantities
         );
     }
 
