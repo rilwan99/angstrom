@@ -4,6 +4,7 @@ use alloy::{
     sol_types::SolValue
 };
 use angstrom_types::contract_bindings::mockrewardsmanager::MockRewardsManager;
+mod rewardlib;
 
 const CREATE2_FACTORY: Address = address!("4e59b44847b379578588920cA78FbF26c0B4956C");
 
@@ -73,8 +74,5 @@ where {
         .watch()
         .await
         .unwrap();
-    // let raw_deploy = RawCallBuilder::new_raw_deploy(&provider,
-    // final_mock_initcode.into()); raw_deploy.send().await.unwrap().watch().
-    // await.unwrap(); raw_deploy.call_raw().await.unwrap();
     mock_tob_address
 }

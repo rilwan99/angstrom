@@ -1,4 +1,4 @@
-use alloy::sol;
+use alloy::{primitives::Signed, sol};
 use pade::derive::PadeEncode;
 
 sol! {
@@ -19,28 +19,25 @@ sol! {
         uint16 store_index;
         uint256 price_1over0;
     }
+}
 
-    #[derive(Debug, Default, PadeEncode)]
-    struct RewardsUpdate {
-        bool onlyCurrent;
-        uint128 onlyCurrentQuantity;
-        int24 startTick;
-        uint128 startLiquidity;
-        uint128[] quantities;
-    }
+#[derive(Debug, PadeEncode)]
+enum RewardsUpdate {
+    MultiTick { start_tick: Signed<24, 1>, start_liquidity: u128, quantities: Vec<u128> },
+    CurrentOnly { amount: u128 }
+}
 
-    #[derive(PadeEncode, Debug)]
-    struct PoolUpdate {
-        bool zero_for_one;
-        uint16 pair_index;
-        uint128 swap_in_quantity;
-        RewardsUpdate rewards_update;
-    }
+#[derive(Debug, PadeEncode)]
+struct PoolUpdate {
+    zero_for_one:     bool,
+    pair_index:       u16,
+    swap_in_quantity: u128,
+    rewards_update:   RewardsUpdate
+}
 
-    #[derive(PadeEncode, Debug)]
-    struct MockContractMessage {
-        Asset[] assetList;
-        Pair[] pairList;
-        PoolUpdate update;
-    }
+#[derive(PadeEncode, Debug)]
+struct MockContractMessage {
+    assets: Vec<Asset>,
+    pairs:  Vec<Pair>,
+    update: PoolUpdate
 }

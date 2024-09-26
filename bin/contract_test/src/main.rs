@@ -169,7 +169,7 @@ where
             asset0,
             asset1,
             I24::unchecked_from(99900),
-            I24::unchecked_from(100080),
+            I24::unchecked_from(100140),
             U256::from(5_000_000_000_000_000_000_000_u128),
             FixedBytes::default()
         )
@@ -238,6 +238,13 @@ where
         println!("CALL_TRACE: {trace:?}");
     }
 
+    let range_check_res = mock_tob
+        .getGrowthInsideRange(pool_id, I24::unchecked_from(99900), I24::unchecked_from(100140))
+        .gas(10_000_000_u128)
+        .call()
+        .await?
+        ._0;
+    println!("Range check res: {}", range_check_res);
     for tick in [99900].iter() {
         println!("Looking up output for tick {}", tick);
         let tick_check_res = mock_tob
