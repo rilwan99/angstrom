@@ -1,100 +1,5 @@
 use std::fmt::Debug;
 
-use bitvec::{field::BitField, vec::BitVec};
-
-use crate::PadeEncode;
-
-pub struct VisualImpl {
-    field_1: u128,
-    field_2: u128,
-    enum1:   Option<u8>,
-    field_3: u64,
-    enum2:   Visual
-}
-
-pub enum Visual {
-    A { u: u128 },
-    B(u128, u64),
-    C(u64)
-}
-
-impl PadeEncode for VisualImpl {
-    fn pade_encode(&self) -> Vec<u8> {
-        todo!()
-    }
-}
-impl PadeEncode for Visual {
-    fn pade_encode(&self) -> Vec<u8> {
-        todo!()
-    }
-}
-
-impl PadeDecode for Visual {
-    fn pade_decode(buf: &mut &[u8], var: Option<u8>) -> Result<Self, ()>
-    where
-        Self: Sized
-    {
-        let variant = var.unwrap_or_else(|| {
-            let ch = buf[0];
-            *buf = &buf[1..];
-            ch
-        });
-        match variant {
-            0 => {
-                let u = u128::pade_decode(buf, None)?;
-                Ok(Self::A { u })
-            }
-            1 => {
-                let f = u128::pade_decode(buf, None)?;
-                let f2 = u64::pade_decode(buf, None)?;
-                Ok(Self::B(f, f2))
-            }
-            2 => {
-                let u = u64::pade_decode(buf, None)?;
-                Ok(Self::C(u))
-            }
-            _ => return Err(())
-        }
-    }
-
-    fn pade_decode_with_width(buf: &mut &[u8], width: usize, var: Option<u8>) -> Result<Self, ()>
-    where
-        Self: Sized
-    {
-        todo!()
-    }
-}
-
-impl PadeDecode for VisualImpl {
-    fn pade_decode(buf: &mut &[u8], var: Option<u8>) -> Result<Self, ()>
-    where
-        Self: Sized
-    {
-        let bitmap_bytes = Self::PADE_VARIANT_MAP_BITS.div_ceil(8);
-        let mut bitmap = BitVec::<u8, bitvec::order::Msb0>::from_slice(&buf[0..bitmap_bytes]);
-        let field_1 = u128::pade_decode(buf, var)?;
-        let field_2 = u128::pade_decode(buf, var)?;
-
-        let variant_bits = bitmap.split_off(<Option<u8>>::PADE_VARIANT_MAP_BITS);
-        let var_e: u8 = variant_bits.load_be();
-
-        let enum1 = <Option<u8>>::pade_decode(buf, Some(var_e))?;
-        let field_3 = u64::pade_decode(buf, var)?;
-
-        let variant_bits = bitmap.split_off(<Visual>::PADE_VARIANT_MAP_BITS);
-        let var_e: u8 = variant_bits.load_be();
-        let enum2 = <Visual>::pade_decode(buf, Some(var_e))?;
-
-        Ok(Self { field_3, field_1, field_2, enum1, enum2 })
-    }
-
-    fn pade_decode_with_width(buf: &mut &[u8], width: usize, var: u8) -> Result<Self, ()>
-    where
-        Self: Sized
-    {
-        todo!()
-    }
-}
 
 pub trait PadeDecode: super::PadeEncode {
     fn pade_decode(buf: &mut &[u8], var: Option<u8>) -> Result<Self, ()>
@@ -131,7 +36,7 @@ impl<T: PadeDecode + Debug, const N: usize> PadeDecode for [T; N] {
 // Option<T: PadeEncode> encodes as an enum
 impl<T: PadeDecode> PadeDecode for Option<T> {
     fn pade_decode(buf: &mut &[u8], var: Option<u8>) -> Result<Self, ()> {
-        if buf.len() == 0 {
+        if buf.is_empty() {
             return Err(())
         }
         // check first byte;
@@ -147,7 +52,7 @@ impl<T: PadeDecode> PadeDecode for Option<T> {
     }
 
     fn pade_decode_with_width(buf: &mut &[u8], width: usize, var: Option<u8>) -> Result<Self, ()> {
-        if buf.len() == 0 {
+        if buf.is_empty() {
             return Err(())
         }
         // check first byte;
@@ -169,7 +74,7 @@ impl PadeDecode for bool {
             return Ok(var != 0)
         }
 
-        if buf.len() == 0 {
+        if buf.is_empty() {
             return Err(())
         }
         // check first byte;
@@ -203,7 +108,7 @@ impl<T: PadeDecode> PadeDecode for Vec<T> {
         while let Ok(d) = T::pade_decode(&mut decode_slice, var) {
             res.push(d);
         }
-        assert!(decode_slice.len() == 0);
+        assert!(decode_slice.is_empty());
 
         // progress
         *buf = &buf[length..];

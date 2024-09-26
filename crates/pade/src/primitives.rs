@@ -96,7 +96,7 @@ impl PadeDecode for Address {
     {
         const BYTES: usize = 160 / 8usize;
         // grab the padding amount
-        let offset = size - BYTES as usize;
+        let offset = size - BYTES;
         let subslice = &buf[offset..size];
 
         let mut con_buf = [0u8; BYTES];
