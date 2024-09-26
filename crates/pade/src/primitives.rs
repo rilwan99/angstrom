@@ -54,9 +54,9 @@ macro_rules! prim_decode {
 
                     let mut con_buf = [0u8; BYTES];
                     for i in 0..size {
-                        let Some(next) = subslice.get(i) else { 
+                        let Some(next) = subslice.get(i) else {
                             eprintln!("subslice.get() failed");
-                            return Err(()) 
+                            return Err(())
                         };
 
                         con_buf[i + padding_offset] = *next;
