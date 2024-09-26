@@ -169,7 +169,7 @@ where
             asset0,
             asset1,
             I24::unchecked_from(99900),
-            I24::unchecked_from(100140),
+            I24::unchecked_from(100080),
             U256::from(5_000_000_000_000_000_000_000_u128),
             FixedBytes::default()
         )
@@ -238,7 +238,7 @@ where
         println!("CALL_TRACE: {trace:?}");
     }
 
-    for tick in [99899, 100139].iter() {
+    for tick in [99900].iter() {
         println!("Looking up output for tick {}", tick);
         let tick_check_res = mock_tob
             .getGrowthInsideTick(pool_id, I24::unchecked_from(*tick), pool_tick_spacing)
