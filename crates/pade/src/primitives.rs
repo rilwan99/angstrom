@@ -1,5 +1,4 @@
 use alloy::{
-    consensus::EncodableSignature,
     primitives::{aliases::I24, Address, Bytes, Signature, U256},
     sol_types::SolValue
 };
@@ -26,7 +25,7 @@ macro_rules! prim_decode {
     ($( $x:ty ), *) => {
         $(
             impl PadeDecode for $x {
-                fn pade_decode(buf: &mut &[u8]) -> Result<Self, ()>
+                fn pade_decode(buf: &mut &[u8], _: Option<u8>) -> Result<Self, ()>
                 where
                     Self: Sized
                 {
@@ -41,7 +40,7 @@ macro_rules! prim_decode {
                     Ok(res)
                 }
 
-                fn pade_decode_with_width(buf: &mut &[u8], size: usize) -> Result<Self, ()>
+                fn pade_decode_with_width(buf: &mut &[u8], size: usize,_: Option<u8>) -> Result<Self, ()>
                 where
                     Self: Sized
                 {
@@ -76,7 +75,7 @@ impl PadeEncode for u8 {
 }
 
 impl PadeDecode for Address {
-    fn pade_decode(buf: &mut &[u8]) -> Result<Self, ()>
+    fn pade_decode(buf: &mut &[u8], _: Option<u8>) -> Result<Self, ()>
     where
         Self: Sized
     {
@@ -91,7 +90,7 @@ impl PadeDecode for Address {
         Ok(res)
     }
 
-    fn pade_decode_with_width(buf: &mut &[u8], size: usize) -> Result<Self, ()>
+    fn pade_decode_with_width(buf: &mut &[u8], size: usize, _: Option<u8>) -> Result<Self, ()>
     where
         Self: Sized
     {
@@ -114,15 +113,15 @@ impl PadeDecode for Address {
 }
 
 impl PadeDecode for Bytes {
-    fn pade_decode(buf: &mut &[u8]) -> Result<Self, ()>
+    fn pade_decode(buf: &mut &[u8], _: Option<u8>) -> Result<Self, ()>
     where
         Self: Sized
     {
-        let res: Vec<u8> = PadeDecode::pade_decode(buf)?;
+        let res: Vec<u8> = PadeDecode::pade_decode(buf, None)?;
         Ok(Bytes::copy_from_slice(&res))
     }
 
-    fn pade_decode_with_width(_: &mut &[u8], _: usize) -> Result<Self, ()>
+    fn pade_decode_with_width(_: &mut &[u8], _: usize, _: Option<u8>) -> Result<Self, ()>
     where
         Self: Sized
     {
@@ -154,14 +153,14 @@ impl PadeEncode for Signature {
 }
 
 impl PadeDecode for Signature {
-    fn pade_decode(buf: &mut &[u8]) -> Result<Self, ()>
+    fn pade_decode(buf: &mut &[u8], _: Option<u8>) -> Result<Self, ()>
     where
         Self: Sized
     {
         todo!()
     }
 
-    fn pade_decode_with_width(_: &mut &[u8], _: usize) -> Result<Self, ()>
+    fn pade_decode_with_width(_: &mut &[u8], _: usize, _: Option<u8>) -> Result<Self, ()>
     where
         Self: Sized
     {
