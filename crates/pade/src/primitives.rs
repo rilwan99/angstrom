@@ -40,19 +40,26 @@ macro_rules! prim_decode {
                     Ok(res)
                 }
 
-                fn pade_decode_with_width(buf: &mut &[u8], size: usize,_: Option<u8>) -> Result<Self, ()>
+                fn pade_decode_with_width(buf: &mut &[u8], size: usize, _: Option<u8>) -> Result<Self, ()>
                 where
                     Self: Sized
                 {
-                    const BYTES : usize  = <$x>::BITS as usize / 8usize;
-                    // grab the padding amount
-                    let offset = size - BYTES as usize;
-                    let subslice = &buf[offset..size];
+                    const BYTES: usize  = <$x>::BITS as usize / 8usize;
+
+                    // item size in bytes vs given rep.
+                    let padding_offset = BYTES - size;
+
+                    // the actual size
+                    let subslice = &buf[..size];
 
                     let mut con_buf = [0u8; BYTES];
-                    for i in 0..BYTES{
-                        let Some(next) = subslice.get(i) else { return Err(()) };
-                        con_buf[i] = *next;
+                    for i in 0..size {
+                        let Some(next) = subslice.get(i) else { 
+                            eprintln!("subslice.get() failed");
+                            return Err(()) 
+                        };
+
+                        con_buf[i + padding_offset] = *next;
                     }
 
                     let res = <$x>::from_be_bytes(con_buf);
