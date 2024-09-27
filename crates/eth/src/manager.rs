@@ -127,8 +127,10 @@ where
     }
 
     /// fetches all eoa addresses touched
-    fn get_eoa(_chain: Arc<Chain>) -> Vec<Address> {
-        //
+    fn get_eoa(chain: Arc<Chain>) -> Vec<Address> {
+        // this gets weird as if another service modifies a given address, then we need
+        // to invalidate.
+        
         vec![]
     }
 }

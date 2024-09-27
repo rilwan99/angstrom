@@ -93,9 +93,18 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                 let mut output: Vec<u8> = Vec::new();
                 #(#field_encoders)*
 
-                let raw = headers.as_raw_slice().to_vec();
+                let len = headers.len();
+                let extra = len % 8;
+                let mut base = headers.split_off(extra);
+                base.force_align();
+                let base = base.into_vec();
 
-                 [raw, output].concat()
+                headers.set_uninitialized(false);
+                let mut raw = headers.into_vec();
+                raw[0] >>= extra;
+                raw.extend(base);
+
+                [raw, output].concat()
             }
         }
     }
