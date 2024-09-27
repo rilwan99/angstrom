@@ -22,22 +22,22 @@ sol! {
 }
 
 #[derive(Debug, PadeEncode)]
-enum RewardsUpdate {
+pub enum RewardsUpdate {
     MultiTick { start_tick: Signed<24, 1>, start_liquidity: u128, quantities: Vec<u128> },
     CurrentOnly { amount: u128 }
 }
 
 #[derive(Debug, PadeEncode)]
-struct PoolUpdate {
-    zero_for_one:     bool,
-    pair_index:       u16,
-    swap_in_quantity: u128,
-    rewards_update:   RewardsUpdate
+pub struct PoolUpdate {
+    pub zero_for_one:     bool,
+    pub pair_index:       u16,
+    pub swap_in_quantity: u128,
+    pub rewards_update:   RewardsUpdate
 }
 
 #[derive(PadeEncode, Debug)]
-struct MockContractMessage {
-    assets: Vec<Asset>,
-    pairs:  Vec<Pair>,
-    update: PoolUpdate
+pub struct MockContractMessage {
+    pub assets: Vec<Asset>,
+    pub pairs:  Vec<Pair>,
+    pub update: PoolUpdate
 }

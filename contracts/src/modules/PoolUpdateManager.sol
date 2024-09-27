@@ -153,8 +153,11 @@ abstract contract PoolUpdateManager is
         {
             uint8 variantByte;
             (reader, variantByte) = reader.readU8();
+            console.log("VariantMap: %s", variantByte);
             variantMap = PoolUpdateVariantMap.wrap(variantByte);
         }
+        console.log("VariantMap-ZeroForOne: %s", variantMap.zeroForOne());
+        console.log("VariantMap-CurrentOnly: %s", variantMap.currentOnly());
         swapCall.setZeroForOne(variantMap.zeroForOne());
         uint16 pairIndex;
         (reader, pairIndex) = reader.readU16();

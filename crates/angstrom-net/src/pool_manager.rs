@@ -303,7 +303,7 @@ where
             EthEvent::FinalizedBlock(block) => {
                 self.order_indexer.finalized_block(block);
             }
-            EthEvent::NewPool(pool) => self.order_indexer.new_pool(pool),
+            // EthEvent::NewPool(pool) => self.order_indexer.new_pool(pool),
             EthEvent::NewBlock(block) => {}
         }
     }

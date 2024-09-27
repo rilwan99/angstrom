@@ -4,7 +4,7 @@ use alloy::{
     sol_types::SolValue
 };
 use angstrom_types::contract_bindings::mockrewardsmanager::MockRewardsManager;
-mod rewardlib;
+mod reward;
 
 const CREATE2_FACTORY: Address = address!("4e59b44847b379578588920cA78FbF26c0B4956C");
 

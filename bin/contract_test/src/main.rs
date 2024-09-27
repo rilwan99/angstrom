@@ -183,29 +183,33 @@ where
     // let call = pool_manager.initialize(key, U160::ZERO, Bytes::new());
     // let res = call.call().await;
     let message = MockContractMessage {
-        assetList: vec![
+        assets: vec![
             Asset { addr: asset0, borrow: 0, save: 0, settle: 0 },
             Asset { addr: asset1, borrow: 0, save: 0, settle: 0 },
         ],
-        pairList:  vec![Pair {
+        pairs:  vec![Pair {
             index0:       0,
             index1:       1,
             store_index:  0,
             price_1over0: initialSqrtPriceX96.into()
         }],
-        update:    PoolUpdate {
-            pair_index:       0,
+        update: PoolUpdate {
             zero_for_one:     false,
+            pair_index:       0,
             swap_in_quantity: 0,
-            rewards_update:   RewardsUpdate {
-                onlyCurrent:         false,
-                onlyCurrentQuantity: 0,
-                startTick:           I24::unchecked_from(100080_i32),
-                startLiquidity:      5_000_000_000_000_000_000_000_u128,
-                quantities:          vec![100000000_u128, 200000000_u128]
+            rewards_update:   RewardsUpdate::MultiTick {
+                start_tick:      I24::unchecked_from(100080_i32),
+                start_liquidity: 5_000_000_000_000_000_000_000_u128,
+                quantities:      vec![100000000_u128, 200000000_u128]
             }
         }
     };
+    // RewardsUpdate::Currentonly  { amount: 100_000_u128 }
+    // onlyCurrent:         false,
+    // onlyCurrentQuantity: 0,
+    // startTick:           I24::unchecked_from(100080_i32),
+    // startLiquidity:      5_000_000_000_000_000_000_000_u128,
+    // quantities:          vec![100000000_u128, 200000000_u128]
 
     let update_res = mock_tob
         .update(Bytes::from(message.pade_encode()))
