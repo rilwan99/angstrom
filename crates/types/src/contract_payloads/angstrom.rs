@@ -1,5 +1,5 @@
 use alloy::{
-    primitives::{Address, Bytes},
+    primitives::{Address, Bytes, B256},
     sol
 };
 use pade_macro::{PadeDecode, PadeEncode};
@@ -29,6 +29,10 @@ pub struct TopOfBlockOrder {
 }
 
 impl TopOfBlockOrder {
+    pub fn order_hash(&self) -> B256 {
+        todo!()
+    }
+
     pub fn of(
         internal: &OrderWithStorageData<RpcTopOfBlockOrder>,
         asset_in_index: u16,
@@ -80,6 +84,12 @@ pub struct UserOrder {
     pub signature:           Bytes
 }
 
+impl UserOrder {
+    pub fn order_hash(&self) -> B256 {
+        todo!()
+    }
+}
+
 sol! {
     #[derive(Debug, PadeEncode, PadeDecode)]
     struct Pair {
@@ -99,11 +109,20 @@ sol! {
 
 #[derive(Debug, PadeEncode, PadeDecode)]
 pub struct AngstromBundle {
-    assets:              Vec<Asset>,
-    pairs:               Vec<Pair>,
-    pool_updates:        Vec<PoolUpdate>,
-    top_of_block_orders: Vec<TopOfBlockOrder>,
-    user_orders:         Vec<UserOrder>
+    pub assets:              Vec<Asset>,
+    pub pairs:               Vec<Pair>,
+    pub pool_updates:        Vec<PoolUpdate>,
+    pub top_of_block_orders: Vec<TopOfBlockOrder>,
+    pub user_orders:         Vec<UserOrder>
+}
+
+impl AngstromBundle {
+    pub fn get_order_hashes(&self) -> impl Iterator<Item = B256> + '_ {
+        self.top_of_block_orders
+            .iter()
+            .map(|order| order.order_hash())
+            .chain(self.user_orders.iter().map(|order| order.order_hash()))
+    }
 }
 
 impl AngstromBundle {

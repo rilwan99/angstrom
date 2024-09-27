@@ -5,8 +5,10 @@ use std::{
 };
 
 use alloy::primitives::{Address, B256};
+use angstrom_types::contract_payloads::angstrom::AngstromBundle;
 use futures::Future;
 use futures_util::{FutureExt, StreamExt};
+use pade::PadeDecode;
 use reth_provider::{CanonStateNotification, CanonStateNotifications, Chain, StateProviderFactory};
 use reth_tasks::TaskSpawner;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedSender};
@@ -82,8 +84,8 @@ where
         eoas.extend(Self::get_eoa(new.clone()));
 
         // get all reorged orders
-        let old_filled: HashSet<_> = self.fetch_filled_orders(old.clone()).collect();
-        let new_filled: HashSet<_> = self.fetch_filled_orders(new.clone()).collect();
+        let old_filled: HashSet<_> = self.fetch_filled_order(old.clone()).into_iter().collect();
+        let new_filled: HashSet<_> = self.fetch_filled_order(new.clone()).into_iter().collect();
 
         let difference: Vec<_> = old_filled.difference(&new_filled).copied().collect();
         let reorged_orders = EthEvent::ReorgedOrders(difference);
@@ -98,7 +100,7 @@ where
     }
 
     fn handle_commit(&mut self, new: Arc<Chain>) {
-        let filled_orders = self.fetch_filled_orders(new.clone()).collect::<Vec<_>>();
+        let filled_orders = self.fetch_filled_order(new.clone());
         let eoas = Self::get_eoa(new.clone());
 
         let transitions = EthEvent::NewBlockTransitions {
@@ -110,17 +112,18 @@ where
     }
 
     /// transaction on Angstrom and process call-data to pull order-hashes.
-    fn fetch_filled_orders(&self, chain: Arc<Chain>) -> impl Iterator<Item = B256> + 'static {
-        let angstrom_input = chain
+    fn fetch_filled_order(&self, chain: Arc<Chain>) -> Vec<B256> {
+        chain
             .tip()
             .transactions()
             .filter(|tx| tx.transaction.to().is_some())
             .filter(|tx| tx.to().unwrap() == self.angstrom_address)
-            .filter_map(|transaction| AngstromBundle::decode(transaction.input()).ok());
-
-        // let a = let calldata = angstrom_tx.input();
-
-        return vec![].into_iter()
+            .filter_map(|transaction| {
+                let mut input: &[u8] = &*transaction.input();
+                AngstromBundle::pade_decode(&mut input, None).ok()
+            })
+            .flat_map(move |bundle| bundle.get_order_hashes().collect::<Vec<_>>())
+            .collect()
     }
 
     /// fetches all eoa addresses touched
