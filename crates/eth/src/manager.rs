@@ -1,17 +1,14 @@
 use std::{
     collections::HashSet,
-    slice::Iter,
     sync::Arc,
     task::{Context, Poll}
 };
 
-use alloy::{
-    primitives::{Address, B256},
-    sol_types::SolEvent
-};
-use angstrom_types::{contract_bindings, primitive::NewInitializedPool};
+use alloy::primitives::{Address, B256};
+use angstrom_types::contract_payloads::angstrom::AngstromBundle;
 use futures::Future;
 use futures_util::{FutureExt, StreamExt};
+use pade::PadeDecode;
 use reth_provider::{CanonStateNotification, CanonStateNotifications, Chain, StateProviderFactory};
 use reth_tasks::TaskSpawner;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedSender};
@@ -23,10 +20,11 @@ use crate::handle::{EthCommand, EthHandle};
 /// executed by the order pool
 #[allow(dead_code)]
 pub struct EthDataCleanser<DB> {
+    angstrom_address: Address,
     /// our command receiver
-    commander:       ReceiverStream<EthCommand>,
+    commander:        ReceiverStream<EthCommand>,
     /// people listening to events
-    event_listeners: Vec<UnboundedSender<EthEvent>>,
+    event_listeners:  Vec<UnboundedSender<EthEvent>>,
 
     /// Notifications for Canonical Block updates
     canonical_updates: BroadcastStream<CanonStateNotification>,
@@ -40,6 +38,7 @@ where
     DB: StateProviderFactory + Send + Sync + Unpin + 'static
 {
     pub fn spawn<TP: TaskSpawner>(
+        angstrom_address: Address,
         canonical_updates: CanonStateNotifications,
         db: DB,
         tp: TP,
@@ -49,6 +48,7 @@ where
         let stream = ReceiverStream::new(rx);
 
         let this = Self {
+            angstrom_address,
             canonical_updates: BroadcastStream::new(canonical_updates),
             commander: stream,
             event_listeners: Vec::new(),
@@ -84,8 +84,8 @@ where
         eoas.extend(Self::get_eoa(new.clone()));
 
         // get all reorged orders
-        let old_filled: HashSet<_> = Self::fetch_filled_orders(old.clone()).collect();
-        let new_filled: HashSet<_> = Self::fetch_filled_orders(new.clone()).collect();
+        let old_filled: HashSet<_> = self.fetch_filled_order(old.clone()).into_iter().collect();
+        let new_filled: HashSet<_> = self.fetch_filled_order(new.clone()).into_iter().collect();
 
         let difference: Vec<_> = old_filled.difference(&new_filled).copied().collect();
         let reorged_orders = EthEvent::ReorgedOrders(difference);
@@ -100,7 +100,7 @@ where
     }
 
     fn handle_commit(&mut self, new: Arc<Chain>) {
-        let filled_orders = Self::fetch_filled_orders(new.clone()).collect::<Vec<_>>();
+        let filled_orders = self.fetch_filled_order(new.clone());
         let eoas = Self::get_eoa(new.clone());
 
         let transitions = EthEvent::NewBlockTransitions {
@@ -111,32 +111,27 @@ where
         self.send_events(transitions);
     }
 
-    /// TODO: check contract for state change. if there is change. fetch the
     /// transaction on Angstrom and process call-data to pull order-hashes.
-    fn fetch_filled_orders(_chain: Arc<Chain>) -> impl Iterator<Item = B256> + 'static {
-        vec![].into_iter()
+    fn fetch_filled_order(&self, chain: Arc<Chain>) -> Vec<B256> {
+        chain
+            .tip()
+            .transactions()
+            .filter(|tx| tx.transaction.to().is_some())
+            .filter(|tx| tx.to().unwrap() == self.angstrom_address)
+            .filter_map(|transaction| {
+                let mut input: &[u8] = &*transaction.input();
+                AngstromBundle::pade_decode(&mut input, None).ok()
+            })
+            .flat_map(move |bundle| bundle.get_order_hashes().collect::<Vec<_>>())
+            .collect()
     }
 
     /// fetches all eoa addresses touched
-    fn get_eoa(_chain: Arc<Chain>) -> Vec<Address> {
-        //
-        vec![]
-    }
+    fn get_eoa(chain: Arc<Chain>) -> Vec<Address> {
+        // this gets weird as if another service modifies a given address, then we need
+        // to invalidate.
 
-    /// gets any newly initialized pools in this block
-    /// do we want to use logs here?
-    fn get_new_pools(chain: &Chain) -> impl Iterator<Item = NewInitializedPool> + '_ {
-        chain
-            .receipts_by_block_hash(chain.tip().hash())
-            .unwrap()
-            .into_iter()
-            .flat_map(|receipt| {
-                receipt.logs.iter().filter_map(|log| {
-                    contract_bindings::poolmanager::PoolManager::Initialize::decode_log(&log, true)
-                        .map(Into::into)
-                        .ok()
-                })
-            })
+        vec![]
     }
 }
 
@@ -178,6 +173,5 @@ pub enum EthEvent {
         address_changeset: Vec<Address>
     },
     ReorgedOrders(Vec<B256>),
-    FinalizedBlock(u64),
-    NewPool(NewInitializedPool)
+    FinalizedBlock(u64)
 }

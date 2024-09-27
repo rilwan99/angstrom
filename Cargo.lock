@@ -1142,12 +1142,12 @@ name = "angstrom-eth"
 version = "0.1.0"
 dependencies = [
  "alloy",
- "alloy-sol-types 0.7.7",
  "angstrom-types",
  "angstrom-utils",
  "anyhow",
  "futures",
  "futures-util",
+ "pade",
  "reth-provider",
  "reth-tasks",
  "tokio",
@@ -5794,6 +5794,7 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "bitvec",
+ "bytes",
  "pade-macro",
 ]
 
@@ -5801,6 +5802,8 @@ dependencies = [
 name = "pade-macro"
 version = "0.1.0"
 dependencies = [
+ "alloy",
+ "itertools 0.13.0",
  "pade",
  "proc-macro2",
  "quote",
