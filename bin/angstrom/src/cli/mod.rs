@@ -35,6 +35,7 @@ use reth::{
     args::utils::DefaultChainSpecParser,
     builder::{FullNodeComponents, Node},
     cli::Cli,
+    primitives::Address,
     providers::CanonStateSubscriptions,
     tasks::TaskExecutor
 };
@@ -185,6 +186,7 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
     executor: &TaskExecutor
 ) {
     let eth_handle = EthDataCleanser::spawn(
+        Address::default(),
         node.provider.subscribe_to_canonical_state(),
         node.provider.clone(),
         executor.clone(),
