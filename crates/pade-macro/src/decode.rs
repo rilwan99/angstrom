@@ -106,8 +106,8 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
     };
 
     quote! (
+      #[automatically_derived]
       impl #impl_gen pade::PadeDecode for #name #ty_gen #where_clause {
-          #[allow(unused)]
           fn pade_decode(buf: &mut &[u8], var: Option<u8>) -> Result<Self, ()> {
               let mut bitmap_bits = 0usize;
               #(
@@ -116,7 +116,7 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
 
               )*
              let bitmap_bytes = bitmap_bits.div_ceil(8);
-              let mut bitmap = ::pade::bitvec::vec::BitVec::<u8, ::pade::bitvec::order::Msb0>::from_slice(&buf[0..bitmap_bytes]);
+              let mut bitmap = pade::bitvec::vec::BitVec::<u8, pade::bitvec::order::Msb0>::from_slice(&buf[0..bitmap_bytes]);
               bitmap = bitmap.split_off(bitmap_bytes * 8 - bitmap_bits);
               *buf = &buf[bitmap_bytes..];
 
@@ -202,6 +202,7 @@ fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStre
     });
 
     quote! {
+        #[automatically_derived]
         impl #impl_gen pade::PadeDecode for #name #ty_gen #where_clause {
             fn pade_decode(buf: &mut &[u8], var: Option<u8>) -> Result<Self, ()>
             where

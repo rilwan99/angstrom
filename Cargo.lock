@@ -5785,6 +5785,7 @@ dependencies = [
 name = "pade-macro"
 version = "0.1.0"
 dependencies = [
+ "alloy",
  "itertools 0.13.0",
  "pade",
  "proc-macro2",

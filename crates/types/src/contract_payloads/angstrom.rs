@@ -52,7 +52,7 @@ impl TopOfBlockOrder {
     }
 }
 
-#[derive(Debug, PadeEncode)]
+#[derive(Debug, PadeEncode, PadeDecode)]
 pub struct StandingValidation {
     nonce:    u64,
     // 40 bits wide in reality
@@ -60,13 +60,13 @@ pub struct StandingValidation {
     deadline: u64
 }
 
-#[derive(Debug, PadeEncode)]
+#[derive(Debug, PadeEncode, PadeDecode)]
 pub enum OrderQuantities {
     Exact { quantity: u128 },
     Partial { min_quantity_in: u128, max_quantity_in: u128, filled_quantity: u128 }
 }
 
-#[derive(Debug, PadeEncode)]
+#[derive(Debug, PadeEncode, PadeDecode)]
 pub struct UserOrder {
     pub use_internal:        bool,
     pub pair_index:          u16,
@@ -81,14 +81,14 @@ pub struct UserOrder {
 }
 
 sol! {
-    #[derive(Debug, PadeEncode)]
+    #[derive(Debug, PadeEncode, PadeDecode)]
     struct Pair {
         uint16 t1_idx;
         uint16 t0_idx;
         uint256 uniswap_price;
     }
 
-    #[derive(Debug, PadeEncode)]
+    #[derive(Debug, PadeEncode, PadeDecode)]
     struct PoolUpdate {
         uint16 asset_in_index;
         uint16 asset_out_index;
@@ -97,7 +97,7 @@ sol! {
     }
 }
 
-#[derive(Debug, PadeEncode)]
+#[derive(Debug, PadeEncode, PadeDecode)]
 pub struct AngstromBundle {
     assets:              Vec<Asset>,
     pairs:               Vec<Pair>,

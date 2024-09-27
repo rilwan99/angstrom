@@ -86,6 +86,7 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
         .collect();
 
     quote! {
+        #[automatically_derived]
         impl #impl_gen pade::PadeEncode for #name #ty_gen #where_clause {
             fn pade_encode(&self) -> Vec<u8> {
                 let mut headers = pade::bitvec::vec::BitVec::<u8, pade::bitvec::order::Msb0>::new();
@@ -153,6 +154,7 @@ fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStre
         }
     });
     quote! {
+        #[automatically_derived]
         impl #impl_gen pade::PadeEncode for #name #ty_gen #where_clause {
             const PADE_VARIANT_MAP_BITS: usize = #variant_bits;
             fn pade_encode(&self) -> Vec<u8> {

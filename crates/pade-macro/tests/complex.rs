@@ -1,4 +1,4 @@
-use pade::{bitvec::field::BitField, PadeDecode, PadeEncode};
+use pade::{PadeDecode, PadeEncode};
 use pade_macro::{PadeDecode, PadeEncode};
 
 #[test]
