@@ -48,7 +48,47 @@ fn supports_struct_with_enum() {
 }
 
 #[test]
-fn bool_ordering() {
+fn bool_ordering_more_than_1byte() {
+    #[derive(PadeEncode, PadeDecode, PartialEq, Eq, Debug)]
+    struct OuterStruct {
+        a:  bool,
+        b:  bool,
+        c:  bool,
+        c1: bool,
+        c3: bool,
+        c2: bool,
+        d:  Cases,
+        e:  Cases
+    }
+
+    #[derive(PadeEncode, PadeDecode, PartialEq, Eq, Debug)]
+    pub enum Cases {
+        Once { x: u128, y: u128 },
+        Twice { a: u128, b: u128 },
+        // memes
+        Thrice { a: u128, b: u128 }
+    }
+
+    let outer = OuterStruct {
+        a:  true,
+        b:  true,
+        c:  true,
+        c1: false,
+        c2: false,
+        c3: true,
+        d:  Cases::Twice { a: 0, b: 0 },
+        e:  Cases::Thrice { a: 0, b: 0 }
+    };
+
+    let encoded = outer.pade_encode();
+    let mut slice = encoded.as_slice();
+    let decoded = OuterStruct::pade_decode(&mut slice, None).unwrap();
+
+    assert_eq!(outer, decoded);
+}
+
+#[test]
+fn bool_ordering_more_than_1byte_diff_size() {
     #[derive(PadeEncode, PadeDecode, PartialEq, Eq, Debug)]
     struct OuterStruct {
         a:  bool,
@@ -67,8 +107,6 @@ fn bool_ordering() {
         // memes
         Thrice { a: u128, b: u128 }
     }
-    let a = 73u8;
-    let b = 1u8;
 
     let outer = OuterStruct {
         a:  true,
@@ -79,6 +117,27 @@ fn bool_ordering() {
         d:  Cases::Twice { a: 0, b: 0 },
         e:  Cases::Thrice { a: 0, b: 0 }
     };
+
+    let encoded = outer.pade_encode();
+    let mut slice = encoded.as_slice();
+    let decoded = OuterStruct::pade_decode(&mut slice, None).unwrap();
+
+    assert_eq!(outer, decoded);
+}
+
+#[test]
+fn bool_ordering_lower() {
+    #[derive(PadeEncode, PadeDecode, PartialEq, Eq, Debug)]
+    struct OuterStruct {
+        a:  bool,
+        b:  bool,
+        c:  bool,
+        c1: bool,
+        c3: bool,
+        c2: bool
+    }
+
+    let outer = OuterStruct { a: true, b: true, c: true, c1: false, c2: false, c3: true };
 
     let encoded = outer.pade_encode();
     let mut slice = encoded.as_slice();

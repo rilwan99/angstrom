@@ -94,17 +94,21 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                 #(#field_encoders)*
 
                 let len = headers.len();
-                let extra = len % 8;
-                let mut base = headers.split_off(extra);
-                base.force_align();
-                let base = base.into_vec();
+                if len != 0  {
+                    let extra = len % 8;
+                    let mut base = headers.split_off(extra);
+                    base.force_align();
+                    let base = base.into_vec();
 
-                headers.set_uninitialized(false);
-                let mut raw = headers.into_vec();
-                raw[0] >>= extra;
-                raw.extend(base);
+                    headers.force_align();
+                    let mut raw = headers.into_vec();
+                    raw[0] >>= 8 - extra;
+                    raw.extend(base);
 
-                [raw, output].concat()
+                    [raw, output].concat()
+                } else {
+                    output
+                }
             }
         }
     }
