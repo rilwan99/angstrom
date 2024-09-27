@@ -130,7 +130,7 @@ where
     fn get_eoa(chain: Arc<Chain>) -> Vec<Address> {
         // this gets weird as if another service modifies a given address, then we need
         // to invalidate.
-        
+
         vec![]
     }
 }
