@@ -1,6 +1,7 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     future::IntoFuture,
+    hash::Hash,
     marker::PhantomData,
     num::NonZeroUsize,
     pin::Pin,
@@ -17,7 +18,8 @@ use angstrom_types::{
         grouped_orders::{
             AllOrders, FlashVariants, GroupedVanillaOrder, OrderWithStorageData, StandingVariants
         },
-        sol::TopOfBlockOrder
+        sol::TopOfBlockOrder,
+        RawPoolOrder
     }
 };
 use futures::{
@@ -184,7 +186,7 @@ where
                 eth_network_events:   self.eth_network_events,
                 strom_network_events: self.strom_network_events,
                 order_events:         self.order_events,
-                peers:                HashMap::default(),
+                peer_to_info:         HashMap::default(),
                 order_indexer:        inner,
                 network:              self.network_handle,
                 command_rx:           rx
@@ -216,7 +218,7 @@ where
                 eth_network_events:   self.eth_network_events,
                 strom_network_events: self.strom_network_events,
                 order_events:         self.order_events,
-                peers:                HashMap::default(),
+                peer_to_info:         HashMap::default(),
                 order_indexer:        inner,
                 network:              self.network_handle,
                 command_rx:           rx
@@ -247,7 +249,7 @@ where
     /// Incoming events from the ProtocolManager.
     order_events:         UnboundedMeteredReceiver<NetworkOrderEvent>,
     /// All the connected peers.
-    peers:                HashMap<PeerId, StromPeer>
+    peer_to_info:         HashMap<PeerId, StromPeer>
 }
 
 impl<V> PoolManager<V>
@@ -269,7 +271,7 @@ where
             strom_network_events,
             network,
             order_indexer,
-            peers: HashMap::new(),
+            peer_to_info: HashMap::new(),
             order_events,
             command_rx,
             eth_network_events
@@ -312,7 +314,7 @@ where
         match event {
             NetworkOrderEvent::IncomingOrders { peer_id, orders } => {
                 orders.into_iter().for_each(|order| {
-                    self.peers
+                    self.peer_to_info
                         .get_mut(&peer_id)
                         .map(|peer| peer.orders.insert(order.order_hash()));
 
@@ -330,7 +332,7 @@ where
         match event {
             StromNetworkEvent::SessionEstablished { peer_id } => {
                 // insert a new peer into the peerset
-                self.peers.insert(
+                self.peer_to_info.insert(
                     peer_id,
                     StromPeer {
                         orders: LruCache::new(NonZeroUsize::new(PEER_ORDER_CACHE_LIMIT).unwrap())
@@ -339,13 +341,13 @@ where
             }
             StromNetworkEvent::SessionClosed { peer_id, .. } => {
                 // remove the peer
-                self.peers.remove(&peer_id);
+                self.peer_to_info.remove(&peer_id);
             }
             StromNetworkEvent::PeerRemoved(peer_id) => {
-                self.peers.remove(&peer_id);
+                self.peer_to_info.remove(&peer_id);
             }
             StromNetworkEvent::PeerAdded(peer_id) => {
-                self.peers.insert(
+                self.peer_to_info.insert(
                     peer_id,
                     StromPeer {
                         orders: LruCache::new(NonZeroUsize::new(PEER_ORDER_CACHE_LIMIT).unwrap())
@@ -356,10 +358,10 @@ where
     }
 
     fn on_pool_events(&mut self, orders: Vec<PoolInnerEvent>) {
-        let broadcast_orders = orders
+        let valid_orders = orders
             .into_iter()
             .filter_map(|order| match order {
-                PoolInnerEvent::Propagation(p) => Some(p),
+                PoolInnerEvent::Propagation(order) => Some(order),
                 PoolInnerEvent::BadOrderMessages(o) => {
                     o.into_iter().for_each(|peer| {
                         self.network.peer_reputation_change(
@@ -373,9 +375,22 @@ where
             })
             .collect::<Vec<_>>();
 
-        // need to update network types for this
-        self.network
-            .broadcast_tx(StromMessage::PropagatePooledOrders(broadcast_orders));
+        self.broadcast_orders_to_peers(valid_orders);
+    }
+
+    fn broadcast_orders_to_peers(&mut self, valid_orders: Vec<AllOrders>) {
+        for order in valid_orders.iter() {
+            for (peer_id, info) in self.peer_to_info.iter_mut() {
+                let order_hash = order.order_hash();
+                if !info.orders.contains(&order_hash) {
+                    self.network.send_message(
+                        *peer_id,
+                        StromMessage::PropagatePooledOrders(vec![order.clone()])
+                    );
+                    info.orders.insert(order_hash);
+                }
+            }
+        }
     }
 }
 
@@ -432,6 +447,5 @@ pub enum NetworkTransactionEvent {
 #[derive(Debug)]
 struct StromPeer {
     /// Keeps track of transactions that we know the peer has seen.
-    #[allow(dead_code)]
     orders: LruCache<B256>
 }

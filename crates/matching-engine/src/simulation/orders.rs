@@ -4,7 +4,7 @@ use angstrom_types::{
     orders::{OrderId, OrderPriorityData},
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
-        rpc_orders::{ExactFlashOrder, PartialFlashOrder}
+        rpc_orders::ExactFlashOrder
     }
 };
 use rand_distr::{Distribution, SkewNormal};
