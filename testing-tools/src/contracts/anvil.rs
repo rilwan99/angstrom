@@ -29,12 +29,8 @@ pub type AnvilWalletRpc = FillProvider<
     Ethereum
 >;
 
-pub async fn spawn_anvil(
-    block_time: u64,
-    anvil_key: usize
-) -> eyre::Result<(AnvilInstance, AnvilWalletRpc)> {
+pub async fn spawn_anvil(anvil_key: usize) -> eyre::Result<(AnvilInstance, AnvilWalletRpc)> {
     let anvil = Anvil::new()
-        .block_time(block_time)
         .chain_id(1)
         .arg("--ipc")
         .arg("--code-size-limit")

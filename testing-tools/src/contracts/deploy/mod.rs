@@ -1,6 +1,7 @@
 use alloy::primitives::{address, keccak256, Address, Bytes, B256, U160, U256};
 
 pub mod mockreward;
+pub mod tokens;
 pub mod uniswap_flags;
 
 const DEFAULT_CREATE2_FACTORY: Address = address!("4e59b44847b379578588920cA78FbF26c0B4956C");
