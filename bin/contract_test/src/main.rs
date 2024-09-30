@@ -84,7 +84,7 @@ where
     let pool_manager = PoolManager::deploy(&provider).await.unwrap();
     let pool_manager_address = pool_manager.address();
     let pool_gate = PoolGate::deploy(&provider, *pool_manager.address()).await?;
-    let mock_tob_addr = testing_tools::contracts::deploy_mock_rewards_manager(
+    let mock_tob_addr = testing_tools::contracts::deploy::mockreward::deploy_mock_rewards_manager(
         &provider,
         *pool_manager_address,
         controller
