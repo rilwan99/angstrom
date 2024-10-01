@@ -1,11 +1,15 @@
-use std::{collections::HashMap, marker::PhantomData, task::Poll};
+use std::{collections::HashMap, future::Future, task::Poll};
 
-use futures::{stream::FuturesUnordered, FutureExt, StreamExt};
+use futures::FutureExt;
+use rand::Rng;
 use reth_primitives::Address;
 use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
 
-use super::manager::StromPeerManager;
-use crate::eth::RpcStateProviderFactory;
+use super::manager::{StromPeerManager, StromPeerManagerBuilder};
+use crate::{
+    anvil_utils::spawn_anvil, contract_setup::deploy_contract_and_create_pool,
+    eth::RpcStateProviderFactory
+};
 
 pub struct StromController<C = NoopProvider> {
     peers: HashMap<u64, StromPeerManager<C>>
@@ -13,15 +17,37 @@ pub struct StromController<C = NoopProvider> {
 
 impl<C> StromController<C>
 where
-    // P: PeerManager<C>,
-    C: BlockReader + HeaderProvider + Unpin + Clone + 'static
+    C: BlockReader + HeaderProvider + Unpin + Clone + Default + 'static
 {
     pub fn new() -> Self {
         Self { peers: Default::default() }
     }
 
-    pub fn add_peer(&mut self, peer: StromPeerManager<C>) {
-        self.peers.insert(peer.id(), peer);
+    pub async fn spawn_node(
+        &mut self,
+        id: u64,
+        starting_port: u16,
+        testnet_block_time_secs: u64
+    ) -> eyre::Result<()> {
+        let (_anvil_handle, rpc) = spawn_anvil(testnet_block_time_secs, id).await?;
+
+        tracing::info!(id, "deploying contracts to anvil");
+        let addresses = deploy_contract_and_create_pool(rpc.clone()).await?;
+        let angstrom_addr = addresses.contract;
+
+        let rpc_wrapper = RpcStateProviderFactory::new(rpc.clone())?;
+
+        let peer = StromPeerManagerBuilder::new(
+            id,
+            starting_port as u64,
+            C::default(),
+            rpc_wrapper.clone()
+        )
+        .await;
+
+        self.spawn_testnet_node(peer, angstrom_addr).await?;
+
+        Ok(())
     }
 
     pub async fn connect_all_peers(&mut self) {
@@ -33,26 +59,23 @@ where
 
         for peer in &peer_set {
             for other_peer in &peer_set {
-                if *peer.public_key() == *other_peer.public_key() {
+                if *peer.public_key == *other_peer.public_key {
                     continue
                 }
-                peer.peer().add_validator(other_peer.public_key());
+                peer.peer.add_validator(other_peer.public_key);
             }
         }
         // add all peers to each other
         for (idx, peer) in peer_set.iter().enumerate().take(peer_set.len() - 1) {
             for other_peer in peer_set.iter().skip(idx + 1) {
-                peer.peer()
-                    .connect_to_peer(other_peer.public_key(), other_peer.peer().socket_addr());
+                peer.peer
+                    .connect_to_peer(other_peer.public_key, other_peer.peer.socket_addr());
             }
         }
 
         // wait on each peer to add all other peers
         let needed_peers = peer_set.len() - 1;
-        let mut peers = peer_set
-            .iter_mut()
-            .map(|p| p.peer_mut())
-            .collect::<Vec<_>>();
+        let mut peers = peer_set.iter_mut().map(|p| &mut p.peer).collect::<Vec<_>>();
 
         std::future::poll_fn(|cx| {
             let mut all_connected = true;
@@ -72,17 +95,43 @@ where
         .await
     }
 
-    pub async fn spawn_all_testnet_nodes(&mut self, contract_address: Address) -> eyre::Result<()> {
-        futures::future::join_all(
-            self.peers
-                .iter_mut()
-                .map(|(_, peer)| peer.spawn_testnet_node(contract_address))
-        )
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()?;
+    pub async fn run_event<'a, F, O, R>(&'a self, id: Option<u64>, f: F) -> eyre::Result<R>
+    where
+        F: FnOnce(&'a StromPeerManager<C>) -> O,
+        O: Future<Output = R>
+    {
+        let id = if let Some(i) = id {
+            if i > self.peers.iter().map(|(id, _)| *id).max().unwrap() {
+                self.get_random_id()
+            } else {
+                i
+            }
+        } else {
+            self.get_random_id()
+        };
+
+        Ok(f(&self.peers.get(&id).unwrap()).await)
+    }
+
+    fn add_peer(&mut self, peer: StromPeerManager<C>) {
+        self.peers.insert(peer.id, peer);
+    }
+
+    async fn spawn_testnet_node(
+        &mut self,
+        peer_builder: StromPeerManagerBuilder<C>,
+        contract_address: Address
+    ) -> eyre::Result<()> {
+        let peer = peer_builder.build_and_spawn(contract_address).await?;
+
+        self.add_peer(peer);
 
         Ok(())
+    }
+
+    fn get_random_id(&self) -> u64 {
+        let max_id = self.peers.iter().map(|(id, _)| *id).max().unwrap();
+        rand::thread_rng().gen_range(0..max_id)
     }
 }
 

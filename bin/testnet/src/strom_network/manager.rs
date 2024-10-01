@@ -1,38 +1,41 @@
 use std::sync::Arc;
 
-use alloy::{primitives::FixedBytes, providers::Provider};
+use alloy::{
+    primitives::FixedBytes, providers::Provider, pubsub::PubSubFrontend, sol_types::SolValue
+};
 use angstrom::cli::{initialize_strom_handles, StromHandles};
-use angstrom_eth::handle::Eth;
-use angstrom_network::{pool_manager::OrderCommand, NetworkOrderEvent, PoolManagerBuilder};
+use angstrom_eth::{handle::Eth, manager::EthEvent};
+use angstrom_network::{pool_manager::PoolHandle, PoolManagerBuilder};
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
+use angstrom_types::sol_bindings::{
+    sol::ContractBundle,
+    testnet::TestnetHub::{self, TestnetHubInstance}
+};
 use futures::StreamExt;
 use jsonrpsee::server::ServerBuilder;
 use order_pool::{order_storage::OrderStorage, PoolConfig};
-use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_primitives::Address;
 use reth_provider::{test_utils::NoopProvider, BlockReader};
 use reth_tasks::TokioTaskExecutor;
-use tokio::sync::mpsc::UnboundedReceiver;
 use tracing::{span, Instrument, Level};
 use validation::init_validation;
 
-use super::handles::{ReceivingStromHandles, SendingStromHandles};
+use super::handles::SendingStromHandles;
 use crate::{
     anvil_utils::AnvilEthDataCleanser, eth::RpcStateProviderFactory,
-    strom_network::peers::StromPeer, CACHE_VALIDATION_SIZE
+    strom_network::peers::StromPeer, StromContractInstance, CACHE_VALIDATION_SIZE
 };
 
-pub struct StromPeerManager<C = NoopProvider> {
-    id:               u64,
-    port:             u64,
-    public_key:       FixedBytes<64>,
-    peer:             StromPeer<C>,
-    rpc_wrapper:      RpcStateProviderFactory,
-    tx_strom_handles: SendingStromHandles,
-    init_rx_handles:  Option<ReceivingStromHandles>
+pub struct StromPeerManagerBuilder<C = NoopProvider> {
+    id:            u64,
+    port:          u64,
+    public_key:    FixedBytes<64>,
+    peer:          StromPeer<C>,
+    rpc_wrapper:   RpcStateProviderFactory,
+    strom_handles: Option<StromHandles>
 }
 
-impl<C> StromPeerManager<C>
+impl<C> StromPeerManagerBuilder<C>
 where
     C: BlockReader + Clone + Unpin + 'static
 {
@@ -53,52 +56,25 @@ where
         .await;
         let pk = peer.get_node_public_key();
 
-        let tx_handles = (&handles).into();
-        let rx_handles = handles.into();
-
         Self {
             id,
             peer,
             public_key: pk,
             rpc_wrapper,
-            tx_strom_handles: tx_handles,
-            init_rx_handles: Some(rx_handles),
+            strom_handles: Some(handles),
             port: port + id - 1
         }
     }
 
-    pub fn peer_mut(&mut self) -> &mut StromPeer<C> {
-        &mut self.peer
-    }
-
-    pub fn peer(&self) -> &StromPeer<C> {
-        &self.peer
-    }
-
-    pub fn public_key(&self) -> FixedBytes<64> {
-        self.public_key
-    }
-
-    pub fn id(&self) -> u64 {
-        self.id
-    }
-
-    pub fn take_rx_handles(&mut self) -> ReceivingStromHandles {
-        self.init_rx_handles
-            .take()
-            .expect("rx handles already taken")
-    }
-
-    pub fn tx_handles(&mut self) -> SendingStromHandles {
-        self.tx_strom_handles.clone()
-    }
-
-    pub async fn spawn_testnet_node(&mut self, contract_address: Address) -> eyre::Result<()> {
+    pub async fn build_and_spawn(
+        mut self,
+        contract_address: Address
+    ) -> eyre::Result<StromPeerManager<C>> {
         let span = span!(Level::ERROR, "testnet node", id = self.id);
-        let pool = self.tx_strom_handles.get_pool_handle();
+        let strom_handles = self.strom_handles.take().unwrap();
+        let pool = strom_handles.get_pool_handle();
         let executor: TokioTaskExecutor = Default::default();
-
-        let (tx_handles, rx_handles) = (self.tx_handles(), self.take_rx_handles());
+        let tx_strom_handles = (&strom_handles).into();
 
         let rpc_w = self.rpc_wrapper.clone();
         let state_stream = self
@@ -130,8 +106,8 @@ where
         let eth_handle = AnvilEthDataCleanser::spawn(
             executor.clone(),
             contract_address,
-            tx_handles.eth_tx,
-            rx_handles.eth_rx,
+            strom_handles.eth_tx,
+            strom_handles.eth_rx,
             state_stream,
             7,
             span
@@ -145,19 +121,19 @@ where
         let pool_config = PoolConfig::default();
         let order_storage = Arc::new(OrderStorage::new(&pool_config));
 
-        let _pool_handle = PoolManagerBuilder::new(
+        let pool_handle = PoolManagerBuilder::new(
             validator.clone(),
             Some(order_storage.clone()),
             network_handle.clone(),
             eth_handle.subscribe_network(),
-            rx_handles.pool_rx
+            strom_handles.pool_rx
         )
         .with_config(pool_config)
         .build_with_channels(
             executor,
-            tx_handles.orderpool_tx,
-            rx_handles.orderpool_rx,
-            tx_handles.pool_manager_tx
+            strom_handles.orderpool_tx,
+            strom_handles.orderpool_rx,
+            strom_handles.pool_manager_tx
         );
         let port = self.port;
         let server = ServerBuilder::default()
@@ -172,26 +148,55 @@ where
             let _ = server_handle.stopped().await;
         });
 
-        Ok(())
+        let testnet_hub = TestnetHub::new(contract_address, self.rpc_wrapper.provider.clone());
+
+        Ok(StromPeerManager {
+            id: self.id,
+            port: self.port,
+            public_key: self.public_key,
+            peer: self.peer,
+            rpc_wrapper: self.rpc_wrapper.clone(),
+            order_storage,
+            pool_handle,
+            testnet_hub,
+            tx_strom_handles
+        })
     }
 }
 
-// pub trait PeerManager<C> {
-//     fn peer_mut(&mut self) -> &mut StromPeer<C>;
+pub struct StromPeerManager<C = NoopProvider> {
+    pub id:               u64,
+    pub port:             u64,
+    pub public_key:       FixedBytes<64>,
+    pub peer:             StromPeer<C>,
+    pub rpc_wrapper:      RpcStateProviderFactory,
+    pub order_storage:    Arc<OrderStorage>,
+    pub pool_handle:      PoolHandle,
+    pub tx_strom_handles: SendingStromHandles,
+    pub testnet_hub:      StromContractInstance
+}
 
-//     fn peer(&self) -> &StromPeer<C>;
+impl<C> StromPeerManager<C> {
+    pub async fn send_bundles(&self, bundles: u64) -> eyre::Result<()> {
+        let orders = ContractBundle::generate_random_bundles(bundles);
+        let hashes = orders.get_filled_hashes();
+        tracing::info!("submitting a angstrom bundle with hashes: {:#?}", hashes);
+        let tx_hash = self
+            .testnet_hub
+            .execute(orders.abi_encode().into())
+            .send()
+            .await?
+            .watch()
+            .await?;
 
-//     fn public_key(&self) -> FixedBytes<64>;
+        tracing::info!(?tx_hash, "tx hash with angstrom contract sent");
 
-//     fn id(&self) -> u64;
+        Ok(())
 
-//     fn take_rx_handles(&mut self) -> ReceivingStromHandles;
-
-//     fn spawn_testnet_node(
-//         &self,
-//         strom_handles: SendingStromHandles,
-//         rpc_wrapper: RpcStateProviderFactory,
-//         contract_address: Address,
-//         rx_handles: ReceivingStromHandles
-//     ) -> impl futures::Future<Output = eyre::Result<()>>;
-// }
+        // Ok(HookEvents::EthEvent(EthEvent::NewBlockTransitions {
+        //     block_number:      orders.,
+        //     filled_orders:     hashes,
+        //     address_changeset: ()
+        // }))
+    }
+}
