@@ -54,25 +54,15 @@ pub struct ConsensusManager {
     state_transition: RoundState,
 
     // those are cross-round and immutable
-    // signer:           Signer,
     data_tx: Sender<DataMsg>,
 
     order_storage:          Arc<OrderStorage>,
-    // core: ConsensusCore,
     /// keeps track of the current round state
-    // state_transition:             RoundState,
-    // globalstate:            Arc<Mutex<GlobalConsensusState>>,
-    // command:                ReceiverStream<ConsensusCommand>,
     /// Used to trigger new consensus rounds
     canonical_block_stream: BroadcastStream<CanonStateNotification>,
     /// events from the network,
     strom_consensus_event:  UnboundedMeteredReceiver<StromConsensusEvent>,
     network:                StromNetworkHandle
-    // signer:        Signer,
-    // order_storage: Arc<OrderStorage>,
-    // cache:         ProposalCache,
-    // tasks:   JoinSet<ConsensusTaskResult>,
-    // metrics: ConsensusMetricsWrapper
 }
 
 pub struct ManagerNetworkDeps {
@@ -124,24 +114,20 @@ impl ConsensusManager {
         signer: Signer,
         order_storage: Arc<OrderStorage>
     ) -> JoinHandle<()> {
-        // let tx = netdeps.tx.clone();
         let manager = ConsensusManager::new(netdeps, signer, order_storage);
         let fut = manager.message_loop().boxed();
-        // let fut = manager_thread(globalstate, netdeps, signer, order_storage,
-        // timings).boxed();
         tp.spawn_critical("consensus", fut)
-        // ConsensusHandle { sender: tx }
     }
 
     fn send_preproposal(&mut self, preproposal: PreProposal) {
         tracing::info!("Sending out preproposal");
         self.network
-            .broadcast_tx(StromMessage::PrePropose(preproposal.clone()));
+            .broadcast_message(StromMessage::PrePropose(preproposal.clone()));
     }
 
     fn broadcast_proposal(&mut self, proposal: Proposal) {
         self.network
-            .broadcast_tx(StromMessage::Propose(proposal.clone()));
+            .broadcast_message(StromMessage::Propose(proposal.clone()));
     }
 
     fn on_blockchain_state(&mut self, notification: CanonStateNotification) {
@@ -163,43 +149,29 @@ impl ConsensusManager {
         }
     }
 
-    fn on_network_event(&mut self, event: StromConsensusEvent) {
+    async fn on_network_event(&mut self, event: StromConsensusEvent) {
         match event {
             StromConsensusEvent::PrePropose(peer_id, pre_proposal) => {
                 self.data_tx
-                    .send(DataMsg::PreProposal(peer_id, pre_proposal));
+                    .send(DataMsg::PreProposal(peer_id, pre_proposal)).await.unwrap();
                 // self.pre_proposals.insert(peer, pre_proposal);
             }
             StromConsensusEvent::Propose(peer_id, proposal) => {
                 self.data_tx
-                    .send(DataMsg::Proposal(peer_id, proposal.clone()));
+                    .send(DataMsg::Proposal(peer_id, proposal.clone())).await.unwrap();
                 self.state_transition
                     .force_transition(ConsensusRoundState::Propose {
                         block_height: self.current_height,
                         proposal
                     });
-                // if !self.start_verify_proposal(&proposal) {
-                //     warn!("Proposal failed verification with invalid
-                // signatures"); }
             }
             StromConsensusEvent::Commit(peer_id, commit) => {
-                self.data_tx.send(DataMsg::Commit(peer_id, *commit.clone()));
+                self.data_tx.send(DataMsg::Commit(peer_id, *commit.clone())).await.unwrap();
                 self.state_transition
                     .force_transition(ConsensusRoundState::Commit {
                         block_height: self.current_height,
                         commits:      vec![*commit.clone()]
                     });
-                // let block_height = commit.block_height;
-                // commit.validate(&[]);
-                // if commit.signed_by(self.signer.validator_id) {
-                //
-                // } else {
-                //     commit.add_signature(self.signer.validator_id,
-                // &self.signer.bls_key);     self.commits.
-                // insert(peer, *commit);     self.network
-                //         .broadcast_tx(angstrom_network::StromMessage::Commit(commit.clone()));
-                // }
-                // self.metrics.set_commit_time(block_height);
             }
         }
     }
@@ -216,7 +188,7 @@ impl ConsensusManager {
                     };
                 },
                 Some(msg) = self.strom_consensus_event.next() => {
-                    self.on_network_event(msg);
+                    self.on_network_event(msg).await;
                 },
                 Some(msg) = self.state_transition.next() => {
                     self.on_state_transition(msg);
