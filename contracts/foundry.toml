@@ -26,6 +26,16 @@ line_length = 100
 
 [profile.default.invariant]
 fail_on_revert = true
+depth = 200
+runs = 256
+
+[profile.ci]
+show_progress = false
+
+[profile.ci.invariant]
+fail_on_revert = true
+depth = 50
+runs = 50
 
 [profile.light-fuzz.invariant]
 runs = 10
