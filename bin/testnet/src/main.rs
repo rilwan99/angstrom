@@ -6,7 +6,6 @@ use angstrom_eth::handle::Eth;
 use angstrom_network::pool_manager::PoolManagerBuilder;
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
 use angstrom_types::sol_bindings::{sol::ContractBundle, testnet::TestnetHub};
-use clap::Parser;
 use futures::StreamExt;
 use jsonrpsee::server::ServerBuilder;
 use order_pool::{order_storage::OrderStorage, PoolConfig};
@@ -14,44 +13,19 @@ use reth_provider::test_utils::NoopProvider;
 use reth_tasks::TokioTaskExecutor;
 use testnet::{
     anvil_utils::{spawn_anvil, AnvilEthDataCleanser},
+    cli::Cli,
     contract_setup::deploy_contract_and_create_pool,
-    ported_reth_testnet_network::{connect_all_peers, StromPeer},
+    peers::{connect_all_peers, StromPeer},
     rpc_state_provider::RpcStateProviderFactory
 };
 use tracing::{span, Instrument, Level};
 use validation::init_validation;
 
-#[derive(Parser)]
-#[clap(about = "
-Angstrom Anvil Testnet.
-Anvil must be installed on the system in order to spin up \
-                the testnode. 
-To install run `curl -L https://foundry.paradigm.xyz | bash`. then run foundryup to install anvil
-    ")]
-struct Cli {
-    /// port for the rpc for submitting transactions.
-    #[clap(short, long, default_value_t = 4200)]
-    port:                    u16,
-    /// the speed in which anvil will mine blocks.
-    #[clap(short, long, default_value = "12")]
-    testnet_block_time_secs: u64,
-    /// the amount of testnet nodes that will be spawned and connected to.
-    /// NOTE: only 1 rpc will be connected currently for submissions.
-    /// this will change in the future but is good enough for testing currently
-    #[clap(short, long, default_value = "3")]
-    nodes_in_network:        u64
-}
-
 const CACHE_VALIDATION_SIZE: usize = 100_000_000;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    let env_filter = tracing_subscriber::EnvFilter::from_default_env();
-    let subscriber = tracing_subscriber::fmt()
-        .with_env_filter(env_filter)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber)?;
-    let cli_args = Cli::parse();
+    let cli_args = Cli::parse_with_tracing();
 
     let (_anvil_handle, rpc) = spawn_anvil(cli_args.testnet_block_time_secs).await?;
 
