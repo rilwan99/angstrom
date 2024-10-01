@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::BinaryHeap};
+use std::{cmp::Ordering, collections::HashSet, default::Default};
 
 use reth_rpc_types::PeerId;
 
@@ -15,54 +15,42 @@ impl Validator {
     }
 }
 
-impl PartialEq for Validator {
-    fn eq(&self, other: &Self) -> bool {
-        self.peer_id == other.peer_id
-            && self.voting_power == other.voting_power
-            && self.priority == other.priority
-    }
-}
-
-impl Eq for Validator {}
-
-impl PartialOrd for Validator {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        self.priority.partial_cmp(&other.priority)
-    }
-}
-
-impl Ord for Validator {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap_or(Ordering::Equal)
-    }
-}
-
 pub struct WeightedRoundRobin {
-    validators:                BinaryHeap<Validator>,
+    validators:                HashSet<Validator>,
     new_joiner_penalty_factor: f64
 }
 
 impl WeightedRoundRobin {
     pub fn new(validators: Vec<Validator>, new_joiner_penalty_factor: Option<f64>) -> Self {
         WeightedRoundRobin {
-            validators:                BinaryHeap::from(validators),
+            validators:                HashSet::from_iter(validators),
             new_joiner_penalty_factor: new_joiner_penalty_factor.unwrap_or(1.125)
         }
     }
+
     fn proposer_selection(&mut self) -> PeerId {
         let total_voting_power: u64 = self.validators.iter().map(|v| v.voting_power).sum();
 
-        let mut updated_validators = BinaryHeap::new();
-        while let Some(mut validator) = self.validators.pop() {
+        let mut updated_validators = HashSet::new();
+        for mut validator in self.validators.drain() {
             validator.priority += validator.voting_power as f64;
-            updated_validators.push(validator);
+            updated_validators.insert(validator);
         }
         self.validators = updated_validators;
 
-        let mut proposer = self.validators.pop().unwrap();
+        let mut proposer = self
+            .validators
+            .iter()
+            .max_by(|a, b| {
+                a.priority
+                    .partial_cmp(&b.priority)
+                    .unwrap_or(Ordering::Equal)
+            })
+            .unwrap()
+            .clone();
         proposer.priority -= total_voting_power as f64;
         let proposer_name = proposer.peer_id.clone();
-        self.validators.push(proposer);
+        self.validators.replace(proposer);
 
         proposer_name
     }
@@ -70,10 +58,10 @@ impl WeightedRoundRobin {
     fn center_priorities(&mut self) {
         let avg_priority: f64 =
             self.validators.iter().map(|v| v.priority).sum::<f64>() / self.validators.len() as f64;
-        let mut updated_validators = BinaryHeap::new();
-        while let Some(mut validator) = self.validators.pop() {
+        let mut updated_validators = HashSet::new();
+        for mut validator in self.validators.drain() {
             validator.priority -= avg_priority;
-            updated_validators.push(validator);
+            updated_validators.insert(validator);
         }
         self.validators = updated_validators;
     }
@@ -95,10 +83,10 @@ impl WeightedRoundRobin {
 
         if diff > threshold {
             let scale = diff / threshold;
-            let mut updated_validators = BinaryHeap::new();
-            while let Some(mut validator) = self.validators.pop() {
+            let mut updated_validators = HashSet::new();
+            for mut validator in self.validators.drain() {
                 validator.priority /= scale;
-                updated_validators.push(validator);
+                updated_validators.insert(validator);
             }
             self.validators = updated_validators;
         }
@@ -111,20 +99,29 @@ impl WeightedRoundRobin {
     }
 
     fn remove_validator(&mut self, peer_id: &PeerId) {
-        let mut updated_validators = BinaryHeap::new();
-        while let Some(validator) = self.validators.pop() {
-            if &validator.peer_id != peer_id {
-                updated_validators.push(validator);
-            }
-        }
-        self.validators = updated_validators;
+        let validator = Validator::new(*peer_id, 0);
+        self.validators.remove(&validator);
     }
 
     fn add_validator(&mut self, peer_id: PeerId, voting_power: u64) {
         let mut new_validator = Validator::new(peer_id, voting_power);
         let total_voting_power: u64 = self.validators.iter().map(|v| v.voting_power).sum();
         new_validator.priority -= self.new_joiner_penalty_factor * total_voting_power as f64;
-        self.validators.push(new_validator);
+        self.validators.insert(new_validator);
+    }
+}
+
+impl PartialEq for Validator {
+    fn eq(&self, other: &Self) -> bool {
+        self.peer_id == other.peer_id
+    }
+}
+
+impl Eq for Validator {}
+
+impl std::hash::Hash for Validator {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.peer_id.hash(state);
     }
 }
 
@@ -139,7 +136,7 @@ mod tests {
         let peers = HashMap::from([
             ("Alice".to_string(), PeerId::random()),
             ("Bob".to_string(), PeerId::random()),
-            ("Charlie".to_string(), PeerId::random()),
+            ("Charlie".to_string(), PeerId::random())
         ]);
         let validators = vec![
             Validator::new(peers["Alice"].clone(), 100),
@@ -160,10 +157,8 @@ mod tests {
         let rounds = 1000;
         let stats = simulate_rounds(&mut algo, rounds);
 
-        // Check if all validators were selected as proposers
         assert_eq!(stats.len(), 3);
 
-        // Check if the selection is roughly proportional to voting power
         let total_selections: usize = stats.values().sum();
         assert_eq!(total_selections, rounds);
 
@@ -181,7 +176,7 @@ mod tests {
         let peers = HashMap::from([
             ("Alice".to_string(), PeerId::random()),
             ("Bob".to_string(), PeerId::random()),
-            ("Charlie".to_string(), PeerId::random()),
+            ("Charlie".to_string(), PeerId::random())
         ]);
         let validators = vec![
             Validator::new(peers["Alice"].clone(), 100),
@@ -198,23 +193,18 @@ mod tests {
             stats
         }
 
-        // Initial simulation
         let rounds = 1000;
         let initial_stats = simulate_rounds(&mut algo, rounds);
         assert_eq!(initial_stats.len(), 2);
 
-        // Add a new validator
         algo.add_validator(peers["Charlie"].clone(), 300);
 
-        // Simulation after adding Charlie
         let after_add_stats = simulate_rounds(&mut algo, rounds);
         assert_eq!(after_add_stats.len(), 3);
         assert!(after_add_stats.contains_key(&peers["Charlie"]));
 
-        // Remove a validator
         algo.remove_validator(&peers["Bob"]);
 
-        // Simulation after removing Bob
         let after_remove_stats = simulate_rounds(&mut algo, rounds);
         assert_eq!(after_remove_stats.len(), 2);
         assert!(!after_remove_stats.contains_key(&peers["Bob"]));
