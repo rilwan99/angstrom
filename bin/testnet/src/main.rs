@@ -15,7 +15,7 @@ use testnet::{
     anvil_utils::{spawn_anvil, AnvilEthDataCleanser},
     cli::Cli,
     contract_setup::deploy_contract_and_create_pool,
-    peers::{connect_all_peers, StromPeer},
+    network::{connect_all_peers, peers::StromPeer},
     rpc_state_provider::RpcStateProviderFactory
 };
 use tracing::{span, Instrument, Level};

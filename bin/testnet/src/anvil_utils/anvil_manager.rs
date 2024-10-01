@@ -29,7 +29,7 @@ pub type AnvilWalletRpc = FillProvider<
     Ethereum
 >;
 
-//#[cfg(feature = "ipc")]
+#[cfg(feature = "ipc")]
 pub async fn spawn_anvil(block_time: u64) -> eyre::Result<(AnvilInstance, AnvilWalletRpc)> {
     let anvil = Anvil::new()
         .block_time(block_time)
@@ -57,30 +57,31 @@ pub async fn spawn_anvil(block_time: u64) -> eyre::Result<(AnvilInstance, AnvilW
     Ok((anvil, rpc))
 }
 
-// #[cfg(feature = "ws")]
-// pub async fn spawn_anvil(block_time: u64) -> eyre::Result<(AnvilInstance,
-// AnvilWalletRpc)> {     let anvil = Anvil::new()
-//         .block_time(block_time)
-//         .chain_id(1)
-//         .arg("--ws")
-//         .arg("--code-size-limit")
-//         .arg("393216")
-//         .arg("--disable-block-gas-limit")
-//         .try_spawn()?;
+#[cfg(feature = "ws")]
+pub async fn spawn_anvil(block_time: u64) -> eyre::Result<(AnvilInstance, AnvilWalletRpc)> {
+    let anvil = Anvil::new()
+        .block_time(block_time)
+        .chain_id(1)
+        // .arg("--ws")
+        .arg("--disable-code-size-limit")
+        // .arg("--code-size-limit")
+        // .arg("3932160")
+        .arg("--disable-block-gas-limit")
+        .try_spawn()?;
 
-//     let endpoint = "35.245.117.24:8546";
-//     tracing::info!(?endpoint);
-//     let ws = alloy::providers::WsConnect::new(endpoint.to_string());
-//     let sk: PrivateKeySigner = anvil.keys()[0].clone().into();
+    let endpoint = "ws://35.245.117.24:8546";
+    tracing::info!(?endpoint);
+    let ws = alloy::providers::WsConnect::new(endpoint.to_string());
+    let sk: PrivateKeySigner = anvil.keys()[0].clone().into();
 
-//     let wallet = EthereumWallet::new(sk);
-//     let rpc = builder::<Ethereum>()
-//         .with_recommended_fillers()
-//         .wallet(wallet)
-//         .on_ws(ws)
-//         .await?;
+    let wallet = EthereumWallet::new(sk);
+    let rpc = builder::<Ethereum>()
+        .with_recommended_fillers()
+        .wallet(wallet)
+        .on_ws(ws)
+        .await?;
 
-//     tracing::info!("connected to anvil");
+    tracing::info!("connected to anvil");
 
-//     Ok((anvil, rpc))
-// }
+    Ok((anvil, rpc))
+}
