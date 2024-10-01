@@ -26,6 +26,7 @@ where
         if receipt.inner.status() {
             Ok(())
         } else {
+            // We can make this do a cool backtrace later
             Err(eyre!("Transaction with hash {} failed", receipt.transaction_hash))
         }
     }
