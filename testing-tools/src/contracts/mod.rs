@@ -6,7 +6,9 @@ pub mod deploy;
 mod reward;
 pub use reward::RewardTestEnv;
 
-pub trait DebugTransaction {
+/// This trait is used to provide safe run and potentially debug capabilities
+/// for our local contract runs
+trait DebugTransaction {
     async fn run_safe(self) -> eyre::Result<()>;
 }
 
