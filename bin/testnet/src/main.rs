@@ -15,8 +15,8 @@ use testnet::{
     anvil_utils::{spawn_anvil, AnvilEthDataCleanser},
     cli::Cli,
     contract_setup::deploy_contract_and_create_pool,
-    network::{connect_all_peers, peers::StromPeer},
-    rpc_state_provider::RpcStateProviderFactory
+    eth::RpcStateProviderFactory,
+    strom_network::{connect_all_peers, peers::StromPeer}
 };
 use tracing::{span, Instrument, Level};
 use validation::init_validation;
@@ -63,7 +63,7 @@ async fn main() -> eyre::Result<()> {
             rpc_wrapper.clone(),
             peer,
             handles,
-            Some(cli_args.port),
+            Some(cli_args.starting_port),
             angstrom_addr,
             cli_args.nodes_in_network
         )

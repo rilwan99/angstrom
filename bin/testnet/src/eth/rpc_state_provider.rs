@@ -9,7 +9,7 @@ use validation::common::lru_db::{BlockStateProvider, BlockStateProviderFactory};
 use crate::anvil_utils::AnvilWalletRpc;
 
 fn async_to_sync<F: Future>(f: F) -> F::Output {
-    let handle = tokio::runtime::Handle::try_current().expect("No tokion runtime found");
+    let handle = tokio::runtime::Handle::try_current().expect("No tokio runtime found");
     tokio::task::block_in_place(|| handle.block_on(f))
 }
 
