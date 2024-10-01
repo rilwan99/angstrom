@@ -30,11 +30,15 @@ pub type AnvilWalletRpc = FillProvider<
 >;
 
 #[cfg(feature = "ipc")]
-pub async fn spawn_anvil(block_time: u64) -> eyre::Result<(AnvilInstance, AnvilWalletRpc)> {
+pub async fn spawn_anvil(
+    block_time: u64
+    //  id: u64
+) -> eyre::Result<(AnvilInstance, AnvilWalletRpc)> {
     let anvil = Anvil::new()
         .block_time(block_time)
         .chain_id(1)
         .arg("--ipc")
+        // .arg(format!("/tmp/anvil_{id}.ipc"))
         .arg("--code-size-limit")
         .arg("393216")
         .arg("--disable-block-gas-limit")

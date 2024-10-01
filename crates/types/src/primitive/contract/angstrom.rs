@@ -232,10 +232,7 @@ impl Encodable for Angstrom::OrderType {
 }
 impl Decodable for Angstrom::OrderType {
     fn decode(buf: &mut &[u8]) -> Result<Self, Error> {
-        println!("CHECKING");
-        let t = unsafe { std::mem::transmute(u8::decode(buf)) };
-        println!("OK");
-        t
+        unsafe { std::mem::transmute(u8::decode(buf)) }
     }
 }
 
