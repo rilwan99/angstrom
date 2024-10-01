@@ -1,5 +1,5 @@
 use alloy::{primitives::Signed, sol};
-use pade::derive::PadeEncode;
+use pade_macro::{PadeDecode, PadeEncode};
 
 sol! {
     type PoolId is bytes32;
@@ -21,7 +21,7 @@ sol! {
     }
 }
 
-#[derive(Debug, PadeEncode)]
+#[derive(Debug, PadeEncode, PadeDecode)]
 pub enum RewardsUpdate {
     MultiTick { start_tick: Signed<24, 1>, start_liquidity: u128, quantities: Vec<u128> },
     CurrentOnly { amount: u128 }

@@ -15,6 +15,7 @@ tokio.workspace = true
 uniswap_v3_math.workspace = true
 alloy.workspace = true
 pade.workspace = true
+pade-macro.workspace = true
 eyre.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

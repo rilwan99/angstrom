@@ -52,7 +52,7 @@ pub fn to_contract_format(
         // Build our Pair featuring our uniform clearing price
         // This price is in Ray format as requested.
         let uniswap_price: U256 = *solution.ucp;
-        pairs.push(Pair { t0_idx, t1_idx, uniswap_price });
+        // pairs.push(Pair { t0_idx, t1_idx, uniswap_price });
         let pair_idx = pairs.len() - 1;
 
         // Pull out our net AMM order
@@ -109,7 +109,7 @@ pub fn to_contract_format(
         );
         // Account for our reward
         asset_builder.allocate(AssetBuilderStage::Reward, t0, tob_outcome.total_reward.to());
-        let rewards_update = tob_outcome.to_donate().rewards_update;
+        let rewards_update = tob_outcome.to_rewards_update();
         // Push the pool update
         pool_updates.push(PoolUpdate {
             zero_for_one: false,

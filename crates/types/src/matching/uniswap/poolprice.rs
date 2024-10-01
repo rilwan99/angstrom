@@ -66,6 +66,10 @@ impl<'a> PoolPrice<'a> {
         self.tick
     }
 
+    pub fn liquidity_range(&self) -> LiqRangeRef<'a> {
+        self.market_pool
+    }
+
     pub fn liquidity(&self) -> u128 {
         self.market_pool.liquidity
     }

@@ -1318,6 +1318,7 @@ dependencies = [
  "serde_json",
  "thiserror",
  "tracing",
+ "uniswap_v3_math",
 ]
 
 [[package]]
@@ -2646,6 +2647,7 @@ dependencies = [
  "angstrom-types",
  "eyre",
  "pade",
+ "pade-macro",
  "testing-tools",
  "tokio",
  "tracing",

@@ -1,6 +1,7 @@
 use std::{
     cmp::{max, min},
-    collections::HashMap
+    collections::HashMap,
+    ops::Deref
 };
 
 // uint 160 for represending SqrtPriceX96
@@ -9,7 +10,7 @@ use angstrom_types::{
     matching::{Ray, SqrtPriceX96},
     orders::OrderPrice
 };
-use eyre::{eyre, Context, Error};
+use eyre::{eyre, Context, Error, OptionExt};
 use uniswap_v3_math::{
     sqrt_price_math::{
         _get_amount_0_delta, _get_amount_1_delta, get_next_sqrt_price_from_input,
@@ -122,30 +123,50 @@ impl MarketSnapshot {
 
     /// Find the PoolRange in this market snapshot that the provided tick lies
     /// within, if any
-    pub fn get_range_for_tick(&self, tick: Tick) -> Option<(usize, &PoolRange)> {
-        let range_idx = self
-            .ranges
+    pub fn get_range_for_tick(&self, tick: Tick) -> Option<PoolRangeRef> {
+        self.ranges
             .iter()
-            .position(|r| r.lower_tick <= tick && tick < r.upper_tick);
-        range_idx.map(|idx| (idx, self.ranges.get(idx).unwrap()))
-    }
-
-    /// Get a pool range directly out of this snapshot by internal storage index
-    pub fn get_range(&self, index: usize) -> Option<&PoolRange> {
-        self.ranges.get(index)
+            .enumerate()
+            .find(|(_, r)| r.lower_tick <= tick && tick < r.upper_tick)
+            .map(|(range_idx, range)| PoolRangeRef { market: self, range, range_idx })
     }
 
     pub fn current_position(&self) -> MarketPrice {
+        let range = self
+            .ranges
+            .get(self.cur_tick_idx)
+            .map(|range| PoolRangeRef { market: self, range, range_idx: self.cur_tick_idx })
+            .unwrap();
         MarketPrice {
-            state:     self,
-            range_idx: self.cur_tick_idx,
-            tick:      self.current_tick,
-            price:     self.sqrt_price_x96
+            market_pool: range,
+            tick:        self.current_tick,
+            price:       self.sqrt_price_x96
         }
     }
 
     pub fn liquidity_at_tick(&self, tick: Tick) -> Option<u128> {
-        self.get_range_for_tick(tick).map(|range| range.1.liquidity)
+        self.get_range_for_tick(tick).map(|range| range.liquidity())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct PoolRangeRef<'a> {
+    market:    &'a MarketSnapshot,
+    range:     &'a PoolRange,
+    range_idx: usize
+}
+
+impl<'a> Deref for PoolRangeRef<'a> {
+    type Target = PoolRange;
+
+    fn deref(&self) -> &Self::Target {
+        self.range
+    }
+}
+
+impl<'a> PoolRangeRef<'a> {
+    pub fn new(market: &'a MarketSnapshot, range: &'a PoolRange, range_idx: usize) -> Self {
+        Self { market, range, range_idx }
     }
 }
 
@@ -158,14 +179,12 @@ impl MarketSnapshot {
 /// new MarketPrices dependent on that.
 #[derive(Clone, Debug)]
 pub struct MarketPrice<'a> {
-    /// Reference to the Market State we're using as the basis for computation
-    state:     &'a MarketSnapshot,
-    /// Index of the current PoolRange our price lies within
-    range_idx: usize,
+    /// Current PoolRange that the price is in
+    market_pool: PoolRangeRef<'a>,
     /// Tick number within the current PoolRange that we're working with
-    tick:      Tick,
+    tick:        Tick,
     /// The ratio between Token0 and Token1
-    price:     SqrtPriceX96
+    price:       SqrtPriceX96
 }
 
 impl<'a> MarketPrice<'a> {
@@ -208,10 +227,18 @@ impl<'a> MarketPrice<'a> {
     }
 
     pub fn liquidity(&self) -> u128 {
-        self.state
-            .get_range(self.range_idx)
-            .map(|p| p.liquidity)
-            .unwrap_or(0)
+        self.market_pool.liquidity
+    }
+
+    pub fn range_to(&self, price: SqrtPriceX96) -> eyre::Result<PriceRange<'a>> {
+        let tick = price.to_tick()?;
+        let market_pool = self
+            .market_pool
+            .market
+            .get_range_for_tick(tick)
+            .ok_or_eyre("Unable to find pool")?;
+        let target = Self { market_pool, tick, price };
+        Ok(PriceRange::new(self.clone(), target))
     }
 
     /// This will produce a Uniswap Price Range that spans from the current
@@ -237,25 +264,31 @@ impl<'a> MarketPrice<'a> {
                 }
             }
         }
-        let mut new_range_idx = self.range_idx;
-        let mut pool = self.state.get_range(new_range_idx)?;
+        let bound_price = if buy {
+            SqrtPriceX96::at_tick(self.market_pool.upper_tick).ok()?
+        } else {
+            SqrtPriceX96::at_tick(self.market_pool.lower_tick).ok()?
+        };
+
+        let mut new_range_idx = self.market_pool.range_idx;
+        let mut pool = self.market_pool.range;
         let (mut tick_bound_price, next_tick) = if buy {
             let upper_tick_price = get_sqrt_ratio_at_tick(pool.upper_tick)
                 .ok()
                 .map(SqrtPriceX96::from)?;
-            let next_tick = self.range_idx.checked_sub(1);
+            let next_tick = self.market_pool.range_idx.checked_sub(1);
             (upper_tick_price, next_tick)
         } else {
             let lower_tick_price = get_sqrt_ratio_at_tick(pool.lower_tick)
                 .ok()
                 .map(SqrtPriceX96::from)?;
-            let next_tick = self.range_idx.checked_add(1);
+            let next_tick = self.market_pool.range_idx.checked_add(1);
             (lower_tick_price, next_tick)
         };
         if self.price == tick_bound_price {
             // We're at the tick bound, we need to look at the next pool!
             new_range_idx = next_tick?;
-            pool = self.state.get_range(new_range_idx)?;
+            pool = self.market_pool.market.ranges.get(new_range_idx)?;
             tick_bound_price = if buy {
                 get_sqrt_ratio_at_tick(pool.upper_tick)
                     .ok()
@@ -276,10 +309,9 @@ impl<'a> MarketPrice<'a> {
             tick_bound_price
         };
         let end_bound = Self {
-            state:     self.state,
-            price:     closest_price,
-            range_idx: new_range_idx,
-            tick:      get_tick_at_sqrt_ratio(closest_price.into()).ok()?
+            market_pool: PoolRangeRef { range: pool, range_idx: new_range_idx, ..self.market_pool },
+            price:       closest_price,
+            tick:        get_tick_at_sqrt_ratio(closest_price.into()).ok()?
         };
         Some(PriceRange::new(self.clone(), end_bound))
     }

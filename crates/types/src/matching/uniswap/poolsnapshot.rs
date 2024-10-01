@@ -1,4 +1,4 @@
-use eyre::{eyre, Context};
+use eyre::{eyre, Context, OptionExt};
 use uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio;
 
 use super::{
@@ -67,7 +67,7 @@ impl PoolSnapshot {
             .map(|(range_idx, range)| LiqRangeRef { market: self, range, range_idx })
     }
 
-    pub fn current_position(&self) -> PoolPrice {
+    pub fn current_price(&self) -> PoolPrice {
         let range = self
             .ranges
             .get(self.cur_tick_idx)
@@ -78,6 +78,14 @@ impl PoolSnapshot {
             tick:        self.current_tick,
             price:       self.sqrt_price_x96
         }
+    }
+
+    pub fn at_price(&self, price: SqrtPriceX96) -> eyre::Result<PoolPrice> {
+        let tick = price.to_tick()?;
+        let range = self
+            .get_range_for_tick(tick)
+            .ok_or_eyre("Unable to find tick range for price")?;
+        Ok(PoolPrice { market_pool: range, tick, price })
     }
 
     pub fn liquidity_at_tick(&self, tick: Tick) -> Option<u128> {

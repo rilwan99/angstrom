@@ -3,7 +3,7 @@ use std::ops::Deref;
 use eyre::eyre;
 use uniswap_v3_math::tick_math::{MAX_TICK, MIN_TICK};
 
-use super::{PoolSnapshot, Tick};
+use super::{Direction, PoolSnapshot, Tick};
 
 /// A LiqRange describes the liquidity conditions within a specific range of
 /// ticks.  The range can be described as `[lower_tick, upper_tick)`.  The range
@@ -51,7 +51,7 @@ impl LiqRange {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct LiqRangeRef<'a> {
     pub(super) market:    &'a PoolSnapshot,
     pub(super) range:     &'a LiqRange,
@@ -69,5 +69,27 @@ impl<'a> Deref for LiqRangeRef<'a> {
 impl<'a> LiqRangeRef<'a> {
     pub fn new(market: &'a PoolSnapshot, range: &'a LiqRange, range_idx: usize) -> Self {
         Self { market, range, range_idx }
+    }
+
+    /// Returns the final tick in this liquidity range presuming the price
+    /// starts
+    pub fn end_bound(&self, direction: Direction) -> Tick {
+        match direction {
+            Direction::BuyingT0 => self.upper_tick,
+            Direction::SellingT0 => self.lower_tick
+        }
+    }
+
+    /// Returns the appropriate tick to donate to in order to reward LPs in this
+    /// position
+    pub fn donate_tick(&self) -> Tick {
+        self.lower_tick
+    }
+
+    pub fn next(&self, direction: Direction) -> Option<Self> {
+        match direction {
+            Direction::BuyingT0 => self.market.get_range_for_tick(self.range.upper_tick),
+            Direction::SellingT0 => self.market.get_range_for_tick(self.range.lower_tick - 1)
+        }
     }
 }

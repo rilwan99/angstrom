@@ -1,10 +1,13 @@
+use std::cmp::Ordering;
+
 use alloy::primitives::{Uint, U256};
+use eyre::OptionExt;
 use uniswap_v3_math::sqrt_price_math::{
     _get_amount_0_delta, _get_amount_1_delta, get_next_sqrt_price_from_input,
     get_next_sqrt_price_from_output
 };
 
-use super::poolprice::PoolPrice;
+use super::{poolprice::PoolPrice, Direction};
 use crate::{
     matching::{Ray, SqrtPriceX96},
     orders::OrderPrice
@@ -23,6 +26,53 @@ impl<'a> PoolPriceVec<'a> {
         let (d_t0, d_t1) =
             Self::delta_to_price(start_bound.price, end_bound.price, start_bound.liquidity());
         Self { start_bound, end_bound, d_t0, d_t1 }
+    }
+
+    fn delta(start: PoolPrice<'a>, end: PoolPrice<'a>) -> eyre::Result<(U256, U256)> {
+        let mut cur_price = start.price;
+        let mut cur_range = start.market_pool;
+        let end_price = end.price;
+        let mut total_dt0 = U256::ZERO;
+        let mut total_dt1 = U256::ZERO;
+        while cur_price != end_price {
+            let range_bound = SqrtPriceX96::at_tick(cur_range.upper_tick)?;
+            let target_price = if range_bound < end_price {
+                cur_range = cur_range
+                    .next(Direction::BuyingT0)
+                    .ok_or_eyre("Unable to get next range")?;
+                range_bound
+            } else {
+                end_price
+            };
+            let (d_t0, d_t1) = Self::delta_to_price(cur_price, target_price, cur_range.liquidity);
+            total_dt0 += d_t0;
+            total_dt1 += d_t1;
+            cur_price = target_price;
+        }
+        Ok((total_dt0, total_dt1))
+    }
+
+    pub fn to_price(&self, target: SqrtPriceX96) -> Option<Self> {
+        let (start_in_bounds, end_in_bounds) = if self.is_buy() {
+            (Ordering::Greater, Ordering::Less)
+        } else {
+            (Ordering::Less, Ordering::Greater)
+        };
+        if self.start_bound.price.cmp(&target) == start_in_bounds {
+            if self.end_bound.price.cmp(&target) == end_in_bounds {
+                // If the target price is between the start and end bounds, make a subvec
+                let new_upper = self.start_bound.market_pool.market.at_price(target).ok()?;
+                Some(Self::new(self.start_bound.clone(), new_upper))
+            } else {
+                // If the target price is beyond the end bound in the appropriate direction,
+                // return a copy of this existing vector
+                Some(self.clone())
+            }
+        } else {
+            // If the target price is equal to or beyond the start price in an inappropriate
+            // direction, there is no vector to be made
+            None
+        }
     }
 
     fn delta_to_price(
