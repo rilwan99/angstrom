@@ -9,7 +9,7 @@ pub enum RewardsUpdate {
     CurrentOnly { amount: u128 }
 }
 
-#[derive(Debug, PadeEncode)]
+#[derive(Debug, PadeEncode, PadeDecode)]
 pub struct PoolUpdate {
     pub zero_for_one:     bool,
     pub pair_index:       u16,
