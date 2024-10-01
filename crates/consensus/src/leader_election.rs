@@ -24,6 +24,7 @@ impl WeightedRoundRobin {
     pub fn new(validators: Vec<Validator>, new_joiner_penalty_factor: Option<f64>) -> Self {
         WeightedRoundRobin {
             validators:                HashSet::from_iter(validators),
+            // apparently that's a good value https://docs.cometbft.com/v0.38/spec/consensus/proposer-selection#new-validator
             new_joiner_penalty_factor: new_joiner_penalty_factor.unwrap_or(1.125)
         }
     }

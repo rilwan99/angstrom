@@ -2,7 +2,7 @@
 use std::{
     collections::HashSet,
     path::PathBuf,
-    sync::{Arc, Mutex}
+    sync::Arc
 };
 
 use angstrom_metrics::{initialize_prometheus_metrics, METRICS_ENABLED};
@@ -28,10 +28,7 @@ use angstrom_network::{
 };
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
 use clap::Parser;
-use consensus::{
-    AngstromValidator, ConsensusCommand, ConsensusHandle, ConsensusManager, GlobalConsensusState,
-    ManagerNetworkDeps, Signer
-};
+use consensus::{ConsensusManager, ManagerNetworkDeps, Signer};
 use reth::{
     api::NodeAddOns,
     args::utils::DefaultChainSpecParser,
@@ -144,8 +141,8 @@ pub struct StromHandles {
 
     pub pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>,
 
-    pub consensus_tx:    Sender<ConsensusCommand>,
-    pub consensus_rx:    Receiver<ConsensusCommand>,
+    // pub consensus_tx:    Sender<ConsensusCommand>,
+    // pub consensus_rx:    Receiver<ConsensusCommand>,
     pub consensus_tx_op: UnboundedMeteredSender<StromConsensusEvent>,
     pub consensus_rx_op: UnboundedMeteredReceiver<StromConsensusEvent>
 }
@@ -158,15 +155,15 @@ impl StromHandles {
         }
     }
 
-    pub fn get_consensus_handle(&self) -> ConsensusHandle {
-        ConsensusHandle { sender: self.consensus_tx.clone() }
-    }
+    // pub fn get_consensus_handle(&self) -> ConsensusHandle {
+    //     ConsensusHandle { sender: self.consensus_tx.clone() }
+    // }
 }
 
 pub fn initialize_strom_handles() -> StromHandles {
     let (eth_tx, eth_rx) = channel(100);
     let (pool_manager_tx, _) = tokio::sync::broadcast::channel(100);
-    let (consensus_tx, consensus_rx) = channel(100);
+    // let (consensus_tx, consensus_rx) = channel(100);
     let (pool_tx, pool_rx) = reth_metrics::common::mpsc::metered_unbounded_channel("orderpool");
     let (orderpool_tx, orderpool_rx) = unbounded_channel();
     let (consensus_tx_op, consensus_rx_op) =
@@ -180,8 +177,8 @@ pub fn initialize_strom_handles() -> StromHandles {
         orderpool_tx,
         pool_manager_tx,
         orderpool_rx,
-        consensus_tx,
-        consensus_rx,
+        // consensus_tx,
+        // consensus_rx,
         consensus_tx_op,
         consensus_rx_op
     }
@@ -249,18 +246,14 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
     ];
     let _consensus_handle = ConsensusManager::spawn(
         executor.clone(),
-        global_consensus_state,
         ManagerNetworkDeps::new(
             network_handle.clone(),
             node.provider.subscribe_to_canonical_state(),
             handles.consensus_rx_op,
-            handles.consensus_tx,
-            handles.consensus_rx
         ),
         signer,
         validators,
         order_storage.clone(),
-        None
     );
 }
 
