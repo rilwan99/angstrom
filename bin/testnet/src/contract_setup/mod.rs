@@ -2,7 +2,7 @@ use std::{pin::pin, time::Duration};
 
 use alloy::{
     primitives::{Address, U256},
-    providers::ext::AnvilApi
+    providers::{ext::AnvilApi, WalletProvider}
 };
 use angstrom_types::sol_bindings::testnet::{MockERC20, PoolManagerDeployer, TestnetHub};
 use futures::Future;
@@ -22,14 +22,19 @@ pub struct AngstromTestnetAddresses {
 pub async fn deploy_contract_and_create_pool(
     provider: AnvilWalletRpc
 ) -> eyre::Result<AngstromTestnetAddresses> {
+    println!(
+        "A: {:?} -- B: {:?}",
+        provider.default_signer_address(),
+        PoolManagerDeployer::deploy_builder(provider.clone(), U256::MAX).calculate_create_address()
+    );
     let out = anvil_mine_delay(
         Box::pin(PoolManagerDeployer::deploy(provider.clone(), U256::MAX)),
         &provider,
         Duration::from_millis(500)
     )
     .await?;
-
     let v4_address = *out.address();
+
     let testhub = anvil_mine_delay(
         Box::pin(TestnetHub::deploy(provider.clone(), Address::ZERO, v4_address)),
         &provider,
@@ -46,14 +51,14 @@ pub async fn deploy_contract_and_create_pool(
         Duration::from_millis(500)
     )
     .await?;
+    let token0 = *token0.address();
+
     let token1 = anvil_mine_delay(
         Box::pin(MockERC20::deploy(provider.clone())),
         &provider,
         Duration::from_millis(500)
     )
     .await?;
-
-    let token0 = *token0.address();
     let token1 = *token1.address();
 
     tracing::info!(
