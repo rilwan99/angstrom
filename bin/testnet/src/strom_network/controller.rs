@@ -88,17 +88,16 @@ where
         .await
     }
 
+    /// if None, then a random id is used
     pub async fn run_event<'a, F, O, R>(&'a self, id: Option<u64>, f: F) -> eyre::Result<R>
     where
         F: FnOnce(&'a StromPeerManager<C>) -> O,
         O: Future<Output = R>
     {
         let id = if let Some(i) = id {
-            if i > self.peers.iter().map(|(id, _)| *id).max().unwrap() {
-                self.get_random_id()
-            } else {
-                i
-            }
+            assert!(!self.peers.is_empty());
+            assert!(i >= self.peers.iter().map(|(id, _)| *id).max().unwrap());
+            i
         } else {
             self.get_random_id()
         };

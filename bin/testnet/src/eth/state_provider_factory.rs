@@ -1,22 +1,12 @@
-use std::future::IntoFuture;
-
 use alloy::{
     network::{Ethereum, EthereumWallet},
     node_bindings::{Anvil, AnvilInstance},
-    primitives::keccak256,
-    providers::{
-        builder,
-        fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller},
-        Identity, Provider, RootProvider
-    },
-    pubsub::PubSubFrontend,
-    signers::local::PrivateKeySigner,
-    transports::TransportResult
+    providers::{builder, Provider},
+    signers::local::PrivateKeySigner
 };
-use futures::Future;
-use reth_primitives::{Account, Address, BlockNumber, StorageKey, StorageValue};
+use reth_primitives::BlockNumber;
 use reth_provider::{ProviderError, ProviderResult};
-use validation::common::lru_db::{BlockStateProvider, BlockStateProviderFactory};
+use validation::common::lru_db::BlockStateProviderFactory;
 
 use super::RpcStateProvider;
 use crate::{async_to_sync, AnvilWalletRpc};

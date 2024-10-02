@@ -80,34 +80,27 @@ impl<S: Stream<Item = (u64, Vec<Transaction>)> + Unpin + Send + 'static> AnvilEt
             tracing::info!("No angstrom tx found");
             return
         };
-        tracing::warn!("core dump - input");
         let input = angstrom_tx.input();
 
-        tracing::warn!("core dump - TestnetHub::executeCall::abi_decode");
         let Ok(bytes) = TestnetHub::executeCall::abi_decode(input, false) else {
             tracing::warn!("found angstrom contract call thats not a bundle");
             return
         };
 
-        tracing::warn!("core dump - ContractBundle::abi_decode");
         // decode call input to grab orders. Drop function sig
         let Ok(bundle) = ContractBundle::abi_decode(&bytes.data, false) else {
             tracing::error!("failed to decode bundle");
             return
         };
 
-        tracing::warn!("core dump - get_filled_hashes");
         let hashes = bundle.get_filled_hashes();
-        tracing::warn!("core dump - get_addresses_touched");
         let addresses = bundle.get_addresses_touched();
         tracing::info!("found angstrom tx with orders filled {:#?}", hashes);
-        tracing::warn!("core dump - send_events");
         self.send_events(EthEvent::NewBlockTransitions {
             block_number:      block.0,
             filled_orders:     hashes,
             address_changeset: addresses
         });
-        tracing::warn!("core dump - done");
     }
 }
 
