@@ -1,11 +1,8 @@
 use std::{pin::pin, time::Duration};
 
 use alloy::{
-    dyn_abi::JsonAbiExt,
     primitives::{Address, U256},
-    providers::{ext::AnvilApi, WalletProvider},
-    rpc::json_rpc::RpcObject,
-    sol_types::{SolCall, SolConstructor, SolInterface, SolStruct}
+    providers::{ext::AnvilApi, WalletProvider}
 };
 use angstrom_types::sol_bindings::testnet::{MockERC20, PoolManagerDeployer, TestnetHub};
 use futures::Future;
@@ -45,7 +42,11 @@ pub async fn deploy_contract_and_create_pool(
     let v4_address = *out.address();
 
     let testhub = anvil_mine_delay(
-        Box::pin(TestnetHub::deploy(provider.clone(), Address::ZERO, v4_address)),
+        Box::pin(async {
+            TestnetHub::deploy(provider.clone(), Address::ZERO, v4_address)
+                .await
+                .map(|v| v.at(address!("7969c5ed335650692bc04293b07f5bf2e7a673c0")))
+        }),
         &provider,
         Duration::from_millis(500)
     )
