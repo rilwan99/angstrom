@@ -7,10 +7,7 @@ use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
 use tracing::{span, Instrument, Level};
 
 use super::manager::{StromPeerManager, StromPeerManagerBuilder};
-use crate::{
-    contract_setup::deploy_contract_and_create_pool,
-    eth::{RpcStateProviderFactory, RpcStateProviderFactoryWrapper}
-};
+use crate::{contract_setup::deploy_contract_and_create_pool, eth::RpcStateProviderFactoryWrapper};
 
 pub struct StromController<C = NoopProvider> {
     peers: HashMap<u64, StromPeerManager<C>>
@@ -132,32 +129,3 @@ where
         rand::thread_rng().gen_range(0..max_id)
     }
 }
-
-/*
-
-
-    pub async fn spawn_all_testnet_nodes(
-        &mut self,
-        rpc_wrapper: RpcStateProviderFactory,
-        contract_address: Address
-    ) -> eyre::Result<()> {
-        let handles = self
-            .peers
-            .iter_mut()
-            .map(|(_, peer)| peer)
-            .collect::<Vec<_>>();
-
-        futures::future::join_all(handles.into_iter().map(|(&peer, tx_handles, rx_handles)| {
-            peer.spawn_testnet_node(tx_handles, rpc_wrapper.clone(), contract_address, rx_handles)
-        }))
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()?;
-
-        Ok(())
-    }
-}
-
-
-
-*/

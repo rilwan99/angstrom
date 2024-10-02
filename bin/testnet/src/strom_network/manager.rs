@@ -1,15 +1,13 @@
 use std::sync::Arc;
 
-use alloy::{
-    primitives::FixedBytes, providers::Provider, pubsub::PubSubFrontend, sol_types::SolValue
-};
+use alloy::{primitives::FixedBytes, providers::Provider, sol_types::SolValue};
 use angstrom::cli::{initialize_strom_handles, StromHandles};
-use angstrom_eth::{handle::Eth, manager::EthEvent};
+use angstrom_eth::handle::Eth;
 use angstrom_network::{pool_manager::PoolHandle, PoolManagerBuilder};
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
 use angstrom_types::sol_bindings::{
     sol::ContractBundle,
-    testnet::TestnetHub::{self, TestnetHubInstance}
+    testnet::TestnetHub::{self}
 };
 use futures::StreamExt;
 use jsonrpsee::server::ServerBuilder;
@@ -20,15 +18,44 @@ use reth_tasks::TokioTaskExecutor;
 use tracing::{span, Instrument, Level, Span};
 use validation::init_validation;
 
-use super::handles::SendingStromHandles;
 use crate::{
-    eth::{
-        anvil_cleanser::AnvilEthDataCleanser, RpcStateProviderFactory,
-        RpcStateProviderFactoryWrapper
-    },
+    eth::{anvil_cleanser::AnvilEthDataCleanser, RpcStateProviderFactoryWrapper},
     strom_network::peers::StromPeer,
+    types::SendingStromHandles,
     StromContractInstance, CACHE_VALIDATION_SIZE
 };
+
+pub struct StromPeerManager<C = NoopProvider> {
+    pub id:               u64,
+    pub port:             u64,
+    pub public_key:       FixedBytes<64>,
+    pub peer:             StromPeer<C>,
+    pub rpc_wrapper:      RpcStateProviderFactoryWrapper,
+    pub order_storage:    Arc<OrderStorage>,
+    pub pool_handle:      PoolHandle,
+    pub tx_strom_handles: SendingStromHandles,
+    pub testnet_hub:      StromContractInstance,
+    pub span:             Span
+}
+
+impl<C> StromPeerManager<C> {
+    pub async fn send_bundles(&self, bundles: u64) -> eyre::Result<()> {
+        let orders = ContractBundle::generate_random_bundles(bundles);
+        let hashes = orders.get_filled_hashes();
+        tracing::info!("id {} - submitting a angstrom bundle with hashes: {:#?}", self.id, hashes);
+        let tx_hash = self
+            .testnet_hub
+            .execute(orders.abi_encode().into())
+            .send()
+            .await?
+            .watch()
+            .await?;
+
+        tracing::info!(?tx_hash, "id {} - tx hash with angstrom contract sent", self.id);
+
+        Ok(())
+    }
+}
 
 pub struct StromPeerManagerBuilder<C = NoopProvider> {
     id:            u64,
@@ -169,43 +196,5 @@ where
             tx_strom_handles,
             span: self.span
         })
-    }
-}
-
-pub struct StromPeerManager<C = NoopProvider> {
-    pub id:               u64,
-    pub port:             u64,
-    pub public_key:       FixedBytes<64>,
-    pub peer:             StromPeer<C>,
-    pub rpc_wrapper:      RpcStateProviderFactoryWrapper,
-    pub order_storage:    Arc<OrderStorage>,
-    pub pool_handle:      PoolHandle,
-    pub tx_strom_handles: SendingStromHandles,
-    pub testnet_hub:      StromContractInstance,
-    pub span:             Span
-}
-
-impl<C> StromPeerManager<C> {
-    pub async fn send_bundles(&self, bundles: u64) -> eyre::Result<()> {
-        let orders = ContractBundle::generate_random_bundles(bundles);
-        let hashes = orders.get_filled_hashes();
-        tracing::info!("id {} - submitting a angstrom bundle with hashes: {:#?}", self.id, hashes);
-        let tx_hash = self
-            .testnet_hub
-            .execute(orders.abi_encode().into())
-            .send()
-            .await?
-            .watch()
-            .await?;
-
-        tracing::info!(?tx_hash, "id {} - tx hash with angstrom contract sent", self.id);
-
-        Ok(())
-
-        // Ok(HookEvents::EthEvent(EthEvent::NewBlockTransitions {
-        //     block_number:      orders.,
-        //     filled_orders:     hashes,
-        //     address_changeset: ()
-        // }))
     }
 }

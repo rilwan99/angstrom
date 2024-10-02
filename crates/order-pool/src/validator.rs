@@ -1,6 +1,5 @@
 use std::{
     collections::VecDeque,
-    future::IntoFuture,
     pin::Pin,
     task::{Context, Poll}
 };
