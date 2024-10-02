@@ -2,6 +2,7 @@ use std::{
     collections::VecDeque,
     future::IntoFuture,
     pin::Pin,
+    sync::{Arc, Mutex},
     task::{Context, Poll}
 };
 
@@ -28,7 +29,7 @@ pub enum OrderValidator<V: OrderValidatorHandle> {
         /// all addresses that we need to invalidate the cache for balances /
         /// approvals
         revalidation_addresses: Vec<Address>,
-        remaining_futures:      FuturesUnordered<ValidationFuture>
+        remaining_futures:      Arc<Mutex<FuturesUnordered<ValidationFuture>>>
     },
     /// waits for storage to go through and purge all invalided orders.
     WaitingForStorageCleanup {
@@ -46,7 +47,7 @@ pub enum OrderValidator<V: OrderValidatorHandle> {
     },
     RegularProcessing {
         validator:         V,
-        remaining_futures: FuturesUnordered<ValidationFuture>
+        remaining_futures: Arc<Mutex<FuturesUnordered<ValidationFuture>>>
     }
 }
 
@@ -55,7 +56,10 @@ where
     V: OrderValidatorHandle<Order = AllOrders>
 {
     pub fn new(validator: V) -> Self {
-        Self::RegularProcessing { validator, remaining_futures: FuturesUnordered::new() }
+        Self::RegularProcessing {
+            validator,
+            remaining_futures: Arc::new(Mutex::new(FuturesUnordered::new()))
+        }
     }
 
     pub fn on_new_block(
@@ -92,14 +96,15 @@ where
         // let new = async move { join_all(remaining_futures).await };
 
         // only good way to move data over
+
         println!("UH OH? - rem_futures");
-        let rem_futures = unsafe { std::ptr::read_unaligned(remaining_futures) };
+        let rem_futures = unsafe { std::ptr::read(remaining_futures) };
         println!("OK!! - rem_futures");
 
         Self::ClearingForNewBlock {
             validator: validator.clone(),
             waiting_for_new_block: VecDeque::default(),
-            remaining_futures: FuturesUnordered::from_iter(rem_futures),
+            remaining_futures: rem_futures,
             completed_orders,
             revalidation_addresses,
             block_number
@@ -135,6 +140,8 @@ where
             Self::RegularProcessing { remaining_futures, validator } => {
                 let val = validator.clone();
                 remaining_futures
+                    .lock()
+                    .unwrap()
                     .push(Box::pin(async move { val.validate_order(origin, order).await }))
             }
             Self::WaitingForStorageCleanup { waiting_for_new_block, .. } => {
@@ -164,7 +171,7 @@ where
             let validator_clone = validator.clone();
             let mut this = Self::RegularProcessing {
                 validator:         validator_clone,
-                remaining_futures: FuturesUnordered::default()
+                remaining_futures: Arc::new(Mutex::new(FuturesUnordered::default()))
             };
             waiting_for_new_block.drain(..).for_each(|(origin, order)| {
                 this.validate_order(origin, order);
@@ -194,7 +201,7 @@ where
                 revalidation_addresses,
                 remaining_futures
             } => {
-                let next = remaining_futures.poll_next_unpin(cx);
+                let next = remaining_futures.lock().unwrap().poll_next_unpin(cx);
                 match next {
                     res @ Poll::Ready(Some(_)) => {
                         return res.map(|inner| inner.map(OrderValidatorRes::ValidatedOrder))
@@ -233,6 +240,8 @@ where
                 Poll::Pending
             }
             OrderValidator::RegularProcessing { remaining_futures, .. } => remaining_futures
+                .lock()
+                .unwrap()
                 .poll_next_unpin(cx)
                 .map(|inner| inner.map(OrderValidatorRes::ValidatedOrder))
         }
