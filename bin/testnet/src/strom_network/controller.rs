@@ -4,7 +4,7 @@ use futures::FutureExt;
 use rand::Rng;
 use reth_primitives::Address;
 use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
-use tracing::Instrument;
+use tracing::{span, Instrument, Level};
 
 use super::manager::{StromPeerManager, StromPeerManagerBuilder};
 use crate::{contract_setup::deploy_contract_and_create_pool, eth::RpcStateProviderFactory};
@@ -103,7 +103,8 @@ where
         };
 
         let peer = self.peers.get(&id).unwrap();
-        Ok(f(&peer).instrument(peer.span.clone()).await)
+        let span = span!(Level::TRACE, "testnet node", id = peer.id);
+        Ok(f(&peer).instrument(span).await)
     }
 
     fn add_peer(&mut self, peer: StromPeerManager<C>) {
