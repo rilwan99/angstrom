@@ -1,4 +1,4 @@
-use std::{pin::pin, time::Duration};
+use std::{pin::pin, sync::OnceLock, time::Duration};
 
 use alloy::{
     primitives::{Address, U256},
@@ -13,6 +13,12 @@ use crate::AnvilWalletRpc;
 
 pub mod contract_bytecodes;
 
+static CREATE_SIGNER: OnceLock<Address> = OnceLock::new();
+
+fn get_or_set_signer(my_address: Address) -> Address {
+    *CREATE_SIGNER.get_or_init(|| my_address)
+}
+
 pub struct AngstromTestnetAddresses {
     pub contract: Address,
     pub token0:   Address,
@@ -23,14 +29,14 @@ pub struct AngstromTestnetAddresses {
 pub async fn deploy_contract_and_create_pool(
     provider: AnvilWalletRpc
 ) -> eyre::Result<AngstromTestnetAddresses> {
+    provider
+        .anvil_impersonate_account(get_or_set_signer(provider.default_signer_address()))
+        .await?;
+
     println!(
         "A: {:?} -- B: {:?}",
         provider.default_signer_address(),
-        PoolManagerDeployer::deploy_builder(provider.clone(), U256::MAX)
-            .from(address!("aaaabeb3e57409262ae5b751f60747921b33613e"))
-            .deploy()
-            .await
-            .unwrap(),
+        PoolManagerDeployer::deploy_builder(provider.clone(), U256::MAX).calculate_create_address()
     );
     let out = anvil_mine_delay(
         Box::pin(async {
