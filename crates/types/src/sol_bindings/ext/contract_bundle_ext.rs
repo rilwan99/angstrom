@@ -43,7 +43,7 @@ impl ContractBundle {
         let rand_am_out: U256 = U256::from_be_bytes(rng.gen::<[u8; 32]>());
         tob.amountIn = rand_am_in;
         tob.amountOut = rand_am_out;
-        let mut generic_orders: Vec<HelperStruct> = Vec::new();
+        let mut generic_orders: Vec<HelperStruct> = Vec::with_capacity(order_count as usize);
         for _ in 0..order_count {
             let mut default = SolGenericOrder::default();
 
