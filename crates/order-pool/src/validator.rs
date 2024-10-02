@@ -71,31 +71,17 @@ where
         );
         let Self::RegularProcessing { validator, remaining_futures } = self else { unreachable!() };
 
-        let new_m: Vec<_> = remaining_futures
-            .into_iter()
-            .map(|fut| unsafe {
-                std::mem::transmute::<_, ValidationFuture>(Box::pin(async { fut.await })
-                    as Pin<
-                        Box<
-                            dyn futures_util::Future<Output = OrderValidationResults>
-                                + std::marker::Send
-                                + Sync
-                        >
-                    >)
-            })
-            .collect::<Vec<_>>();
-
-        // let new = async move { join_all(remaining_futures).await };
-
-        // only good way to move data over
-        //println!("UH OH? - rem_futures");
-        //let rem_futures = unsafe { std::ptr::read(remaining_futures) };
-        // println!("OK!! - rem_futures");
+        let rem_futures = remaining_futures.into_iter().map(|fut| unsafe {
+            std::mem::transmute::<_, ValidationFuture>(Box::pin(async { fut.await })
+                as Pin<
+                    Box<dyn futures_util::Future<Output = OrderValidationResults> + Send + Sync>
+                >)
+        });
 
         Self::ClearingForNewBlock {
             validator: validator.clone(),
             waiting_for_new_block: VecDeque::default(),
-            remaining_futures: FuturesUnordered::from_iter(new_m),
+            remaining_futures: FuturesUnordered::from_iter(rem_futures),
             completed_orders,
             revalidation_addresses,
             block_number
