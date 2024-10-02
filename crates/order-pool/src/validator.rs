@@ -1,5 +1,6 @@
 use std::{
     collections::VecDeque,
+    future::IntoFuture,
     pin::Pin,
     task::{Context, Poll}
 };
@@ -62,27 +63,52 @@ where
         block_number: u64,
         completed_orders: Vec<B256>,
         revalidation_addresses: Vec<Address>
-    ) {
+    ) -> Self {
         assert!(
             !self.is_transitioning(),
             "already clearing for new block. if this gets triggered, means we have a big runtime \
              issue"
         );
         let Self::RegularProcessing { validator, remaining_futures } = self else { unreachable!() };
+        // let r = remaining_futures.
+
+        // let mut new = FuturesUnordered::new();
+        // new.extend(remaining_futures);
+
+        let new_m: Vec<_> = remaining_futures
+            .into_iter()
+            .map(|fut| {
+                unsafe {
+                    std::mem::transmute::<_, ValidationFuture>(Box::pin(async { fut.await })
+                        as Pin<
+                            Box<
+                                dyn futures_util::Future<Output = OrderValidationResults>
+                                    + std::marker::Send
+                                    + Sync
+                            >
+                        >)
+                }
+
+                //      as Pin<Box<dyn Future<Output = OrderValidationResults> +
+                // Send + Sync>>
+            })
+            .collect::<Vec<_>>();
+
+        // let new = async move { join_all(remaining_futures).await };
 
         // only good way to move data over
-        println!("UH OH? - rem_futures");
-        let rem_futures = unsafe { std::ptr::read(remaining_futures) };
-        println!("OK!! - rem_futures");
+        //println!("UH OH? - rem_futures");
+        //let rem_futures = unsafe { std::ptr::read(remaining_futures) };
+        // println!("OK!! - rem_futures");
 
-        *self = Self::ClearingForNewBlock {
+        Self::ClearingForNewBlock {
             validator: validator.clone(),
             waiting_for_new_block: VecDeque::default(),
-            remaining_futures: rem_futures,
+            remaining_futures: FuturesUnordered::from_iter(new_m),
             completed_orders,
             revalidation_addresses,
             block_number
-        };
+        }
     }
 
     pub fn notify_validation_on_changes(
