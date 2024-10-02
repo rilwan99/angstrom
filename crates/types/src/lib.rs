@@ -1,3 +1,5 @@
+#![feature(unsized_fn_params)]
+
 pub mod consensus;
 pub mod contract_bindings;
 pub mod contract_payloads;

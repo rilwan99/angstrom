@@ -1,3 +1,4 @@
+pub use private::{AssetForm, OrderMode, OrderType};
 mod private {
     use alloy::sol;
     use pade_macro::PadeEncode;
