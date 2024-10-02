@@ -38,7 +38,7 @@ impl RpcStateProviderFactory {
             .arg("--disable-block-gas-limit")
             .try_spawn()?;
 
-        let endpoint = "/tmp/anvil.ipc";
+        let endpoint = format!("/tmp/anvil_{id}.ipc");
         tracing::info!(?endpoint);
         let ipc = alloy::providers::IpcConnect::new(endpoint.to_string());
         let sk: PrivateKeySigner = anvil.keys()[0].clone().into();
