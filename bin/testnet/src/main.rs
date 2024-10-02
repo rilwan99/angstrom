@@ -1,18 +1,7 @@
 use std::time::Duration;
 
-use alloy::sol_types::SolValue;
-use angstrom_types::sol_bindings::{sol::ContractBundle, testnet::TestnetHub};
-use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
-use testnet::{
-    anvil_utils::spawn_anvil,
-    cli::Cli,
-    contract_setup::deploy_contract_and_create_pool,
-    eth::RpcStateProviderFactory,
-    strom_network::{
-        controller::StromController,
-        manager::{StromPeerManager, StromPeerManagerBuilder}
-    }
-};
+use reth_provider::test_utils::NoopProvider;
+use testnet::{cli::Cli, strom_network::controller::StromController};
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
