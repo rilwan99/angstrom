@@ -1,10 +1,4 @@
-use std::{
-    future::Future,
-    pin::Pin,
-    task::{Context, Poll},
-    time::Duration
-};
-
+use crate::Signer;
 use alloy_primitives::BlockNumber;
 use angstrom_metrics::ConsensusMetricsWrapper;
 use angstrom_types::{
@@ -14,15 +8,22 @@ use angstrom_types::{
 };
 use futures::{FutureExt, Stream};
 use matching_engine::MatchingManager;
+use order_pool::order_storage::OrderStorage;
 use reth_rpc_types::PeerId;
+use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
+    time::Duration
+};
 use tokio::{
     sync,
     time::{
         Instant, {self}
     }
 };
-
-use crate::Signer;
 
 #[derive(Debug, Clone)]
 pub(crate) enum DataMsg {
@@ -41,35 +42,13 @@ pub enum ConsensusRoundState {
 }
 
 impl ConsensusRoundState {
-    fn duration(&self) -> Duration {
-        match self {
-            ConsensusRoundState::OrderAccumulator { .. } => Duration::from_secs(6),
-            ConsensusRoundState::PrePropose { .. } => Duration::from_secs(3),
-            ConsensusRoundState::Propose { .. } => Duration::from_secs(3),
-            ConsensusRoundState::Commit { .. } => Duration::from_secs(3)
-        }
-    }
 
-    fn on_data(&mut self, data_msg: DataMsg) {
+    fn as_key(&self) -> &'static str {
         match self {
-            ConsensusRoundState::OrderAccumulator { orders, .. } => {
-                if let DataMsg::Order(order_msg) = data_msg {
-                    orders.push(order_msg);
-                }
-            }
-            ConsensusRoundState::PrePropose { pre_proposals, .. } => {
-                if let DataMsg::PreProposal(_, pre_proposal) = data_msg {
-                    pre_proposals.push(pre_proposal);
-                }
-            }
-            ConsensusRoundState::Propose { .. } => {
-                // Handle Proposal data
-            }
-            ConsensusRoundState::Commit { commits, .. } => {
-                if let DataMsg::Commit(_, commit) = data_msg {
-                    commits.push(commit);
-                }
-            }
+            ConsensusRoundState::OrderAccumulator { .. } => "OrderAccumulator",
+            ConsensusRoundState::PrePropose { .. } => "PrePropose",
+            ConsensusRoundState::Propose { .. } => "Propose",
+            ConsensusRoundState::Commit { .. } => "Commit",
         }
     }
 }
@@ -82,50 +61,119 @@ async fn build_proposal(pre_proposals: Vec<PreProposal>) -> Result<Vec<PoolSolut
 pub struct RoundState {
     pub current_state: ConsensusRoundState,
     pub timer:         Pin<Box<time::Sleep>>,
-    pub data_rx:       sync::mpsc::Receiver<DataMsg>,
     transition_future: Option<Pin<Box<dyn Future<Output = ConsensusRoundState> + Send>>>,
     signer:            Signer,
-    metrics:           ConsensusMetricsWrapper
+    order_storage: Arc<OrderStorage>,
+    metrics:           ConsensusMetricsWrapper,
+    durations:         HashMap<String, Duration>
 }
 
 impl RoundState {
     pub fn new(
         initial_state: ConsensusRoundState,
-        data_rx: sync::mpsc::Receiver<DataMsg>,
+        order_storage: Arc<OrderStorage>,
         signer: Signer,
-        metrics: ConsensusMetricsWrapper
+        metrics: ConsensusMetricsWrapper,
+        durations: Option<HashMap<String, Duration>>
     ) -> Self {
-        let duration = initial_state.duration();
-        let timer = Box::pin(time::sleep(duration));
+        let default_durations = HashMap::from([
+            (String::from("OrderAccumulator"), Duration::from_secs(6)),
+            (String::from("PrePropose"), Duration::from_secs(3)),
+            (String::from("Propose"), Duration::from_secs(3)),
+            (String::from("Commit"), Duration::from_secs(3)),
+        ]);
+
+        let durations = durations.unwrap_or(default_durations);
+
+        let initial_state_duration = durations.get(initial_state.as_key()).unwrap();
+        let timer = Box::pin(time::sleep(*initial_state_duration));
+        
         RoundState {
             current_state: initial_state,
             timer,
-            data_rx,
             transition_future: None,
-            // command_tx: tx,
-            // command_rx: rx,
-            // tasks,
+            order_storage,
             signer,
-            metrics
+            metrics,
+            durations
         }
     }
 
-    pub fn force_transition(&mut self, new_state: ConsensusRoundState) {
-        match (&self.current_state, &new_state) {
+    pub fn on_data(&mut self, data_msg: DataMsg) {
+        match &mut self.current_state {
+            ConsensusRoundState::OrderAccumulator { ref mut orders, .. } => {
+                if let DataMsg::Order(order_msg) = data_msg {
+                    orders.push(order_msg);
+                }
+            }
+            ConsensusRoundState::PrePropose { ref mut pre_proposals, .. } => {
+                if let DataMsg::PreProposal(_, pre_proposal) = data_msg {
+                    pre_proposals.push(pre_proposal);
+                }
+            }
+            ConsensusRoundState::Propose { .. } => {
+                // Handle Proposal data
+            }
+            ConsensusRoundState::Commit { ref mut commits, .. } => {
+                if let DataMsg::Commit(_, commit) = data_msg {
+                    commits.push(commit);
+                }
+            }
+        }
+    }
+
+    pub fn duration(&self, state: &ConsensusRoundState) -> Duration {
+        // self.state_transition
+        //     .force_transition(ConsensusRoundState::Propose {
+        //         block_height: self.current_height,
+        //         proposal
+        //     });
+
+        self.durations.get(state.as_key()).cloned().unwrap()
+    }
+
+
+    pub async fn force_transition(&mut self, new_state: ConsensusRoundState) {
+        let new_state = match (&self.current_state, &new_state) {
             (
-                ConsensusRoundState::OrderAccumulator { .. },
+                ConsensusRoundState::OrderAccumulator { block_height, .. },
                 ConsensusRoundState::PrePropose { .. }
             ) => {
-                self.current_state = new_state;
+                let orders = self.order_storage.get_all_orders();
+                let pre_proposal = PreProposal::new(
+                    *block_height,
+                    &self.signer.key,
+                    alloy_primitives::FixedBytes::default(),
+                    orders
+                );
+                ConsensusRoundState::PrePropose { block_height: *block_height, pre_proposals: vec![pre_proposal] }
             }
-            (ConsensusRoundState::PrePropose { .. }, ConsensusRoundState::Propose { .. }) => {
-                self.current_state = new_state;
+            (ConsensusRoundState::PrePropose { block_height, pre_proposals, .. }, ConsensusRoundState::Propose { .. }) => {
+                let solutions = build_proposal(pre_proposals.clone()).await.unwrap();
+                let proposal = self.signer.sign_proposal(*block_height, pre_proposals.clone(), solutions);
+                ConsensusRoundState::Propose { block_height:  *block_height, proposal }
             }
-            (ConsensusRoundState::Propose { .. }, ConsensusRoundState::Commit { .. }) => {
-                self.current_state = new_state;
+            (ConsensusRoundState::Propose { block_height,proposal,..}, ConsensusRoundState::Commit { .. }) => {
+                let pre_proposals = proposal.preproposals().clone();
+                let height = proposal.ethereum_height;
+                let solutions = build_proposal(pre_proposals.clone()).await.unwrap();
+
+                if proposal.solutions != solutions {
+                    tracing::warn!(
+                        "Proposal for {} failed validation with non-matching signatures",
+                        height
+                    );
+                }
+
+                let commit = self.signer.sign_commit(&proposal);
+
+                ConsensusRoundState::Commit { block_height: *block_height, commits: vec![commit] }
             }
-            (ConsensusRoundState::Commit { .. }, ConsensusRoundState::OrderAccumulator { .. }) => {
-                self.current_state = new_state;
+            (ConsensusRoundState::Commit { .. }, ConsensusRoundState::OrderAccumulator { block_height, .. }) => {
+                ConsensusRoundState::OrderAccumulator {
+                    block_height: *block_height,
+                    orders:       vec![]
+                }
             }
             _ => {
                 tracing::error!(
@@ -133,18 +181,38 @@ impl RoundState {
                     self.current_state,
                     new_state
                 );
+                // TODO: panic?
+                panic!("Invalid state transition from {:?} to {:?}", self.current_state, new_state);
             }
-        }
+        };
+
+        self.reset_timer(new_state)
+    }
+    fn reset_timer(&mut self, new_state: ConsensusRoundState) {
+        let duration = self.duration(&new_state);
+        self.current_state = new_state;
+        self.timer
+            .as_mut()
+            .reset(Instant::now() + duration);
+        self.transition_future = None;
     }
 
     async fn transition(
         current_state: ConsensusRoundState,
+        order_storage: Arc<OrderStorage>,
         signer: Signer,
         _metrics: ConsensusMetricsWrapper
     ) -> ConsensusRoundState {
         match current_state {
             ConsensusRoundState::OrderAccumulator { block_height, .. } => {
-                ConsensusRoundState::PrePropose { block_height, pre_proposals: vec![] }
+                let orders = order_storage.get_all_orders();
+                    let pre_proposal = PreProposal::new(
+                        block_height,
+                        &signer.key,
+                        alloy_primitives::FixedBytes::default(),
+                        orders
+                    );
+                ConsensusRoundState::PrePropose { block_height, pre_proposals: vec![pre_proposal] }
             }
             ConsensusRoundState::PrePropose { block_height, pre_proposals } => {
                 let solutions = build_proposal(pre_proposals.clone()).await.unwrap();
@@ -182,35 +250,32 @@ impl Stream for RoundState {
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
 
-        if let Poll::Ready(Some(event)) = Pin::new(&mut this.data_rx).poll_recv(cx) {
-            this.current_state.on_data(event);
+        // if let Poll::Ready(Some(event)) = Pin::new(&mut this.data_rx).poll_recv(cx) {
+        //     this.current_state.on_data(event);
+        // }
+
+        if let Some(ref mut future) = this.transition_future {
+            match future.as_mut().poll(cx) {
+                Poll::Ready(new_state) => {
+                    this.reset_timer(new_state.clone());
+                    return Poll::Ready(Some(new_state));
+                }
+                Poll::Pending => {
+                    return Poll::Pending;
+                }
+            }
         }
 
         if this.timer.as_mut().poll(cx).is_ready() {
             if this.transition_future.is_none() {
                 let future = RoundState::transition(
                     this.current_state.clone(),
+                    this.order_storage.clone(),
                     this.signer.clone(),
                     this.metrics.clone()
                 )
                 .boxed();
                 this.transition_future = Some(future);
-            }
-
-            if let Some(ref mut future) = this.transition_future {
-                match future.as_mut().poll(cx) {
-                    Poll::Ready(next_state) => {
-                        this.current_state = next_state.clone();
-                        this.timer
-                            .as_mut()
-                            .reset(Instant::now() + next_state.duration());
-                        this.transition_future = None;
-                        return Poll::Ready(Some(next_state));
-                    }
-                    Poll::Pending => {
-                        return Poll::Pending;
-                    }
-                }
             }
         }
 

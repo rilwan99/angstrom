@@ -54,9 +54,8 @@ pub struct ConsensusManager {
     state_transition: RoundState,
 
     // those are cross-round and immutable
-    data_tx: Sender<DataMsg>,
+    // data_tx: Sender<DataMsg>,
 
-    order_storage:          Arc<OrderStorage>,
     /// keeps track of the current round state
     /// Used to trigger new consensus rounds
     canonical_block_stream: BroadcastStream<CanonStateNotification>,
@@ -85,25 +84,26 @@ impl ConsensusManager {
     fn new(netdeps: ManagerNetworkDeps, signer: Signer, order_storage: Arc<OrderStorage>) -> Self {
         let ManagerNetworkDeps { network, canonical_block_stream, strom_consensus_event } = netdeps;
         let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
-        let (data_tx, data_rx) = channel::<DataMsg>(100);
+        // let (data_tx, data_rx) = channel::<DataMsg>(100);
         let current_height = 0;
         Self {
             strom_consensus_event,
             leader: PeerId::default(),
             current_height,
             leader_selection: WeightedRoundRobin::new(Vec::new(), None),
-            data_tx,
+            // data_tx,
             state_transition: RoundState::new(
                 ConsensusRoundState::OrderAccumulator {
                     orders:       Vec::new(),
                     block_height: current_height
                 },
-                data_rx,
+                // data_rx,
+                order_storage,
                 signer,
-                ConsensusMetricsWrapper::new()
+                ConsensusMetricsWrapper::new(),
+                None
             ),
             network,
-            order_storage,
             canonical_block_stream: wrapped_broadcast_stream
         }
     }
@@ -119,18 +119,7 @@ impl ConsensusManager {
         tp.spawn_critical("consensus", fut)
     }
 
-    fn send_preproposal(&mut self, preproposal: PreProposal) {
-        tracing::info!("Sending out preproposal");
-        self.network
-            .broadcast_message(StromMessage::PrePropose(preproposal.clone()));
-    }
-
-    fn broadcast_proposal(&mut self, proposal: Proposal) {
-        self.network
-            .broadcast_message(StromMessage::Propose(proposal.clone()));
-    }
-
-    fn on_blockchain_state(&mut self, notification: CanonStateNotification) {
+    async fn on_blockchain_state(&mut self, notification: CanonStateNotification) {
         let new_block = notification.tip();
         let new_block_height = new_block.block.number;
 
@@ -152,38 +141,53 @@ impl ConsensusManager {
     async fn on_network_event(&mut self, event: StromConsensusEvent) {
         match event {
             StromConsensusEvent::PrePropose(peer_id, pre_proposal) => {
-                self.data_tx
-                    .send(DataMsg::PreProposal(peer_id, pre_proposal)).await.unwrap();
-                // self.pre_proposals.insert(peer, pre_proposal);
+                self.state_transition.on_data(DataMsg::PreProposal(peer_id, pre_proposal));
+                // self.data_tx
+                //     .send(DataMsg::PreProposal(peer_id, pre_proposal)).await.unwrap();
             }
             StromConsensusEvent::Propose(peer_id, proposal) => {
-                self.data_tx
-                    .send(DataMsg::Proposal(peer_id, proposal.clone())).await.unwrap();
-                self.state_transition
-                    .force_transition(ConsensusRoundState::Propose {
-                        block_height: self.current_height,
-                        proposal
-                    });
+                self.state_transition.on_data(DataMsg::Proposal(peer_id, proposal.clone()))
+                    // .send(DataMsg::Proposal(peer_id, proposal.clone())).await.unwrap();
             }
             StromConsensusEvent::Commit(peer_id, commit) => {
-                self.data_tx.send(DataMsg::Commit(peer_id, *commit.clone())).await.unwrap();
-                self.state_transition
-                    .force_transition(ConsensusRoundState::Commit {
-                        block_height: self.current_height,
-                        commits:      vec![*commit.clone()]
-                    });
+                self.state_transition.on_data(DataMsg::Commit(peer_id, commit.clone()));
+                // self.data_tx.send(DataMsg::Commit(peer_id, commit.clone())).await.unwrap();
+                // self.state_transition
+                //     .force_transition(ConsensusRoundState::Commit {
+                //         block_height: self.current_height,
+                //         commits:      vec![commit.clone()]
+                //     });
             }
         }
     }
 
-    pub fn on_state_transition(&mut self, state: ConsensusRoundState) {}
+    pub fn on_state_transition(&mut self, new_stat: ConsensusRoundState) {
+        match new_stat {
+            ConsensusRoundState::OrderAccumulator { orders, .. } => {
+                // self.network
+                //     .broadcast_message(StromMessage::PrePropose(preproposal.clone()));
+            }
+            ConsensusRoundState::PrePropose { pre_proposals, .. } => {
+                self.network
+                    .broadcast_message(StromMessage::PrePropose(pre_proposals.first().unwrap().clone()));
+            }
+            ConsensusRoundState::Propose { proposal, .. } => {
+                self.network
+                    .broadcast_message(StromMessage::Propose(proposal.clone()));
+            }
+            ConsensusRoundState::Commit { commits,.. } => {
+                self.network
+                    .broadcast_message(StromMessage::Commit(commits.first().unwrap().clone()));
+            }
+        }
+    }
 
     pub async fn message_loop(mut self) {
         loop {
             select! {
                 Some(msg) = self.canonical_block_stream.next() => {
                     match msg {
-                        Ok(notification) => self.on_blockchain_state(notification),
+                        Ok(notification) => self.on_blockchain_state(notification).await,
                         Err(e) => tracing::error!("Error receiving chain state notification: {}", e)
                     };
                 },
