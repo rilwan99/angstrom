@@ -22,7 +22,10 @@ use validation::init_validation;
 
 use super::handles::SendingStromHandles;
 use crate::{
-    eth::{anvil_cleanser::AnvilEthDataCleanser, RpcStateProviderFactory},
+    eth::{
+        anvil_cleanser::AnvilEthDataCleanser, RpcStateProviderFactory,
+        RpcStateProviderFactoryWrapper
+    },
     strom_network::peers::StromPeer,
     StromContractInstance, CACHE_VALIDATION_SIZE
 };
@@ -32,7 +35,7 @@ pub struct StromPeerManagerBuilder<C = NoopProvider> {
     port:          u64,
     public_key:    FixedBytes<64>,
     peer:          StromPeer<C>,
-    rpc_wrapper:   RpcStateProviderFactory,
+    rpc_wrapper:   RpcStateProviderFactoryWrapper,
     strom_handles: Option<StromHandles>,
     span:          Span
 }
@@ -45,7 +48,7 @@ where
         id: u64,
         port: u64,
         provider: C,
-        rpc_wrapper: RpcStateProviderFactory
+        rpc_wrapper: RpcStateProviderFactoryWrapper
     ) -> Self {
         let span = span!(Level::TRACE, "testnet node", id = id);
         let handles = initialize_strom_handles();
@@ -79,11 +82,11 @@ where
         let executor: TokioTaskExecutor = Default::default();
         let tx_strom_handles = (&strom_handles).into();
 
-        let rpc_w = self.rpc_wrapper.clone();
+        let rpc_w = self.rpc_wrapper.provider();
         let state_stream = self
             .rpc_wrapper
-            .provider
-            .clone()
+            .provider()
+            .provider()
             .subscribe_blocks()
             .await?
             .into_stream()
@@ -94,7 +97,8 @@ where
                     let number = cloned_block.header.number;
                     let mut res = vec![];
                     for hash in cloned_block.transactions.hashes() {
-                        let Ok(Some(tx)) = rpc.provider.get_transaction_by_hash(hash).await else {
+                        let Ok(Some(tx)) = rpc.provider().get_transaction_by_hash(hash).await
+                        else {
                             continue
                         };
                         res.push(tx);
@@ -117,7 +121,7 @@ where
         )
         .await?;
 
-        let validator = init_validation(self.rpc_wrapper.clone(), CACHE_VALIDATION_SIZE);
+        let validator = init_validation(self.rpc_wrapper.provider(), CACHE_VALIDATION_SIZE);
 
         let network_handle = self.peer.handle.clone();
 
@@ -151,14 +155,14 @@ where
             let _ = server_handle.stopped().await;
         });
 
-        let testnet_hub = TestnetHub::new(contract_address, self.rpc_wrapper.provider.clone());
+        let testnet_hub = TestnetHub::new(contract_address, self.rpc_wrapper.provider().provider());
 
         Ok(StromPeerManager {
             id: self.id,
             port: self.port,
             public_key: self.public_key,
             peer: self.peer,
-            rpc_wrapper: self.rpc_wrapper.clone(),
+            rpc_wrapper: self.rpc_wrapper,
             order_storage,
             pool_handle,
             testnet_hub,
@@ -173,7 +177,7 @@ pub struct StromPeerManager<C = NoopProvider> {
     pub port:             u64,
     pub public_key:       FixedBytes<64>,
     pub peer:             StromPeer<C>,
-    pub rpc_wrapper:      RpcStateProviderFactory,
+    pub rpc_wrapper:      RpcStateProviderFactoryWrapper,
     pub order_storage:    Arc<OrderStorage>,
     pub pool_handle:      PoolHandle,
     pub tx_strom_handles: SendingStromHandles,

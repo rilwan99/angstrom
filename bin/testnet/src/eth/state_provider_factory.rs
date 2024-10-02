@@ -21,12 +21,12 @@ use validation::common::lru_db::{BlockStateProvider, BlockStateProviderFactory};
 use super::RpcStateProvider;
 use crate::{async_to_sync, AnvilWalletRpc};
 
-#[derive(Clone, Debug)]
-pub struct RpcStateProviderFactory {
-    pub provider: AnvilWalletRpc
+#[derive(Debug)]
+pub struct RpcStateProviderFactoryWrapper {
+    provider:  RpcStateProviderFactory,
+    _instance: AnvilInstance
 }
-
-impl RpcStateProviderFactory {
+impl RpcStateProviderFactoryWrapper {
     pub async fn spawn_new(block_time: u64, id: u64) -> eyre::Result<Self> {
         let anvil = Anvil::new()
             .block_time(block_time)
@@ -52,7 +52,22 @@ impl RpcStateProviderFactory {
 
         tracing::info!("connected to anvil");
 
-        Ok(Self { provider: rpc })
+        Ok(Self { provider: RpcStateProviderFactory { provider: rpc }, _instance: anvil })
+    }
+
+    pub fn provider(&self) -> RpcStateProviderFactory {
+        self.provider.clone()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct RpcStateProviderFactory {
+    provider: AnvilWalletRpc
+}
+
+impl RpcStateProviderFactory {
+    pub fn provider(&self) -> AnvilWalletRpc {
+        self.provider.clone()
     }
 }
 

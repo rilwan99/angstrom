@@ -7,7 +7,10 @@ use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
 use tracing::{span, Instrument, Level};
 
 use super::manager::{StromPeerManager, StromPeerManagerBuilder};
-use crate::{contract_setup::deploy_contract_and_create_pool, eth::RpcStateProviderFactory};
+use crate::{
+    contract_setup::deploy_contract_and_create_pool,
+    eth::{RpcStateProviderFactory, RpcStateProviderFactoryWrapper}
+};
 
 pub struct StromController<C = NoopProvider> {
     peers: HashMap<u64, StromPeerManager<C>>
@@ -29,9 +32,10 @@ where
     ) -> eyre::Result<()> {
         tracing::info!(id, "deploying contracts to anvil");
 
-        let rpc_wrapper = RpcStateProviderFactory::spawn_new(testnet_block_time_secs, id).await?;
+        let rpc_wrapper =
+            RpcStateProviderFactoryWrapper::spawn_new(testnet_block_time_secs, id).await?;
 
-        let addresses = deploy_contract_and_create_pool(rpc_wrapper.provider.clone()).await?;
+        let addresses = deploy_contract_and_create_pool(rpc_wrapper.provider().provider()).await?;
         let angstrom_addr = addresses.contract;
 
         let peer =
