@@ -6,10 +6,7 @@ use reth_primitives::Address;
 use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
 
 use super::manager::{StromPeerManager, StromPeerManagerBuilder};
-use crate::{
-    anvil_utils::spawn_anvil, contract_setup::deploy_contract_and_create_pool,
-    eth::RpcStateProviderFactory
-};
+use crate::{contract_setup::deploy_contract_and_create_pool, eth::RpcStateProviderFactory};
 
 pub struct StromController<C = NoopProvider> {
     peers: HashMap<u64, StromPeerManager<C>>
@@ -29,21 +26,15 @@ where
         starting_port: u16,
         testnet_block_time_secs: u64
     ) -> eyre::Result<()> {
-        let (_anvil_handle, rpc) = spawn_anvil(testnet_block_time_secs, id).await?;
-
         tracing::info!(id, "deploying contracts to anvil");
-        let addresses = deploy_contract_and_create_pool(rpc.clone()).await?;
+
+        let rpc_wrapper = RpcStateProviderFactory::spawn_new(testnet_block_time_secs, id).await?;
+
+        let addresses = deploy_contract_and_create_pool(rpc_wrapper.provider.clone()).await?;
         let angstrom_addr = addresses.contract;
 
-        let rpc_wrapper = RpcStateProviderFactory::new(rpc.clone())?;
-
-        let peer = StromPeerManagerBuilder::new(
-            id,
-            starting_port as u64,
-            C::default(),
-            rpc_wrapper.clone()
-        )
-        .await;
+        let peer =
+            StromPeerManagerBuilder::new(id, starting_port as u64, C::default(), rpc_wrapper).await;
 
         self.spawn_testnet_node(peer, angstrom_addr).await?;
 

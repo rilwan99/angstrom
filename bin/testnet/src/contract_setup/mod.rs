@@ -8,7 +8,7 @@ use angstrom_types::sol_bindings::testnet::{MockERC20, PoolManagerDeployer, Test
 use futures::Future;
 use tokio::time::timeout;
 
-use crate::anvil_utils::AnvilWalletRpc;
+use crate::AnvilWalletRpc;
 
 pub mod contract_bytecodes;
 

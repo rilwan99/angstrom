@@ -1,2 +1,4 @@
-mod rpc_state_provider;
-pub use rpc_state_provider::*;
+mod state_provider;
+pub use state_provider::*;
+mod state_provider_factory;
+pub use state_provider_factory::*;

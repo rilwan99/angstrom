@@ -1,17 +1,11 @@
 use std::future::IntoFuture;
 
 use alloy::{primitives::keccak256, providers::Provider, transports::TransportResult};
-use futures::Future;
-use reth_primitives::{Account, Address, BlockNumber, StorageKey, StorageValue};
+use reth_primitives::{Account, Address, StorageKey, StorageValue};
 use reth_provider::{ProviderError, ProviderResult};
-use validation::common::lru_db::{BlockStateProvider, BlockStateProviderFactory};
+use validation::common::lru_db::BlockStateProvider;
 
-use crate::anvil_utils::AnvilWalletRpc;
-
-fn async_to_sync<F: Future>(f: F) -> F::Output {
-    let handle = tokio::runtime::Handle::try_current().expect("No tokio runtime found");
-    tokio::task::block_in_place(|| handle.block_on(f))
-}
+use crate::{async_to_sync, AnvilWalletRpc};
 
 #[derive(Clone, Debug)]
 pub struct RpcStateProvider {
@@ -20,6 +14,10 @@ pub struct RpcStateProvider {
 }
 
 impl RpcStateProvider {
+    pub fn new(block: u64, provider: AnvilWalletRpc) -> Self {
+        Self { block, provider }
+    }
+
     async fn get_account(&self, address: Address) -> TransportResult<Account> {
         let (nonce, balance, bytecode) = futures::try_join!(
             self.provider.get_transaction_count(address).into_future(),
@@ -61,29 +59,5 @@ impl BlockStateProvider for RpcStateProvider {
                 block_number: self.block,
                 address
             })
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct RpcStateProviderFactory {
-    pub provider: AnvilWalletRpc
-}
-
-impl RpcStateProviderFactory {
-    pub fn new(provider: AnvilWalletRpc) -> eyre::Result<Self> {
-        Ok(Self { provider })
-    }
-}
-
-impl BlockStateProviderFactory for RpcStateProviderFactory {
-    type Provider = RpcStateProvider;
-
-    fn state_by_block(&self, block: u64) -> ProviderResult<Self::Provider> {
-        Ok(RpcStateProvider { block, provider: self.provider.clone() })
-    }
-
-    fn best_block_number(&self) -> ProviderResult<BlockNumber> {
-        async_to_sync(self.provider.get_block_number())
-            .map_err(|_| ProviderError::BestBlockNotFound)
     }
 }

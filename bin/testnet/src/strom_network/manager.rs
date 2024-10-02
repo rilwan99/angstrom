@@ -22,7 +22,7 @@ use validation::init_validation;
 
 use super::handles::SendingStromHandles;
 use crate::{
-    anvil_utils::AnvilEthDataCleanser, eth::RpcStateProviderFactory,
+    anvil_utils::eth_cleanser::AnvilEthDataCleanser, eth::RpcStateProviderFactory,
     strom_network::peers::StromPeer, StromContractInstance, CACHE_VALIDATION_SIZE
 };
 
@@ -62,7 +62,7 @@ where
             public_key: pk,
             rpc_wrapper,
             strom_handles: Some(handles),
-            port: port + id - 1
+            port: port + id
         }
     }
 
