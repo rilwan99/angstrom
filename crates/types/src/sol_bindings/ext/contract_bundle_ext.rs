@@ -34,7 +34,7 @@ impl ContractBundle {
 #[cfg(feature = "testnet")]
 impl ContractBundle {
     pub fn generate_random_bundles(order_count: u64) -> Self {
-        let mut rng = ThreadRng::default();
+        let mut rng = rand::thread_rng();
 
         let assets = vec![Address::random()];
 
