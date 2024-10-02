@@ -55,7 +55,6 @@ pub struct ConsensusManager {
 
     // those are cross-round and immutable
     // data_tx: Sender<DataMsg>,
-
     /// keeps track of the current round state
     /// Used to trigger new consensus rounds
     canonical_block_stream: BroadcastStream<CanonStateNotification>,
@@ -141,17 +140,23 @@ impl ConsensusManager {
     async fn on_network_event(&mut self, event: StromConsensusEvent) {
         match event {
             StromConsensusEvent::PrePropose(peer_id, pre_proposal) => {
-                self.state_transition.on_data(DataMsg::PreProposal(peer_id, pre_proposal));
+                self.state_transition
+                    .on_data(DataMsg::PreProposal(peer_id, pre_proposal));
                 // self.data_tx
-                //     .send(DataMsg::PreProposal(peer_id, pre_proposal)).await.unwrap();
+                //     .send(DataMsg::PreProposal(peer_id,
+                // pre_proposal)).await.unwrap();
             }
             StromConsensusEvent::Propose(peer_id, proposal) => {
-                self.state_transition.on_data(DataMsg::Proposal(peer_id, proposal.clone()))
-                    // .send(DataMsg::Proposal(peer_id, proposal.clone())).await.unwrap();
+                self.state_transition
+                    .on_data(DataMsg::Proposal(peer_id, proposal.clone()))
+                // .send(DataMsg::Proposal(peer_id,
+                // proposal.clone())).await.unwrap();
             }
             StromConsensusEvent::Commit(peer_id, commit) => {
-                self.state_transition.on_data(DataMsg::Commit(peer_id, commit.clone()));
-                // self.data_tx.send(DataMsg::Commit(peer_id, commit.clone())).await.unwrap();
+                self.state_transition
+                    .on_data(DataMsg::Commit(peer_id, commit.clone()));
+                // self.data_tx.send(DataMsg::Commit(peer_id,
+                // commit.clone())).await.unwrap();
                 // self.state_transition
                 //     .force_transition(ConsensusRoundState::Commit {
                 //         block_height: self.current_height,
@@ -165,17 +170,19 @@ impl ConsensusManager {
         match new_stat {
             ConsensusRoundState::OrderAccumulator { orders, .. } => {
                 // self.network
-                //     .broadcast_message(StromMessage::PrePropose(preproposal.clone()));
+                //     .broadcast_message(StromMessage::PrePropose(preproposal.
+                // clone()));
             }
             ConsensusRoundState::PrePropose { pre_proposals, .. } => {
-                self.network
-                    .broadcast_message(StromMessage::PrePropose(pre_proposals.first().unwrap().clone()));
+                self.network.broadcast_message(StromMessage::PrePropose(
+                    pre_proposals.first().unwrap().clone()
+                ));
             }
             ConsensusRoundState::Propose { proposal, .. } => {
                 self.network
                     .broadcast_message(StromMessage::Propose(proposal.clone()));
             }
-            ConsensusRoundState::Commit { commits,.. } => {
+            ConsensusRoundState::Commit { commits, .. } => {
                 self.network
                     .broadcast_message(StromMessage::Commit(commits.first().unwrap().clone()));
             }

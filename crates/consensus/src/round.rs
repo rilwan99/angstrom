@@ -1,4 +1,12 @@
-use crate::Signer;
+use std::{
+    collections::HashMap,
+    future::Future,
+    pin::Pin,
+    sync::Arc,
+    task::{Context, Poll},
+    time::Duration
+};
+
 use alloy_primitives::BlockNumber;
 use angstrom_metrics::ConsensusMetricsWrapper;
 use angstrom_types::{
@@ -10,20 +18,14 @@ use futures::{FutureExt, Stream};
 use matching_engine::MatchingManager;
 use order_pool::order_storage::OrderStorage;
 use reth_rpc_types::PeerId;
-use std::sync::Arc;
-use std::{
-    collections::HashMap,
-    future::Future,
-    pin::Pin,
-    task::{Context, Poll},
-    time::Duration
-};
 use tokio::{
     sync,
     time::{
         Instant, {self}
     }
 };
+
+use crate::Signer;
 
 #[derive(Debug, Clone)]
 pub(crate) enum DataMsg {
@@ -42,13 +44,12 @@ pub enum ConsensusRoundState {
 }
 
 impl ConsensusRoundState {
-
     fn as_key(&self) -> &'static str {
         match self {
             ConsensusRoundState::OrderAccumulator { .. } => "OrderAccumulator",
             ConsensusRoundState::PrePropose { .. } => "PrePropose",
             ConsensusRoundState::Propose { .. } => "Propose",
-            ConsensusRoundState::Commit { .. } => "Commit",
+            ConsensusRoundState::Commit { .. } => "Commit"
         }
     }
 }
@@ -63,7 +64,7 @@ pub struct RoundState {
     pub timer:         Pin<Box<time::Sleep>>,
     transition_future: Option<Pin<Box<dyn Future<Output = ConsensusRoundState> + Send>>>,
     signer:            Signer,
-    order_storage: Arc<OrderStorage>,
+    order_storage:     Arc<OrderStorage>,
     metrics:           ConsensusMetricsWrapper,
     durations:         HashMap<String, Duration>
 }
@@ -80,14 +81,14 @@ impl RoundState {
             (String::from("OrderAccumulator"), Duration::from_secs(6)),
             (String::from("PrePropose"), Duration::from_secs(3)),
             (String::from("Propose"), Duration::from_secs(3)),
-            (String::from("Commit"), Duration::from_secs(3)),
+            (String::from("Commit"), Duration::from_secs(3))
         ]);
 
         let durations = durations.unwrap_or(default_durations);
 
         let initial_state_duration = durations.get(initial_state.as_key()).unwrap();
         let timer = Box::pin(time::sleep(*initial_state_duration));
-        
+
         RoundState {
             current_state: initial_state,
             timer,
@@ -132,7 +133,6 @@ impl RoundState {
         self.durations.get(state.as_key()).cloned().unwrap()
     }
 
-
     pub async fn force_transition(&mut self, new_state: ConsensusRoundState) {
         let new_state = match (&self.current_state, &new_state) {
             (
@@ -146,14 +146,25 @@ impl RoundState {
                     alloy_primitives::FixedBytes::default(),
                     orders
                 );
-                ConsensusRoundState::PrePropose { block_height: *block_height, pre_proposals: vec![pre_proposal] }
+                ConsensusRoundState::PrePropose {
+                    block_height:  *block_height,
+                    pre_proposals: vec![pre_proposal]
+                }
             }
-            (ConsensusRoundState::PrePropose { block_height, pre_proposals, .. }, ConsensusRoundState::Propose { .. }) => {
+            (
+                ConsensusRoundState::PrePropose { block_height, pre_proposals, .. },
+                ConsensusRoundState::Propose { .. }
+            ) => {
                 let solutions = build_proposal(pre_proposals.clone()).await.unwrap();
-                let proposal = self.signer.sign_proposal(*block_height, pre_proposals.clone(), solutions);
-                ConsensusRoundState::Propose { block_height:  *block_height, proposal }
+                let proposal =
+                    self.signer
+                        .sign_proposal(*block_height, pre_proposals.clone(), solutions);
+                ConsensusRoundState::Propose { block_height: *block_height, proposal }
             }
-            (ConsensusRoundState::Propose { block_height,proposal,..}, ConsensusRoundState::Commit { .. }) => {
+            (
+                ConsensusRoundState::Propose { block_height, proposal, .. },
+                ConsensusRoundState::Commit { .. }
+            ) => {
                 let pre_proposals = proposal.preproposals().clone();
                 let height = proposal.ethereum_height;
                 let solutions = build_proposal(pre_proposals.clone()).await.unwrap();
@@ -167,14 +178,18 @@ impl RoundState {
 
                 let commit = self.signer.sign_commit(&proposal);
 
-                ConsensusRoundState::Commit { block_height: *block_height, commits: vec![commit] }
-            }
-            (ConsensusRoundState::Commit { .. }, ConsensusRoundState::OrderAccumulator { block_height, .. }) => {
-                ConsensusRoundState::OrderAccumulator {
+                ConsensusRoundState::Commit {
                     block_height: *block_height,
-                    orders:       vec![]
+                    commits:      vec![commit]
                 }
             }
+            (
+                ConsensusRoundState::Commit { .. },
+                ConsensusRoundState::OrderAccumulator { block_height, .. }
+            ) => ConsensusRoundState::OrderAccumulator {
+                block_height: *block_height,
+                orders:       vec![]
+            },
             _ => {
                 tracing::error!(
                     "Invalid state transition from {:?} to {:?}",
@@ -188,12 +203,11 @@ impl RoundState {
 
         self.reset_timer(new_state)
     }
+
     fn reset_timer(&mut self, new_state: ConsensusRoundState) {
         let duration = self.duration(&new_state);
         self.current_state = new_state;
-        self.timer
-            .as_mut()
-            .reset(Instant::now() + duration);
+        self.timer.as_mut().reset(Instant::now() + duration);
         self.transition_future = None;
     }
 
@@ -206,12 +220,12 @@ impl RoundState {
         match current_state {
             ConsensusRoundState::OrderAccumulator { block_height, .. } => {
                 let orders = order_storage.get_all_orders();
-                    let pre_proposal = PreProposal::new(
-                        block_height,
-                        &signer.key,
-                        alloy_primitives::FixedBytes::default(),
-                        orders
-                    );
+                let pre_proposal = PreProposal::new(
+                    block_height,
+                    &signer.key,
+                    alloy_primitives::FixedBytes::default(),
+                    orders
+                );
                 ConsensusRoundState::PrePropose { block_height, pre_proposals: vec![pre_proposal] }
             }
             ConsensusRoundState::PrePropose { block_height, pre_proposals } => {
