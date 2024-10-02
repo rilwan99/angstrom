@@ -42,7 +42,7 @@ impl<C> StromPeerManager<C> {
     pub async fn send_bundles(&self, bundles: u64) -> eyre::Result<()> {
         let orders = ContractBundle::generate_random_bundles(bundles);
         let hashes = orders.get_filled_hashes();
-        tracing::info!("id {} - submitting a angstrom bundle with hashes: {:#?}", self.id, hashes);
+        tracing::debug!("id {} - submitting a angstrom bundle with hashes: {:#?}", self.id, hashes);
         let tx_hash = self
             .testnet_hub
             .execute(orders.abi_encode().into())
@@ -51,7 +51,7 @@ impl<C> StromPeerManager<C> {
             .watch()
             .await?;
 
-        tracing::info!(?tx_hash, "id {} - tx hash with angstrom contract sent", self.id);
+        tracing::debug!(?tx_hash, "id {} - tx hash with angstrom contract sent", self.id);
 
         Ok(())
     }

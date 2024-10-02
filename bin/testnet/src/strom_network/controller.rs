@@ -103,7 +103,7 @@ where
         };
 
         let peer = self.peers.get(&id).unwrap();
-        let span = span!(Level::TRACE, "testnet node", id = peer.id);
+        let span = span!(Level::DEBUG, "testnet node", id = peer.id);
         Ok(f(&peer).instrument(span).await)
     }
 
