@@ -23,9 +23,13 @@ pub async fn deploy_contract_and_create_pool(
     provider: AnvilWalletRpc
 ) -> eyre::Result<AngstromTestnetAddresses> {
     println!(
-        "A: {:?} -- B: {:?}",
+        "A: {:?} -- B: {:?} -- C: {:?}",
         provider.default_signer_address(),
-        PoolManagerDeployer::deploy_builder(provider.clone(), U256::MAX).calculate_create_address()
+        PoolManagerDeployer::deploy_builder(provider.clone(), U256::MAX).calculate_create_address(),
+        PoolManagerDeployer::deploy(provider.clone(), U256::MAX)
+            .await
+            .unwrap()
+            .address()
     );
     let out = anvil_mine_delay(
         Box::pin(PoolManagerDeployer::deploy(provider.clone(), U256::MAX)),
