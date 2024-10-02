@@ -71,7 +71,9 @@ where
         let Self::RegularProcessing { validator, remaining_futures } = self else { unreachable!() };
 
         // only good way to move data over
+        println!("UH OH? - rem_futures");
         let rem_futures = unsafe { std::ptr::read(remaining_futures) };
+        println!("OK!! - rem_futures");
 
         *self = Self::ClearingForNewBlock {
             validator: validator.clone(),

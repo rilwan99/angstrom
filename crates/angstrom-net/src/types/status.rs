@@ -11,7 +11,6 @@ use reth_primitives::{alloy_primitives::FixedBytes, keccak256, Address, BufMut, 
 use reth_rpc_types::PeerId;
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
-    ffi::CPtr,
     Message, SECP256K1
 };
 use serde::{Deserialize, Serialize};

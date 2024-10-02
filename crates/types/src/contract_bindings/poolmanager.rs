@@ -10223,7 +10223,10 @@ function updateDynamicLPFee(PoolKey memory key, uint24 newDynamicLPFee) external
                     ),
                 );
             };
-            (unsafe { DECODE_SHIMS.get_unchecked(idx) })(data, validate)
+            println!("UH OH? - DECODE_SHIMS 7");
+            let t = (unsafe { DECODE_SHIMS.get_unchecked(idx) })(data, validate);
+            println!("OK!! - DECODE_SHIMS 7");
+            t
         }
         #[inline]
         fn abi_encoded_size(&self) -> usize {
@@ -10880,7 +10883,10 @@ function updateDynamicLPFee(PoolKey memory key, uint24 newDynamicLPFee) external
                     ),
                 );
             };
-            (unsafe { DECODE_SHIMS.get_unchecked(idx) })(data, validate)
+            println!("UH OH? - DECODE_SHIMS 8");
+            let t = (unsafe { DECODE_SHIMS.get_unchecked(idx) })(data, validate);
+            println!("OK!! - DECODE_SHIMS 8");
+            t
         }
         #[inline]
         fn abi_encoded_size(&self) -> usize {

@@ -2465,7 +2465,10 @@ function unlockCallback(bytes memory data) external returns (bytes memory);
                     ),
                 );
             };
-            (unsafe { DECODE_SHIMS.get_unchecked(idx) })(data, validate)
+            println!("UH OH? - DECODE_SHIMS 5");
+            let t = (unsafe { DECODE_SHIMS.get_unchecked(idx) })(data, validate);
+            println!("OK!! - DECODE_SHIMS 5");
+            t
         }
         #[inline]
         fn abi_encoded_size(&self) -> usize {
@@ -2660,7 +2663,10 @@ function unlockCallback(bytes memory data) external returns (bytes memory);
                     ),
                 );
             };
-            (unsafe { DECODE_SHIMS.get_unchecked(idx) })(data, validate)
+            println!("UH OH? - DECODE_SHIMS 6");
+            let t = (unsafe { DECODE_SHIMS.get_unchecked(idx) })(data, validate);
+            println!("OK!! - DECODE_SHIMS 6");
+            t
         }
         #[inline]
         fn abi_encoded_size(&self) -> usize {

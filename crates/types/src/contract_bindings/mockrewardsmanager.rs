@@ -3239,7 +3239,11 @@ function updateAfterTickMove(PoolId id, int24 lastTick, int24 newTick) external;
                     ),
                 );
             };
-            (unsafe { DECODE_SHIMS.get_unchecked(idx) })(data, validate)
+
+            println!("UH OH? - DECODE_SHIMS 3");
+            let t = (unsafe { DECODE_SHIMS.get_unchecked(idx) })(data, validate);
+            println!("OK!! - DECODE_SHIMS 3");
+            t
         }
         #[inline]
         fn abi_encoded_size(&self) -> usize {
@@ -3513,7 +3517,10 @@ function updateAfterTickMove(PoolId id, int24 lastTick, int24 newTick) external;
                     ),
                 );
             };
-            (unsafe { DECODE_SHIMS.get_unchecked(idx) })(data, validate)
+            println!("UH OH? - DECODE_SHIMS 4");
+            let t = (unsafe { DECODE_SHIMS.get_unchecked(idx) })(data, validate);
+            println!("OK!! - DECODE_SHIMS 4");
+            t
         }
         #[inline]
         fn abi_encoded_size(&self) -> usize {
