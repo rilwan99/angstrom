@@ -4,6 +4,7 @@ use futures::FutureExt;
 use rand::Rng;
 use reth_primitives::Address;
 use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
+use tracing::Instrument;
 
 use super::manager::{StromPeerManager, StromPeerManagerBuilder};
 use crate::{contract_setup::deploy_contract_and_create_pool, eth::RpcStateProviderFactory};
@@ -101,7 +102,8 @@ where
             self.get_random_id()
         };
 
-        Ok(f(&self.peers.get(&id).unwrap()).await)
+        let peer = self.peers.get(&id).unwrap();
+        Ok(f(&peer).instrument(peer.span.clone()).await)
     }
 
     fn add_peer(&mut self, peer: StromPeerManager<C>) {

@@ -190,11 +190,9 @@ impl<C> StromPeerManager<C> {
             .testnet_hub
             .execute(orders.abi_encode().into())
             .send()
-            .instrument(self.span.clone())
             .await?
             .watch()
-            .await?
-            .instrument(self.span.clone());
+            .await?;
 
         tracing::info!(?tx_hash, "tx hash with angstrom contract sent");
 
