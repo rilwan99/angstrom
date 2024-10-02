@@ -228,5 +228,5 @@ pub enum StromNetworkEvent {
 pub enum StromConsensusEvent {
     PrePropose(PeerId, PreProposal),
     Propose(PeerId, Proposal),
-    Commit(PeerId, Box<Commit>)
+    Commit(PeerId, Commit)
 }
