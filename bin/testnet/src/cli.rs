@@ -52,7 +52,7 @@ impl Cli {
         };
 
         let filter = EnvFilter::builder()
-            .with_default_directive(format!("testnet={:?}", level).parse().unwrap())
+            .with_default_directive(format!("testnet={}", level).parse().unwrap())
             .from_env_lossy();
 
         let layer = tracing_subscriber::fmt::layer()
