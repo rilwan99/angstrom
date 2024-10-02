@@ -17,7 +17,7 @@ use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_primitives::Address;
 use reth_provider::{test_utils::NoopProvider, BlockReader};
 use reth_tasks::TokioTaskExecutor;
-use tracing::{span, Instrument, Level};
+use tracing::{span, Instrument, Level, Span};
 use validation::init_validation;
 
 use super::handles::SendingStromHandles;
@@ -33,7 +33,8 @@ pub struct StromPeerManagerBuilder<C = NoopProvider> {
     public_key:    FixedBytes<64>,
     peer:          StromPeer<C>,
     rpc_wrapper:   RpcStateProviderFactory,
-    strom_handles: Option<StromHandles>
+    strom_handles: Option<StromHandles>,
+    span:          Span
 }
 
 impl<C> StromPeerManagerBuilder<C>
@@ -53,7 +54,7 @@ where
             Some(handles.pool_tx.clone()),
             Some(handles.consensus_tx_op.clone())
         )
-        .instrument(span)
+        .instrument(span.clone())
         .await;
         let pk = peer.get_node_public_key();
 
@@ -63,7 +64,8 @@ where
             public_key: pk,
             rpc_wrapper,
             strom_handles: Some(handles),
-            port: port + id
+            port: port + id,
+            span
         }
     }
 
@@ -160,7 +162,8 @@ where
             order_storage,
             pool_handle,
             testnet_hub,
-            tx_strom_handles
+            tx_strom_handles,
+            span: self.span
         })
     }
 }
@@ -174,7 +177,8 @@ pub struct StromPeerManager<C = NoopProvider> {
     pub order_storage:    Arc<OrderStorage>,
     pub pool_handle:      PoolHandle,
     pub tx_strom_handles: SendingStromHandles,
-    pub testnet_hub:      StromContractInstance
+    pub testnet_hub:      StromContractInstance,
+    pub span:             Span
 }
 
 impl<C> StromPeerManager<C> {
@@ -186,9 +190,11 @@ impl<C> StromPeerManager<C> {
             .testnet_hub
             .execute(orders.abi_encode().into())
             .send()
+            .instrument(self.span.clone())
             .await?
             .watch()
-            .await?;
+            .await?
+            .instrument(self.span.clone());
 
         tracing::info!(?tx_hash, "tx hash with angstrom contract sent");
 
