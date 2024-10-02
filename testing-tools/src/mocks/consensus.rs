@@ -44,7 +44,7 @@ impl MockConsensusEventHandle {
 
     pub fn commit(&self, peer: PeerId, commit: Commit) {
         self.tx
-            .send(StromConsensusEvent::Commit(peer, Box::new(commit)))
+            .send(StromConsensusEvent::Commit(peer, commit))
             .expect("Failed to send commit message")
     }
 

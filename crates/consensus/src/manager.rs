@@ -33,7 +33,7 @@ use crate::{
     leader_election::WeightedRoundRobin,
     round::{ConsensusRoundState, DataMsg, RoundState},
     signer::Signer,
-    ConsensusListener, ConsensusMessage, ConsensusState as ConsensusStateEnum, ConsensusState,
+    ConsensusListener, ConsensusMessage,
     ConsensusUpdater
 };
 
@@ -53,8 +53,6 @@ pub struct ConsensusManager {
     leader_selection: WeightedRoundRobin,
     state_transition: RoundState,
 
-    // those are cross-round and immutable
-    // data_tx: Sender<DataMsg>,
     /// keeps track of the current round state
     /// Used to trigger new consensus rounds
     canonical_block_stream: BroadcastStream<CanonStateNotification>,
@@ -83,20 +81,17 @@ impl ConsensusManager {
     fn new(netdeps: ManagerNetworkDeps, signer: Signer, order_storage: Arc<OrderStorage>) -> Self {
         let ManagerNetworkDeps { network, canonical_block_stream, strom_consensus_event } = netdeps;
         let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
-        // let (data_tx, data_rx) = channel::<DataMsg>(100);
         let current_height = 0;
         Self {
             strom_consensus_event,
             leader: PeerId::default(),
             current_height,
             leader_selection: WeightedRoundRobin::new(Vec::new(), None),
-            // data_tx,
             state_transition: RoundState::new(
                 ConsensusRoundState::OrderAccumulator {
                     orders:       Vec::new(),
                     block_height: current_height
                 },
-                // data_rx,
                 order_storage,
                 signer,
                 ConsensusMetricsWrapper::new(),
@@ -142,37 +137,21 @@ impl ConsensusManager {
             StromConsensusEvent::PrePropose(peer_id, pre_proposal) => {
                 self.state_transition
                     .on_data(DataMsg::PreProposal(peer_id, pre_proposal));
-                // self.data_tx
-                //     .send(DataMsg::PreProposal(peer_id,
-                // pre_proposal)).await.unwrap();
             }
             StromConsensusEvent::Propose(peer_id, proposal) => {
                 self.state_transition
                     .on_data(DataMsg::Proposal(peer_id, proposal.clone()))
-                // .send(DataMsg::Proposal(peer_id,
-                // proposal.clone())).await.unwrap();
             }
             StromConsensusEvent::Commit(peer_id, commit) => {
                 self.state_transition
                     .on_data(DataMsg::Commit(peer_id, commit.clone()));
-                // self.data_tx.send(DataMsg::Commit(peer_id,
-                // commit.clone())).await.unwrap();
-                // self.state_transition
-                //     .force_transition(ConsensusRoundState::Commit {
-                //         block_height: self.current_height,
-                //         commits:      vec![commit.clone()]
-                //     });
             }
         }
     }
 
     pub fn on_state_transition(&mut self, new_stat: ConsensusRoundState) {
         match new_stat {
-            ConsensusRoundState::OrderAccumulator { orders, .. } => {
-                // self.network
-                //     .broadcast_message(StromMessage::PrePropose(preproposal.
-                // clone()));
-            }
+            ConsensusRoundState::OrderAccumulator { orders, .. } => {}
             ConsensusRoundState::PrePropose { pre_proposals, .. } => {
                 self.network.broadcast_message(StromMessage::PrePropose(
                     pre_proposals.first().unwrap().clone()

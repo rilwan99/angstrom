@@ -124,12 +124,6 @@ impl RoundState {
     }
 
     pub fn duration(&self, state: &ConsensusRoundState) -> Duration {
-        // self.state_transition
-        //     .force_transition(ConsensusRoundState::Propose {
-        //         block_height: self.current_height,
-        //         proposal
-        //     });
-
         self.durations.get(state.as_key()).cloned().unwrap()
     }
 
@@ -263,10 +257,6 @@ impl Stream for RoundState {
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let this = self.get_mut();
-
-        // if let Poll::Ready(Some(event)) = Pin::new(&mut this.data_rx).poll_recv(cx) {
-        //     this.current_state.on_data(event);
-        // }
 
         if let Some(ref mut future) = this.transition_future {
             match future.as_mut().poll(cx) {

@@ -297,7 +297,7 @@ impl AngstromTestnet {
 pub enum ConsensusMsgTestCmp {
     PrePropose(PreProposal),
     Propose(Proposal),
-    Commit(Box<Commit>)
+    Commit(Commit)
 }
 
 impl TryFrom<StromMessage> for ConsensusMsgTestCmp {
