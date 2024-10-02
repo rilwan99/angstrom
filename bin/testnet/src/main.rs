@@ -9,7 +9,7 @@ async fn main() -> eyre::Result<()> {
 
     let mut network_controller = StromController::<NoopProvider>::new();
 
-    for id in 0..=cli_args.nodes_in_network {
+    for id in 0..cli_args.nodes_in_network {
         network_controller
             .spawn_node(id, cli_args.starting_port, cli_args.testnet_block_time_secs)
             .await?;
