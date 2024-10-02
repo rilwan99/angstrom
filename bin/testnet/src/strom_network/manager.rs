@@ -22,8 +22,9 @@ use validation::init_validation;
 
 use super::handles::SendingStromHandles;
 use crate::{
-    anvil_utils::eth_cleanser::AnvilEthDataCleanser, eth::RpcStateProviderFactory,
-    strom_network::peers::StromPeer, StromContractInstance, CACHE_VALIDATION_SIZE
+    eth::{anvil_cleanser::AnvilEthDataCleanser, RpcStateProviderFactory},
+    strom_network::peers::StromPeer,
+    StromContractInstance, CACHE_VALIDATION_SIZE
 };
 
 pub struct StromPeerManagerBuilder<C = NoopProvider> {

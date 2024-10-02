@@ -26,7 +26,11 @@ pub async fn deploy_contract_and_create_pool(
     println!(
         "A: {:?} -- B: {:?}",
         provider.default_signer_address(),
-        PoolManagerDeployer::deploy_builder(provider.clone(), U256::MAX).calculate_create_address(),
+        PoolManagerDeployer::deploy_builder(provider.clone(), U256::MAX)
+            .from(address!("aaaabeb3e57409262ae5b751f60747921b33613e"))
+            .deploy()
+            .await
+            .unwrap(),
     );
     let out = anvil_mine_delay(
         Box::pin(async {
@@ -56,7 +60,11 @@ pub async fn deploy_contract_and_create_pool(
     // if we don't do these sequentially, the provider nonce messes up and doesn't
     // deploy properly
     let token0 = anvil_mine_delay(
-        Box::pin(MockERC20::deploy(provider.clone())),
+        Box::pin(async {
+            MockERC20::deploy(provider.clone())
+                .await
+                .map(|v| v.at(address!("4ee6ecad1c2dae9f525404de8555724e3c35d07b")))
+        }),
         &provider,
         Duration::from_millis(500)
     )
@@ -64,7 +72,11 @@ pub async fn deploy_contract_and_create_pool(
     let token0 = *token0.address();
 
     let token1 = anvil_mine_delay(
-        Box::pin(MockERC20::deploy(provider.clone())),
+        Box::pin(async {
+            MockERC20::deploy(provider.clone())
+                .await
+                .map(|v| v.at(address!("fbc22278a96299d91d41c453234d97b4f5eb9b2d")))
+        }),
         &provider,
         Duration::from_millis(500)
     )
