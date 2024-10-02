@@ -29,9 +29,13 @@ pub struct AngstromTestnetAddresses {
 pub async fn deploy_contract_and_create_pool(
     provider: AnvilWalletRpc
 ) -> eyre::Result<AngstromTestnetAddresses> {
-    provider
-        .anvil_impersonate_account(get_or_set_signer(provider.default_signer_address()))
-        .await?;
+    let signer_set = CREATE_SIGNER.get().is_some();
+
+    if signer_set {
+        provider
+            .anvil_impersonate_account(get_or_set_signer(provider.default_signer_address()))
+            .await?;
+    }
 
     let out = anvil_mine_delay(
         Box::pin(async {
@@ -91,9 +95,14 @@ pub async fn deploy_contract_and_create_pool(
         ?token1,
         "deployed v4 and angstrom test contract on anvil"
     );
-    provider
-        .anvil_stop_impersonating_account(get_or_set_signer(provider.default_signer_address()))
-        .await?;
+
+    if signer_set {
+        provider
+            .anvil_stop_impersonating_account(get_or_set_signer(provider.default_signer_address()))
+            .await?;
+    } else {
+        get_or_set_signer(provider.default_signer_address());
+    };
 
     Ok(AngstromTestnetAddresses { contract: angstrom_address, token0, token1 })
 }
