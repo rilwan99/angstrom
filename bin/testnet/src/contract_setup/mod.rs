@@ -33,11 +33,6 @@ pub async fn deploy_contract_and_create_pool(
         .anvil_impersonate_account(get_or_set_signer(provider.default_signer_address()))
         .await?;
 
-    println!(
-        "A: {:?} -- B: {:?}",
-        provider.default_signer_address(),
-        PoolManagerDeployer::deploy_builder(provider.clone(), U256::MAX).calculate_create_address()
-    );
     let out = anvil_mine_delay(
         Box::pin(async {
             PoolManagerDeployer::deploy(provider.clone(), U256::MAX)
@@ -96,6 +91,9 @@ pub async fn deploy_contract_and_create_pool(
         ?token1,
         "deployed v4 and angstrom test contract on anvil"
     );
+    provider
+        .anvil_stop_impersonating_account(get_or_set_signer(provider.default_signer_address()))
+        .await?;
 
     Ok(AngstromTestnetAddresses { contract: angstrom_address, token0, token1 })
 }
