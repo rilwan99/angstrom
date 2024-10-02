@@ -43,6 +43,7 @@ impl<C> StromPeerManager<C> {
         let orders = ContractBundle::generate_random_bundles(bundles);
         let hashes = orders.get_filled_hashes();
         tracing::debug!("submitting a angstrom bundle with hashes: {:#?}", hashes);
+
         let tx_hash = self
             .testnet_hub
             .execute(orders.abi_encode().into())
