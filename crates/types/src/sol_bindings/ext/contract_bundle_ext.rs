@@ -1,17 +1,7 @@
-#[cfg(not(feature = "testnet"))]
-use alloy::primitives::Address;
-#[cfg(feature = "testnet")]
-use alloy::primitives::{Address, U256};
 use alloy::{primitives::B256, sol_types::SolStruct};
-#[cfg(feature = "testnet")]
-use rand::{rngs::ThreadRng, Rng};
+use reth_primitives::Address;
 
-#[cfg(feature = "testnet")]
-use crate::sol_bindings::sol::{SolGenericOrder, TopOfBlockOrder};
-use crate::{
-    primitive::OrderType,
-    sol_bindings::sol::{ContractBundle, SolAssetForm, SolOrderMode, SolOrderType}
-};
+use crate::sol_bindings::sol::ContractBundle;
 
 impl ContractBundle {
     pub fn get_filled_hashes(&self) -> Vec<B256> {
@@ -32,31 +22,84 @@ impl ContractBundle {
 }
 
 #[cfg(feature = "testnet")]
-impl ContractBundle {
-    pub fn generate_random_bundles(order_count: u64) -> Self {
-        let mut rng = rand::thread_rng();
+pub mod testnet_utils {
+    use rand::Rng;
+    use reth_primitives::{Address, U256};
 
-        let assets = vec![Address::random()];
+    use super::*;
+    use crate::sol_bindings::{
+        grouped_orders::{AllOrders, StandingVariants},
+        rpc_orders::{PartialStandingOrder, TopOfBlockOrder},
+        sol::SolGenericOrder
+    };
+    impl ContractBundle {
+        pub fn generate_random_bundles(order_count: u64) -> Self {
+            let mut rng = rand::thread_rng();
 
-        let mut tob = TopOfBlockOrder::default();
-        let rand_am_in: U256 = U256::from_be_bytes(rng.gen::<[u8; 32]>());
-        let rand_am_out: U256 = U256::from_be_bytes(rng.gen::<[u8; 32]>());
-        tob.amountIn = rand_am_in;
-        tob.amountOut = rand_am_out;
-        let mut generic_orders: Vec<_> = Vec::with_capacity(order_count as usize);
-        for _ in 0..order_count {
-            let mut default = SolGenericOrder::default();
+            let assets = vec![Address::random()];
 
-            let specified: U256 = U256::from_be_bytes(rng.gen::<[u8; 32]>());
-            default.amountSpecified = specified;
-            generic_orders.push(default);
+            let mut tob = crate::sol_bindings::sol::TopOfBlockOrder::default();
+            let rand_am_in: U256 = U256::from_be_bytes(rng.gen::<[u8; 32]>());
+            let rand_am_out: U256 = U256::from_be_bytes(rng.gen::<[u8; 32]>());
+            tob.amountIn = rand_am_in;
+            tob.amountOut = rand_am_out;
+            let mut generic_orders: Vec<_> = Vec::with_capacity(order_count as usize);
+            for _ in 0..order_count {
+                let mut default = SolGenericOrder::default();
+
+                let specified: U256 = U256::from_be_bytes(rng.gen::<[u8; 32]>());
+                default.amountSpecified = specified;
+                generic_orders.push(default);
+            }
+
+            Self {
+                assets,
+                top_of_block_orders: vec![tob],
+                orders: generic_orders,
+                ..Default::default()
+            }
         }
+    }
 
-        Self {
-            assets,
-            top_of_block_orders: vec![tob],
-            orders: generic_orders,
-            ..Default::default()
+    impl TryFrom<SolGenericOrder> for AllOrders {
+        type Error = eyre::ErrReport;
+
+        fn try_from(value: SolGenericOrder) -> Result<Self, Self::Error> {
+            value.amountFilled
+            match value.otype {
+                crate::sol_bindings::sol::SolOrderType::Flash => todo!(),
+                crate::sol_bindings::sol::SolOrderType::Standing => match value.mode {
+                    crate::sol_bindings::sol::SolOrderMode::ExactIn => todo!(),
+                    crate::sol_bindings::sol::SolOrderMode::ExactOut => todo!(),
+                    crate::sol_bindings::sol::SolOrderMode::Partial => {
+                        Ok(AllOrders::Standing(StandingVariants::Partial(PartialStandingOrder {
+                            minAmountIn:  todo!(),
+                            maxAmountIn:  todo!(),
+                            minPrice:     value.minPrice,
+                            useInternal:  todo!(),
+                            assetIn:      todo!(),
+                            assetOut:     todo!(),
+                            recipient:    value.recipient,
+                            hook:         value.hook,
+                            hookPayload:  value.hookPayload,
+                            nonce:        value.nonce,
+                            deadline:     value.deadline,
+                            amountFilled: value.amountFilled.to(),
+                            meta:         todo!()
+                        })))
+                    }
+                    crate::sol_bindings::sol::SolOrderMode::__Invalid => {
+                        Err(eyre::eyre!("invalid order mode - {:?}", value))
+                    }
+                },
+
+                crate::sol_bindings::sol::SolOrderType::__Invalid => {
+                    Err(eyre::eyre!("invalid order type - {:?}", value))
+                } /* crate::sol_bindings::sol::SolOrderMode::ExactIn => todo!(),
+                   * crate::sol_bindings::sol::SolOrderMode::ExactOut => todo!(),
+                   * crate::sol_bindings::sol::SolOrderMode::Partial => todo!(),
+                   * crate::sol_bindings::sol::SolOrderMode::__Invalid => todo!(), */
+            }
         }
     }
 }
@@ -233,7 +276,7 @@ impl ContractBundle {
 //         match value {
 //             crate::sol_bindings::sol::AssetForm::Liquid => Self::Liquid,
 //             crate::sol_bindings::sol::AssetForm::UniV4Claim =>
-// Self::UniV4Claim,             
+// Self::UniV4Claim,
 // crate::sol_bindings::sol::AssetForm::AngstromClaim => Self::AngstromClaim,
 //             crate::sol_bindings::sol::AssetForm::__Invalid => Self::__Invalid
 //         }
@@ -245,7 +288,7 @@ impl ContractBundle {
 //         match self {
 //             Self::Liquid => crate::sol_bindings::sol::AssetForm::Liquid,
 //             Self::UniV4Claim =>
-// crate::sol_bindings::sol::AssetForm::UniV4Claim,             
+// crate::sol_bindings::sol::AssetForm::UniV4Claim,
 // Self::AngstromClaim => crate::sol_bindings::sol::AssetForm::AngstromClaim,
 //             Self::__Invalid => crate::sol_bindings::sol::AssetForm::__Invalid
 //         }

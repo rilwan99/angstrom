@@ -26,7 +26,8 @@ pub struct StromPeer<C = NoopProvider> {
     // strom extensions
     pub strom_network: StromNetworkManager<C>,
     pub handle:        StromNetworkHandle,
-    pub secret_key:    SecretKey
+    pub secret_key:    SecretKey,
+    pub peer_id:       PeerId
 }
 
 impl<C: Unpin> StromPeer<C>
@@ -41,10 +42,11 @@ where
         let secp = Secp256k1::default();
         let pub_key = sk.public_key(&secp);
 
+        let peer_id = pk2id(&pub_key);
         let state = StatusState {
             version:   0,
             chain:     Chain::mainnet().id(),
-            peer:      pk2id(&pub_key),
+            peer:      peer_id,
             timestamp: 0
         };
 
@@ -75,7 +77,7 @@ where
         peer.network_mut().add_rlpx_sub_protocol(protocol);
         let handle = network.get_handle();
 
-        Self { strom_network: network, eth_peer: peer, secret_key: sk, handle }
+        Self { strom_network: network, eth_peer: peer, secret_key: sk, handle, peer_id }
     }
 
     pub fn new_with_consensus() -> Self {
@@ -98,10 +100,11 @@ where
         let secp = Secp256k1::default();
         let pub_key = sk.public_key(&secp);
 
+        let peer_id = pk2id(&pub_key);
         let state = StatusState {
             version:   0,
             chain:     Chain::mainnet().id(),
-            peer:      pk2id(&pub_key),
+            peer:      peer_id,
             timestamp: 0
         };
         let (session_manager_tx, session_manager_rx) = tokio::sync::mpsc::channel(100);
@@ -131,7 +134,7 @@ where
         peer.network_mut().add_rlpx_sub_protocol(protocol);
         let handle = network.get_handle();
 
-        Self { strom_network: network, eth_peer: peer, secret_key: sk, handle }
+        Self { strom_network: network, eth_peer: peer, secret_key: sk, handle, peer_id }
     }
 
     pub fn get_node_public_key(&self) -> PeerId {

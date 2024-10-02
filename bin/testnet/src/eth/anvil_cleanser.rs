@@ -95,7 +95,7 @@ impl<S: Stream<Item = (u64, Vec<Transaction>)> + Unpin + Send + 'static> AnvilEt
 
         let hashes = bundle.get_filled_hashes();
         let addresses = bundle.get_addresses_touched();
-        tracing::info!("found angstrom tx with orders filled {:#?}", hashes);
+        tracing::debug!("found angstrom tx with orders filled {:#?}", hashes);
         self.send_events(EthEvent::NewBlockTransitions {
             block_number:      block.0,
             filled_orders:     hashes,
@@ -111,11 +111,11 @@ impl<S: Stream<Item = (u64, Vec<Transaction>)> + Unpin + Send + 'static> Future
 
     fn poll(mut self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         while let Poll::Ready(Some(block)) = self.block_subscription.poll_next_unpin(cx) {
-            tracing::info!("received new block from anvil");
+            tracing::trace!("received new block from anvil");
             self.on_new_block(block);
         }
         while let Poll::Ready(Some(cmd)) = self.commander.poll_next_unpin(cx) {
-            tracing::info!("received command from chan");
+            tracing::trace!("received command from channel");
             self.on_command(cmd);
         }
 
