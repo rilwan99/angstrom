@@ -28,16 +28,28 @@ impl AngstromValidator {
 pub struct WeightedRoundRobin {
     validators:                HashSet<AngstromValidator>,
     new_joiner_penalty_factor: f64,
-    block_number:              Option<BlockNumber>
+    block_number:              BlockNumber
 }
 
 impl WeightedRoundRobin {
-    pub fn new(validators: Vec<AngstromValidator>, new_joiner_penalty_factor: Option<f64>) -> Self {
+    pub fn new(
+        validators: Vec<AngstromValidator>,
+        block_number: BlockNumber,
+        new_joiner_penalty_factor: Option<f64>
+    ) -> Self {
+        let file_path = format!("{}/state.json", ROUND_ROBIN_CACHE);
+        if let Ok(mut file) = File::open(file_path) {
+            let mut contents = String::new();
+            if file.read_to_string(&mut contents).is_ok() {
+                if let Ok(state) = serde_json::from_str(&contents) {
+                    return state;
+                }
+            }
+        }
         WeightedRoundRobin {
-            validators:                HashSet::from_iter(validators),
-            // apparently that's a good value https://docs.cometbft.com/v0.38/spec/consensus/proposer-selection#new-validator
+            validators: HashSet::from_iter(validators),
             new_joiner_penalty_factor: new_joiner_penalty_factor.unwrap_or(1.125),
-            block_number:              None
+            block_number
         }
     }
 
@@ -105,11 +117,16 @@ impl WeightedRoundRobin {
         }
     }
 
-    pub fn choose_proposer(&mut self, block_number: BlockNumber) -> PeerId {
-        self.block_number = Some(block_number);
-        self.center_priorities();
-        self.scale_priorities();
-        self.proposer_selection()
+    pub fn choose_proposer(&mut self, block_number: BlockNumber) -> Option<PeerId> {
+        let cycle_count = (block_number - self.block_number) as usize;
+        let mut leader = None;
+        for _ in 0..cycle_count {
+            self.center_priorities();
+            self.scale_priorities();
+            leader = Some(self.proposer_selection());
+        }
+        self.block_number = block_number;
+        leader
     }
 
     fn remove_validator(&mut self, peer_id: &PeerId) {
@@ -131,19 +148,11 @@ impl WeightedRoundRobin {
         file.write_all(serialized.as_bytes())?;
         Ok(())
     }
+}
 
-    pub fn load_cached_state(&mut self) -> io::Result<()> {
-        let file_path = format!("{}/state.json", ROUND_ROBIN_CACHE);
-        let mut file = match File::open(file_path) {
-            Ok(file) => file,
-            // file is missing so we use default values
-            Err(_) => return Ok(())
-        };
-        let mut contents = String::new();
-        file.read_to_string(&mut contents)?;
-        let state: WeightedRoundRobin = serde_json::from_str(&contents)?;
-        *self = state;
-        Ok(())
+impl Drop for WeightedRoundRobin {
+    fn drop(&mut self) {
+        self.save_state().unwrap();
     }
 }
 
@@ -160,12 +169,16 @@ impl std::hash::Hash for AngstromValidator {
         self.peer_id.hash(state);
     }
 }
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
 
     use super::*;
+
+    fn cleanup(vm: WeightedRoundRobin) {
+        drop(vm);
+        std::fs::remove_file(format!("{}/state.json", ROUND_ROBIN_CACHE)).unwrap_or(());
+    }
 
     #[test]
     fn test_round_robin_simulation() {
@@ -179,12 +192,12 @@ mod tests {
             AngstromValidator::new(peers["Bob"].clone(), 200),
             AngstromValidator::new(peers["Charlie"].clone(), 300),
         ];
-        let mut algo = WeightedRoundRobin::new(validators, None);
+        let mut algo = WeightedRoundRobin::new(validators, BlockNumber::default(), None);
 
         fn simulate_rounds(algo: &mut WeightedRoundRobin, rounds: usize) -> HashMap<PeerId, usize> {
             let mut stats = HashMap::new();
-            for _ in 0..rounds {
-                let proposer = algo.choose_proposer(BlockNumber::default());
+            for i in 1..=rounds {
+                let proposer = algo.choose_proposer(BlockNumber::from(i as u64)).unwrap();
                 *stats.entry(proposer).or_insert(0) += 1;
             }
             stats
@@ -205,6 +218,9 @@ mod tests {
         assert!((alice_ratio - 0.167).abs() < 0.05);
         assert!((bob_ratio - 0.333).abs() < 0.05);
         assert!((charlie_ratio - 0.5).abs() < 0.05);
+
+        // important otherwise you'd be working with cached state
+        cleanup(algo);
     }
 
     #[test]
@@ -218,32 +234,39 @@ mod tests {
             AngstromValidator::new(peers["Alice"].clone(), 100),
             AngstromValidator::new(peers["Bob"].clone(), 200),
         ];
-        let mut algo = WeightedRoundRobin::new(validators, None);
+        let mut algo = WeightedRoundRobin::new(validators, BlockNumber::default(), None);
 
-        fn simulate_rounds(algo: &mut WeightedRoundRobin, rounds: usize) -> HashMap<PeerId, usize> {
+        fn simulate_rounds(
+            algo: &mut WeightedRoundRobin,
+            rounds: usize,
+            offset: usize
+        ) -> HashMap<PeerId, usize> {
             let mut stats = HashMap::new();
-            for _ in 0..rounds {
-                let proposer = algo.choose_proposer(BlockNumber::default());
+            for i in offset..(offset + rounds) {
+                let proposer = algo.choose_proposer(BlockNumber::from(i as u64)).unwrap();
                 *stats.entry(proposer).or_insert(0) += 1;
             }
             stats
         }
 
         let rounds = 1000;
-        let initial_stats = simulate_rounds(&mut algo, rounds);
+        let initial_stats = simulate_rounds(&mut algo, rounds, 1);
         assert_eq!(initial_stats.len(), 2);
 
         algo.add_validator(peers["Charlie"].clone(), 300);
 
-        let after_add_stats = simulate_rounds(&mut algo, rounds);
+        let after_add_stats = simulate_rounds(&mut algo, rounds, 1001);
         assert_eq!(after_add_stats.len(), 3);
         assert!(after_add_stats.contains_key(&peers["Charlie"]));
 
         algo.remove_validator(&peers["Bob"]);
 
-        let after_remove_stats = simulate_rounds(&mut algo, rounds);
+        let after_remove_stats = simulate_rounds(&mut algo, rounds, 2001);
         assert_eq!(after_remove_stats.len(), 2);
         assert!(!after_remove_stats.contains_key(&peers["Bob"]));
+
+        // important otherwise you'd be working with cached state
+        cleanup(algo);
     }
 
     #[test]
@@ -258,17 +281,17 @@ mod tests {
             AngstromValidator::new(peers["Bob"].clone(), 200),
             AngstromValidator::new(peers["Charlie"].clone(), 300),
         ];
-        let mut algo = WeightedRoundRobin::new(validators, None);
+        let mut algo = WeightedRoundRobin::new(validators, BlockNumber::default(), None);
 
         algo.save_state().unwrap();
 
-        let mut loaded_algo = WeightedRoundRobin::new(vec![], None);
-        loaded_algo.load_cached_state().unwrap();
+        let mut loaded_algo = WeightedRoundRobin::new(vec![], BlockNumber::default(), None);
 
         assert_eq!(algo.validators, loaded_algo.validators);
         assert_eq!(algo.new_joiner_penalty_factor, loaded_algo.new_joiner_penalty_factor);
         assert_eq!(algo.block_number, loaded_algo.block_number);
 
-        std::fs::remove_file(format!("{}/state.json", ROUND_ROBIN_CACHE)).unwrap();
+        // important otherwise you'd be working with cached state
+        cleanup(algo);
     }
 }

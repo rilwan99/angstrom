@@ -104,10 +104,11 @@ impl ConsensusManager {
         // This is still a lot of stuff to track that we don't necessarily have to worry
         // about
         let timings = timings.unwrap_or_else(|| RoundStateTimings::new(6, 2, 6));
-        let roundstate = RoundState::new(0, 1, Leader::default(), Some(timings));
+        let current_block_height = 0;
+        let roundstate = RoundState::new(current_block_height, 1, Leader::default(), Some(timings));
         let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
-        let mut leader_election = WeightedRoundRobin::new(validators, None);
-        leader_election.load_cached_state().unwrap();
+        let mut leader_election = WeightedRoundRobin::new(validators, current_block_height, None);
+
         Self {
             strom_consensus_event,
             roundstate,
@@ -281,11 +282,14 @@ impl ConsensusManager {
         let new_block = notification.tip();
         let new_block_height = new_block.block.number;
         // checkpoint state
-        self.leader_election.save_state();
+        self.leader_election.save_state().unwrap();
 
         if self.roundstate.current_height() + 1 == new_block_height {
             // We should immediately start a new round and drop our current round
-            let new_leader = self.leader_election.choose_proposer(new_block_height);
+            let new_leader = self
+                .leader_election
+                .choose_proposer(new_block_height)
+                .unwrap();
             let leader = if self.signer.my_id == new_leader {
                 Leader::ThisNode(new_leader)
             } else {
