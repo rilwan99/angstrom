@@ -105,7 +105,8 @@ impl WeightedRoundRobin {
         }
     }
 
-    pub fn choose_proposer(&mut self) -> PeerId {
+    pub fn choose_proposer(&mut self, block_number: BlockNumber) -> PeerId {
+        self.block_number = Some(block_number);
         self.center_priorities();
         self.scale_priorities();
         self.proposer_selection()
@@ -183,13 +184,13 @@ mod tests {
         fn simulate_rounds(algo: &mut WeightedRoundRobin, rounds: usize) -> HashMap<PeerId, usize> {
             let mut stats = HashMap::new();
             for _ in 0..rounds {
-                let proposer = algo.choose_proposer();
+                let proposer = algo.choose_proposer(BlockNumber::default());
                 *stats.entry(proposer).or_insert(0) += 1;
             }
             stats
         }
 
-        let rounds = 3;
+        let rounds = 1000;
         let stats = simulate_rounds(&mut algo, rounds);
 
         assert_eq!(stats.len(), 3);
@@ -222,7 +223,7 @@ mod tests {
         fn simulate_rounds(algo: &mut WeightedRoundRobin, rounds: usize) -> HashMap<PeerId, usize> {
             let mut stats = HashMap::new();
             for _ in 0..rounds {
-                let proposer = algo.choose_proposer();
+                let proposer = algo.choose_proposer(BlockNumber::default());
                 *stats.entry(proposer).or_insert(0) += 1;
             }
             stats

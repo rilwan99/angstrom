@@ -280,10 +280,12 @@ impl ConsensusManager {
         // Get the newest block height
         let new_block = notification.tip();
         let new_block_height = new_block.block.number;
+        // checkpoint state
+        self.leader_election.save_state();
 
         if self.roundstate.current_height() + 1 == new_block_height {
             // We should immediately start a new round and drop our current round
-            let new_leader = self.leader_election.choose_proposer();
+            let new_leader = self.leader_election.choose_proposer(new_block_height);
             let leader = if self.signer.my_id == new_leader {
                 Leader::ThisNode(new_leader)
             } else {
@@ -441,6 +443,7 @@ mod tests {
     use angstrom_types::sol_bindings::grouped_orders::GroupedUserOrder;
     use order_pool::{order_storage::OrderStorage, PoolConfig};
     use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
+    use reth_rpc_types::PeerId;
     use testing_tools::{
         mocks::network_events::MockNetworkHandle,
         type_generator::consensus::{generate_limit_order_distribution, proposal::ProposalBuilder}
@@ -449,8 +452,9 @@ mod tests {
     use tokio_stream::StreamExt;
 
     use crate::{
-        manager::ConsensusTaskResult, round::RoundStateTimings, ConsensusManager, ConsensusMessage,
-        ConsensusState, GlobalConsensusState, ManagerNetworkDeps, Signer
+        manager::ConsensusTaskResult, round::RoundStateTimings, AngstromValidator,
+        ConsensusManager, ConsensusMessage, ConsensusState, GlobalConsensusState,
+        ManagerNetworkDeps, Signer
     };
 
     fn mock_net_deps() -> ManagerNetworkDeps {
@@ -502,8 +506,8 @@ mod tests {
         let mut manager = ConsensusManager::new(
             globalstate,
             netdeps,
-            validators,
             Signer::default(),
+            validators,
             order_storage,
             Some(timings)
         );
