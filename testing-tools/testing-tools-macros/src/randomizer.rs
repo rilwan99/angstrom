@@ -81,18 +81,25 @@ fn enum_variant_match(
             _ => unreachable!("type is {:?}", ty)
         };
 
-        let random_field = Ident::new(&format!("random_{}", field.to_string()), Span::call_site());
-
         quote::quote! {
             (#variant_name | $(($field_name:ident, $value:expr)),*) => {
                 {
-                    #random_field!($($field_name:ident, $value:expr),*)
+                    //#random_field!($($field_name:ident, $value:expr),*)
+                    let mut rng = rand::thread_rng();
+                    let mut this: #field = rand::Rng::gen(&mut rng);
+                    $(
+                        this.$field_name = $value;
+                    )*
+                    this
                 }
             };
 
             (#variant_name) => {
                 {
-                    #random_field!()
+                    //#random_field!()
+                    let mut rng = rand::thread_rng();
+                    let this: _ = rand::Rng::gen(&mut rng);
+                    this
                 }
             };
         }
@@ -108,11 +115,12 @@ fn any_enum_variant(enum_name: &Ident, variant_names: Vec<Ident>) -> proc_macro2
         () => {
             {
                 let mut rng = rand::thread_rng();
-                let mut this = rng.gen::<u16>();
+                let this: usize = rand::Rng::gen(&mut rng);
                 match this {
                     #(
-                        #num_variants => random_ #enum_name!(#variant_names),
+                        #num_variants => #enum_name::#variant_names(rand::Rng::gen(&mut rng)),
                     )*
+                    _ => unreachable!()
                 }
             }
         };
@@ -148,7 +156,7 @@ fn derive_struct(item: DataStruct, name: Ident) -> proc_macro2::TokenStream {
                 ($(($field_name:ident, $value:expr)),*) => {
                     {
                         let mut rng = rand::thread_rng();
-                        let mut this = rng.gen::<#name>();
+                        let mut this: _ = rand::Rng::gen(&mut rng);
                         let fields_to_get = std::collections::HashSet::from([#(#fields_str),*]);
                         $(
                             if fields_to_get.contains(std::stringify!($field_name)) {

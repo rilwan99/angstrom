@@ -8,7 +8,7 @@ use angstrom_rpc::{api::OrderApiServer, OrderApi};
 use angstrom_types::sol_bindings::{
     grouped_orders::AllOrders,
     sol::ContractBundle,
-    testnet::TestnetHub::{self}
+    testnet::{random::RandomValues, TestnetHub}
 };
 use futures::StreamExt;
 use jsonrpsee::server::ServerBuilder;
@@ -40,45 +40,24 @@ pub struct StromPeerManager<C = NoopProvider> {
 }
 
 impl<C> StromPeerManager<C> {
-    pub async fn send_bundles_to_network(&self, bundles: u64) -> eyre::Result<()> {
-        let orders = ContractBundle::generate_random_bundles(bundles);
-        let hashes = orders.get_filled_hashes();
-        tracing::debug!("submitting a angstrom bundle with hashes: {:#?}", hashes);
-
-        let tob = orders
-            .top_of_block_orders
-            .into_iter()
-            .map(|v| AllOrders::TOB(v.into()))
-            .collect::<Vec<_>>();
-        let flash = orders
-            .assets
-            .top_of_block_orders
-            .into_iter()
-            .map(AllOrders::TOB)
-            .collect::<Vec<_>>();
-        let standing = orders.swaps;
+    pub async fn send_bundles_to_network(&self, bundles: usize) -> eyre::Result<()> {
+        let orders = AllOrders::gen_many(bundles);
+        let num_orders = orders.len();
+        tracing::debug!("submitting a angstrom bundle with {num_orders} orders to the network");
 
         self.tx_strom_handles
             .pool_tx
-            .send(NetworkOrderEvent::IncomingOrders { peer_id: self.peer.peer_id, orders });
+            .send(NetworkOrderEvent::IncomingOrders { peer_id: self.peer.peer_id, orders })?;
 
-        let tx_hash = self
-            .testnet_hub
-            .execute(orders.abi_encode().into())
-            .send()
-            .await?
-            .watch()
-            .await?;
-
-        tracing::debug!(?tx_hash, "tx hash with angstrom contract sent");
+        tracing::debug!("sent {num_orders} bundles to the network");
 
         Ok(())
     }
 
-    pub async fn execute_bundles_locally(&self, bundles: u64) -> eyre::Result<()> {
-        let orders = ContractBundle::generate_random_bundles(bundles);
+    pub async fn execute_bundles_locally(&self) -> eyre::Result<()> {
+        let orders = ContractBundle::gen();
         let hashes = orders.get_filled_hashes();
-        tracing::debug!("submitting a angstrom bundle with hashes: {:#?}", hashes);
+        tracing::debug!("executing a angstrom bundle with hashes: {:#?}", hashes);
 
         let tx_hash = self
             .testnet_hub

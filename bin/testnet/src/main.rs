@@ -20,7 +20,7 @@ async fn main() -> eyre::Result<()> {
     loop {
         tokio::time::sleep(Duration::from_secs(11)).await;
         network_controller
-            .run_event(None, |peer| peer.send_bundles(10))
+            .run_event(None, |peer| peer.send_bundles_to_network(10))
             .await??;
     }
 
