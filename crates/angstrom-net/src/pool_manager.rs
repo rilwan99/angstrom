@@ -311,6 +311,7 @@ where
     }
 
     fn on_network_order_event(&mut self, event: NetworkOrderEvent) {
+        panic!("EVENT: {:?}", event);
         match event {
             NetworkOrderEvent::IncomingOrders { peer_id, orders } => {
                 orders.into_iter().for_each(|order| {
