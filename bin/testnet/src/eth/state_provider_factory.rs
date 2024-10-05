@@ -1,10 +1,10 @@
 use alloy::{
     network::{Ethereum, EthereumWallet},
     node_bindings::{Anvil, AnvilInstance},
-    providers::{builder, Provider},
+    providers::{builder, ext::AnvilApi, Provider},
     signers::local::PrivateKeySigner
 };
-use reth_primitives::BlockNumber;
+use reth_primitives::{BlockNumber, Bytes, U256};
 use reth_provider::{ProviderError, ProviderResult};
 use validation::common::lru_db::BlockStateProviderFactory;
 
@@ -47,6 +47,27 @@ impl RpcStateProviderFactoryWrapper {
 
     pub fn provider(&self) -> RpcStateProviderFactory {
         self.provider.clone()
+    }
+
+    pub async fn execute_and_return_state(&self) -> eyre::Result<Bytes> {
+        self.mine_block().await?;
+
+        Ok(self.provider.provider.anvil_dump_state().await?)
+    }
+
+    pub async fn set_state(&self, state: Bytes) -> eyre::Result<()> {
+        self.provider.provider.anvil_load_state(state).await?;
+
+        Ok(())
+    }
+
+    pub async fn mine_block(&self) -> eyre::Result<()> {
+        self.provider
+            .provider
+            .anvil_mine(Some(U256::from(1u8)), None)
+            .await?;
+
+        Ok(())
     }
 }
 

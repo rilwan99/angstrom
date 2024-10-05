@@ -14,7 +14,7 @@ use futures::StreamExt;
 use jsonrpsee::server::ServerBuilder;
 use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_primitives::Address;
-use reth_provider::{test_utils::NoopProvider, BlockReader};
+use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
 use reth_tasks::TokioTaskExecutor;
 use tracing::{span, Instrument, Level, Span};
 use validation::init_validation;
@@ -39,8 +39,26 @@ pub struct StromPeerManager<C = NoopProvider> {
     pub span:             Span
 }
 
-impl<C> StromPeerManager<C> {
-    pub async fn send_bundles_to_network(&self, bundles: usize) -> eyre::Result<()> {
+impl<C> StromPeerManager<C>
+where
+    C: BlockReader + HeaderProvider + Unpin + Clone + 'static
+{
+    pub async fn send_network_event_to_peer(
+        &self,
+        peer: &StromPeerManager<C>,
+        event: NetworkOrderEvent
+    ) -> eyre::Result<()> {
+        let id = peer.id;
+        tracing::trace!("sending network event to peer {id} - {:?}", event);
+
+        //self.peer.eth_peer;
+
+        tracing::trace!("sent network event to peer {id} - {:?}", event);
+
+        Ok(())
+    }
+
+    pub fn send_bundles_to_network(&self, bundles: usize) -> eyre::Result<()> {
         let orders = AllOrders::gen_many(bundles);
         let num_orders = orders.len();
         tracing::debug!("submitting a angstrom bundle with {num_orders} orders to the network");

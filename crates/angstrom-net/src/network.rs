@@ -90,7 +90,7 @@ struct StromNetworkInner {
 }
 
 /// All events related to orders emitted by the network.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NetworkOrderEvent {
     IncomingOrders { peer_id: PeerId, orders: Vec<AllOrders> }
 }

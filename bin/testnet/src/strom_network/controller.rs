@@ -127,4 +127,26 @@ where
         let max_id = self.peers.iter().map(|(id, _)| *id).max().unwrap();
         rand::thread_rng().gen_range(0..max_id)
     }
+
+    /// updates the anvil state of all the peers from a given peer from a given
+    /// peer
+    pub async fn update_state(&self, id: u64) -> eyre::Result<()> {
+        let peer = self
+            .peers
+            .get(&id)
+            .expect(&format!("peer {id} doesn't exist"));
+        let updated_state = peer.rpc_wrapper.execute_and_return_state().await?;
+
+        futures::future::join_all(self.peers.iter().map(|(i, peer)| async {
+            if id != *i {
+                peer.rpc_wrapper.set_state(updated_state.clone()).await?;
+            }
+            Ok::<_, eyre::ErrReport>(())
+        }))
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(())
+    }
 }
