@@ -34,13 +34,15 @@ serde = { workspace = true, optional = true, default-features = false, features 
   "derive",
 ] }
 
+testing-tools-macros = { workspace = true, optional = true }
+
 rand = { version = "0.8.5", optional = true }
 
 [dev-dependencies]
 rand.workspace = true
 
 [features]
-default = ["serde"]
-testnet = ["dep:rand"]
+default = ["serde", "testnet"]
+testnet = ["dep:rand", "dep:testing-tools-macros"]
 # serde = ["dep:serde", "alloy-primitives/serde"]
 serde = ["dep:serde"]

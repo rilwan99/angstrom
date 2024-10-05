@@ -12,6 +12,7 @@ members = [
   "crates/eth/",
   "crates/submission",
   "testing-tools",
+  "testing-tools/testing-tools-macros",
   "crates/matching-engine",
   "crates/pade",
   "crates/pade-macro",
@@ -61,6 +62,7 @@ angstrom-rpc = { path = "./crates/rpc/" }
 angstrom-network = { path = "./crates/angstrom-net/" }
 angstrom-metrics = { path = "./crates/metrics/" }
 testing-tools = { path = "./testing-tools/" }
+testing-tools-macros = { path = "./testing-tools/testing-tools-macros" }
 angstrom = { path = "./bin/angstrom/" }
 matching-engine = { path = "./crates/matching-engine/" }
 contract-bindings = { path = "./crates/contract-bindings/" }

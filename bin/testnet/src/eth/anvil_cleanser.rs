@@ -9,7 +9,7 @@ use angstrom_eth::{
     handle::{EthCommand, EthHandle},
     manager::EthEvent
 };
-use angstrom_types::sol_bindings::{sol::ContractBundle, testnet::TestnetHub};
+use angstrom_types::sol_bindings::{m::TestnetHub, sol::ContractBundle};
 use futures::{Future, Stream, StreamExt};
 use reth_rpc_types::Transaction;
 use reth_tasks::TaskSpawner;

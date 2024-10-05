@@ -10,16 +10,17 @@ use crate::{
     orders::{OrderId, OrderLocation, OrderPriorityData},
     primitive::{PoolId, Signature, ANGSTROM_DOMAIN},
     sol_bindings::rpc_orders::{
-        ExactFlashOrder, ExactStandingOrder, OmitOrderMeta, PartialFlashOrder,
-        PartialStandingOrder, TopOfBlockOrder
+        random_TopOfBlockOrder, ExactFlashOrder, ExactStandingOrder, OmitOrderMeta,
+        PartialFlashOrder, PartialStandingOrder, TopOfBlockOrder
     }
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]
+#[cfg_attr(feature = "testnet", derive(testing_tools_macros::RandomizerWith))]
 pub enum AllOrders {
     Standing(StandingVariants),
     Flash(FlashVariants),
-    TOB(crate::sol_bindings::rpc_orders::TopOfBlockOrder)
+    TOB(TopOfBlockOrder)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash)]

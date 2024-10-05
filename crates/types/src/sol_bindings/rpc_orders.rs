@@ -15,7 +15,9 @@ sol! {
         bytes signature;
     }
 
+
     #[derive(Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    #[cfg_attr(feature = "testnet", derive(testing_tools_macros::RandomizerWith))]
     struct PartialStandingOrder {
         uint128 minAmountIn;
         uint128 maxAmountIn;
@@ -33,6 +35,7 @@ sol! {
     }
 
     #[derive(Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    #[cfg_attr(feature = "testnet", derive(testing_tools_macros::RandomizerWith))]
     struct ExactStandingOrder {
         bool exactIn;
         uint128 amount;
@@ -49,6 +52,7 @@ sol! {
     }
 
     #[derive(Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    #[cfg_attr(feature = "testnet", derive(testing_tools_macros::RandomizerWith))]
     struct PartialFlashOrder {
         uint128 minAmountIn;
         uint128 maxAmountIn;
@@ -65,6 +69,7 @@ sol! {
     }
 
     #[derive(Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    #[cfg_attr(feature = "testnet", derive(testing_tools_macros::RandomizerWith))]
     struct ExactFlashOrder {
         bool exactIn;
         uint128 amount;
@@ -80,6 +85,7 @@ sol! {
     }
 
     #[derive(Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+    #[cfg_attr(feature = "testnet", derive(testing_tools_macros::RandomizerWith))]
     struct TopOfBlockOrder {
         uint128 quantityIn;
         uint128 quantityOut;

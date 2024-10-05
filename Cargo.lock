@@ -1316,6 +1316,7 @@ dependencies = [
  "secp256k1 0.29.1",
  "serde",
  "serde_json",
+ "testing-tools-macros",
  "thiserror",
  "tracing",
 ]
@@ -10162,6 +10163,15 @@ dependencies = [
  "tracing-subscriber",
  "uniswap_v3_math",
  "validation",
+]
+
+[[package]]
+name = "testing-tools-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.77",
 ]
 
 [[package]]

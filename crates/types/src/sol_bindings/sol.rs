@@ -2,6 +2,8 @@ mod private {
     use alloy::sol;
     use pade_macro::PadeEncode;
     use serde::{Deserialize, Serialize};
+    #[cfg(feature = "testnet")]
+    use testing_tools_macros::RandomizerWith;
 
     sol! {
         #[derive(Debug, Default, PartialEq, Eq,Hash,Serialize, Deserialize)]

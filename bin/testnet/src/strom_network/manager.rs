@@ -6,7 +6,9 @@ use angstrom_eth::handle::Eth;
 use angstrom_network::{pool_manager::PoolHandle, NetworkOrderEvent, PoolManagerBuilder};
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
 use angstrom_types::sol_bindings::{
-    grouped_orders::AllOrders, sol::ContractBundle, testnet::TestnetHub::{self}
+    grouped_orders::AllOrders,
+    sol::ContractBundle,
+    testnet::TestnetHub::{self}
 };
 use futures::StreamExt;
 use jsonrpsee::server::ServerBuilder;
@@ -43,14 +45,22 @@ impl<C> StromPeerManager<C> {
         let hashes = orders.get_filled_hashes();
         tracing::debug!("submitting a angstrom bundle with hashes: {:#?}", hashes);
 
-        let tob = orders.top_of_block_orders.into_iter().map(|v| AllOrders::TOB(v.into())).collect::<Vec<_>>();
-        let flash = orders.assets.top_of_block_orders.into_iter().map(AllOrders::TOB).collect::<Vec<_>>();
+        let tob = orders
+            .top_of_block_orders
+            .into_iter()
+            .map(|v| AllOrders::TOB(v.into()))
+            .collect::<Vec<_>>();
+        let flash = orders
+            .assets
+            .top_of_block_orders
+            .into_iter()
+            .map(AllOrders::TOB)
+            .collect::<Vec<_>>();
         let standing = orders.swaps;
 
-        
-
-
-        self.tx_strom_handles.pool_tx.send(NetworkOrderEvent::IncomingOrders { peer_id: self.peer.peer_id, orders: orders })
+        self.tx_strom_handles
+            .pool_tx
+            .send(NetworkOrderEvent::IncomingOrders { peer_id: self.peer.peer_id, orders });
 
         let tx_hash = self
             .testnet_hub
