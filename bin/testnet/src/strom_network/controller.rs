@@ -1,4 +1,8 @@
-use std::{collections::HashMap, future::Future, task::Poll};
+use std::{
+    collections::{HashMap, HashSet},
+    future::Future,
+    task::Poll
+};
 
 use futures::FutureExt;
 use rand::Rng;
@@ -95,7 +99,12 @@ where
     {
         let id = if let Some(i) = id {
             assert!(!self.peers.is_empty());
-            assert!(i >= self.peers.iter().map(|(id, _)| *id).max().unwrap());
+            assert!(self
+                .peers
+                .iter()
+                .map(|(id, _)| *id)
+                .collect::<HashSet<_>>()
+                .contains(&i));
             i
         } else {
             self.get_random_id()
