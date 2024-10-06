@@ -20,9 +20,8 @@ pub struct Cli {
     #[clap(short, long, default_value = "12")]
     pub testnet_block_time_secs: u64,
     /// the amount of testnet nodes that will be spawned and connected to.
-    /// NOTE: only 1 rpc will be connected currently for submissions.
     /// this will change in the future but is good enough for testing currently
-    #[clap(short, long, default_value = "3")]
+    #[clap(short, long, default_value = "2")]
     pub nodes_in_network:        u64,
     /// Set the minimum log level.
     ///

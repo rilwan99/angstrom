@@ -110,6 +110,10 @@ where
         self.peers.insert(peer.id, peer);
     }
 
+    pub fn get_peer(&self, id: u64) -> &StromPeerManager<C> {
+        self.peers.get(&id).expect(&format!("peer {id} not found"))
+    }
+
     async fn spawn_testnet_node(
         &mut self,
         peer_builder: StromPeerManagerBuilder<C>,

@@ -17,6 +17,21 @@ async fn main() -> eyre::Result<()> {
 
     network_controller.connect_all_peers().await;
 
+    let is_connected = network_controller
+        .run_event(Some(0), |peer| async {
+            {
+                let peer_b = network_controller.get_peer(1);
+                peer.peer
+                    .strom_network
+                    .swarm()
+                    .state()
+                    .is_active_peer(peer_b.peer.peer_id)
+            }
+        })
+        .await?;
+
+    assert!(is_connected);
+
     do_thing(network_controller).await?;
 
     Ok(())
