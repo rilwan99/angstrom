@@ -52,7 +52,8 @@ impl Cli {
         };
 
         let filter = EnvFilter::builder()
-            .with_default_directive(format!("testnet={level}").parse().unwrap())
+            //    .with_default_directive(format!("testnet={level}").parse().unwrap())
+            .with_default_directive(format!("{level}").parse().unwrap())
             .from_env_lossy();
 
         // let filter = EnvFilter::default()
