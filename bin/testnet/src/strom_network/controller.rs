@@ -52,10 +52,9 @@ where
 
         for peer in &peer_set {
             for other_peer in &peer_set {
-                if *peer.public_key == *other_peer.public_key {
-                    continue
+                if *peer.public_key != *other_peer.public_key {
+                    peer.peer.add_validator(other_peer.public_key)
                 }
-                peer.peer.add_validator(other_peer.public_key);
             }
         }
         // add all peers to each other
@@ -124,8 +123,9 @@ where
     }
 
     fn get_random_id(&self) -> u64 {
-        let max_id = self.peers.iter().map(|(id, _)| *id).max().unwrap();
-        rand::thread_rng().gen_range(0..max_id)
+        let ids = self.peers.iter().map(|(id, _)| *id).collect::<Vec<_>>();
+        let id_idx = rand::thread_rng().gen_range(0..ids.len());
+        ids[id_idx]
     }
 
     /// updates the anvil state of all the peers from a given peer from a given

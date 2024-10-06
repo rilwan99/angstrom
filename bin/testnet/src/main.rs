@@ -3,7 +3,7 @@ use std::time::Duration;
 use reth_provider::test_utils::NoopProvider;
 use testnet::{cli::Cli, strom_network::controller::StromController};
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> eyre::Result<()> {
     let cli_args = Cli::parse_with_tracing();
 
@@ -17,12 +17,16 @@ async fn main() -> eyre::Result<()> {
 
     network_controller.connect_all_peers().await;
 
+    do_thing(network_controller).await?;
+
+    Ok(())
+}
+
+async fn do_thing(network_controller: StromController) -> eyre::Result<()> {
     loop {
         tokio::time::sleep(Duration::from_secs(11)).await;
         network_controller
             .run_event(None, |peer| async { peer.send_bundles_to_network(10) })
             .await??;
     }
-
-    Ok(())
 }

@@ -16,7 +16,7 @@ use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_primitives::Address;
 use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
 use reth_tasks::TokioTaskExecutor;
-use tracing::{span, Instrument, Level, Span};
+use tracing::{span, Instrument, Level};
 use validation::init_validation;
 
 use crate::{
@@ -35,8 +35,7 @@ pub struct StromPeerManager<C = NoopProvider> {
     pub order_storage:    Arc<OrderStorage>,
     pub pool_handle:      PoolHandle,
     pub tx_strom_handles: SendingStromHandles,
-    pub testnet_hub:      StromContractInstance,
-    pub span:             Span
+    pub testnet_hub:      StromContractInstance
 }
 
 impl<C> StromPeerManager<C>
@@ -97,8 +96,7 @@ pub struct StromPeerManagerBuilder<C = NoopProvider> {
     public_key:    FixedBytes<64>,
     peer:          StromPeer<C>,
     rpc_wrapper:   RpcStateProviderFactoryWrapper,
-    strom_handles: Option<StromHandles>,
-    span:          Span
+    strom_handles: Option<StromHandles>
 }
 
 impl<C> StromPeerManagerBuilder<C>
@@ -128,12 +126,18 @@ where
             public_key: pk,
             rpc_wrapper,
             strom_handles: Some(handles),
-            port: port + id,
-            span
+            port: port + id
         }
     }
 
     pub async fn build_and_spawn(
+        self,
+        contract_address: Address
+    ) -> eyre::Result<StromPeerManager<C>> {
+        Ok(tokio::spawn(self.build_and_spawn_internal(contract_address)).await??)
+    }
+
+    async fn build_and_spawn_internal(
         mut self,
         contract_address: Address
     ) -> eyre::Result<StromPeerManager<C>> {
@@ -209,10 +213,10 @@ where
             .await?;
 
         let addr = server.local_addr().unwrap();
-        tracing::info!("rpc server started on: {}", addr);
 
         tokio::spawn(async move {
             let server_handle = server.start(order_api.into_rpc());
+            tracing::info!("rpc server started on: {}", addr);
             let _ = server_handle.stopped().await;
         });
 
@@ -227,8 +231,7 @@ where
             order_storage,
             pool_handle,
             testnet_hub,
-            tx_strom_handles,
-            span: self.span
+            tx_strom_handles
         })
     }
 }
