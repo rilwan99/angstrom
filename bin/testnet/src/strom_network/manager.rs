@@ -61,6 +61,7 @@ where
         let orders = AllOrders::gen_many(bundles);
         let num_orders = orders.len();
         tracing::debug!("submitting a angstrom bundle with {num_orders} orders to the network");
+        panic!("submitting a angstrom bundle with {num_orders} orders to the network");
 
         self.tx_strom_handles
             .pool_tx
