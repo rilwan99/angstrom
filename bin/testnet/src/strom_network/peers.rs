@@ -1,4 +1,10 @@
-use std::{collections::HashSet, marker::PhantomData, net::SocketAddr, sync::Arc, task::Poll};
+use std::{
+    collections::HashSet,
+    marker::PhantomData,
+    net::SocketAddr,
+    sync::Arc,
+    task::{Context, Poll}
+};
 
 use alloy_chains::Chain;
 use angstrom_network::{
@@ -245,6 +251,16 @@ where
     pub fn removed_peer(&self) {
         self.strom.strom_network_fut.abort();
         self.eth.peer_fut.abort();
+    }
+
+    pub fn manual_poll(&mut self, cx: &mut Context<'_>) -> Poll<()> {
+        if self.strom.strom_network_fut.poll_unpin(cx).is_ready()
+            || self.eth.peer_fut.poll_unpin(cx).is_ready()
+        {
+            Poll::Ready(())
+        } else {
+            Poll::Pending
+        }
     }
 }
 

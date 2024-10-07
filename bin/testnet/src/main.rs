@@ -27,6 +27,8 @@ async fn main() -> eyre::Result<()> {
 
     assert_eq!(peer_count, 1);
 
+    //network_controller.get_peer(1).tx_strom_handles
+
     do_thing(network_controller).await?;
 
     Ok(())

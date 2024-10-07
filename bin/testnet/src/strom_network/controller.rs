@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
-    future::Future
+    future::Future,
+    task::Poll
 };
 
 use rand::Rng;
@@ -48,7 +49,7 @@ where
     }
 
     pub async fn connect_all_peers(&mut self) {
-        let peer_set = self
+        let mut peer_set = self
             .peers
             .iter_mut()
             .map(|(_, peer)| peer)
@@ -69,41 +70,44 @@ where
             }
         }
 
-        // wait on each peer to add all other peers
+        // // wait on each peer to add all other peers
+        // let needed_peers = peer_set.len() - 1;
+        // let streams = self.peers.iter().map(|(id, peer_handle)| {
+        //     (*id, NetworkEventStream::new(peer_handle.peer.eth_network_handle().
+        // event_listener())) });
+
+        // // await all sessions to be established
+        // let fut = streams.into_iter().map(|(id, mut stream)| {
+        //     let span = span!(Level::DEBUG, "testnet node", id);
+        //     async move {
+        //         let connected = stream.take_session_established(needed_peers).await;
+
+        //         tracing::info!("connected to {} peers", connected.len());
+        //     }
+        //     .instrument(span)
+        // });
+
+        // futures::future::join_all(fut).await;
+
         let needed_peers = peer_set.len() - 1;
-        let streams = self.peers.iter().map(|(id, peer_handle)| {
-            (*id, NetworkEventStream::new(peer_handle.peer.eth_network_handle().event_listener()))
-        });
+        let mut peers = peer_set.iter_mut().map(|p| &mut p.peer).collect::<Vec<_>>();
 
-        // std::future::poll_fn(|cx| {
-        //     let mut all_connected = true;
-        //     for peer in &mut peers {
-        //         if peer.poll_unpin(cx).is_ready() {
-        //             tracing::error!("peer failed");
-        //         }
-        //         all_connected &= peer.get_peer_count() == needed_peers
-        //     }
-
-        //     if all_connected {
-        //         return Poll::Ready(())
-        //     }
-
-        //     Poll::Pending
-        // })
-        // .await
-
-        // await all sessions to be established
-        let fut = streams.into_iter().map(|(id, mut stream)| {
-            let span = span!(Level::DEBUG, "testnet node", id);
-            async move {
-                let connected = stream.take_session_established(needed_peers).await;
-
-                tracing::info!("connected to {} peers", connected.len());
+        std::future::poll_fn(|cx| {
+            let mut all_connected = true;
+            for peer in &mut peers {
+                if peer.manual_poll(cx).is_ready() {
+                    tracing::error!("peer failed");
+                }
+                all_connected &= peer.get_peer_count() == needed_peers
             }
-            .instrument(span)
-        });
 
-        futures::future::join_all(fut).await;
+            if all_connected {
+                return Poll::Ready(())
+            }
+
+            Poll::Pending
+        })
+        .await
     }
 
     /// if None, then a random id is used
