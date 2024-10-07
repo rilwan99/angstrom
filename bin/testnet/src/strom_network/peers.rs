@@ -23,7 +23,7 @@ use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use tokio::task::JoinHandle;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::PollSender;
-use tracing::{span, Level};
+use tracing::{span, Instrument, Level, Span};
 
 type PeerPool = Pool<
     MockTransactionValidator<MockTransaction>,
@@ -49,14 +49,15 @@ pub struct TestnetPeer<C = NoopProvider> {
     // strom extensions
     strom:          StromPeer<C>,
     pub secret_key: SecretKey,
-    pub peer_id:    PeerId
+    pub peer_id:    PeerId,
+    _span:          Span
 }
 
 impl<C: Unpin> TestnetPeer<C>
 where
     C: BlockReader + HeaderProvider + Unpin + Clone + 'static
 {
-    pub async fn new(c: C) -> Self {
+    pub async fn new(id: u64, c: C) -> Self {
         let mut rng = thread_rng();
         let sk = SecretKey::new(&mut rng);
         let peer = PeerConfig::with_secret_key(c.clone(), sk);
@@ -99,19 +100,22 @@ where
         peer.network_mut().add_rlpx_sub_protocol(protocol);
         let handle = network.get_handle();
 
+        let span = span!(Level::DEBUG, "testnet node", id);
+
         Self {
             eth: EthPeer {
                 eth_peer_handle: peer.peer_handle(),
-                peer_fut:        tokio::spawn(peer)
+                peer_fut:        tokio::spawn(peer.instrument(span.clone()))
             },
             strom: StromPeer {
                 strom_validator_set:  network.swarm().state().validators().clone(),
-                strom_network_fut:    tokio::spawn(network),
+                strom_network_fut:    tokio::spawn(network.instrument(span.clone())),
                 strom_network_handle: handle,
                 _phantom:             PhantomData
             },
             secret_key: sk,
-            peer_id
+            peer_id,
+            _span: span
         }
     }
 
@@ -124,6 +128,7 @@ where
     }
 
     pub async fn new_fully_configed(
+        id: u64,
         c: C,
         to_pool_manager: Option<UnboundedMeteredSender<NetworkOrderEvent>>,
         to_consensus_manager: Option<UnboundedMeteredSender<StromConsensusEvent>>
@@ -169,19 +174,22 @@ where
         peer.network_mut().add_rlpx_sub_protocol(protocol);
         let handle = network.get_handle();
 
+        let span = span!(Level::DEBUG, "testnet node", id);
+
         Self {
             eth: EthPeer {
                 eth_peer_handle: peer.peer_handle(),
-                peer_fut:        tokio::spawn(peer)
+                peer_fut:        tokio::spawn(peer.instrument(span.clone()))
             },
             strom: StromPeer {
                 strom_validator_set:  network.swarm().state().validators().clone(),
-                strom_network_fut:    tokio::spawn(network),
+                strom_network_fut:    tokio::spawn(network.instrument(span.clone())),
                 strom_network_handle: handle,
                 _phantom:             PhantomData
             },
             secret_key: sk,
-            peer_id
+            peer_id,
+            _span: span
         }
     }
 

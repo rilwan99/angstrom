@@ -141,6 +141,7 @@ where
 
     async fn spawn_testnet_node(
         &mut self,
+
         peer_builder: TestnetPeerManagerBuilder<C>,
         contract_address: Address
     ) -> eyre::Result<()> {

@@ -114,6 +114,7 @@ where
         let span = span!(Level::TRACE, "testnet node", id = id);
         let handles = initialize_strom_handles();
         let peer = TestnetPeer::new_fully_configed(
+            id,
             provider,
             Some(handles.pool_tx.clone()),
             Some(handles.consensus_tx_op.clone())

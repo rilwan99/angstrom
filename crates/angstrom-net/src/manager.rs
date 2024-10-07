@@ -90,6 +90,7 @@ impl<DB: Unpin> StromNetworkManager<DB> {
 
     // Handler for received messages from a handle
     fn on_handle_message(&mut self, msg: StromNetworkHandleMsg) {
+        tracing::trace!(?msg, "received network message");
         match msg {
             StromNetworkHandleMsg::SubscribeEvents(tx) => self.event_listeners.push(tx),
             StromNetworkHandleMsg::SendStromMessage { peer_id, msg } => {
