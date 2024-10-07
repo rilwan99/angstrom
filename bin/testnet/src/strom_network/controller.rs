@@ -1,10 +1,8 @@
 use std::{
     collections::{HashMap, HashSet},
-    future::Future,
-    task::Poll
+    future::Future
 };
 
-use futures::FutureExt;
 use rand::Rng;
 use reth_network::{test_utils::NetworkEventStream, NetworkEventListenerProvider};
 use reth_primitives::Address;
@@ -49,7 +47,7 @@ where
     }
 
     pub async fn connect_all_peers(&mut self) {
-        let mut peer_set = self
+        let peer_set = self
             .peers
             .iter_mut()
             .map(|(_, peer)| peer)
@@ -73,7 +71,7 @@ where
         // wait on each peer to add all other peers
         let needed_peers = peer_set.len() - 1;
         let streams = self.peers.iter().map(|(_, peer_handle)| {
-            NetworkEventStream::new(peer_handle.peer.eth_peer.handle().event_listener())
+            NetworkEventStream::new(peer_handle.peer.eth_peer.event_listener())
         });
 
         // std::future::poll_fn(|cx| {
@@ -153,13 +151,13 @@ where
     }
 
     /// updates the anvil state of all the peers from a given peer from a given
-    /// peer
+    /// peer. Returns the latest block
     pub async fn update_state(&self, id: u64) -> eyre::Result<()> {
         let peer = self
             .peers
             .get(&id)
             .expect(&format!("peer {id} doesn't exist"));
-        let updated_state = peer.rpc_wrapper.execute_and_return_state().await?;
+        let (updated_state, _) = peer.rpc_wrapper.execute_and_return_state().await?;
 
         futures::future::join_all(self.peers.iter().map(|(i, peer)| async {
             if id != *i {

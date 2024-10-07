@@ -4,8 +4,9 @@ use alloy::{
     providers::{builder, ext::AnvilApi, Provider},
     signers::local::PrivateKeySigner
 };
-use reth_primitives::{BlockNumber, Bytes, U256};
+use reth_primitives::{BlockNumber, Bytes};
 use reth_provider::{ProviderError, ProviderResult};
+use reth_rpc_types::{anvil::MineOptions, Block};
 use validation::common::lru_db::BlockStateProviderFactory;
 
 use super::RpcStateProvider;
@@ -49,10 +50,10 @@ impl RpcStateProviderFactoryWrapper {
         self.provider.clone()
     }
 
-    pub async fn execute_and_return_state(&self) -> eyre::Result<Bytes> {
-        self.mine_block().await?;
+    pub async fn execute_and_return_state(&self) -> eyre::Result<(Bytes, Block)> {
+        let block = self.mine_block().await?;
 
-        Ok(self.provider.provider.anvil_dump_state().await?)
+        Ok((self.provider.provider.anvil_dump_state().await?, block))
     }
 
     pub async fn set_state(&self, state: Bytes) -> eyre::Result<()> {
@@ -61,13 +62,15 @@ impl RpcStateProviderFactoryWrapper {
         Ok(())
     }
 
-    pub async fn mine_block(&self) -> eyre::Result<()> {
-        self.provider
+    pub async fn mine_block(&self) -> eyre::Result<Block> {
+        Ok(self
             .provider
-            .anvil_mine(Some(U256::from(1u8)), None)
-            .await?;
-
-        Ok(())
+            .provider
+            .anvil_mine_detailed(Some(MineOptions::Options { timestamp: None, blocks: Some(1) }))
+            .await?
+            .first()
+            .cloned()
+            .unwrap())
     }
 }
 

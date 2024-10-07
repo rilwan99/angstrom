@@ -10,19 +10,31 @@ use futures::{Future, FutureExt};
 use parking_lot::RwLock;
 use rand::thread_rng;
 use reth_metrics::common::mpsc::{MeteredPollSender, UnboundedMeteredSender};
-use reth_network::test_utils::{Peer, PeerConfig};
+use reth_network::test_utils::{Peer, PeerConfig, PeerHandle};
 use reth_network_api::Peers;
 use reth_network_peers::{pk2id, PeerId};
 use reth_primitives::Address;
 use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
+use reth_transaction_pool::{
+    blobstore::InMemoryBlobStore, noop::MockTransactionValidator, test_utils::MockTransaction,
+    CoinbaseTipOrdering, Pool
+};
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use tokio::task::JoinHandle;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::PollSender;
 use tracing::{span, Level};
 
+type PeerPool = Pool<
+    MockTransactionValidator<MockTransaction>,
+    CoinbaseTipOrdering<MockTransaction>,
+    InMemoryBlobStore
+>;
+
 pub struct StromPeer<C = NoopProvider> {
+    pub peer_fut:      JoinHandle<()>,
     /// the default ethereum network peer
-    pub eth_peer:      Peer<C>,
+    pub eth_peer:      PeerHandle<PeerPool>,
     // strom extensions
     pub strom_network: StromNetworkManager<C>,
     pub handle:        StromNetworkHandle,
@@ -77,7 +89,16 @@ where
         peer.network_mut().add_rlpx_sub_protocol(protocol);
         let handle = network.get_handle();
 
-        Self { strom_network: network, eth_peer: peer, secret_key: sk, handle, peer_id }
+        let eth_peer = peer.peer_handle();
+
+        Self {
+            peer_fut: tokio::spawn(peer),
+            strom_network: network,
+            eth_peer,
+            secret_key: sk,
+            handle,
+            peer_id
+        }
     }
 
     pub fn new_with_consensus() -> Self {
@@ -134,7 +155,16 @@ where
         peer.network_mut().add_rlpx_sub_protocol(protocol);
         let handle = network.get_handle();
 
-        Self { strom_network: network, eth_peer: peer, secret_key: sk, handle, peer_id }
+        let eth_peer = peer.peer_handle();
+
+        Self {
+            peer_fut: tokio::spawn(peer),
+            strom_network: network,
+            eth_peer,
+            secret_key: sk,
+            handle,
+            peer_id
+        }
     }
 
     pub fn get_node_public_key(&self) -> PeerId {
@@ -163,7 +193,7 @@ where
     }
 
     pub fn connect_to_peer(&self, id: PeerId, addr: SocketAddr) {
-        self.eth_peer.peer_handle().network().add_peer(id, addr);
+        self.eth_peer.peer_handle().add_peer(id, addr);
     }
 
     pub fn socket_addr(&self) -> SocketAddr {
@@ -199,9 +229,6 @@ where
         let e = span.enter();
 
         if this.strom_network.poll_unpin(cx).is_ready() {
-            return Poll::Ready(())
-        }
-        if this.eth_peer.poll_unpin(cx).is_ready() {
             return Poll::Ready(())
         }
 
