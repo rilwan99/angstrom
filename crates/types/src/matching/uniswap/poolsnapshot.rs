@@ -1,3 +1,5 @@
+use std::slice::Iter;
+
 use eyre::{eyre, Context, OptionExt};
 use uniswap_v3_math::tick_math::get_tick_at_sqrt_ratio;
 
@@ -65,6 +67,11 @@ impl PoolSnapshot {
             .enumerate()
             .find(|(_, r)| r.lower_tick <= tick && tick < r.upper_tick)
             .map(|(range_idx, range)| LiqRangeRef { market: self, range, range_idx })
+    }
+
+    /// Return a read-only iterator over the liquidity ranges in this snapshot
+    pub fn ranges(&self) -> Iter<LiqRange> {
+        self.ranges.iter()
     }
 
     pub fn current_price(&self) -> PoolPrice {

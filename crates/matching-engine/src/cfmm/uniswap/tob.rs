@@ -295,7 +295,9 @@ mod test {
     fn handles_precisely_zero_donation() {
         let mut rng = thread_rng();
         let amm = generate_amm_market(100000);
-        let total_payment = 2_203_194_246_001_u128;
+        // Hand-calculated that this is the correct payment for this starting price and
+        // liquidity
+        let total_payment = 2_201_872_310_000_u128;
         let order = generate_top_of_block_order(
             &mut rng,
             true,
@@ -320,8 +322,15 @@ mod test {
     #[test]
     fn handles_partial_donation() {
         let mut rng = thread_rng();
-        let amm = generate_amm_market(100000);
-        let total_payment = 2_203_371_417_593_u128;
+        let price = SqrtPriceX96::from(get_sqrt_ratio_at_tick(100000).unwrap());
+        let liquidity = 100_000_000_000_000;
+        let ranges = vec![
+            LiqRange::new(100000, 100001, liquidity).unwrap(),
+            LiqRange::new(100001, 100002, liquidity).unwrap(),
+            LiqRange::new(100002, 100003, liquidity).unwrap(),
+        ];
+        let amm = PoolSnapshot::new(ranges, price).unwrap();
+        let total_payment = 2_202_072_310_000_u128;
         let order = generate_top_of_block_order(
             &mut rng,
             true,

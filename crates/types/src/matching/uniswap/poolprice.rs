@@ -164,6 +164,10 @@ impl<'a> PoolPrice<'a> {
         &self.price
     }
 
+    pub fn as_sqrtpricex96(&self) -> SqrtPriceX96 {
+        self.price
+    }
+
     /// Return the current price as a float - we need to figure out what our
     /// price representation is going to look like overall
     pub fn as_float(&self) -> f64 {

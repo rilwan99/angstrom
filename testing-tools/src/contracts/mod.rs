@@ -3,12 +3,14 @@ use eyre::eyre;
 
 pub mod anvil;
 pub mod deploy;
-mod reward;
-pub use reward::RewardTestEnv;
+pub mod environment;
+//mod reward;
+//pub use reward::RewardTestEnv;
 
 /// This trait is used to provide safe run and potentially debug capabilities
-/// for our local contract runs
-trait DebugTransaction {
+/// for our local contract runs.
+pub trait DebugTransaction {
+    #[allow(async_fn_in_trait)] // OK because this is not for public consumption
     async fn run_safe(self) -> eyre::Result<()>;
 }
 

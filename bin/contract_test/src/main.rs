@@ -4,16 +4,19 @@ use alloy::{
     network::EthereumWallet,
     primitives::{
         aliases::{I24, U24},
-        keccak256, Bytes, U256
+        keccak256, Bytes
     },
     providers::ProviderBuilder,
     signers::local::PrivateKeySigner,
     sol_types::SolValue
 };
-use angstrom_types::matching::SqrtPriceX96;
+use angstrom_types::matching::{
+    uniswap::{LiqRange, PoolSnapshot},
+    SqrtPriceX96
+};
 use contract_payloads::{Asset, MockContractMessage, Pair, PoolUpdate, RewardsUpdate};
 use pade::PadeEncode;
-use testing_tools::contracts::{DebugTransaction, RewardTestEnv};
+use testing_tools::contracts::{environment::mockreward::MockRewardEnv, DebugTransaction};
 use uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick;
 
 mod contract_payloads;
@@ -41,22 +44,21 @@ async fn main() -> eyre::Result<()> {
     println!("Hello, world!");
     // internal_anvil().await.unwrap();
     // return Ok(());
-    let env = RewardTestEnv::new().await?;
+    //    let env = RewardTestEnv::new().await?;
+
+    let env = MockRewardEnv::spawn_anvil().await?;
 
     println!("Env created");
-    let initialSqrtPriceX96 = SqrtPriceX96::from(get_sqrt_ratio_at_tick(100020).unwrap());
+    let sqrt_price_x96 = SqrtPriceX96::from(get_sqrt_ratio_at_tick(100020).unwrap());
     let tick_spacing = I24::unchecked_from(60);
     let pool_fee = U24::ZERO;
+    let snapshot = PoolSnapshot::new(
+        vec![LiqRange::new(99900, 100140, 5_000_000_000_000_000_000_000_u128).unwrap()],
+        sqrt_price_x96
+    )?;
     let pool_key = env
-        .create_pool(initialSqrtPriceX96, tick_spacing, pool_fee)
+        .create_pool_and_tokens_from_snapshot(tick_spacing, pool_fee, snapshot)
         .await?;
-    println!("Pool created");
-    let lower_tick = I24::unchecked_from(99900);
-    let upper_tick = I24::unchecked_from(100140);
-    let liquidity = U256::from(5_000_000_000_000_000_000_000_u128);
-    env.add_liquidity_position(&pool_key, lower_tick, upper_tick, liquidity)
-        .await?;
-    println!("Liquidity added");
 
     let message = MockContractMessage {
         assets: vec![
@@ -67,7 +69,7 @@ async fn main() -> eyre::Result<()> {
             index0:       0,
             index1:       1,
             store_index:  0,
-            price_1over0: initialSqrtPriceX96.into()
+            price_1over0: sqrt_price_x96.into()
         }],
         update: PoolUpdate {
             zero_for_one:     false,
