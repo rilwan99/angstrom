@@ -1,17 +1,18 @@
 use std::{collections::HashMap, pin::Pin, task::Poll};
 
-use angstrom_types::consensus::{Commit, PreProposal, Proposal};
-use futures::stream::Stream;
-mod strom_peer;
 use angstrom_network::{manager::StromConsensusEvent, StromMessage, StromNetworkEvent};
-use futures::{stream::StreamExt, FutureExt};
+use angstrom_types::consensus::{Commit, PreProposal, Proposal};
+use futures::{
+    stream::{Stream, StreamExt},
+    FutureExt
+};
 use reth_metrics::common::mpsc::metered_unbounded_channel;
 use reth_network_api::PeerId;
 use reth_provider::test_utils::NoopProvider;
 use secp256k1::SecretKey;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
-use self::strom_peer::StromPeer;
+pub mod peers;
 
 /// the goal of the angstrom testnet is to extend reth's baseline tests
 /// as-well as expand appon to allow for composing tests and ensuring full
