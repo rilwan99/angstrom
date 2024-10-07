@@ -36,6 +36,7 @@ impl StromTestnet {
             config
         };
 
+        tracing::info!("initializing testnet with {} nodes", config.intial_node_count);
         this.spawn_new_nodes(config.intial_node_count).await?;
 
         Ok(this)
@@ -58,6 +59,7 @@ impl StromTestnet {
     }
 
     async fn initialize_new_node(&mut self, node_id: u64) -> eyre::Result<()> {
+        tracing::info!("spawning node");
         let strom_handles = initialize_strom_handles();
         let network = TestnetNodeNetwork::new_fully_configed(
             node_id,
