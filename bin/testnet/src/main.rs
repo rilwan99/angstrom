@@ -33,11 +33,11 @@ async fn main() -> eyre::Result<()> {
 }
 
 async fn do_thing(network_controller: StromController) -> eyre::Result<()> {
-    //loop {
-    tokio::time::sleep(Duration::from_secs(11)).await;
-    network_controller
-        .run_event(None, |peer| async { peer.send_bundles_to_network(10) })
-        .await?;
-    Ok(())
-    // }
+    loop {
+        tokio::time::sleep(Duration::from_secs(11)).await;
+        network_controller
+            .run_event(None, |peer| async { peer.send_bundles_to_network(10) })
+            .await?;
+        // Ok(())
+    }
 }
