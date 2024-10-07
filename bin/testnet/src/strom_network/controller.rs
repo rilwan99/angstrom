@@ -144,25 +144,27 @@ where
         // .await
 
         std::future::poll_fn(|cx| {
-            let mut all_connected = true;
-            for (id, peer) in &mut peers {
-                // let span = span!(Level::TRACE, "testnet node");
-                // let e = span.enter();
-                if peer.poll_unpin(cx).is_ready() {
-                    tracing::error!("peer failed");
+            loop {
+                let mut all_connected = true;
+                for (id, peer) in &mut peers {
+                    // let span = span!(Level::TRACE, "testnet node");
+                    // let e = span.enter();
+                    if peer.poll_unpin(cx).is_ready() {
+                        tracing::error!("peer failed");
+                    }
+
+                    tracing::trace!("connected to {}/{needed_peers} peers", peer.get_peer_count());
+
+                    all_connected &= peer.get_peer_count() == needed_peers;
+                    //drop(e);
                 }
 
-                tracing::trace!("connected to {}/{needed_peers} peers", peer.get_peer_count());
+                if all_connected {
+                    return Poll::Ready(())
+                }
 
-                all_connected &= peer.get_peer_count() == needed_peers;
-                //drop(e);
+                Poll::Pending
             }
-
-            if all_connected {
-                return Poll::Ready(())
-            }
-
-            Poll::Pending
         })
         .await
     }
