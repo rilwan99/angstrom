@@ -165,7 +165,7 @@ where
             // }
             Poll::Pending
         }))
-        .await
+        .await;
     }
 
     /// if None, then a random id is used
