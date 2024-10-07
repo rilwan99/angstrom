@@ -8,7 +8,7 @@ use std::{
 
 use alloy::primitives::{B256, U256};
 use angstrom_types::{
-    orders::{OrderId, OrderOrigin, OrderSet},
+    orders::{OrderID, OrderId, OrderOrigin, OrderSet},
     primitive::{NewInitializedPool, PoolId},
     sol_bindings::{
         grouped_orders::{AllOrders, OrderWithStorageData, *},
@@ -332,12 +332,15 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
 
     /// Given the nonce ordering rule. Sometimes new transactions can park old
     /// transactions.
-    fn park_transactions(&mut self, txes: &[B256]) {
+    fn park_transactions(&mut self, user: UserAddress, txes: &[B256]) {
         let order_info = txes
             .iter()
             .filter_map(|tx_hash| self.order_hash_to_order_id.get(tx_hash))
             .collect::<Vec<_>>();
-
+        self.address_to_orders
+            .entry(user)
+            .or_default()
+            .retain(|&h| !order_info.iter().any(|order| h.hash == order.hash));
         self.order_storage.park_orders(order_info);
     }
 
@@ -369,7 +372,7 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
 
                 let to_propagate = valid.order.clone();
                 self.update_order_tracking(&hash, valid.from(), valid.order_id);
-                self.park_transactions(&valid.invalidates);
+                self.park_transactions(valid.from(), &valid.invalidates);
                 self.insert_order(valid)?;
 
                 Ok(PoolInnerEvent::Propagation(to_propagate))
