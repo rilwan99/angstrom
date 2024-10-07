@@ -4,6 +4,7 @@ use std::{
     task::Poll
 };
 
+use futures::FutureExt;
 use rand::Rng;
 use reth_network::{test_utils::NetworkEventStream, NetworkEventListenerProvider};
 use reth_primitives::Address;
@@ -74,9 +75,10 @@ where
 
         for peer in &*peer_set {
             for other_peer in &these_peers {
-                if *peer.public_key != *other_peer.public_key {
-                    peer.peer.add_validator(other_peer.public_key)
+                if *peer.public_key == *other_peer.public_key {
+                    continue;
                 }
+                peer.peer.add_validator(other_peer.public_key)
             }
         }
         // add all peers to each other
@@ -112,27 +114,47 @@ where
             .map(|p| (p.id, &mut p.peer))
             .collect::<Vec<_>>();
 
+        // std::future::poll_fn(|cx| {
+        //     let mut all_connected = true;
+        //     for (id, peer) in &mut peers {
+        //         let span = span!(Level::TRACE, "testnet node", ?id);
+        //         let e = span.enter();
+
+        //         if peer.poll_connect(cx, needed_peers) {
+        //             tracing::error!("peer failed");
+        //         } else {
+        //             tracing::trace!("connected to {needed_peers} peers");
+        //         }
+        //         drop(e);
+
+        //         // all_connected &= peer.get_peer_count() == needed_peers;
+        //     }
+
+        //     //    if all_connected {
+        //     return Poll::Ready(())
+        //     //  }
+
+        //     // Poll::Pending
+        // })
+        // .await
+
         std::future::poll_fn(|cx| {
             let mut all_connected = true;
             for (id, peer) in &mut peers {
                 let span = span!(Level::TRACE, "testnet node", ?id);
                 let e = span.enter();
-
-                if peer.poll_connect(cx, needed_peers) {
+                if peer.poll_unpin(cx).is_ready() {
                     tracing::error!("peer failed");
-                } else {
-                    tracing::trace!("connected to {needed_peers} peers");
                 }
+                all_connected &= peer.get_peer_count() == needed_peers;
                 drop(e);
-
-                // all_connected &= peer.get_peer_count() == needed_peers;
             }
 
-            //    if all_connected {
-            return Poll::Ready(())
-            //  }
+            if all_connected {
+                return Poll::Ready(())
+            }
 
-            // Poll::Pending
+            Poll::Pending
         })
         .await
     }

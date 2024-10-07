@@ -253,50 +253,50 @@ where
         self.eth.peer_fut.abort();
     }
 
-    pub fn poll_connect(&mut self, cx: &mut Context<'_>, needed_peers: usize) -> bool {
-        let mut initial = 0;
-        loop {
-            if self.strom.strom_network_fut.poll_unpin(cx).is_ready()
-                || self.eth.peer_fut.poll_unpin(cx).is_ready()
-            {
-                tracing::error!("peer failed");
-                return false
-            }
+    // pub fn poll_connect(&mut self, cx: &mut Context<'_>, needed_peers: usize) ->
+    // bool {     let mut initial = 0;
+    //     loop {
+    //         if self.strom.strom_network_fut.poll_unpin(cx).is_ready()
+    //             || self.eth.peer_fut.poll_unpin(cx).is_ready()
+    //         {
+    //             tracing::error!("peer failed");
+    //             return false
+    //         }
 
-            let current_peer_cnt = self.get_peer_count();
-            if initial != current_peer_cnt {
-                tracing::trace!("connected to {}/{needed_peers} peers", current_peer_cnt);
-                initial = current_peer_cnt;
-            }
+    //         let current_peer_cnt = self.get_peer_count();
+    //         if initial != current_peer_cnt {
+    //             tracing::trace!("connected to {}/{needed_peers} peers",
+    // current_peer_cnt);             initial = current_peer_cnt;
+    //         }
 
-            if current_peer_cnt == needed_peers {
-                return true
-            }
-        }
-    }
+    //         if current_peer_cnt == needed_peers {
+    //             return true
+    //         }
+    //     }
+    // }
 }
 
-// impl<C> Future for TestnetPeer<C>
-// where
-//     C: BlockReader + HeaderProvider + Unpin + Clone + 'static
-// {
-//     type Output = ();
+impl<C> Future for TestnetPeer<C>
+where
+    C: BlockReader + HeaderProvider + Unpin + Clone + 'static
+{
+    type Output = ();
 
-//     fn poll(
-//         self: std::pin::Pin<&mut Self>,
-//         cx: &mut std::task::Context<'_>
-//     ) -> std::task::Poll<Self::Output> {
-//         let this = self.get_mut();
-//         let peer_id = this.get_node_public_key();
-//         let span = span!(Level::TRACE, "peer_id: {:?}", ?peer_id);
-//         let e = span.enter();
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>
+    ) -> std::task::Poll<Self::Output> {
+        let this = self.get_mut();
+        let peer_id = this.get_node_public_key();
 
-//         if this.strom_network.poll_unpin(cx).is_ready() {
-//             return Poll::Ready(())
-//         }
+        if this.strom.strom_network_fut.poll_unpin(cx).is_ready() {
+            return Poll::Ready(())
+        }
 
-//         drop(e);
+        if this.eth.peer_fut.poll_unpin(cx).is_ready() {
+            return Poll::Ready(())
+        }
 
-//         Poll::Pending
-//     }
-// }
+        Poll::Pending
+    }
+}
