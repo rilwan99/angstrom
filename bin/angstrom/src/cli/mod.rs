@@ -1,5 +1,6 @@
 //! CLI definition and entrypoint to executable
 use std::{
+    collections::HashSet,
     path::PathBuf,
     sync::{Arc, Mutex}
 };
@@ -7,6 +8,7 @@ use std::{
 use angstrom_metrics::{initialize_prometheus_metrics, METRICS_ENABLED};
 use angstrom_network::manager::StromConsensusEvent;
 use order_pool::{order_storage::OrderStorage, PoolConfig, PoolManagerUpdate};
+use reth::primitives::Address;
 use reth_node_builder::{FullNode, NodeHandle};
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use tokio::sync::mpsc::{
@@ -27,8 +29,8 @@ use angstrom_network::{
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
 use clap::Parser;
 use consensus::{
-    ConsensusCommand, ConsensusHandle, ConsensusManager, GlobalConsensusState, ManagerNetworkDeps,
-    Signer
+    AngstromValidator, ConsensusCommand, ConsensusHandle, ConsensusManager, GlobalConsensusState,
+    ManagerNetworkDeps, Signer
 };
 use reth::{
     api::NodeAddOns,
@@ -42,6 +44,7 @@ use reth_cli_util::get_secret_key;
 use reth_metrics::common::mpsc::{UnboundedMeteredReceiver, UnboundedMeteredSender};
 use reth_network_peers::pk2id;
 use reth_node_ethereum::{node::EthereumAddOns, EthereumNode};
+use reth_rpc_types::PeerId;
 use validation::init_validation;
 
 use crate::cli::network_builder::AngstromNetworkBuilder;
@@ -95,7 +98,15 @@ pub fn run() -> eyre::Result<()> {
             .launch()
             .await?;
 
-        initialize_strom_components(args, secret_key, channels, network, node, &executor);
+        initialize_strom_components(
+            Address::ZERO,
+            args,
+            secret_key,
+            channels,
+            network,
+            node,
+            &executor
+        );
 
         node_exit_future.await
     })
@@ -177,6 +188,7 @@ pub fn initialize_strom_handles() -> StromHandles {
 }
 
 pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<Node>>(
+    angstrom_address: Address,
     config: AngstromConfig,
     secret_key: SecretKey,
     handles: StromHandles,
@@ -185,11 +197,13 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
     executor: &TaskExecutor
 ) {
     let eth_handle = EthDataCleanser::spawn(
+        angstrom_address,
         node.provider.subscribe_to_canonical_state(),
         node.provider.clone(),
         executor.clone(),
         handles.eth_tx,
-        handles.eth_rx
+        handles.eth_rx,
+        HashSet::new()
     )
     .unwrap();
 
@@ -226,7 +240,13 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
     let signer = Signer::new(secret_key);
 
     let global_consensus_state = Arc::new(Mutex::new(GlobalConsensusState::default()));
-
+    // TODO load the stakes from Eigen using node.provider
+    // list of PeerIds will be known upfront on the first version
+    let validators = vec![
+        AngstromValidator::new(PeerId::default(), 100),
+        AngstromValidator::new(PeerId::default(), 200),
+        AngstromValidator::new(PeerId::default(), 300),
+    ];
     let _consensus_handle = ConsensusManager::spawn(
         executor.clone(),
         global_consensus_state,
@@ -238,6 +258,7 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
             handles.consensus_rx
         ),
         signer,
+        validators,
         order_storage.clone(),
         None
     );

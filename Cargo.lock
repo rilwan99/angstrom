@@ -1148,6 +1148,7 @@ dependencies = [
  "anyhow",
  "futures",
  "futures-util",
+ "pade",
  "reth-provider",
  "reth-tasks",
  "tokio",
@@ -5780,12 +5781,15 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "bitvec",
+ "bytes",
 ]
 
 [[package]]
 name = "pade-macro"
 version = "0.1.0"
 dependencies = [
+ "alloy",
+ "itertools 0.13.0",
  "pade",
  "proc-macro2",
  "quote",

@@ -1,8 +1,9 @@
 use alloy::{
-    primitives::{Address, Bytes},
+    primitives::{Address, Bytes, B256},
     sol
 };
-use pade_macro::PadeEncode;
+use pade_macro::{PadeDecode, PadeEncode};
+use reth_primitives::keccak256;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -14,7 +15,9 @@ use crate::{
 
 // This currently exists in types::sol_bindings as well, but that one is
 // outdated so I'm building a new one here for now and then migrating
-#[derive(PadeEncode, Clone, Default, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    PadeEncode, PadeDecode, Clone, Default, Debug, Hash, PartialEq, Eq, Serialize, Deserialize,
+)]
 pub struct TopOfBlockOrder {
     pub use_internal:    bool,
     pub quantity_in:     u128,
@@ -27,6 +30,11 @@ pub struct TopOfBlockOrder {
 }
 
 impl TopOfBlockOrder {
+    // eip-712 hash_struct
+    pub fn order_hash(&self) -> B256 {
+        keccak256(&self.signature)
+    }
+
     pub fn of(
         internal: &OrderWithStorageData<RpcTopOfBlockOrder>,
         asset_in_index: u16,
@@ -50,7 +58,7 @@ impl TopOfBlockOrder {
     }
 }
 
-#[derive(Debug, PadeEncode)]
+#[derive(Debug, PadeEncode, PadeDecode)]
 pub struct StandingValidation {
     nonce:    u64,
     // 40 bits wide in reality
@@ -58,13 +66,13 @@ pub struct StandingValidation {
     deadline: u64
 }
 
-#[derive(Debug, PadeEncode)]
+#[derive(Debug, PadeEncode, PadeDecode)]
 pub enum OrderQuantities {
     Exact { quantity: u128 },
     Partial { min_quantity_in: u128, max_quantity_in: u128, filled_quantity: u128 }
 }
 
-#[derive(Debug, PadeEncode)]
+#[derive(Debug, PadeEncode, PadeDecode)]
 pub struct UserOrder {
     pub use_internal:        bool,
     pub pair_index:          u16,
@@ -78,15 +86,21 @@ pub struct UserOrder {
     pub signature:           Bytes
 }
 
+impl UserOrder {
+    pub fn order_hash(&self) -> B256 {
+        keccak256(&self.signature)
+    }
+}
+
 sol! {
-    #[derive(Debug, PadeEncode)]
+    #[derive(Debug, PadeEncode, PadeDecode)]
     struct Pair {
         uint16 t1_idx;
         uint16 t0_idx;
         uint256 uniswap_price;
     }
 
-    #[derive(Debug, PadeEncode)]
+    #[derive(Debug, PadeEncode, PadeDecode)]
     struct PoolUpdate {
         uint16 asset_in_index;
         uint16 asset_out_index;
@@ -95,13 +109,22 @@ sol! {
     }
 }
 
-#[derive(Debug, PadeEncode)]
+#[derive(Debug, PadeEncode, PadeDecode)]
 pub struct AngstromBundle {
-    assets:              Vec<Asset>,
-    pairs:               Vec<Pair>,
-    pool_updates:        Vec<PoolUpdate>,
-    top_of_block_orders: Vec<TopOfBlockOrder>,
-    user_orders:         Vec<UserOrder>
+    pub assets:              Vec<Asset>,
+    pub pairs:               Vec<Pair>,
+    pub pool_updates:        Vec<PoolUpdate>,
+    pub top_of_block_orders: Vec<TopOfBlockOrder>,
+    pub user_orders:         Vec<UserOrder>
+}
+
+impl AngstromBundle {
+    pub fn get_order_hashes(&self) -> impl Iterator<Item = B256> + '_ {
+        self.top_of_block_orders
+            .iter()
+            .map(|order| order.order_hash())
+            .chain(self.user_orders.iter().map(|order| order.order_hash()))
+    }
 }
 
 impl AngstromBundle {

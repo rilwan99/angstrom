@@ -10,6 +10,7 @@ import {HookManager} from "./modules/HookManager.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {UniConsumer} from "./modules/UniConsumer.sol";
 import {IUnlockCallback} from "v4-core/src/interfaces/callback/IUnlockCallback.sol";
+import {PermitSubmitterHook} from "./modules/PermitSubmitterHook.sol";
 
 import {TypedDataHasher} from "./types/TypedDataHasher.sol";
 
@@ -29,8 +30,8 @@ import {PoolConfigStore} from "./libraries/pool-config/PoolConfigStore.sol";
 
 import {RayMathLib} from "./libraries/RayMathLib.sol";
 
-import {console} from "forge-std/console.sol";
 // TODO: Remove
+import {console} from "forge-std/console.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 /// @author philogy <https://github.com/philogy>
@@ -41,13 +42,15 @@ contract Angstrom is
     NodeManager,
     HookManager,
     PoolUpdateManager,
-    IUnlockCallback
+    IUnlockCallback,
+    PermitSubmitterHook
 {
     using RayMathLib for uint256;
     // TODO: Remove
     using FormatLib for *;
 
     error LimitViolated();
+    error ToBGasUsedAboveMax();
 
     constructor(IPoolManager uniV4, address controller, address feeMaster)
         UniConsumer(uniV4)
@@ -81,7 +84,12 @@ contract Angstrom is
 
         _saveAndSettle(assets);
 
-        return new bytes(0);
+        // Return empty bytes.
+        assembly ("memory-safe") {
+            mstore(0x00, 0x20)
+            mstore(0x20, 0x00)
+            return(0x00, 0x40)
+        }
     }
 
     function extsload(bytes32 slot) external view returns (bytes32) {
@@ -129,6 +137,12 @@ contract Angstrom is
 
         (reader, buffer.quantityIn) = reader.readU128();
         (reader, buffer.quantityOut) = reader.readU128();
+        (reader, buffer.maxGasAsset0) = reader.readU128();
+        uint128 gasUsedAsset0;
+        {
+            (reader, gasUsedAsset0) = reader.readU128();
+            if (gasUsedAsset0 > buffer.maxGasAsset0) revert ToBGasUsedAboveMax();
+        }
 
         {
             uint16 pairIndex;
@@ -140,9 +154,6 @@ contract Angstrom is
         (reader, buffer.recipient) =
             variantMap.recipientIsSome() ? reader.readAddr() : (reader, address(0));
 
-        HookBuffer hook;
-        (reader, hook, buffer.hookDataHash) = HookBufferLib.readFrom(reader, variantMap.noHook());
-
         // The `.hash` method validates the `block.number` for flash orders.
         bytes32 orderHash = typedHasher.hashTypedData(buffer.hash());
 
@@ -153,15 +164,28 @@ contract Angstrom is
             ? SignatureLib.readAndCheckEcdsa(reader, orderHash)
             : SignatureLib.readAndCheckERC1271(reader, orderHash);
 
-        hook.tryTrigger(from);
-
-        _settleOrderIn(
-            from, buffer.assetIn, AmountIn.wrap(buffer.quantityIn), variantMap.useInternal()
-        );
         address to = _defaultOr(buffer.recipient, from);
-        _settleOrderOut(
-            to, buffer.assetOut, AmountOut.wrap(buffer.quantityOut), variantMap.useInternal()
-        );
+        if (variantMap.zeroForOne()) {
+            _settleOrderIn(
+                from,
+                buffer.assetIn,
+                AmountIn.wrap(buffer.quantityIn - gasUsedAsset0),
+                variantMap.useInternal()
+            );
+            _settleOrderOut(
+                to, buffer.assetOut, AmountOut.wrap(buffer.quantityOut), variantMap.useInternal()
+            );
+        } else {
+            _settleOrderIn(
+                from, buffer.assetIn, AmountIn.wrap(buffer.quantityIn), variantMap.useInternal()
+            );
+            _settleOrderOut(
+                to,
+                buffer.assetOut,
+                AmountOut.wrap(buffer.quantityOut - gasUsedAsset0),
+                variantMap.useInternal()
+            );
+        }
         return reader;
     }
 
@@ -202,13 +226,12 @@ contract Angstrom is
 
         // Load and lookup asset in/out and dependent values.
         PriceOutVsIn price;
-        uint256 feeInE6;
         {
             uint256 priceOutVsIn;
             uint16 pairIndex;
             (reader, pairIndex) = reader.readU16();
-            (buffer.assetIn, buffer.assetOut, priceOutVsIn, feeInE6) =
-                pairs.get(pairIndex).getSwapInfo(variantMap.aToB());
+            (buffer.assetIn, buffer.assetOut, priceOutVsIn) =
+                pairs.get(pairIndex).getSwapInfo(variantMap.zeroForOne());
             price = PriceOutVsIn.wrap(priceOutVsIn);
         }
 
@@ -227,8 +250,7 @@ contract Angstrom is
 
         AmountIn amountIn;
         AmountOut amountOut;
-        (reader, amountIn, amountOut) =
-            buffer.loadAndComputeQuantity(reader, variantMap, price, feeInE6);
+        (reader, amountIn, amountOut) = buffer.loadAndComputeQuantity(reader, variantMap, price);
 
         bytes32 orderHash = buffer.hash712(variantMap, typedHasher);
 

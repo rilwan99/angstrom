@@ -4,7 +4,7 @@ use std::{
 };
 
 use angstrom_metrics::ConsensusMetricsWrapper;
-use angstrom_network::{manager::StromConsensusEvent, StromMessage, StromNetworkHandle};
+use angstrom_network::{manager::StromConsensusEvent, peers, StromMessage, StromNetworkHandle};
 use angstrom_types::{
     consensus::{PreProposal, Proposal},
     orders::PoolSolution
@@ -13,6 +13,7 @@ use futures::{FutureExt, Stream, StreamExt};
 use matching_engine::MatchingManager;
 use order_pool::{order_storage::OrderStorage, timer::async_time_fn};
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
+use reth_primitives::HeaderError::LargeExtraData;
 use reth_provider::{CanonStateNotification, CanonStateNotifications};
 use reth_tasks::TaskSpawner;
 use tokio::{
@@ -26,8 +27,8 @@ use tracing::{error, warn};
 use crate::{
     cache::ProposalCache,
     global::GlobalConsensusState,
+    leader_selection::{AngstromValidator, WeightedRoundRobin},
     round::{Leader, RoundState, RoundStateTimings},
-    round_robin_algo::RoundRobinAlgo,
     signer::Signer,
     ConsensusListener, ConsensusMessage, ConsensusState, ConsensusUpdater
 };
@@ -58,12 +59,12 @@ pub struct ConsensusManager {
     strom_consensus_event:  UnboundedMeteredReceiver<StromConsensusEvent>,
     network:                StromNetworkHandle,
 
-    roundrobin:    RoundRobinAlgo,
-    signer:        Signer,
-    order_storage: Arc<OrderStorage>,
-    cache:         ProposalCache,
-    tasks:         JoinSet<ConsensusTaskResult>,
-    metrics:       ConsensusMetricsWrapper
+    leader_election: WeightedRoundRobin,
+    signer:          Signer,
+    order_storage:   Arc<OrderStorage>,
+    cache:           ProposalCache,
+    tasks:           JoinSet<ConsensusTaskResult>,
+    metrics:         ConsensusMetricsWrapper
 }
 
 pub struct ManagerNetworkDeps {
@@ -91,6 +92,7 @@ impl ConsensusManager {
         globalstate: Arc<Mutex<GlobalConsensusState>>,
         netdeps: ManagerNetworkDeps,
         signer: Signer,
+        validators: Vec<AngstromValidator>,
         order_storage: Arc<OrderStorage>,
         timings: Option<RoundStateTimings>
     ) -> Self {
@@ -102,10 +104,11 @@ impl ConsensusManager {
         // This is still a lot of stuff to track that we don't necessarily have to worry
         // about
         let timings = timings.unwrap_or_else(|| RoundStateTimings::new(6, 2, 6));
-        let roundstate = RoundState::new(0, 1, Leader::default(), Some(timings));
+        let current_block_height = 0;
+        let roundstate = RoundState::new(current_block_height, 1, Leader::default(), Some(timings));
         let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
-        // Use our default round robin algo
-        let (roundrobin, _cacheheight) = RoundRobinAlgo::new();
+        let mut leader_election = WeightedRoundRobin::new(validators, current_block_height, None);
+
         Self {
             strom_consensus_event,
             roundstate,
@@ -113,7 +116,7 @@ impl ConsensusManager {
             subscribers: Vec::new(),
             command: stream,
             network,
-            roundrobin,
+            leader_election,
             signer,
             order_storage,
             tasks: JoinSet::new(),
@@ -128,11 +131,13 @@ impl ConsensusManager {
         globalstate: Arc<Mutex<GlobalConsensusState>>,
         netdeps: ManagerNetworkDeps,
         signer: Signer,
+        validators: Vec<AngstromValidator>,
         order_storage: Arc<OrderStorage>,
         timings: Option<RoundStateTimings>
     ) -> ConsensusHandle {
         let tx = netdeps.tx.clone();
-        let manager = ConsensusManager::new(globalstate, netdeps, signer, order_storage, timings);
+        let manager =
+            ConsensusManager::new(globalstate, netdeps, signer, validators, order_storage, timings);
         let fut = manager.message_loop().boxed();
         // let fut = manager_thread(globalstate, netdeps, signer, order_storage,
         // timings).boxed();
@@ -276,13 +281,23 @@ impl ConsensusManager {
         // Get the newest block height
         let new_block = notification.tip();
         let new_block_height = new_block.block.number;
+        // checkpoint state
+        self.leader_election.save_state().unwrap();
 
         if self.roundstate.current_height() + 1 == new_block_height {
             // We should immediately start a new round and drop our current round
-            let new_leader = self.roundrobin.on_new_block(&new_block.block);
+            let new_leader = self
+                .leader_election
+                .choose_proposer(new_block_height)
+                .unwrap();
+            let leader = if self.signer.my_id == new_leader {
+                Leader::ThisNode(new_leader)
+            } else {
+                Leader::OtherNode(new_leader)
+            };
             // TODO:  Figure out the best way to get our node count
             let new_round_state =
-                RoundState::new(new_block_height, 1, new_leader, Some(self.roundstate.timings()));
+                RoundState::new(new_block_height, 1, leader, Some(self.roundstate.timings()));
             // Update our round state to the new round state
             self.roundstate = new_round_state;
             // Update the global state to show that we're back in OrderAccumulation
@@ -432,6 +447,7 @@ mod tests {
     use angstrom_types::sol_bindings::grouped_orders::GroupedUserOrder;
     use order_pool::{order_storage::OrderStorage, PoolConfig};
     use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
+    use reth_rpc_types::PeerId;
     use testing_tools::{
         mocks::network_events::MockNetworkHandle,
         type_generator::consensus::{generate_limit_order_distribution, proposal::ProposalBuilder}
@@ -440,8 +456,9 @@ mod tests {
     use tokio_stream::StreamExt;
 
     use crate::{
-        manager::ConsensusTaskResult, round::RoundStateTimings, ConsensusManager, ConsensusMessage,
-        ConsensusState, GlobalConsensusState, ManagerNetworkDeps, Signer
+        manager::ConsensusTaskResult, round::RoundStateTimings, AngstromValidator,
+        ConsensusManager, ConsensusMessage, ConsensusState, GlobalConsensusState,
+        ManagerNetworkDeps, Signer
     };
 
     fn mock_net_deps() -> ManagerNetworkDeps {
@@ -459,8 +476,15 @@ mod tests {
         let globalstate = Arc::new(Mutex::new(GlobalConsensusState::default()));
         let netdeps = mock_net_deps();
         let order_storage = Arc::new(OrderStorage::default());
-        let manager =
-            ConsensusManager::new(globalstate, netdeps, Signer::default(), order_storage, None);
+        let validators = vec![AngstromValidator::new(PeerId::default(), 100)];
+        let manager = ConsensusManager::new(
+            globalstate,
+            netdeps,
+            Signer::default(),
+            validators,
+            order_storage,
+            None
+        );
         let thread = tokio::spawn(manager.message_loop());
         thread.abort();
     }
@@ -470,6 +494,7 @@ mod tests {
         let globalstate = Arc::new(Mutex::new(GlobalConsensusState::default()));
         let netdeps = mock_net_deps();
         let pool: FixedBytes<32> = FixedBytes::random();
+        let validators = vec![AngstromValidator::new(PeerId::default(), 100)];
         let poolconfig = PoolConfig { ids: vec![pool], ..Default::default() };
         let order_storage = Arc::new(OrderStorage::new(&poolconfig));
         // Let's make some orders to go in our order storage
@@ -486,6 +511,7 @@ mod tests {
             globalstate,
             netdeps,
             Signer::default(),
+            validators,
             order_storage,
             Some(timings)
         );
@@ -511,10 +537,12 @@ mod tests {
         let poolconfig = PoolConfig { ids: vec![pool], ..Default::default() };
         let order_storage = Arc::new(OrderStorage::new(&poolconfig));
         let timings = RoundStateTimings::default();
+        let validators = vec![AngstromValidator::new(PeerId::default(), 100)];
         let mut manager = ConsensusManager::new(
             globalstate,
             netdeps,
             Signer::default(),
+            validators,
             order_storage,
             Some(timings)
         );
