@@ -143,27 +143,28 @@ where
         // })
         // .await
 
-        std::future::poll_fn(|cx| {
-            loop {
-                let mut all_connected = true;
-                for (id, peer) in &mut peers {
-                    // let span = span!(Level::TRACE, "testnet node");
-                    // let e = span.enter();
-                    if peer.poll_unpin(cx).is_ready() {
-                        tracing::error!("peer failed");
-                    }
-
-                    tracing::trace!("connected to {}/{needed_peers} peers", peer.get_peer_count());
-
-                    all_connected &= peer.get_peer_count() == needed_peers;
-                    //drop(e);
+        tokio::spawn(std::future::poll_fn(|cx| {
+            //loop {
+            let mut all_connected = true;
+            for (id, peer) in &mut peers {
+                // let span = span!(Level::TRACE, "testnet node");
+                // let e = span.enter();
+                if peer.poll_unpin(cx).is_ready() {
+                    tracing::error!("peer failed");
                 }
 
-                if all_connected {
-                    return Poll::Ready(())
-                }
+                tracing::trace!("connected to {}/{needed_peers} peers", peer.get_peer_count());
+
+                all_connected &= peer.get_peer_count() == needed_peers;
+                //drop(e);
             }
-        })
+
+            if all_connected {
+                return Poll::Ready(())
+            }
+            // }
+            Poll::Pending
+        }))
         .await
     }
 
