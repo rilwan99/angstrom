@@ -21,16 +21,16 @@ use validation::init_validation;
 
 use crate::{
     eth::{anvil_cleanser::AnvilEthDataCleanser, RpcStateProviderFactoryWrapper},
-    strom_network::peers::StromPeer,
+    strom_network::peers::TestnetPeer,
     types::SendingStromHandles,
     StromContractInstance, CACHE_VALIDATION_SIZE
 };
 
-pub struct StromPeerManager<C = NoopProvider> {
+pub struct TestnetPeerManager<C = NoopProvider> {
     pub id:               u64,
     pub port:             u64,
     pub public_key:       FixedBytes<64>,
-    pub peer:             StromPeer<C>,
+    pub peer:             TestnetPeer<C>,
     pub rpc_wrapper:      RpcStateProviderFactoryWrapper,
     pub order_storage:    Arc<OrderStorage>,
     pub pool_handle:      PoolHandle,
@@ -38,13 +38,13 @@ pub struct StromPeerManager<C = NoopProvider> {
     pub testnet_hub:      StromContractInstance
 }
 
-impl<C> StromPeerManager<C>
+impl<C> TestnetPeerManager<C>
 where
     C: BlockReader + HeaderProvider + Unpin + Clone + 'static
 {
     pub async fn send_network_event_to_peer(
         &self,
-        peer: &StromPeerManager<C>,
+        peer: &TestnetPeerManager<C>,
         event: NetworkOrderEvent
     ) -> eyre::Result<()> {
         let id = peer.id;
@@ -91,16 +91,16 @@ where
     }
 }
 
-pub struct StromPeerManagerBuilder<C = NoopProvider> {
+pub struct TestnetPeerManagerBuilder<C = NoopProvider> {
     id:            u64,
     port:          u64,
     public_key:    FixedBytes<64>,
-    peer:          StromPeer<C>,
+    peer:          TestnetPeer<C>,
     rpc_wrapper:   RpcStateProviderFactoryWrapper,
     strom_handles: Option<StromHandles>
 }
 
-impl<C> StromPeerManagerBuilder<C>
+impl<C> TestnetPeerManagerBuilder<C>
 where
     C: BlockReader + Clone + Unpin + 'static
 {
@@ -112,7 +112,7 @@ where
     ) -> Self {
         let span = span!(Level::TRACE, "testnet node", id = id);
         let handles = initialize_strom_handles();
-        let peer = StromPeer::new_fully_configed(
+        let peer = TestnetPeer::new_fully_configed(
             provider,
             Some(handles.pool_tx.clone()),
             Some(handles.consensus_tx_op.clone())
@@ -134,14 +134,14 @@ where
     pub async fn build_and_spawn(
         self,
         contract_address: Address
-    ) -> eyre::Result<StromPeerManager<C>> {
+    ) -> eyre::Result<TestnetPeerManager<C>> {
         Ok(tokio::spawn(self.build_and_spawn_internal(contract_address)).await??)
     }
 
     async fn build_and_spawn_internal(
         mut self,
         contract_address: Address
-    ) -> eyre::Result<StromPeerManager<C>> {
+    ) -> eyre::Result<TestnetPeerManager<C>> {
         let span = span!(Level::ERROR, "testnet node", id = self.id);
         let strom_handles = self.strom_handles.take().unwrap();
         let pool = strom_handles.get_pool_handle();
@@ -189,7 +189,7 @@ where
 
         let validator = init_validation(self.rpc_wrapper.provider(), CACHE_VALIDATION_SIZE);
 
-        let network_handle = self.peer.handle.clone();
+        let network_handle = self.peer.strom_network_handle().clone();
 
         let pool_config = PoolConfig::default();
         let order_storage = Arc::new(OrderStorage::new(&pool_config));
@@ -223,7 +223,7 @@ where
 
         let testnet_hub = TestnetHub::new(contract_address, self.rpc_wrapper.provider().provider());
 
-        Ok(StromPeerManager {
+        Ok(TestnetPeerManager {
             id: self.id,
             port: self.port,
             public_key: self.public_key,

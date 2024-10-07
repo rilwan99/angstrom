@@ -1,4 +1,4 @@
-use std::{collections::HashSet, net::SocketAddr, sync::Arc, task::Poll};
+use std::{collections::HashSet, marker::PhantomData, net::SocketAddr, sync::Arc, task::Poll};
 
 use alloy_chains::Chain;
 use angstrom_network::{
@@ -31,18 +31,28 @@ type PeerPool = Pool<
     InMemoryBlobStore
 >;
 
-pub struct StromPeer<C = NoopProvider> {
-    pub peer_fut:      JoinHandle<()>,
+struct EthPeer {
+    peer_fut:        JoinHandle<()>,
     /// the default ethereum network peer
-    pub eth_peer:      PeerHandle<PeerPool>,
-    // strom extensions
-    pub strom_network: StromNetworkManager<C>,
-    pub handle:        StromNetworkHandle,
-    pub secret_key:    SecretKey,
-    pub peer_id:       PeerId
+    eth_peer_handle: PeerHandle<PeerPool>
 }
 
-impl<C: Unpin> StromPeer<C>
+struct StromPeer<C = NoopProvider> {
+    strom_network_fut:    JoinHandle<()>,
+    strom_network_handle: StromNetworkHandle,
+    strom_validator_set:  Arc<RwLock<HashSet<Address>>>,
+    _phantom:             PhantomData<C> // can't be asked to move the generics everywhere
+}
+
+pub struct TestnetPeer<C = NoopProvider> {
+    eth:            EthPeer,
+    // strom extensions
+    strom:          StromPeer<C>,
+    pub secret_key: SecretKey,
+    pub peer_id:    PeerId
+}
+
+impl<C: Unpin> TestnetPeer<C>
 where
     C: BlockReader + HeaderProvider + Unpin + Clone + 'static
 {
@@ -89,14 +99,18 @@ where
         peer.network_mut().add_rlpx_sub_protocol(protocol);
         let handle = network.get_handle();
 
-        let eth_peer = peer.peer_handle();
-
         Self {
-            peer_fut: tokio::spawn(peer),
-            strom_network: network,
-            eth_peer,
+            eth: EthPeer {
+                eth_peer_handle: peer.peer_handle(),
+                peer_fut:        tokio::spawn(peer)
+            },
+            strom: StromPeer {
+                strom_validator_set:  network.swarm().state().validators().clone(),
+                strom_network_fut:    tokio::spawn(network),
+                strom_network_handle: handle,
+                _phantom:             PhantomData
+            },
             secret_key: sk,
-            handle,
             peer_id
         }
     }
@@ -155,16 +169,28 @@ where
         peer.network_mut().add_rlpx_sub_protocol(protocol);
         let handle = network.get_handle();
 
-        let eth_peer = peer.peer_handle();
-
         Self {
-            peer_fut: tokio::spawn(peer),
-            strom_network: network,
-            eth_peer,
+            eth: EthPeer {
+                eth_peer_handle: peer.peer_handle(),
+                peer_fut:        tokio::spawn(peer)
+            },
+            strom: StromPeer {
+                strom_validator_set:  network.swarm().state().validators().clone(),
+                strom_network_fut:    tokio::spawn(network),
+                strom_network_handle: handle,
+                _phantom:             PhantomData
+            },
             secret_key: sk,
-            handle,
             peer_id
         }
+    }
+
+    pub fn strom_network_handle(&self) -> &StromNetworkHandle {
+        &self.strom.strom_network_handle
+    }
+
+    pub fn eth_network_handle(&self) -> &PeerHandle<PeerPool> {
+        &self.eth.eth_peer_handle
     }
 
     pub fn get_node_public_key(&self) -> PeerId {
@@ -173,11 +199,11 @@ where
     }
 
     pub fn disconnect_peer(&self, id: PeerId) {
-        self.handle.remove_peer(id)
+        self.strom_network_handle().remove_peer(id)
     }
 
     pub fn get_peer_count(&self) -> usize {
-        self.handle.peer_count()
+        self.strom_network_handle().peer_count()
     }
 
     pub fn remove_validator(&self, id: PeerId) {
@@ -193,47 +219,48 @@ where
     }
 
     pub fn connect_to_peer(&self, id: PeerId, addr: SocketAddr) {
-        self.eth_peer.peer_handle().add_peer(id, addr);
+        self.eth_network_handle().peer_handle().add_peer(id, addr);
     }
 
     pub fn socket_addr(&self) -> SocketAddr {
-        self.eth_peer.local_addr()
+        self.eth_network_handle().local_addr()
     }
 
     fn get_validator_set(&self) -> Arc<RwLock<HashSet<Address>>> {
-        self.strom_network.swarm().state().validators()
+        self.strom.strom_validator_set.clone()
     }
 
     pub fn sub_network_events(&self) -> UnboundedReceiverStream<StromNetworkEvent> {
-        self.handle.subscribe_network_events()
+        self.strom_network_handle().subscribe_network_events()
     }
 
-    pub fn manager_mut(&mut self) -> &mut StromNetworkManager<C> {
-        &mut self.strom_network
-    }
-}
-
-impl<C> Future for StromPeer<C>
-where
-    C: BlockReader + HeaderProvider + Unpin + Clone + 'static
-{
-    type Output = ();
-
-    fn poll(
-        self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>
-    ) -> std::task::Poll<Self::Output> {
-        let this = self.get_mut();
-        let peer_id = this.get_node_public_key();
-        let span = span!(Level::TRACE, "peer_id: {:?}", ?peer_id);
-        let e = span.enter();
-
-        if this.strom_network.poll_unpin(cx).is_ready() {
-            return Poll::Ready(())
-        }
-
-        drop(e);
-
-        Poll::Pending
+    pub fn removed_peer(&self) {
+        self.strom.strom_network_fut.abort();
+        self.eth.peer_fut.abort();
     }
 }
+
+// impl<C> Future for TestnetPeer<C>
+// where
+//     C: BlockReader + HeaderProvider + Unpin + Clone + 'static
+// {
+//     type Output = ();
+
+//     fn poll(
+//         self: std::pin::Pin<&mut Self>,
+//         cx: &mut std::task::Context<'_>
+//     ) -> std::task::Poll<Self::Output> {
+//         let this = self.get_mut();
+//         let peer_id = this.get_node_public_key();
+//         let span = span!(Level::TRACE, "peer_id: {:?}", ?peer_id);
+//         let e = span.enter();
+
+//         if this.strom_network.poll_unpin(cx).is_ready() {
+//             return Poll::Ready(())
+//         }
+
+//         drop(e);
+
+//         Poll::Pending
+//     }
+// }

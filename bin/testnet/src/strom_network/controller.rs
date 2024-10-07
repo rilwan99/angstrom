@@ -9,11 +9,11 @@ use reth_primitives::Address;
 use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
 use tracing::{span, Instrument, Level};
 
-use super::manager::{StromPeerManager, StromPeerManagerBuilder};
+use super::manager::{TestnetPeerManager, TestnetPeerManagerBuilder};
 use crate::{contract_setup::deploy_contract_and_create_pool, eth::RpcStateProviderFactoryWrapper};
 
 pub struct StromController<C = NoopProvider> {
-    peers: HashMap<u64, StromPeerManager<C>>
+    peers: HashMap<u64, TestnetPeerManager<C>>
 }
 
 impl<C> StromController<C>
@@ -39,7 +39,8 @@ where
         let angstrom_addr = addresses.contract;
 
         let peer =
-            StromPeerManagerBuilder::new(id, starting_port as u64, C::default(), rpc_wrapper).await;
+            TestnetPeerManagerBuilder::new(id, starting_port as u64, C::default(), rpc_wrapper)
+                .await;
 
         self.spawn_testnet_node(peer, angstrom_addr).await?;
 
@@ -71,7 +72,7 @@ where
         // wait on each peer to add all other peers
         let needed_peers = peer_set.len() - 1;
         let streams = self.peers.iter().map(|(id, peer_handle)| {
-            (*id, NetworkEventStream::new(peer_handle.peer.eth_peer.event_listener()))
+            (*id, NetworkEventStream::new(peer_handle.peer.eth_network_handle().event_listener()))
         });
 
         // std::future::poll_fn(|cx| {
@@ -108,7 +109,7 @@ where
     /// if None, then a random id is used
     pub async fn run_event<'a, F, O, R>(&'a self, id: Option<u64>, f: F) -> R
     where
-        F: FnOnce(&'a StromPeerManager<C>) -> O,
+        F: FnOnce(&'a TestnetPeerManager<C>) -> O,
         O: Future<Output = R>
     {
         let id = if let Some(i) = id {
@@ -130,17 +131,17 @@ where
         r
     }
 
-    fn add_peer(&mut self, peer: StromPeerManager<C>) {
+    fn add_peer(&mut self, peer: TestnetPeerManager<C>) {
         self.peers.insert(peer.id, peer);
     }
 
-    pub fn get_peer(&self, id: u64) -> &StromPeerManager<C> {
+    pub fn get_peer(&self, id: u64) -> &TestnetPeerManager<C> {
         self.peers.get(&id).expect(&format!("peer {id} not found"))
     }
 
     async fn spawn_testnet_node(
         &mut self,
-        peer_builder: StromPeerManagerBuilder<C>,
+        peer_builder: TestnetPeerManagerBuilder<C>,
         contract_address: Address
     ) -> eyre::Result<()> {
         let peer = peer_builder.build_and_spawn(contract_address).await?;
