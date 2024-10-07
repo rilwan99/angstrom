@@ -6,12 +6,13 @@ use std::{
     time::{SystemTime, UNIX_EPOCH}
 };
 
+use alloy::primitives::{keccak256, Address, FixedBytes, B256};
 use alloy_chains::Chain;
+use alloy_rpc_types::Peers;
+use angstrom_types::primitive::PeerId;
 use futures::FutureExt;
 use parking_lot::RwLock;
 use reth_metrics::common::mpsc::{MeteredPollSender, UnboundedMeteredSender};
-use reth_primitives::{alloy_primitives::FixedBytes, keccak256, Address, BufMut, BytesMut};
-use reth_rpc_types::PeerId;
 use reth_tasks::TaskSpawner;
 use secp256k1::{Message, SecretKey, SECP256K1};
 use tokio::sync::mpsc::Receiver;

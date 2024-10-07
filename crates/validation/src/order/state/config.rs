@@ -1,8 +1,7 @@
 use std::path::Path;
 
-use alloy::primitives::Address;
+use alloy::primitives::{keccak256, Address, U256};
 use angstrom_types::primitive::PoolId;
-use reth_primitives::{keccak256, U256};
 use reth_revm::DatabaseRef;
 use serde::Deserialize;
 
@@ -124,9 +123,9 @@ pub fn load_validation_config(config_path: &Path) -> eyre::Result<ValidationConf
 pub fn load_validation_config(_config_path: &Path) -> eyre::Result<ValidationConfig> {
     Ok(ValidationConfig {
         pools:                   vec![PoolConfig {
-            token0:  reth_primitives::address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
-            token1:  reth_primitives::address!("dAC17F958D2ee523a2206206994597C13D831ec7"),
-            pool_id: reth_primitives::b256!(
+            token0:  alloy::primitives::address!("c02aaa39b223fe8d0a0e5c4f27ead9083c756cc2"),
+            token1:  alloy::primitives::address!("dAC17F958D2ee523a2206206994597C13D831ec7"),
+            pool_id: alloy::primitives::b256!(
                 "f3d07fe972c84e425ea04c19b19ca12e463d494680251f1aaac588870254d245"
             )
         }],

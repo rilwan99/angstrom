@@ -1,4 +1,5 @@
 use clap::{ArgAction, Parser};
+use testing_tools::testnet_controllers::config::StromTestnetConfig;
 use tracing::{level_filters::LevelFilter, Level};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 
@@ -35,10 +36,15 @@ pub struct Cli {
 }
 
 impl Cli {
-    pub fn parse_with_tracing() -> Self {
+    pub fn build_config() -> StromTestnetConfig {
         let this = Self::parse();
         this.init_tracing();
-        this
+
+        StromTestnetConfig {
+            intial_node_count:       this.nodes_in_network,
+            initial_rpc_port:        this.starting_port,
+            testnet_block_time_secs: this.testnet_block_time_secs
+        }
     }
 
     fn init_tracing(&self) {

@@ -1,49 +1,54 @@
-use std::{
-    collections::HashSet,
-    marker::PhantomData,
-    net::SocketAddr,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc
-    },
-    task::{Context, Poll}
-};
+use std::{collections::HashSet, sync::Arc};
 
-use alloy_chains::Chain;
-use angstrom_network::{
-    manager::StromConsensusEvent, state::StromState, NetworkOrderEvent, StatusState,
-    StromNetworkEvent, StromNetworkHandle, StromNetworkManager, StromProtocolHandler,
-    StromSessionManager, Swarm, VerificationSidecar
-};
-use futures::{Future, FutureExt};
+use alloy_primitives::Address;
+use angstrom_network::{StromNetworkEvent, StromNetworkHandle, StromNetworkManager};
+use angstrom_types::primitive::PeerId;
 use parking_lot::RwLock;
-use rand::thread_rng;
-use reth_metrics::common::mpsc::{MeteredPollSender, UnboundedMeteredSender};
-use reth_network::test_utils::{Peer, PeerConfig, PeerHandle};
-use reth_network_api::Peers;
-use reth_network_peers::{pk2id, PeerId};
-use reth_primitives::Address;
-use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
-use reth_transaction_pool::{
-    blobstore::InMemoryBlobStore, noop::MockTransactionValidator, test_utils::MockTransaction,
-    CoinbaseTipOrdering, Pool
-};
-use secp256k1::{PublicKey, Secp256k1, SecretKey};
-use tokio::task::JoinHandle;
 use tokio_stream::wrappers::UnboundedReceiverStream;
-use tokio_util::sync::PollSender;
-use tracing::{span, Instrument, Level, Span};
 
-pub struct StromPeer {
-    strom_network_handle: StromNetworkHandle,
-    strom_validator_set:  Arc<RwLock<HashSet<Address>>>
+#[derive(Clone)]
+pub struct StromNetworkPeer {
+    pub network_handle: StromNetworkHandle,
+    pub validator_set:  Arc<RwLock<HashSet<Address>>>
 }
 
-impl StromPeer {
-    pub fn new<C>(strom_network: &StromNetworkManager<C>) -> Self {
+impl StromNetworkPeer {
+    pub fn new<C: Unpin>(strom_network: &StromNetworkManager<C>) -> Self {
         Self {
-            strom_network_handle: strom_network.get_handle(),
-            strom_validator_set:  strom_network.swarm().state().validators().clone()
+            network_handle: strom_network.get_handle(),
+            validator_set:  strom_network.swarm().state().validators().clone()
         }
+    }
+
+    pub fn network_handle(&self) -> &StromNetworkHandle {
+        &self.network_handle
+    }
+
+    pub fn validator_set(&self) -> Arc<RwLock<HashSet<Address>>> {
+        self.validator_set.clone()
+    }
+
+    pub fn disconnect_peer(&self, id: PeerId) {
+        self.network_handle.remove_peer(id)
+    }
+
+    pub fn peer_count(&self) -> usize {
+        self.network_handle.peer_count()
+    }
+
+    pub fn remove_validator(&self, id: PeerId) {
+        let addr = Address::from_raw_public_key(id.as_slice());
+        let set = self.validator_set();
+        set.write().remove(&addr);
+    }
+
+    pub fn add_validator(&self, id: PeerId) {
+        let addr = Address::from_raw_public_key(id.as_slice());
+        let set = self.validator_set();
+        set.write().insert(addr);
+    }
+
+    pub fn subscribe_network_events(&self) -> UnboundedReceiverStream<StromNetworkEvent> {
+        self.network_handle.subscribe_network_events()
     }
 }

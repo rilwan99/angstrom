@@ -1,10 +1,11 @@
 mod eth_peer;
+use futures::FutureExt;
+
 mod network_future;
 mod strom_peer;
 use std::{
     collections::HashSet,
-    marker::PhantomData,
-    net::SocketAddr,
+    pin::Pin,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc
@@ -13,52 +14,55 @@ use std::{
 };
 
 use alloy_chains::Chain;
+use alloy_primitives::Address;
 use angstrom_network::{
     manager::StromConsensusEvent, state::StromState, NetworkOrderEvent, StatusState,
-    StromNetworkEvent, StromNetworkHandle, StromNetworkManager, StromProtocolHandler,
-    StromSessionManager, Swarm, VerificationSidecar
+    StromNetworkManager, StromProtocolHandler, StromSessionManager, Swarm, VerificationSidecar
 };
 pub use eth_peer::*;
-use futures::{Future, FutureExt};
+use network_future::TestnetPeerFuture;
 use parking_lot::RwLock;
 use rand::thread_rng;
+use reth_chainspec::Hardforks;
 use reth_metrics::common::mpsc::{MeteredPollSender, UnboundedMeteredSender};
-use reth_network_api::Peers;
+use reth_network::test_utils::PeerConfig;
 use reth_network_peers::{pk2id, PeerId};
-use reth_primitives::Address;
-use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
-use reth_transaction_pool::{
-    blobstore::InMemoryBlobStore, noop::MockTransactionValidator, test_utils::MockTransaction,
-    CoinbaseTipOrdering, Pool
-};
+use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 pub use strom_peer::*;
 use tokio::task::JoinHandle;
-use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::PollSender;
-use tracing::{span, Instrument, Level, Span};
+use tracing::{span, Level};
 
-use crate::network::peers::StromPeer;
+use crate::network::peers::StromNetworkPeer;
 
-pub struct TestnetPeer {
+pub struct TestnetNodeNetwork {
     // eth components
-    eth_peer_handle:   EthPeer,
+    eth_handle:   EthNetworkPeer,
     // strom components
-    strom_peer_handle: StromPeer,
-    secret_key:        SecretKey,
-    peer_id:           PeerId,
-    futs:              JoinHandle<()>,
-    running:           AtomicBool,
-    _span:             Span
+    strom_handle: StromNetworkPeer,
+    secret_key:   SecretKey,
+    pubkey:       PeerId,
+    running:      Arc<AtomicBool>,
+    network_futs: JoinHandle<()>
 }
 
-impl TestnetPeer {
-    pub async fn new_fully_configed<C: BlockReader + HeaderProvider + Unpin + Clone + 'static>(
-        id: u64,
+impl TestnetNodeNetwork {
+    pub async fn new_fully_configed<C>(
+        testnet_node_id: u64,
         c: C,
         to_pool_manager: Option<UnboundedMeteredSender<NetworkOrderEvent>>,
         to_consensus_manager: Option<UnboundedMeteredSender<StromConsensusEvent>>
-    ) -> Self {
+    ) -> Self
+    where
+        C: BlockReader
+            + HeaderProvider
+            + ChainSpecProvider
+            + Unpin
+            + Clone
+            + ChainSpecProvider<ChainSpec: Hardforks>
+            + 'static
+    {
         let mut rng = thread_rng();
         let sk = SecretKey::new(&mut rng);
         let peer = PeerConfig::with_secret_key(c.clone(), sk);
@@ -99,21 +103,20 @@ impl TestnetPeer {
         let mut eth_peer = peer.launch().await.unwrap();
         eth_peer.network_mut().add_rlpx_sub_protocol(protocol);
 
-        let strom_peer_handle = StromPeer::new(&strom_network);
-        let eth_peer_handle = peer.peer_handle();
+        let strom_handle = StromNetworkPeer::new(&strom_network);
+        let eth_handle = EthNetworkPeer::new(&eth_peer);
 
-        let span = span!(Level::DEBUG, "testnet node", id);
+        let span = span!(Level::DEBUG, "testnet node", testnet_node_id);
 
-        let running = AtomicBool::new(true);
-        let futs = TestnetPeerFuture::new(eth_peer, strom_network, running);
+        let running = Arc::new(AtomicBool::new(false));
+        let futs = TestnetPeerFuture::new(eth_peer, strom_network, running.clone(), span);
 
         Self {
-            strom_peer_handle,
+            strom_handle,
             secret_key: sk,
-            peer_id,
-            _span: span,
-            eth_peer_handle,
-            futs: tokio::spawn(futs).instrument(span),
+            pubkey: peer_id,
+            network_futs: tokio::spawn(futs),
+            eth_handle,
             running
         }
     }
@@ -126,61 +129,61 @@ impl TestnetPeer {
         todo!("tx pool not configured for test peer")
     }
 
-    pub fn peer_id(&self) -> PeerId {
-        self.peer_id
+    pub fn pubkey(&self) -> PeerId {
+        self.pubkey
     }
 
-    pub fn strom_network_handle(&self) -> &StromNetworkHandle {
-        &self.strom.strom_network_handle
+    pub fn strom_peer_network(&self) -> &StromNetworkPeer {
+        &self.strom_handle
     }
 
-    pub fn eth_network_handle(&self) -> &PeerHandle<PeerPool> {
-        &self.eth.eth_peer_handle
+    pub fn eth_peer_handle(&self) -> &EthNetworkPeer {
+        &self.eth_handle
     }
 
-    pub fn get_node_public_key(&self) -> PeerId {
-        let pub_key = PublicKey::from_secret_key(&Secp256k1::default(), &self.secret_key);
-        pk2id(&pub_key)
+    pub fn stop_network(&self) {
+        self.running.store(false, Ordering::Relaxed);
     }
 
-    pub fn disconnect_peer(&self, id: PeerId) {
-        self.strom_network_handle().remove_peer(id)
+    pub fn start_network(&self) {
+        self.running.store(true, Ordering::Relaxed);
     }
 
-    pub fn get_peer_count(&self) -> usize {
-        self.strom_network_handle().peer_count()
+    pub fn is_network_off(&self) -> bool {
+        self.running.load(Ordering::Relaxed) == false
     }
 
-    pub fn remove_validator(&self, id: PeerId) {
-        let addr = Address::from_raw_public_key(id.as_slice());
-        let set = self.get_validator_set();
-        set.write().remove(&addr);
+    pub fn is_network_on(&self) -> bool {
+        self.running.load(Ordering::Relaxed) == true
     }
 
-    pub fn add_validator(&self, id: PeerId) {
-        let addr = Address::from_raw_public_key(id.as_slice());
-        let set = self.get_validator_set();
-        set.write().insert(addr);
+    pub(crate) async fn initialize_connections(&mut self, connections_needed: usize) {
+        let mut last_peer_count = 0;
+        std::future::poll_fn(|cx| loop {
+            if self.poll_fut_to_initialize(cx).is_ready() {
+                tracing::error!("peer failed");
+            }
+
+            let peer_cnt = self.strom_peer_network().peer_count();
+            if last_peer_count != peer_cnt {
+                tracing::trace!("connected to {peer_cnt}/{connections_needed} peers");
+                last_peer_count = peer_cnt;
+            }
+
+            if connections_needed == peer_cnt {
+                return Poll::Ready(())
+            }
+        })
+        .await
     }
 
-    pub fn connect_to_peer(&self, id: PeerId, addr: SocketAddr) {
-        self.eth_network_handle().peer_handle().add_peer(id, addr);
+    fn poll_fut_to_initialize(&mut self, cx: &mut Context<'_>) -> Poll<()> {
+        self.network_futs.poll_unpin(cx).map(|_| ())
     }
+}
 
-    pub fn socket_addr(&self) -> SocketAddr {
-        self.eth_network_handle().local_addr()
-    }
-
-    fn get_validator_set(&self) -> Arc<RwLock<HashSet<Address>>> {
-        self.strom.strom_validator_set.clone()
-    }
-
-    pub fn sub_network_events(&self) -> UnboundedReceiverStream<StromNetworkEvent> {
-        self.strom_network_handle().subscribe_network_events()
-    }
-
-    pub fn removed_peer(&self) {
-        self.strom.strom_network_fut.abort();
-        self.eth.peer_fut.abort();
+impl Drop for TestnetNodeNetwork {
+    fn drop(&mut self) {
+        self.network_futs.abort();
     }
 }

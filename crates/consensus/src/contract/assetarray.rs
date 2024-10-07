@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
+use alloy_primitives::Address;
 use angstrom_types::contract_payloads::tob::Asset;
-use reth_primitives::Address;
 
 /// Lets us easily track an array of assets and indexes into that array for
 /// contract transformation purposes

@@ -1,29 +1,36 @@
 use std::{
     future::Future,
     pin::Pin,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc
+    },
     task::{Context, Poll}
 };
 
 use angstrom_network::StromNetworkManager;
 use futures::FutureExt;
+use reth_network::test_utils::Peer;
+use reth_provider::BlockReader;
+use tracing::{Instrument, Span};
 
 pub(crate) struct TestnetPeerFuture {
-    eth_peer_fut:      Pin<Box<dyn Future<Output = ()>>>,
+    eth_peer_fut:      Pin<Box<dyn Future<Output = ()> + Send>>,
     /// the default ethereum network peer
-    strom_network_fut: Pin<Box<dyn Future<Output = ()>>>,
-    running:           AtomicBool
+    strom_network_fut: Pin<Box<dyn Future<Output = ()> + Send>>,
+    running:           Arc<AtomicBool>
 }
 
 impl TestnetPeerFuture {
-    pub(crate) fn new<C: Unpin>(
+    pub(crate) fn new<C: Unpin + BlockReader + 'static>(
         eth_peer: Peer<C>,
         strom_network: StromNetworkManager<C>,
-        running: AtomicBool
+        running: Arc<AtomicBool>,
+        span: Span
     ) -> Self {
         Self {
-            eth_peer_fut: Box::pin(eth_peer),
-            strom_network_fut: Box::pin(strom_network),
+            eth_peer_fut: Box::pin(eth_peer.instrument(span.clone())),
+            strom_network_fut: Box::pin(strom_network.instrument(span.clone())),
             running
         }
     }
@@ -45,6 +52,7 @@ impl Future for TestnetPeerFuture {
             }
         }
 
+        cx.waker().wake_by_ref();
         Poll::Pending
     }
 }

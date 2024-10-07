@@ -7,13 +7,13 @@ use alloy::{
     primitives::{Address, BlockNumber},
     rpc::types::eth::{Block, Filter}
 };
+use alloy_primitives::Log;
 use amms::{amm::AutomatedMarketMaker, errors::EventLogError};
 use angstrom_types::matching::SqrtPriceX96;
 use arraydeque::ArrayDeque;
 use eyre::Error;
 use futures::StreamExt;
 use futures_util::stream::BoxStream;
-use reth_primitives::Log;
 use thiserror::Error;
 use tokio::{
     sync::{

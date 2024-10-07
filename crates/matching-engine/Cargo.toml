@@ -16,6 +16,7 @@ divan = "0.1.14"
 angstrom-types.workspace = true
 angstrom-utils.workspace = true
 alloy.workspace = true
+alloy-primitives.workspace = true
 eyre.workspace = true
 futures.workspace = true
 futures-util.workspace = true
@@ -32,7 +33,7 @@ criterion.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 thiserror.workspace = true
-reth-primitives.workspace = true
+#reth-primitives.workspace = true
 reth-provider.workspace = true
 
 arraydeque = "0.5"

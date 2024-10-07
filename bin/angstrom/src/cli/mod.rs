@@ -5,10 +5,10 @@ use std::{
     sync::{Arc, Mutex}
 };
 
+use alloy_primitives::Address;
 use angstrom_metrics::{initialize_prometheus_metrics, METRICS_ENABLED};
 use angstrom_network::manager::StromConsensusEvent;
 use order_pool::{order_storage::OrderStorage, PoolConfig, PoolManagerUpdate};
-use reth::primitives::Address;
 use reth_node_builder::{FullNode, NodeHandle};
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use tokio::sync::mpsc::{
@@ -27,6 +27,7 @@ use angstrom_network::{
     VerificationSidecar
 };
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
+use angstrom_types::primitive::PeerId;
 use clap::Parser;
 use consensus::{
     AngstromValidator, ConsensusCommand, ConsensusHandle, ConsensusManager, GlobalConsensusState,
@@ -34,7 +35,7 @@ use consensus::{
 };
 use reth::{
     api::NodeAddOns,
-    args::utils::DefaultChainSpecParser,
+    args::utils::EthereumChainSpecParser,
     builder::{FullNodeComponents, Node},
     cli::Cli,
     providers::CanonStateSubscriptions,
@@ -44,7 +45,6 @@ use reth_cli_util::get_secret_key;
 use reth_metrics::common::mpsc::{UnboundedMeteredReceiver, UnboundedMeteredSender};
 use reth_network_peers::pk2id;
 use reth_node_ethereum::{node::EthereumAddOns, EthereumNode};
-use reth_rpc_types::PeerId;
 use validation::init_validation;
 
 use crate::cli::network_builder::AngstromNetworkBuilder;
@@ -53,7 +53,7 @@ use crate::cli::network_builder::AngstromNetworkBuilder;
 /// chosen command.
 #[inline]
 pub fn run() -> eyre::Result<()> {
-    Cli::<DefaultChainSpecParser, AngstromConfig>::parse().run(|builder, args| async move {
+    Cli::<EthereumChainSpecParser, AngstromConfig>::parse().run(|builder, args| async move {
         let executor = builder.task_executor().clone();
 
         if args.metrics {

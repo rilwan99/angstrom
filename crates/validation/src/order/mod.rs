@@ -1,6 +1,6 @@
 use std::{fmt::Debug, future::Future, pin::Pin};
 
-use alloy::primitives::Address;
+use alloy::primitives::{Address, B256};
 use angstrom_types::{
     orders::{OrderId, OrderOrigin},
     sol_bindings::{
@@ -11,7 +11,6 @@ use angstrom_types::{
         rpc_orders::TopOfBlockOrder
     }
 };
-use reth_primitives::B256;
 use state::account::user::UserAddress;
 use tokio::sync::oneshot::{channel, Sender};
 

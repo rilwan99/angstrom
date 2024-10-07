@@ -3,12 +3,13 @@ use std::{
     time::{SystemTime, UNIX_EPOCH}
 };
 
-use alloy::rlp::{RlpDecodable, RlpEncodable};
+use alloy::{
+    primitives::{keccak256, Address, FixedBytes},
+    rlp::{BufMut, BytesMut, RlpDecodable, RlpEncodable}
+};
 use alloy_chains::{Chain, NamedChain};
-use angstrom_types::primitive::Signature;
+use angstrom_types::primitive::{PeerId, Signature};
 use reth_chainspec::ChainSpec;
-use reth_primitives::{alloy_primitives::FixedBytes, keccak256, Address, BufMut, BytesMut, Head};
-use reth_rpc_types::PeerId;
 use secp256k1::{
     ecdsa::{RecoverableSignature, RecoveryId},
     Message, SECP256K1

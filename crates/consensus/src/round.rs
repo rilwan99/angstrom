@@ -6,10 +6,9 @@ use std::{
     time::Duration
 };
 
-use alloy_primitives::FixedBytes;
+use alloy_primitives::{FixedBytes, B512};
 use angstrom_types::consensus::{Commit, PreProposal};
 use futures::{ready, Future, FutureExt, Stream};
-use reth_primitives::B512;
 use tokio::task::AbortHandle;
 use tracing::warn;
 

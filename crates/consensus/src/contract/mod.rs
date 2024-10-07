@@ -2,6 +2,7 @@ mod assetarray;
 mod builder;
 mod state;
 
+use alloy_primitives::U256;
 use angstrom_types::{
     consensus::Proposal,
     contract_payloads::angstrom::{
@@ -13,7 +14,6 @@ use angstrom_types::{
 };
 use builder::{AssetBuilder, AssetBuilderStage};
 use matching_engine::{cfmm::uniswap::tob::ToBOutcome, MatchingManager};
-use reth_primitives::U256;
 use tracing::warn;
 use validation::order::state::pools::AngstromPoolsTracker;
 
@@ -222,9 +222,8 @@ pub fn to_contract_order(
 
 #[cfg(test)]
 mod tests {
-    use alloy_primitives::FixedBytes;
+    use alloy_primitives::{Address, FixedBytes};
     use angstrom_types::primitive::PoolId;
-    use reth_primitives::Address;
     use testing_tools::type_generator::consensus::proposal::ProposalBuilder;
     use validation::order::state::{
         config::{PoolConfig, ValidationConfig},

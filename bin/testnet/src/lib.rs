@@ -1,4 +1,4 @@
-// pub mod cli;
+pub mod cli;
 // mod constants;
 // pub use constants::*;
 // pub mod contract_setup;

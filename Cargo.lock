@@ -740,6 +740,7 @@ version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64333d639f2a0cf73491813c629a405744e16343a4bc5640931be707c345ecc5"
 dependencies = [
+ "alloy-rpc-types-anvil 0.3.6",
  "alloy-rpc-types-engine 0.3.6",
  "alloy-rpc-types-eth 0.3.6",
  "alloy-rpc-types-trace 0.3.6",
@@ -1451,6 +1452,7 @@ name = "angstrom"
 version = "0.1.0"
 dependencies = [
  "alloy-chains",
+ "alloy-primitives 0.8.6",
  "alloy-rpc-types 0.4.2",
  "angstrom-eth",
  "angstrom-metrics",
@@ -5648,6 +5650,7 @@ name = "matching-engine"
 version = "0.1.0"
 dependencies = [
  "alloy",
+ "alloy-primitives 0.8.6",
  "amms",
  "angstrom-types",
  "angstrom-utils",
@@ -5664,7 +5667,6 @@ dependencies = [
  "pade-macro",
  "rand",
  "rand_distr",
- "reth-primitives",
  "reth-provider",
  "reth-tasks",
  "testing-tools",
@@ -10963,7 +10965,6 @@ dependencies = [
  "alloy-chains",
  "alloy-primitives 0.8.6",
  "alloy-rlp",
- "alloy-rpc-types 0.4.2",
  "alloy-sol-types 0.8.6",
  "angstrom",
  "angstrom-eth",
@@ -11033,6 +11034,7 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "alloy-chains",
+ "alloy-primitives 0.8.6",
  "alloy-rpc-types 0.4.2",
  "angstrom",
  "angstrom-eth",
@@ -11075,6 +11077,7 @@ dependencies = [
  "secp256k1 0.29.1",
  "serial_test",
  "tempfile",
+ "testing-tools",
  "tikv-jemallocator",
  "tokio",
  "tokio-stream",

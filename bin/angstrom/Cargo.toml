@@ -20,6 +20,7 @@ normal = [
 # Alloy
 alloy-chains.workspace = true
 alloy-rpc-types.workspace = true
+alloy-primitives.workspace = true
 
 # Reth
 reth.workspace = true

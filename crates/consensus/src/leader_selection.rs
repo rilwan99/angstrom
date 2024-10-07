@@ -1,13 +1,12 @@
 use std::{
     cmp::Ordering,
     collections::HashSet,
-    default::Default,
     fs::File,
     io::{self, Read, Write}
 };
 
 use alloy_primitives::BlockNumber;
-use reth_rpc_types::PeerId;
+use angstrom_types::primitive::PeerId;
 
 const ROUND_ROBIN_CACHE: &str = "./";
 

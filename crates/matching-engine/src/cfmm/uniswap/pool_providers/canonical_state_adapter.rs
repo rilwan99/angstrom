@@ -1,8 +1,10 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use alloy::rpc::types::{Filter, FilterBlockOption};
+use alloy::{
+    primitives::Log,
+    rpc::types::{BlockNumberOrTag, Filter, FilterBlockOption}
+};
 use futures_util::StreamExt;
-use reth_primitives::{BlockNumberOrTag, Log};
 use reth_provider::CanonStateNotification;
 use tokio::sync::{broadcast, RwLock};
 

@@ -39,7 +39,7 @@ reth-dns-discovery = { git = "https://github.com/paradigmxyz/reth", version = "1
 
 alloy.workspace = true
 alloy-chains.workspace = true
-alloy-rpc-types.workspace = true
+alloy-rpc-types = { workspace = true, features = ["eth"] }
 
 anyhow.workspace = true
 bincode.workspace = true

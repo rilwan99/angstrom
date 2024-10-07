@@ -1,5 +1,5 @@
+use alloy_primitives::Bytes;
 use rand::Rng;
-use reth_primitives::Bytes;
 
 use super::RandomizerSized;
 

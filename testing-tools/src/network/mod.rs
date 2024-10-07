@@ -1,325 +1,329 @@
-use std::{collections::HashMap, pin::Pin, task::Poll};
-
-use angstrom_network::{manager::StromConsensusEvent, StromMessage, StromNetworkEvent};
-use angstrom_types::consensus::{Commit, PreProposal, Proposal};
-use futures::{
-    stream::{Stream, StreamExt},
-    FutureExt
-};
-use reth_metrics::common::mpsc::metered_unbounded_channel;
-use reth_network_api::PeerId;
-use reth_provider::test_utils::NoopProvider;
-use secp256k1::SecretKey;
-use tokio_stream::wrappers::UnboundedReceiverStream;
-
 pub mod peers;
 
-/// the goal of the angstrom testnet is to extend reth's baseline tests
-/// as-well as expand appon to allow for composing tests and ensuring full
-/// performance
-pub struct AngstromTestnet {
-    pub peers:               HashMap<PeerId, StromPeer>,
-    pub peer_network_events: HashMap<PeerId, UnboundedReceiverStream<StromNetworkEvent>>
-}
+// use std::{collections::HashMap, pin::Pin, task::Poll};
 
-impl AngstromTestnet {
-    pub async fn new(peers: usize, provider: NoopProvider) -> Self {
-        let peers = futures::stream::iter(0..peers)
-            .map(|_| async move {
-                let peer = StromPeer::new(provider).await;
-                let pk = peer.get_node_public_key();
-                (pk, peer)
-            })
-            .buffer_unordered(4)
-            .collect::<HashMap<_, _>>()
-            .await;
+// use angstrom_network::{manager::StromConsensusEvent, StromMessage,
+// StromNetworkEvent}; use angstrom_types::consensus::{Commit, PreProposal,
+// Proposal}; use futures::{
+//     stream::{Stream, StreamExt},
+//     FutureExt
+// };
+// use reth_metrics::common::mpsc::metered_unbounded_channel;
+// use reth_network_api::PeerId;
+// use reth_provider::test_utils::NoopProvider;
+// use secp256k1::SecretKey;
+// use tokio_stream::wrappers::UnboundedReceiverStream;
 
-        let peer_network_events = peers
-            .iter()
-            .map(|(k, p)| (*k, p.sub_network_events()))
-            .collect::<HashMap<_, _>>();
+// /// the goal of the angstrom testnet is to extend reth's baseline tests
+// /// as-well as expand appon to allow for composing tests and ensuring full
+// /// performance
+// pub struct AngstromTestnet {
+//     pub peers:               HashMap<PeerId, StromPeer>,
+//     pub peer_network_events: HashMap<PeerId,
+// UnboundedReceiverStream<StromNetworkEvent>> }
 
-        Self { peers, peer_network_events }
-    }
+// impl AngstromTestnet {
+//     pub async fn new(peers: usize, provider: NoopProvider) -> Self {
+//         let peers = futures::stream::iter(0..peers)
+//             .map(|_| async move {
+//                 let peer = StromPeer::new(provider).await;
+//                 let pk = peer.get_node_public_key();
+//                 (pk, peer)
+//             })
+//             .buffer_unordered(4)
+//             .collect::<HashMap<_, _>>()
+//             .await;
 
-    pub fn add_new_peer(&mut self, peer: StromPeer) {
-        let pk = peer.get_node_public_key();
-        self.peers.insert(pk, peer);
-    }
+//         let peer_network_events = peers
+//             .iter()
+//             .map(|(k, p)| (*k, p.sub_network_events()))
+//             .collect::<HashMap<_, _>>();
 
-    pub fn peers(&self) -> impl Iterator<Item = (&PeerId, &StromPeer)> + '_ {
-        self.peers.iter()
-    }
+//         Self { peers, peer_network_events }
+//     }
 
-    pub fn peers_mut(&mut self) -> impl Iterator<Item = (&PeerId, &mut StromPeer)> + '_ {
-        self.peers.iter_mut()
-    }
+//     pub fn add_new_peer(&mut self, peer: StromPeer) {
+//         let pk = peer.get_node_public_key();
+//         self.peers.insert(pk, peer);
+//     }
 
-    /// ensures all peers have eachother on there validator list
-    pub async fn connect_all_peers(&mut self) {
-        // add all as validators
-        let peer_set = self.peers.iter().collect::<Vec<_>>();
-        for (pk, peer) in &self.peers {
-            for (other, _) in &peer_set {
-                if pk == *other {
-                    continue
-                }
-                peer.add_validator(**other);
-            }
-        }
-        // add all peers to each other
-        let peers = self.peers.iter().collect::<Vec<_>>();
-        for (idx, (_, handle)) in peers.iter().enumerate().take(self.peers.len() - 1) {
-            for peer in peers.iter().skip(idx + 1) {
-                let (id, neighbour) = peer;
-                handle.connect_to_peer(**id, neighbour.socket_addr());
-            }
-        }
+//     pub fn peers(&self) -> impl Iterator<Item = (&PeerId, &StromPeer)> + '_ {
+//         self.peers.iter()
+//     }
 
-        // wait on each peer to add all other peers
-        let needed_peers = self.peers.len() - 1;
-        let mut peers = self.peers.iter_mut().map(|(_, p)| p).collect::<Vec<_>>();
-        let mut chans = self.peer_network_events.values_mut().collect::<Vec<_>>();
+//     pub fn peers_mut(&mut self) -> impl Iterator<Item = (&PeerId, &mut
+// StromPeer)> + '_ {         self.peers.iter_mut()
+//     }
 
-        std::future::poll_fn(|cx| {
-            let mut all_connected = true;
-            for peer in &mut peers {
-                if peer.poll_unpin(cx).is_ready() {
-                    tracing::error!("peer failed");
-                }
-                all_connected &= peer.get_peer_count() == needed_peers
-            }
+//     /// ensures all peers have eachother on there validator list
+//     pub async fn connect_all_peers(&mut self) {
+//         // add all as validators
+//         let peer_set = self.peers.iter().collect::<Vec<_>>();
+//         for (pk, peer) in &self.peers {
+//             for (other, _) in &peer_set {
+//                 if pk == *other {
+//                     continue
+//                 }
+//                 peer.add_validator(**other);
+//             }
+//         }
+//         // add all peers to each other
+//         let peers = self.peers.iter().collect::<Vec<_>>();
+//         for (idx, (_, handle)) in
+// peers.iter().enumerate().take(self.peers.len() - 1) {             for peer in
+// peers.iter().skip(idx + 1) {                 let (id, neighbour) = peer;
+//                 handle.connect_to_peer(**id, neighbour.socket_addr());
+//             }
+//         }
 
-            for chan in &mut chans {
-                if let Poll::Ready(Some(msg)) = chan.poll_next_unpin(cx) {
-                    tracing::debug!(?msg, "peer got msg");
-                }
-            }
-            if all_connected {
-                return Poll::Ready(())
-            }
+//         // wait on each peer to add all other peers
+//         let needed_peers = self.peers.len() - 1;
+//         let mut peers = self.peers.iter_mut().map(|(_, p)|
+// p).collect::<Vec<_>>();         let mut chans =
+// self.peer_network_events.values_mut().collect::<Vec<_>>();
 
-            Poll::Pending
-        })
-        .await
-    }
+//         std::future::poll_fn(|cx| {
+//             let mut all_connected = true;
+//             for peer in &mut peers {
+//                 if peer.poll_unpin(cx).is_ready() {
+//                     tracing::error!("peer failed");
+//                 }
+//                 all_connected &= peer.get_peer_count() == needed_peers
+//             }
 
-    pub async fn clear_strom_network_event_chan(&mut self) {
-        std::future::poll_fn(|cx| {
-            self.peer_network_events.values_mut().for_each(|chan| {
-                while !chan.as_ref().is_empty() {
-                    let _ = chan.poll_next_unpin(cx);
-                }
-            });
-            Poll::Ready(())
-        })
-        .await;
-    }
+//             for chan in &mut chans {
+//                 if let Poll::Ready(Some(msg)) = chan.poll_next_unpin(cx) {
+//                     tracing::debug!(?msg, "peer got msg");
+//                 }
+//             }
+//             if all_connected {
+//                 return Poll::Ready(())
+//             }
 
-    async fn message_test<T: PartialEq + Eq>(
-        &mut self,
-        mut rx: Pin<Box<dyn Stream<Item = T>>>,
-        expected: T,
-        mut expected_messages: usize
-    ) -> bool {
-        std::future::poll_fn(|cx| {
-            // make sure to progress our peers so they can receive msgs
-            for peer in self.peers.values_mut() {
-                if peer.poll_unpin(cx).is_ready() {
-                    tracing::warn!("peer returned early");
+//             Poll::Pending
+//         })
+//         .await
+//     }
 
-                    return Poll::Ready(false)
-                }
-            }
+//     pub async fn clear_strom_network_event_chan(&mut self) {
+//         std::future::poll_fn(|cx| {
+//             self.peer_network_events.values_mut().for_each(|chan| {
+//                 while !chan.as_ref().is_empty() {
+//                     let _ = chan.poll_next_unpin(cx);
+//                 }
+//             });
+//             Poll::Ready(())
+//         })
+//         .await;
+//     }
 
-            // poll the channel and check all messages are equal
-            while let Poll::Ready(Some(received_msg)) = rx.poll_next_unpin(cx) {
-                if received_msg != expected {
-                    tracing::warn!("unexpected message");
-                    return Poll::Ready(false)
-                }
-                expected_messages -= 1;
-            }
+//     async fn message_test<T: PartialEq + Eq>(
+//         &mut self,
+//         mut rx: Pin<Box<dyn Stream<Item = T>>>,
+//         expected: T,
+//         mut expected_messages: usize
+//     ) -> bool {
+//         std::future::poll_fn(|cx| {
+//             // make sure to progress our peers so they can receive msgs
+//             for peer in self.peers.values_mut() {
+//                 if peer.poll_unpin(cx).is_ready() {
+//                     tracing::warn!("peer returned early");
 
-            if expected_messages == 0 {
-                return Poll::Ready(true)
-            }
+//                     return Poll::Ready(false)
+//                 }
+//             }
 
-            Poll::Pending
-        })
-        .await
-    }
+//             // poll the channel and check all messages are equal
+//             while let Poll::Ready(Some(received_msg)) =
+// rx.poll_next_unpin(cx) {                 if received_msg != expected {
+//                     tracing::warn!("unexpected message");
+//                     return Poll::Ready(false)
+//                 }
+//                 expected_messages -= 1;
+//             }
 
-    /// takes a random peer and gets them to broadcast the message. we then
-    /// take all other peers and ensure that they received the message.
-    pub async fn broadcast_message_orders(&mut self, msg: StromMessage) -> bool {
-        let (tx, rx) = metered_unbounded_channel("testing orders");
+//             if expected_messages == 0 {
+//                 return Poll::Ready(true)
+//             }
 
-        self.peers.iter_mut().for_each(|(_, peer)| {
-            peer.manager_mut().install_pool_manager(tx.clone());
-        });
+//             Poll::Pending
+//         })
+//         .await
+//     }
 
-        // fetch our sender peer
-        let (_, peer) = self.peers.iter_mut().take(1).collect::<Vec<_>>().remove(0);
+//     /// takes a random peer and gets them to broadcast the message. we then
+//     /// take all other peers and ensure that they received the message.
+//     pub async fn broadcast_message_orders(&mut self, msg: StromMessage) ->
+// bool {         let (tx, rx) = metered_unbounded_channel("testing orders");
 
-        // send message to other peers
-        peer.handle.broadcast_message(msg.clone());
-        let expected_msg_cnt = self.peers.len() - 1;
+//         self.peers.iter_mut().for_each(|(_, peer)| {
+//             peer.manager_mut().install_pool_manager(tx.clone());
+//         });
 
-        let expected = if let StromMessage::PropagatePooledOrders(o) = msg {
-            o
-        } else {
-            tracing::warn!("broadcast message orders called with a non order message");
-            return false
-        };
+//         // fetch our sender peer
+//         let (_, peer) =
+// self.peers.iter_mut().take(1).collect::<Vec<_>>().remove(0);
 
-        let rx = Box::pin(rx.map(|msg| match msg {
-            angstrom_network::NetworkOrderEvent::IncomingOrders { orders, .. } => orders
-        }));
+//         // send message to other peers
+//         peer.handle.broadcast_message(msg.clone());
+//         let expected_msg_cnt = self.peers.len() - 1;
 
-        let res = self.message_test(rx, expected, expected_msg_cnt).await;
+//         let expected = if let StromMessage::PropagatePooledOrders(o) = msg {
+//             o
+//         } else {
+//             tracing::warn!("broadcast message orders called with a non order
+// message");             return false
+//         };
 
-        // uninstall channel
-        self.peers.iter_mut().for_each(|(_, peer)| {
-            peer.manager_mut().remove_pool_manager();
-        });
+//         let rx = Box::pin(rx.map(|msg| match msg {
+//             angstrom_network::NetworkOrderEvent::IncomingOrders { orders, ..
+// } => orders         }));
 
-        res
-    }
+//         let res = self.message_test(rx, expected, expected_msg_cnt).await;
 
-    /// takes two random peers and tests order messages sending between them
-    pub async fn send_order_message(&mut self, msg: StromMessage) -> bool {
-        let (tx, rx) = metered_unbounded_channel("testing orders");
-        let mut peers = self.peers.iter_mut().take(2).collect::<Vec<_>>();
+//         // uninstall channel
+//         self.peers.iter_mut().for_each(|(_, peer)| {
+//             peer.manager_mut().remove_pool_manager();
+//         });
 
-        let (_, first) = peers.remove(0);
-        let (sid, second) = peers.remove(0);
-        second.manager_mut().install_pool_manager(tx);
+//         res
+//     }
 
-        let expected = if let StromMessage::PropagatePooledOrders(o) = msg.clone() {
-            o
-        } else {
-            tracing::warn!("broadcast message orders called with a non order message");
-            return false
-        };
+//     /// takes two random peers and tests order messages sending between them
+//     pub async fn send_order_message(&mut self, msg: StromMessage) -> bool {
+//         let (tx, rx) = metered_unbounded_channel("testing orders");
+//         let mut peers = self.peers.iter_mut().take(2).collect::<Vec<_>>();
 
-        let rx = Box::pin(rx.map(|msg| match msg {
-            angstrom_network::NetworkOrderEvent::IncomingOrders { orders, .. } => orders
-        }));
+//         let (_, first) = peers.remove(0);
+//         let (sid, second) = peers.remove(0);
+//         second.manager_mut().install_pool_manager(tx);
 
-        let sid = *sid;
-        first.handle.send_message(sid, msg);
-        let result = self.message_test(rx, expected, 1).await;
+//         let expected = if let StromMessage::PropagatePooledOrders(o) =
+// msg.clone() {             o
+//         } else {
+//             tracing::warn!("broadcast message orders called with a non order
+// message");             return false
+//         };
 
-        self.peers
-            .get_mut(&sid)
-            .unwrap()
-            .manager_mut()
-            .remove_pool_manager();
+//         let rx = Box::pin(rx.map(|msg| match msg {
+//             angstrom_network::NetworkOrderEvent::IncomingOrders { orders, ..
+// } => orders         }));
 
-        result
-    }
+//         let sid = *sid;
+//         first.handle.send_message(sid, msg);
+//         let result = self.message_test(rx, expected, 1).await;
 
-    pub async fn send_consensus_message(&mut self, msg: StromMessage) -> bool {
-        let (tx, rx) = metered_unbounded_channel("testing consensus");
-        let mut peers = self.peers.iter_mut().take(2).collect::<Vec<_>>();
+//         self.peers
+//             .get_mut(&sid)
+//             .unwrap()
+//             .manager_mut()
+//             .remove_pool_manager();
 
-        let (_, first) = peers.remove(0);
-        let (sid, second) = peers.remove(0);
-        second.manager_mut().install_consensus_manager(tx);
+//         result
+//     }
 
-        let Ok(expected) = msg.clone().try_into() else {
-            tracing::warn!("non-consensus message ");
-            return false
-        };
+//     pub async fn send_consensus_message(&mut self, msg: StromMessage) -> bool
+// {         let (tx, rx) = metered_unbounded_channel("testing consensus");
+//         let mut peers = self.peers.iter_mut().take(2).collect::<Vec<_>>();
 
-        let rx = Box::pin(rx.map(ConsensusMsgTestCmp::from));
+//         let (_, first) = peers.remove(0);
+//         let (sid, second) = peers.remove(0);
+//         second.manager_mut().install_consensus_manager(tx);
 
-        let sid = *sid;
-        first.handle.send_message(sid, msg);
-        let result = self.message_test(rx, expected, 1).await;
+//         let Ok(expected) = msg.clone().try_into() else {
+//             tracing::warn!("non-consensus message ");
+//             return false
+//         };
 
-        self.peers
-            .get_mut(&sid)
-            .unwrap()
-            .manager_mut()
-            .remove_consensus_manager();
+//         let rx = Box::pin(rx.map(ConsensusMsgTestCmp::from));
 
-        result
-    }
+//         let sid = *sid;
+//         first.handle.send_message(sid, msg);
+//         let result = self.message_test(rx, expected, 1).await;
 
-    pub async fn send_consensus_broadcast(&mut self, msg: StromMessage) -> bool {
-        let (tx, rx) = metered_unbounded_channel("testing consensus");
+//         self.peers
+//             .get_mut(&sid)
+//             .unwrap()
+//             .manager_mut()
+//             .remove_consensus_manager();
 
-        self.peers.iter_mut().for_each(|(_, peer)| {
-            peer.manager_mut().install_consensus_manager(tx.clone());
-        });
+//         result
+//     }
 
-        // fetch our sender peer
-        let (_, peer) = self.peers.iter_mut().take(1).collect::<Vec<_>>().remove(0);
+//     pub async fn send_consensus_broadcast(&mut self, msg: StromMessage) ->
+// bool {         let (tx, rx) = metered_unbounded_channel("testing consensus");
 
-        // send message to other peers
-        peer.handle.broadcast_message(msg.clone());
-        let expected_msg_cnt = self.peers.len() - 1;
+//         self.peers.iter_mut().for_each(|(_, peer)| {
+//             peer.manager_mut().install_consensus_manager(tx.clone());
+//         });
 
-        let Ok(expected) = msg.clone().try_into() else {
-            tracing::warn!("non-consensus message ");
-            return false
-        };
+//         // fetch our sender peer
+//         let (_, peer) =
+// self.peers.iter_mut().take(1).collect::<Vec<_>>().remove(0);
 
-        let rx = Box::pin(rx.map(ConsensusMsgTestCmp::from));
+//         // send message to other peers
+//         peer.handle.broadcast_message(msg.clone());
+//         let expected_msg_cnt = self.peers.len() - 1;
 
-        let res = self.message_test(rx, expected, expected_msg_cnt).await;
+//         let Ok(expected) = msg.clone().try_into() else {
+//             tracing::warn!("non-consensus message ");
+//             return false
+//         };
 
-        // uninstall channel
-        self.peers.iter_mut().for_each(|(_, peer)| {
-            peer.manager_mut().remove_consensus_manager();
-        });
+//         let rx = Box::pin(rx.map(ConsensusMsgTestCmp::from));
 
-        res
-    }
+//         let res = self.message_test(rx, expected, expected_msg_cnt).await;
 
-    /// returns the next event that any peer emits
-    pub async fn progress_to_next_network_event(&mut self) -> StromNetworkEvent {
-        std::future::poll_fn(|cx| {
-            for sub in self.peer_network_events.values_mut() {
-                if let Poll::Ready(Some(res)) = sub.poll_next_unpin(cx) {
-                    return Poll::Ready(res)
-                }
-            }
+//         // uninstall channel
+//         self.peers.iter_mut().for_each(|(_, peer)| {
+//             peer.manager_mut().remove_consensus_manager();
+//         });
 
-            Poll::Pending
-        })
-        .await
-    }
-}
+//         res
+//     }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ConsensusMsgTestCmp {
-    PrePropose(PreProposal),
-    Propose(Proposal),
-    Commit(Box<Commit>)
-}
+//     /// returns the next event that any peer emits
+//     pub async fn progress_to_next_network_event(&mut self) ->
+// StromNetworkEvent {         std::future::poll_fn(|cx| {
+//             for sub in self.peer_network_events.values_mut() {
+//                 if let Poll::Ready(Some(res)) = sub.poll_next_unpin(cx) {
+//                     return Poll::Ready(res)
+//                 }
+//             }
 
-impl TryFrom<StromMessage> for ConsensusMsgTestCmp {
-    type Error = u8;
+//             Poll::Pending
+//         })
+//         .await
+//     }
+// }
 
-    fn try_from(value: StromMessage) -> Result<Self, Self::Error> {
-        match value {
-            StromMessage::Commit(c) => Ok(ConsensusMsgTestCmp::Commit(c)),
-            StromMessage::Propose(p) => Ok(ConsensusMsgTestCmp::Propose(p)),
-            StromMessage::PrePropose(p) => Ok(ConsensusMsgTestCmp::PrePropose(p)),
-            _ => Err(0)
-        }
-    }
-}
+// #[derive(Debug, Clone, PartialEq, Eq)]
+// pub enum ConsensusMsgTestCmp {
+//     PrePropose(PreProposal),
+//     Propose(Proposal),
+//     Commit(Box<Commit>)
+// }
 
-impl From<StromConsensusEvent> for ConsensusMsgTestCmp {
-    fn from(value: StromConsensusEvent) -> Self {
-        match value {
-            StromConsensusEvent::Commit(_, c) => ConsensusMsgTestCmp::Commit(c),
-            StromConsensusEvent::Propose(_, p) => ConsensusMsgTestCmp::Propose(p),
-            StromConsensusEvent::PrePropose(_, p) => ConsensusMsgTestCmp::PrePropose(p)
-        }
-    }
-}
+// impl TryFrom<StromMessage> for ConsensusMsgTestCmp {
+//     type Error = u8;
+
+//     fn try_from(value: StromMessage) -> Result<Self, Self::Error> {
+//         match value {
+//             StromMessage::Commit(c) => Ok(ConsensusMsgTestCmp::Commit(c)),
+//             StromMessage::Propose(p) => Ok(ConsensusMsgTestCmp::Propose(p)),
+//             StromMessage::PrePropose(p) =>
+// Ok(ConsensusMsgTestCmp::PrePropose(p)),             _ => Err(0)
+//         }
+//     }
+// }
+
+// impl From<StromConsensusEvent> for ConsensusMsgTestCmp {
+//     fn from(value: StromConsensusEvent) -> Self {
+//         match value {
+//             StromConsensusEvent::Commit(_, c) =>
+// ConsensusMsgTestCmp::Commit(c),             StromConsensusEvent::Propose(_,
+// p) => ConsensusMsgTestCmp::Propose(p),
+// StromConsensusEvent::PrePropose(_, p) => ConsensusMsgTestCmp::PrePropose(p)
+//         }
+//     }
+// }

@@ -161,13 +161,12 @@ pub enum UserAccountVerificationError<O: RawPoolOrder> {
 pub mod tests {
     use std::collections::HashSet;
 
-    use alloy::primitives::U256;
+    use alloy::primitives::{Address, U256};
     use angstrom_types::{
         primitive::PoolId,
         sol_bindings::{grouped_orders::GroupedVanillaOrder, RawPoolOrder}
     };
     use rand::thread_rng;
-    use reth_primitives::Address;
     use revm::primitives::bitvec::store::BitStore;
     use testing_tools::type_generator::orders::generate_limit_order;
 

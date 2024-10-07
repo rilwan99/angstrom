@@ -228,6 +228,7 @@ mod test {
         providers::ProviderBuilder,
         sol_types::SolValue
     };
+    use alloy_primitives::keccak256;
     use angstrom_types::{
         contract_bindings::{
             angstrom::Angstrom::PoolKey,
@@ -238,7 +239,6 @@ mod test {
         matching::SqrtPriceX96
     };
     use rand::thread_rng;
-    use reth_primitives::keccak256;
     use testing_tools::type_generator::orders::generate_top_of_block_order;
     use uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick;
 

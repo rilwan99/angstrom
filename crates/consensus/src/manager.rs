@@ -4,7 +4,7 @@ use std::{
 };
 
 use angstrom_metrics::ConsensusMetricsWrapper;
-use angstrom_network::{manager::StromConsensusEvent, peers, StromMessage, StromNetworkHandle};
+use angstrom_network::{manager::StromConsensusEvent, StromMessage, StromNetworkHandle};
 use angstrom_types::{
     consensus::{PreProposal, Proposal},
     orders::PoolSolution
@@ -13,7 +13,6 @@ use futures::{FutureExt, Stream, StreamExt};
 use matching_engine::MatchingManager;
 use order_pool::{order_storage::OrderStorage, timer::async_time_fn};
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
-use reth_primitives::HeaderError::LargeExtraData;
 use reth_provider::{CanonStateNotification, CanonStateNotifications};
 use reth_tasks::TaskSpawner;
 use tokio::{
@@ -444,10 +443,9 @@ mod tests {
     };
 
     use alloy_primitives::FixedBytes;
-    use angstrom_types::sol_bindings::grouped_orders::GroupedUserOrder;
+    use angstrom_types::{primitive::PeerId, sol_bindings::grouped_orders::GroupedUserOrder};
     use order_pool::{order_storage::OrderStorage, PoolConfig};
     use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
-    use reth_rpc_types::PeerId;
     use testing_tools::{
         mocks::network_events::MockNetworkHandle,
         type_generator::consensus::{generate_limit_order_distribution, proposal::ProposalBuilder}
