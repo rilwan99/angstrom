@@ -8,7 +8,7 @@ use std::{
 
 use alloy::primitives::{B256, U256};
 use angstrom_types::{
-    orders::{OrderID, OrderId, OrderOrigin, OrderSet},
+    orders::{OrderId, OrderOrigin, OrderSet},
     primitive::{NewInitializedPool, PoolId},
     sol_bindings::{
         grouped_orders::{AllOrders, OrderWithStorageData, *},
