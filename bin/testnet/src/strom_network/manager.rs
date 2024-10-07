@@ -91,12 +91,12 @@ where
 }
 
 pub struct TestnetPeerManagerBuilder<C = NoopProvider> {
-    id:            u64,
-    port:          u64,
-    public_key:    FixedBytes<64>,
-    peer:          TestnetPeer<C>,
-    rpc_wrapper:   RpcStateProviderFactoryWrapper,
-    strom_handles: Option<StromHandles>
+    pub id:            u64,
+    pub port:          u64,
+    pub public_key:    FixedBytes<64>,
+    pub peer:          TestnetPeer<C>,
+    pub rpc_wrapper:   RpcStateProviderFactoryWrapper,
+    pub strom_handles: Option<StromHandles>
 }
 
 impl<C> TestnetPeerManagerBuilder<C>
@@ -129,6 +129,10 @@ where
             strom_handles: Some(handles),
             port: port + id
         }
+    }
+
+    pub fn peer_mut(&mut self) -> &mut TestnetPeer<C> {
+        &mut self.peer
     }
 
     pub async fn build_and_spawn(

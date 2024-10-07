@@ -11,7 +11,9 @@ use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
 use tracing::{span, Instrument, Level};
 
 use super::manager::{TestnetPeerManager, TestnetPeerManagerBuilder};
-use crate::{contract_setup::deploy_contract_and_create_pool, eth::RpcStateProviderFactoryWrapper};
+use crate::{
+    cli::Cli, contract_setup::deploy_contract_and_create_pool, eth::RpcStateProviderFactoryWrapper
+};
 
 pub struct StromController<C = NoopProvider> {
     peers: HashMap<u64, TestnetPeerManager<C>>
@@ -25,12 +27,32 @@ where
         Self { peers: Default::default() }
     }
 
-    pub async fn spawn_node(
-        &mut self,
+    pub async fn spawn_testnet_framework(cli: Cli) -> eyre::Result<Self> {
+        let mut angr_addr = Address::default();
+        let mut all_nodes = Vec::new();
+        for id in 0..cli.nodes_in_network {
+            let (node, addr) =
+                Self::build_node(id, cli.starting_port, cli.testnet_block_time_secs).await?;
+            angr_addr = addr;
+            all_nodes.push(node);
+        }
+
+        Self::connect_all_peers(&mut all_nodes).await;
+
+        let mut this = Self::new();
+
+        for peer in all_nodes {
+            this.spawn_testnet_node(peer, angr_addr).await?;
+        }
+
+        Ok(this)
+    }
+
+    async fn build_node(
         id: u64,
         starting_port: u16,
         testnet_block_time_secs: u64
-    ) -> eyre::Result<()> {
+    ) -> eyre::Result<(TestnetPeerManagerBuilder<C>, Address)> {
         tracing::info!(id, "deploying contracts to anvil");
 
         let rpc_wrapper =
@@ -43,20 +65,14 @@ where
             TestnetPeerManagerBuilder::new(id, starting_port as u64, C::default(), rpc_wrapper)
                 .await;
 
-        self.spawn_testnet_node(peer, angstrom_addr).await?;
-
-        Ok(())
+        Ok((peer, angstrom_addr))
     }
 
-    pub async fn connect_all_peers(&mut self) {
-        let mut peer_set = self
-            .peers
-            .iter_mut()
-            .map(|(_, peer)| peer)
-            .collect::<Vec<_>>();
+    async fn connect_all_peers(peer_set: &mut [TestnetPeerManagerBuilder<C>]) {
+        let these_peers = peer_set.iter().collect::<Vec<_>>();
 
-        for peer in &peer_set {
-            for other_peer in &peer_set {
+        for peer in &*peer_set {
+            for other_peer in &these_peers {
                 if *peer.public_key != *other_peer.public_key {
                     peer.peer.add_validator(other_peer.public_key)
                 }
@@ -145,7 +161,6 @@ where
 
     async fn spawn_testnet_node(
         &mut self,
-
         peer_builder: TestnetPeerManagerBuilder<C>,
         contract_address: Address
     ) -> eyre::Result<()> {

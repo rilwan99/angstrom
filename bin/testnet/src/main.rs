@@ -7,15 +7,8 @@ use testnet::{cli::Cli, strom_network::controller::StromController};
 async fn main() -> eyre::Result<()> {
     let cli_args = Cli::parse_with_tracing();
 
-    let mut network_controller = StromController::<NoopProvider>::new();
-
-    for id in 0..cli_args.nodes_in_network {
-        network_controller
-            .spawn_node(id, cli_args.starting_port, cli_args.testnet_block_time_secs)
-            .await?;
-    }
-
-    network_controller.connect_all_peers().await;
+    let network_controller =
+        StromController::<NoopProvider>::spawn_testnet_framework(cli_args).await?;
 
     let peer_count = network_controller
         .run_event(Some(0), |peer| async {
