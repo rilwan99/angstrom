@@ -29,9 +29,8 @@ use crate::{
 pub struct TestnetPeerManager<C = NoopProvider> {
     pub id:               u64,
     pub port:             u64,
-    pub public_key:       FixedBytes<64>,
     pub peer:             TestnetPeer<C>,
-    pub rpc_wrapper:      RpcStateProviderFactoryWrapper,
+    pub state_provider:   RpcStateProviderFactoryWrapper,
     pub order_storage:    Arc<OrderStorage>,
     pub pool_handle:      PoolHandle,
     pub tx_strom_handles: SendingStromHandles,
@@ -64,7 +63,7 @@ where
 
         self.tx_strom_handles
             .pool_tx
-            .send(NetworkOrderEvent::IncomingOrders { peer_id: self.peer.peer_id, orders })?;
+            .send(NetworkOrderEvent::IncomingOrders { peer_id: self.peer.peer_id(), orders })?;
 
         tracing::debug!("sent {num_orders} bundles to the network");
 
@@ -87,154 +86,5 @@ where
         tracing::debug!(?tx_hash, "tx hash with angstrom contract sent");
 
         Ok(())
-    }
-}
-
-pub struct TestnetPeerManagerBuilder<C = NoopProvider> {
-    pub id:            u64,
-    pub port:          u64,
-    pub public_key:    FixedBytes<64>,
-    pub peer:          TestnetPeer<C>,
-    pub rpc_wrapper:   RpcStateProviderFactoryWrapper,
-    pub strom_handles: Option<StromHandles>
-}
-
-impl<C> TestnetPeerManagerBuilder<C>
-where
-    C: BlockReader + Clone + Unpin + 'static
-{
-    pub async fn new(
-        id: u64,
-        port: u64,
-        provider: C,
-        rpc_wrapper: RpcStateProviderFactoryWrapper
-    ) -> Self {
-        let handles = initialize_strom_handles();
-        let peer = TestnetPeer::new_fully_configed(
-            id,
-            provider,
-            Some(handles.pool_tx.clone()),
-            Some(handles.consensus_tx_op.clone())
-        )
-        .await;
-        let pk = peer.get_node_public_key();
-
-        Self {
-            id,
-            peer,
-            public_key: pk,
-            rpc_wrapper,
-            strom_handles: Some(handles),
-            port: port + id
-        }
-    }
-
-    pub fn peer_mut(&mut self) -> &mut TestnetPeer<C> {
-        &mut self.peer
-    }
-
-    pub async fn build_and_spawn(
-        self,
-        contract_address: Address
-    ) -> eyre::Result<TestnetPeerManager<C>> {
-        Ok(tokio::spawn(self.build_and_spawn_internal(contract_address)).await??)
-    }
-
-    async fn build_and_spawn_internal(
-        mut self,
-        contract_address: Address
-    ) -> eyre::Result<TestnetPeerManager<C>> {
-        let span = span!(Level::ERROR, "testnet node", id = self.id);
-        let strom_handles = self.strom_handles.take().unwrap();
-        let pool = strom_handles.get_pool_handle();
-        let executor: TokioTaskExecutor = Default::default();
-        let tx_strom_handles = (&strom_handles).into();
-
-        let rpc_w = self.rpc_wrapper.provider();
-        let state_stream = self
-            .rpc_wrapper
-            .provider()
-            .provider()
-            .subscribe_blocks()
-            .await?
-            .into_stream()
-            .map(move |block| {
-                let cloned_block = block.clone();
-                let rpc = rpc_w.clone();
-                async move {
-                    let number = cloned_block.header.number;
-                    let mut res = vec![];
-                    for hash in cloned_block.transactions.hashes() {
-                        let Ok(Some(tx)) = rpc.provider().get_transaction_by_hash(hash).await
-                        else {
-                            continue
-                        };
-                        res.push(tx);
-                    }
-                    (number, res)
-                }
-            })
-            .buffer_unordered(10);
-
-        let order_api = OrderApi::new(pool.clone(), executor.clone());
-
-        let eth_handle = AnvilEthDataCleanser::spawn(
-            executor.clone(),
-            contract_address,
-            strom_handles.eth_tx,
-            strom_handles.eth_rx,
-            state_stream,
-            7,
-            span
-        )
-        .await?;
-
-        let validator = init_validation(self.rpc_wrapper.provider(), CACHE_VALIDATION_SIZE);
-
-        let network_handle = self.peer.strom_network_handle().clone();
-
-        let pool_config = PoolConfig::default();
-        let order_storage = Arc::new(OrderStorage::new(&pool_config));
-
-        let pool_handle = PoolManagerBuilder::new(
-            validator.clone(),
-            Some(order_storage.clone()),
-            network_handle.clone(),
-            eth_handle.subscribe_network(),
-            strom_handles.pool_rx
-        )
-        .with_config(pool_config)
-        .build_with_channels(
-            executor,
-            strom_handles.orderpool_tx,
-            strom_handles.orderpool_rx,
-            strom_handles.pool_manager_tx
-        );
-        let port = self.port;
-        let server = ServerBuilder::default()
-            .build(format!("127.0.0.1:{}", port))
-            .await?;
-
-        let addr = server.local_addr().unwrap();
-
-        tokio::spawn(async move {
-            let server_handle = server.start(order_api.into_rpc());
-            tracing::info!("rpc server started on: {}", addr);
-            let _ = server_handle.stopped().await;
-        });
-
-        let testnet_hub = TestnetHub::new(contract_address, self.rpc_wrapper.provider().provider());
-
-        Ok(TestnetPeerManager {
-            id: self.id,
-            port: self.port,
-            public_key: self.public_key,
-            peer: self.peer,
-            rpc_wrapper: self.rpc_wrapper,
-            order_storage,
-            pool_handle,
-            testnet_hub,
-            tx_strom_handles
-        })
     }
 }

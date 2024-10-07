@@ -2,7 +2,10 @@ use std::{
     collections::HashSet,
     marker::PhantomData,
     net::SocketAddr,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc
+    },
     task::{Context, Poll}
 };
 
@@ -37,26 +40,22 @@ type PeerPool = Pool<
     InMemoryBlobStore
 >;
 
-struct EthPeer {
-    peer_fut:        JoinHandle<()>,
-    /// the default ethereum network peer
-    eth_peer_handle: PeerHandle<PeerPool>
-}
-
 struct StromPeer<C = NoopProvider> {
-    strom_network_fut:    JoinHandle<()>,
     strom_network_handle: StromNetworkHandle,
     strom_validator_set:  Arc<RwLock<HashSet<Address>>>,
     _phantom:             PhantomData<C> // can't be asked to move the generics everywhere
 }
 
 pub struct TestnetPeer<C = NoopProvider> {
-    eth:            EthPeer,
-    // strom extensions
-    strom:          StromPeer<C>,
-    pub secret_key: SecretKey,
-    pub peer_id:    PeerId,
-    _span:          Span
+    // eth components
+    eth_peer_handle: PeerHandle<PeerPool>,
+    // strom components
+    strom:           StromPeer<C>,
+    secret_key:      SecretKey,
+    peer_id:         PeerId,
+    futs:            JoinHandle<()>,
+    running:         AtomicBool,
+    _span:           Span
 }
 
 impl<C: Unpin> TestnetPeer<C>
@@ -116,27 +115,34 @@ where
 
         let mut peer = peer.launch().await.unwrap();
         peer.network_mut().add_rlpx_sub_protocol(protocol);
+
         let handle = network.get_handle();
+        let eth_peer_handle = peer.peer_handle();
+
+        let strom_validator_set = network.swarm().state().validators().clone();
 
         let span = span!(Level::DEBUG, "testnet node", id);
 
+        let running = AtomicBool::new(true);
+        let futs = TestnetPeerFuture::new(eth_peer, strom_network, running);
+
         Self {
-            eth: EthPeer {
-                eth_peer_handle: peer.peer_handle(),
-                peer_fut:        tokio::spawn(async move { peer.await }.instrument(span.clone()))
-            },
             strom: StromPeer {
-                strom_validator_set:  network.swarm().state().validators().clone(),
-                strom_network_fut:    tokio::spawn(
-                    async move { network.await }.instrument(span.clone())
-                ),
                 strom_network_handle: handle,
-                _phantom:             PhantomData
+                _phantom: PhantomData,
+                strom_validator_set
             },
             secret_key: sk,
             peer_id,
-            _span: span
+            _span: span,
+            eth_peer_handle,
+            futs: tokio::spawn(futs).instrument(span),
+            running
         }
+    }
+
+    pub fn peer_id(&self) -> PeerId {
+        self.peer_id
     }
 
     pub fn strom_network_handle(&self) -> &StromNetworkHandle {
@@ -192,34 +198,30 @@ where
         self.strom.strom_network_fut.abort();
         self.eth.peer_fut.abort();
     }
-
-    // pub fn poll_connect(&mut self, cx: &mut Context<'_>, needed_peers: usize) ->
-    // bool {     let mut initial = 0;
-    //     loop {
-    //         if self.strom.strom_network_fut.poll_unpin(cx).is_ready()
-    //             || self.eth.peer_fut.poll_unpin(cx).is_ready()
-    //         {
-    //             tracing::error!("peer failed");
-    //             return false
-    //         }
-
-    //         let current_peer_cnt = self.get_peer_count();
-    //         if initial != current_peer_cnt {
-    //             tracing::trace!("connected to {}/{needed_peers} peers",
-    // current_peer_cnt);             initial = current_peer_cnt;
-    //         }
-
-    //         if current_peer_cnt == needed_peers {
-    //             return true
-    //         }
-    //     }
-    // }
 }
 
-impl<C> Future for TestnetPeer<C>
-where
-    C: BlockReader + HeaderProvider + Unpin + Clone + 'static
-{
+struct TestnetPeerFuture {
+    eth_peer_fut:      Pin<Box<dyn Future<Output = ()>>>,
+    /// the default ethereum network peer
+    strom_network_fut: Pin<Box<dyn Future<Output = ()>>>,
+    running:           AtomicBool
+}
+
+impl TestnetPeerFuture {
+    fn new<C>(
+        eth_peer: Peer<C>,
+        strom_network: StromNetworkManager<C>,
+        running: AtomicBool
+    ) -> Self {
+        Self {
+            eth_peer_fut: Box::pin(eth_peer),
+            strom_network_fut: Box::pin(strom_network),
+            running
+        }
+    }
+}
+
+impl Future for TestnetPeerFuture {
     type Output = ();
 
     fn poll(
@@ -227,14 +229,15 @@ where
         cx: &mut std::task::Context<'_>
     ) -> std::task::Poll<Self::Output> {
         let this = self.get_mut();
-        let peer_id = this.get_node_public_key();
 
-        if this.strom.strom_network_fut.poll_unpin(cx).is_ready() {
-            return Poll::Ready(())
-        }
+        if this.running.load(Ordering::Relaxed) {
+            if this.eth_peer_fut.poll_unpin(cx).is_ready() {
+                return Poll::Ready(())
+            }
 
-        if this.eth.peer_fut.poll_unpin(cx).is_ready() {
-            return Poll::Ready(())
+            if this.strom_network_fut.poll_unpin(cx).is_ready() {
+                return Poll::Ready(())
+            }
         }
 
         Poll::Pending
