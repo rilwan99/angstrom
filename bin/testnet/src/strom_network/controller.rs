@@ -94,78 +94,43 @@ where
             }
         }
 
-        // // wait on each peer to add all other peers
-        // let needed_peers = peer_set.len() - 1;
-        // let streams = self.peers.iter().map(|(id, peer_handle)| {
-        //     (*id, NetworkEventStream::new(peer_handle.peer.eth_network_handle().
-        // event_listener())) });
-
-        // // await all sessions to be established
-        // let fut = streams.into_iter().map(|(id, mut stream)| {
-        //     let span = span!(Level::DEBUG, "testnet node", id);
-        //     async move {
-        //         let connected = stream.take_session_established(needed_peers).await;
-
-        //         tracing::info!("connected to {} peers", connected.len());
-        //     }
-        //     .instrument(span)
-        // });
-
-        // futures::future::join_all(fut).await;
-
         let needed_peers = peer_set.len() - 1;
         let mut peers = peer_set
             .iter_mut()
             .map(|p| (p.id, &mut p.peer))
             .collect::<Vec<_>>();
 
-        // std::future::poll_fn(|cx| {
-        //     let mut all_connected = true;
-        //     for (id, peer) in &mut peers {
-        //         let span = span!(Level::TRACE, "testnet node", ?id);
-        //         let e = span.enter();
+        std::future::poll_fn(|cx| {
+            let mut last_peer_count = 0;
+            loop {
+                let mut all_connected = true;
+                for (id, peer) in &mut peers {
+                    // let span = span!(Level::TRACE, "testnet node");
+                    // let e = span.enter();
+                    if peer.poll_unpin(cx).is_ready() {
+                        tracing::error!("peer failed");
+                    }
 
-        //         if peer.poll_connect(cx, needed_peers) {
-        //             tracing::error!("peer failed");
-        //         } else {
-        //             tracing::trace!("connected to {needed_peers} peers");
-        //         }
-        //         drop(e);
+                    if last_peer_count != peer.get_peer_count() {
+                        tracing::trace!(
+                            "connected to {}/{needed_peers} peers",
+                            peer.get_peer_count()
+                        );
+                        last_peer_count = peer.get_peer_count();
+                    }
 
-        //         // all_connected &= peer.get_peer_count() == needed_peers;
-        //     }
-
-        //     //    if all_connected {
-        //     return Poll::Ready(())
-        //     //  }
-
-        //     // Poll::Pending
-        // })
-        // .await
-
-        tokio::spawn(std::future::poll_fn(|cx| {
-            //loop {
-            let mut all_connected = true;
-            for (id, peer) in &mut peers {
-                // let span = span!(Level::TRACE, "testnet node");
-                // let e = span.enter();
-                if peer.poll_unpin(cx).is_ready() {
-                    tracing::error!("peer failed");
+                    all_connected &= peer.get_peer_count() == needed_peers;
+                    //drop(e);
                 }
 
-                tracing::trace!("connected to {}/{needed_peers} peers", peer.get_peer_count());
-
-                all_connected &= peer.get_peer_count() == needed_peers;
-                //drop(e);
+                if all_connected {
+                    return Poll::Ready(())
+                }
             }
 
-            if all_connected {
-                return Poll::Ready(())
-            }
-            // }
             Poll::Pending
-        }))
-        .await;
+        })
+        .await
     }
 
     /// if None, then a random id is used
