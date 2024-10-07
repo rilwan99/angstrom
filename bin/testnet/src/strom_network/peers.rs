@@ -63,68 +63,6 @@ impl<C: Unpin> TestnetPeer<C>
 where
     C: BlockReader + HeaderProvider + Unpin + Clone + 'static
 {
-    pub async fn new(id: u64, c: C) -> Self {
-        let mut rng = thread_rng();
-        let sk = SecretKey::new(&mut rng);
-        let peer = PeerConfig::with_secret_key(c.clone(), sk);
-
-        let secp = Secp256k1::default();
-        let pub_key = sk.public_key(&secp);
-
-        let peer_id = pk2id(&pub_key);
-        let state = StatusState {
-            version:   0,
-            chain:     Chain::mainnet().id(),
-            peer:      peer_id,
-            timestamp: 0
-        };
-
-        let validators: HashSet<Address> = HashSet::default();
-        let validator_set = Arc::new(RwLock::new(validators));
-
-        let verification = VerificationSidecar {
-            status:       state,
-            has_sent:     false,
-            has_received: false,
-            secret_key:   sk
-        };
-
-        let (session_manager_tx, session_manager_rx) = tokio::sync::mpsc::channel(100);
-
-        let protocol = StromProtocolHandler::new(
-            MeteredPollSender::new(PollSender::new(session_manager_tx), "session manager"),
-            verification.clone(),
-            validator_set.clone()
-        );
-
-        let state = StromState::new(c.clone(), validator_set.clone());
-        let sessions = StromSessionManager::new(session_manager_rx);
-        let swarm = Swarm::new(sessions, state);
-
-        let network = StromNetworkManager::new(swarm, None, None);
-        let mut peer = peer.launch().await.unwrap();
-        peer.network_mut().add_rlpx_sub_protocol(protocol);
-        let handle = network.get_handle();
-
-        let span = span!(Level::DEBUG, "testnet node", id);
-
-        Self {
-            eth: EthPeer {
-                eth_peer_handle: peer.peer_handle(),
-                peer_fut:        tokio::spawn(peer.instrument(span.clone()))
-            },
-            strom: StromPeer {
-                strom_validator_set:  network.swarm().state().validators().clone(),
-                strom_network_fut:    tokio::spawn(network.instrument(span.clone())),
-                strom_network_handle: handle,
-                _phantom:             PhantomData
-            },
-            secret_key: sk,
-            peer_id,
-            _span: span
-        }
-    }
-
     pub fn new_with_consensus() -> Self {
         todo!("consensus not configured for test peer")
     }
@@ -185,11 +123,13 @@ where
         Self {
             eth: EthPeer {
                 eth_peer_handle: peer.peer_handle(),
-                peer_fut:        tokio::spawn(peer.instrument(span.clone()))
+                peer_fut:        tokio::spawn(async move { peer.await }.instrument(span.clone()))
             },
             strom: StromPeer {
                 strom_validator_set:  network.swarm().state().validators().clone(),
-                strom_network_fut:    tokio::spawn(network.instrument(span.clone())),
+                strom_network_fut:    tokio::spawn(
+                    async move { network.await }.instrument(span.clone())
+                ),
                 strom_network_handle: handle,
                 _phantom:             PhantomData
             },

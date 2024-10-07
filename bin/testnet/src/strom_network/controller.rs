@@ -6,7 +6,6 @@ use std::{
 
 use futures::FutureExt;
 use rand::Rng;
-use reth_network::{test_utils::NetworkEventStream, NetworkEventListenerProvider};
 use reth_primitives::Address;
 use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
 use tracing::{span, Instrument, Level};
