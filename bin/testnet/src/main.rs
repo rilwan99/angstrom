@@ -18,7 +18,7 @@ use testnet::{
     ported_reth_testnet_network::{connect_all_peers, StromPeer},
     rpc_state_provider::RpcStateProviderFactory
 };
-use tracing::{span, Instrument, Level};
+use tracing::{level_filters::LevelFilter, span, Instrument, Level};
 use validation::init_validation;
 
 #[derive(Parser)]
@@ -46,7 +46,8 @@ const CACHE_VALIDATION_SIZE: usize = 100_000_000;
 
 #[tokio::main]
 async fn main() -> eyre::Result<()> {
-    let env_filter = tracing_subscriber::EnvFilter::from_default_env();
+    let env_filter =
+        tracing_subscriber::EnvFilter::builder().with_default_directive(LevelFilter::DEBUG);
     let subscriber = tracing_subscriber::fmt()
         .with_env_filter(env_filter)
         .finish();
