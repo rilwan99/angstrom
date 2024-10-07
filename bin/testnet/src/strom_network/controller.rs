@@ -102,7 +102,7 @@ where
     }
 
     /// if None, then a random id is used
-    pub async fn run_event<'a, F, O, R>(&'a self, id: Option<u64>, f: F) -> eyre::Result<R>
+    pub async fn run_event<'a, F, O, R>(&'a self, id: Option<u64>, f: F) -> R
     where
         F: FnOnce(&'a StromPeerManager<C>) -> O,
         O: Future<Output = R>
@@ -121,8 +121,9 @@ where
         };
 
         let peer = self.peers.get(&id).unwrap();
-        let span = span!(Level::DEBUG, "testnet node", id = peer.id);
-        Ok(f(&peer).instrument(span).await)
+        let span = span!(Level::DEBUG, "testnet node", ?id);
+        let r = f(&peer).instrument(span).await;
+        r
     }
 
     fn add_peer(&mut self, peer: StromPeerManager<C>) {

@@ -28,7 +28,7 @@ async fn main() -> eyre::Result<()> {
                     .is_active_peer(peer_b.peer.peer_id)
             }
         })
-        .await?;
+        .await;
 
     assert!(is_connected);
 
@@ -42,6 +42,6 @@ async fn do_thing(network_controller: StromController) -> eyre::Result<()> {
         tokio::time::sleep(Duration::from_secs(11)).await;
         network_controller
             .run_event(None, |peer| async { peer.send_bundles_to_network(10) })
-            .await??;
+            .await?;
     }
 }
