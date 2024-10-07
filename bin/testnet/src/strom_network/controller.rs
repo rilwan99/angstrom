@@ -38,7 +38,7 @@ where
         }
 
         Self::connect_all_peers(&mut all_nodes).await;
-        tracing::info!(id, "finished connecting peers");
+        tracing::info!("finished connecting peers");
 
         let mut this = Self::new();
 
