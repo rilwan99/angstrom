@@ -517,7 +517,7 @@ impl RawPoolOrder for TopOfBlockOrder {
     fn is_valid_signature(&self) -> bool {
         let Ok(sig) = Signature::new_from_bytes(&self.meta.signature) else { return false };
         let hash = self.no_meta_eip712_signing_hash(&ANGSTROM_DOMAIN);
-        sig.recover_signer(hash)
+        sig.recover_address_from_msg(hash)
             .filter(|recovered_addr| recovered_addr == &self.meta.from)
             .is_some()
     }
@@ -530,7 +530,7 @@ impl RawPoolOrder for PartialStandingOrder {
     fn is_valid_signature(&self) -> bool {
         let Ok(sig) = Signature::new_from_bytes(&self.meta.signature) else { return false };
         let hash = self.no_meta_eip712_signing_hash(&ANGSTROM_DOMAIN);
-        sig.recover_signer(hash)
+        sig.recover_address_from_msg(hash)
             .filter(|recovered_addr| recovered_addr == &self.meta.from)
             .is_some()
     }

@@ -9,7 +9,7 @@ use crate::{
     primitive::{PeerId, Signature}
 };
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Proposal {
     // Might not be necessary as this is encoded in all the proposals anyways
     pub ethereum_height: u64,
