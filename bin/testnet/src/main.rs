@@ -20,9 +20,9 @@ async fn main() -> eyre::Result<()> {
     let is_connected = network_controller
         .run_event(Some(0), |peer| async {
             {
-                println!("1 - {:?}", peer.peer.local_addr());
+                println!("1 - {:?}", peer.peer.socket_addr());
                 let peer_b = network_controller.get_peer(1);
-                println!("2 - {:?}", peer_b.peer.local_addr());
+                println!("2 - {:?}", peer_b.peer.socket_addr());
                 peer.peer
                     .strom_network
                     .swarm()
