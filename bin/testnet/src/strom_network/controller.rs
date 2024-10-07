@@ -6,6 +6,7 @@ use std::{
 
 use futures::FutureExt;
 use rand::Rng;
+use reth_network::{test_utils::NetworkEventStream, NetworkEventListenerProvider};
 use reth_primitives::Address;
 use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
 use tracing::{span, Instrument, Level};
@@ -71,24 +72,33 @@ where
 
         // wait on each peer to add all other peers
         let needed_peers = peer_set.len() - 1;
-        let mut peers = peer_set.iter_mut().map(|p| &mut p.peer).collect::<Vec<_>>();
+        let streams = self.peers.iter().map(|(_, peer_handle)| {
+            NetworkEventStream::new(peer_handle.peer.eth_peer.handle().event_listener())
+        });
 
-        std::future::poll_fn(|cx| {
-            let mut all_connected = true;
-            for peer in &mut peers {
-                if peer.poll_unpin(cx).is_ready() {
-                    tracing::error!("peer failed");
-                }
-                all_connected &= peer.get_peer_count() == needed_peers
-            }
+        // std::future::poll_fn(|cx| {
+        //     let mut all_connected = true;
+        //     for peer in &mut peers {
+        //         if peer.poll_unpin(cx).is_ready() {
+        //             tracing::error!("peer failed");
+        //         }
+        //         all_connected &= peer.get_peer_count() == needed_peers
+        //     }
 
-            if all_connected {
-                return Poll::Ready(())
-            }
+        //     if all_connected {
+        //         return Poll::Ready(())
+        //     }
 
-            Poll::Pending
-        })
-        .await
+        //     Poll::Pending
+        // })
+        // .await
+
+        // await all sessions to be established
+        let fut = streams
+            .into_iter()
+            .map(|mut stream| async move { stream.take_session_established(needed_peers).await });
+
+        futures::future::join_all(fut).await;
     }
 
     /// if None, then a random id is used
