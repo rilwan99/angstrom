@@ -10,11 +10,6 @@ pub use bitvec;
 pub use decode::*;
 pub use encode::*;
 
-// Publicly export the PadeEncode macro
-pub mod derive {
-    pub use pade_macro::PadeEncode;
-}
-
 pub struct Sequence<const B: usize, T>(std::marker::PhantomData<T>);
 impl<const B: usize, T> Sequence<B, T> {}
 

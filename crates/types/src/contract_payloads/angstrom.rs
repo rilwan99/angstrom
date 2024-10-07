@@ -1,5 +1,6 @@
 use alloy::primitives::{Address, Bytes, B256};
 use pade_macro::{PadeDecode, PadeEncode};
+use reth_primitives::keccak256;
 use serde::{Deserialize, Serialize};
 
 use super::{rewards::PoolUpdate, Asset, Pair};
@@ -24,8 +25,9 @@ pub struct TopOfBlockOrder {
 }
 
 impl TopOfBlockOrder {
+    // eip-712 hash_struct
     pub fn order_hash(&self) -> B256 {
-        todo!()
+        keccak256(&self.signature)
     }
 
     pub fn of(
@@ -81,7 +83,7 @@ pub struct UserOrder {
 
 impl UserOrder {
     pub fn order_hash(&self) -> B256 {
-        todo!()
+        keccak256(&self.signature)
     }
 }
 

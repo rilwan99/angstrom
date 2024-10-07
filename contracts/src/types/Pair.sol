@@ -5,10 +5,8 @@ import {CalldataReader} from "./CalldataReader.sol";
 import {AssetArray} from "./Asset.sol";
 import {RayMathLib} from "../libraries/RayMathLib.sol";
 import {
-    PoolConfigStore,
-    StoreKey,
-    HASH_TO_STORE_KEY_SHIFT
-} from "../libraries/pool-config/PoolConfigStore.sol";
+    PoolConfigStore, StoreKey, HASH_TO_STORE_KEY_SHIFT
+} from "../libraries/PoolConfigStore.sol";
 // TODO: Remove
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 import {console} from "forge-std/console.sol";
@@ -48,6 +46,8 @@ library PairLib {
     uint256 internal constant INDEX_B_MASK = 0xffff;
 
     uint256 internal constant PAIR_CD_BYTES = 38;
+
+    uint256 internal constant ONE_E6 = 1e6;
 
     function readFromAndValidate(CalldataReader reader, AssetArray assets, PoolConfigStore store)
         internal
@@ -170,14 +170,16 @@ library PairLib {
     function getSwapInfo(Pair self, bool zeroToOne)
         internal
         pure
-        returns (address assetIn, address assetOut, uint256 priceOutVsIn, uint256 feeInE6)
+        returns (address assetIn, address assetOut, uint256 priceOutVsIn)
     {
+        uint256 oneMinusFee;
         assembly ("memory-safe") {
             let offsetIfZeroToOne := shl(5, zeroToOne)
             assetIn := mload(add(self, xor(offsetIfZeroToOne, 0x20)))
             assetOut := mload(add(self, offsetIfZeroToOne))
             priceOutVsIn := mload(add(self, add(PAIR_PRICE_10_OFFSET, offsetIfZeroToOne)))
-            feeInE6 := mload(add(self, PAIR_FEE_OFFSET))
+            oneMinusFee := sub(ONE_E6, mload(add(self, PAIR_FEE_OFFSET)))
         }
+        priceOutVsIn = priceOutVsIn * oneMinusFee / ONE_E6;
     }
 }

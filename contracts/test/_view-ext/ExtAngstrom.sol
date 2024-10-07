@@ -6,8 +6,8 @@ import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {IUniV4, IPoolManager} from "../../src/interfaces/IUniV4.sol";
 import {SafeCastLib} from "solady/src/utils/SafeCastLib.sol";
 import {FixedPointMathLib} from "solady/src/utils/FixedPointMathLib.sol";
-import {Position} from "src/libraries/Positions.sol";
-import {PoolConfigStore} from "src/libraries/pool-config/PoolConfigStore.sol";
+import {Position} from "src/types/Positions.sol";
+import {PoolConfigStore} from "src/libraries/PoolConfigStore.sol";
 
 import {console} from "forge-std/console.sol";
 
@@ -16,24 +16,14 @@ contract ExtAngstrom is Angstrom {
     using IUniV4 for IPoolManager;
     using FixedPointMathLib for *;
 
-    constructor(address uniV4PoolManager, address governance)
-        Angstrom(uniV4PoolManager, governance)
-    {}
-
-    function __ilegalMint(address to, address asset, uint256 amount) external {
-        _angstromReserves[to][asset] += amount;
-    }
+    constructor(IPoolManager uniV4, address governance) Angstrom(uniV4, governance, address(0)) {}
 
     function lastBlockUpdated() public view returns (uint64) {
         return _lastBlockUpdated;
     }
 
-    function configStore() public view returns (address) {
-        return PoolConfigStore.unwrap(_configStore);
-    }
-
-    function updateLastBlock() public {
-        _lastBlockUpdated = SafeCastLib.toUint64(block.number);
+    function configStore() public view returns (PoolConfigStore) {
+        return _configStore;
     }
 
     function isNode(address addr) public view returns (bool) {

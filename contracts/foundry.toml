@@ -3,9 +3,10 @@ solc           = "0.8.26"
 bytecode_hash  = "none"
 viaIR = false
 show_progress = true
-optimizer_runs = 1_000_000
+optimizer_runs = 0xffffffff
 verbosity      = 3
 fs_permissions = [{ access = "read-write", path = ".forge-snapshots/" }]
+ast = true
 evm_version    = "cancun"
 
 ignored_error_codes = [
@@ -26,6 +27,16 @@ line_length = 100
 
 [profile.default.invariant]
 fail_on_revert = true
+depth = 200
+runs = 256
+
+[profile.ci]
+show_progress = false
+
+[profile.ci.invariant]
+fail_on_revert = true
+depth = 50
+runs = 50
 
 [profile.light-fuzz.invariant]
 runs = 10

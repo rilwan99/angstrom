@@ -6,6 +6,7 @@ import {Script} from "forge-std/Script.sol";
 import {HookDeployer} from "../test/_helpers/HookDeployer.sol";
 import {MockRewardsManager} from "../test/_mocks/MockRewardsManager.sol";
 import {ANGSTROM_HOOK_FLAGS} from "src/Constants.sol";
+import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 
 import {console2 as console} from "forge-std/console2.sol";
 
@@ -34,13 +35,12 @@ contract MockRewardsManagerScript is Test, Script, HookDeployer {
         assertTrue(suc);
 
         console.log("mockRewardsAddr: %s", mockRewardsAddr);
-        console.log("controllerAddr: %s", vm.addr(key));
 
         vm.stopBroadcast();
     }
 
     /// @dev Ensure compiler warns me about changes to the `MockRewardsManager` constructor interface
     function MockRewardsManager_constructorRef() public {
-        new MockRewardsManager(address(0), address(0));
+        new MockRewardsManager(IPoolManager(address(0)), address(0));
     }
 }

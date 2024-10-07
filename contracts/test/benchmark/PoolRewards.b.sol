@@ -8,19 +8,19 @@ import {IUniV4, IPoolManager} from "src/interfaces/IUniV4.sol";
 import {PoolGate} from "test/_helpers/PoolGate.sol";
 import {Angstrom} from "src/Angstrom.sol";
 import {MockERC20} from "super-sol/mocks/MockERC20.sol";
-import {DeltaClearHook} from "../_helpers/DeltaClearHook.sol";
 import {PoolId} from "v4-core/src/types/PoolId.sol";
+import {DeltaClearerERC20} from "test/_helpers/DeltaClearerERC20.sol";
 import {RewardLib, TickReward} from "../_helpers/RewardLib.sol";
 
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {console} from "forge-std/console.sol";
 
-import {Bundle, Asset, Pair, PoolUpdate} from "src/reference/Bundle.sol";
-import {PairLib} from "src/reference/Pair.sol";
+import {Bundle, Asset, Pair, PoolUpdate} from "test/_reference/Bundle.sol";
+import {PairLib} from "test/_reference/Pair.sol";
 import {PriceAB} from "src/types/Price.sol";
-import {TopOfBlockOrder} from "src/reference/OrderTypes.sol";
-import {PoolUpdate, RewardsUpdate} from "src/reference/PoolUpdate.sol";
+import {TopOfBlockOrder} from "test/_reference/OrderTypes.sol";
+import {PoolUpdate, RewardsUpdate} from "test/_reference/PoolUpdate.sol";
 
 import {console} from "forge-std/console.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
@@ -34,7 +34,7 @@ contract PoolRewardsTest is BaseTest {
     PoolGate gate;
     PoolManager uni;
     Angstrom angstrom;
-    DeltaClearHook clearer;
+    DeltaClearerERC20 clearer;
     address controller = makeAddr("controller");
 
     Trader searcher;
@@ -57,36 +57,31 @@ contract PoolRewardsTest is BaseTest {
         gate.setHook(address(angstrom));
 
         (asset0, asset1) = deployTokensSorted();
-        clearer = new DeltaClearHook(uni);
+        clearer = new DeltaClearerERC20(address(angstrom), uni);
+        clearer.addClear(asset0);
+        clearer.addClear(asset1);
 
         address[] memory nodes = new address[](1);
         nodes[0] = controller;
         vm.prank(controller);
         angstrom.toggleNodes(nodes);
 
-        vm.prank(controller);
+        vm.startPrank(controller);
         angstrom.configurePool(asset0, asset1, 60, 0);
+        angstrom.configurePool(asset0, address(clearer), 1, 0);
+        vm.stopPrank();
         // Note hardcoded slot for `Angstrom.sol`, might be different for test derivations.
-        configStore = address(bytes20(vm.load(address(angstrom), ANG_CONFIG_STORE_SLOT) << 32));
-        domainSeparator = keccak256(
-            abi.encode(
-                keccak256(
-                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-                ),
-                keccak256("Angstrom"),
-                keccak256("v1"),
-                block.chainid,
-                address(angstrom)
-            )
-        );
+        configStore = rawGetConfigStore(address(angstrom));
+        domainSeparator = computeDomainSeparator(address(angstrom));
 
         gate.tickSpacing(tickSpacing = 60);
-        id = gate.initializePool(
+        angstrom.initializePool(
             asset0,
             asset1,
-            int24(4).getSqrtPriceAtTick(),
-            PairLib.getStoreIndex(configStore, asset0, asset1)
+            PairLib.getStoreIndex(configStore, asset0, asset1),
+            int24(4).getSqrtPriceAtTick()
         );
+        id = poolId(angstrom, asset0, asset1);
 
         gate.addLiquidity(asset0, asset1, -60, 0, 1e21, bytes32(0));
         gate.addLiquidity(asset0, asset1, 0, 60, 1e21, bytes32(0));
@@ -99,15 +94,15 @@ contract PoolRewardsTest is BaseTest {
         MockERC20(asset1).mint(searcher.addr, 1e26);
         vm.stopPrank();
 
-        updatePoolZeroToOne(0.4e18, RewardLib.current(4.0e18));
+        updatePoolZeroToOne(0.4e18, RewardLib.CurrentOnly(4.0e18));
         console.log("tick: %s", uni.getSlot0(id).tick().toStr());
         bumpBlock();
 
-        updatePoolOneToZero(3.4e18, RewardLib.current(4.0e18));
+        updatePoolOneToZero(3.4e18, RewardLib.CurrentOnly(4.0e18));
         console.log("tick: %s", uni.getSlot0(id).tick().toStr());
         bumpBlock();
 
-        updatePoolZeroToOne(1.9e18, RewardLib.current(4.0e18));
+        updatePoolZeroToOne(1.9e18, RewardLib.CurrentOnly(4.0e18));
         console.log("tick: %s", uni.getSlot0(id).tick().toStr());
         bumpBlock();
     }
@@ -127,15 +122,15 @@ contract PoolRewardsTest is BaseTest {
     }
 
     function test_bench_rewardCurrent_swapWithin() public {
-        updatePoolZeroToOne(1e14, RewardLib.current(3.2e18));
+        updatePoolZeroToOne(1e14, RewardLib.CurrentOnly(3.2e18));
     }
 
     function test_bench_rewardCurrent_noSwap() public {
-        updatePoolZeroToOne(0, RewardLib.current(3.2e18));
+        updatePoolZeroToOne(0, RewardLib.CurrentOnly(3.2e18));
     }
 
     function test_bench_rewardCurrent_crossTick() public reportTickChange {
-        updatePoolZeroToOne(1.4e18, RewardLib.current(3.2e18));
+        updatePoolZeroToOne(1.4e18, RewardLib.CurrentOnly(3.2e18));
     }
 
     function test_bench_rewardMultiOneWord_swapWithin() public reportTickChange {
@@ -156,13 +151,14 @@ contract PoolRewardsTest is BaseTest {
 
     function updatePoolZeroToOne(uint128 swapIn, RewardsUpdate memory rewards) internal {
         Bundle memory bundle;
-        bundle.assets = new Asset[](2);
-        bundle.assets[0].addr = asset0;
-        bundle.assets[0].settle = swapIn;
-        bundle.assets[1].addr = asset1;
 
-        bundle.pairs = new Pair[](1);
-        bundle.pairs[0] = Pair(asset0, asset1, PriceAB.wrap(0x6c6b935b8bbd4111111));
+        bundle.addAsset(asset0).addAsset(asset1).addAsset(address(clearer));
+        bundle.getAsset(asset0).settle = swapIn;
+
+        // forgefmt: disable-next-item
+        bundle
+            .addPair(asset0, asset1, PriceAB.wrap(0x6c6b935b8bbd4111111))
+            .addPair(asset0, address(clearer), PriceAB.wrap(0));
 
         bundle.poolUpdates = new PoolUpdate[](1);
         PoolUpdate memory update = bundle.poolUpdates[0];
@@ -175,9 +171,7 @@ contract PoolRewardsTest is BaseTest {
         TopOfBlockOrder memory tob = bundle.toBOrders[0];
         tob.quantityIn = rewards.total() + swapIn;
         tob.assetIn = asset0;
-        tob.assetOut = asset1;
-        tob.hook = address(clearer);
-        tob.hookPayload = abi.encode(asset1);
+        tob.assetOut = address(clearer);
         tob.validForBlock = u64(block.number);
         sign(searcher, tob.meta, erc712Hash(domainSeparator, tob.hash()));
 
@@ -188,13 +182,12 @@ contract PoolRewardsTest is BaseTest {
 
     function updatePoolOneToZero(uint128 swapIn, RewardsUpdate memory rewards) internal {
         Bundle memory bundle;
-        bundle.assets = new Asset[](2);
-        bundle.assets[0].addr = asset0;
-        bundle.assets[1].addr = asset1;
-        bundle.assets[1].settle = swapIn;
 
-        bundle.pairs = new Pair[](1);
-        bundle.pairs[0] = Pair(asset0, asset1, PriceAB.wrap(0x6c6b935b8bbd4111111));
+        bundle.addAsset(asset0).addAsset(asset1).addAsset(address(clearer));
+        bundle.getAsset(asset1).settle = swapIn;
+
+        bundle.addPair(asset0, asset1, PriceAB.wrap(0x6c6b935b8bbd4111111));
+        bundle.addPair(asset0, address(clearer), PriceAB.wrap(0));
 
         bundle.poolUpdates = new PoolUpdate[](1);
         PoolUpdate memory update = bundle.poolUpdates[0];
@@ -207,9 +200,7 @@ contract PoolRewardsTest is BaseTest {
         TopOfBlockOrder memory tob = bundle.toBOrders[0];
         tob.quantityIn = rewards.total();
         tob.assetIn = asset0;
-        tob.assetOut = asset1;
-        tob.hook = address(clearer);
-        tob.hookPayload = abi.encode(asset0);
+        tob.assetOut = address(clearer);
         tob.validForBlock = u64(block.number);
         sign(searcher, tob.meta, erc712Hash(domainSeparator, tob.hash()));
 

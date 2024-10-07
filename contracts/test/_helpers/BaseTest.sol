@@ -1,17 +1,24 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {Angstrom} from "src/Angstrom.sol";
+import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
+import {IHooks} from "v4-core/src/interfaces/IHooks.sol";
+import {PoolKey} from "v4-core/src/types/PoolKey.sol";
+import {Currency} from "v4-core/src/types/Currency.sol";
 import {Test} from "forge-std/Test.sol";
 import {Trader} from "./types/Trader.sol";
 import {console2 as console} from "forge-std/console2.sol";
 import {HookDeployer} from "./HookDeployer.sol";
 import {stdError} from "forge-std/StdError.sol";
-import {OrderMeta} from "src/reference/OrderTypes.sol";
+import {OrderMeta, TopOfBlockOrder} from "test/_reference/OrderTypes.sol";
 import {TickLib} from "src/libraries/TickLib.sol";
 import {HookDeployer} from "./HookDeployer.sol";
 import {ANGSTROM_HOOK_FLAGS} from "src/Constants.sol";
 import {TypedDataHasherLib} from "src/types/TypedDataHasher.sol";
+import {PoolConfigStore, PoolConfigStoreLib} from "src/libraries/PoolConfigStore.sol";
+import {PairLib} from "test/_reference/Pair.sol";
 
 import {MockERC20} from "super-sol/mocks/MockERC20.sol";
 
@@ -23,19 +30,104 @@ contract BaseTest is Test, HookDeployer {
 
     uint256 internal constant REAL_TIMESTAMP = 1721652639;
 
-    bytes32 internal constant ANG_CONFIG_STORE_SLOT = bytes32(uint256(0x5));
+    bytes32 internal constant ANG_BALANCES_SLOT = bytes32(uint256(0x2));
+    bytes32 internal constant ANG_CONFIG_STORE_SLOT = bytes32(uint256(0x4));
+
+    function pm(address addr) internal pure returns (IPoolManager) {
+        return IPoolManager(addr);
+    }
 
     function deployAngstrom(bytes memory initcode, IPoolManager uni, address controller)
         internal
-        returns (address addr)
+        returns (address)
     {
+        return deployAngstrom(initcode, uni, controller, address(0));
+    }
+
+    function deployAngstrom(
+        bytes memory initcode,
+        IPoolManager uni,
+        address controller,
+        address feeMaster
+    ) internal returns (address addr) {
         bool success;
         (success, addr,) = deployHook(
-            bytes.concat(initcode, abi.encode(uni, controller)),
+            bytes.concat(initcode, abi.encode(uni, controller, feeMaster)),
             ANGSTROM_HOOK_FLAGS,
             CREATE2_FACTORY
         );
         assertTrue(success);
+    }
+
+    function rawGetConfigStore(address angstrom) internal view returns (address) {
+        return address(bytes20(vm.load(angstrom, ANG_CONFIG_STORE_SLOT) << 32));
+    }
+
+    function rawGetBalance(address angstrom, address asset, address owner)
+        internal
+        view
+        returns (uint256)
+    {
+        return uint256(
+            vm.load(
+                angstrom,
+                keccak256(abi.encode(owner, keccak256(abi.encode(asset, ANG_BALANCES_SLOT))))
+            )
+        );
+    }
+
+    function poolKey(Angstrom angstrom, address asset0, address asset1, int24 tickSpacing)
+        internal
+        pure
+        returns (PoolKey memory pk)
+    {
+        pk.hooks = IHooks(address(angstrom));
+        pk.currency0 = Currency.wrap(asset0);
+        pk.currency1 = Currency.wrap(asset1);
+        pk.tickSpacing = tickSpacing;
+    }
+
+    function poolKey(address asset0, address asset1, int24 tickSpacing)
+        internal
+        pure
+        returns (PoolKey memory pk)
+    {
+        pk.currency0 = Currency.wrap(asset0);
+        pk.currency1 = Currency.wrap(asset1);
+        pk.tickSpacing = tickSpacing;
+    }
+
+    function computeDomainSeparator(address angstrom) internal view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                keccak256(
+                    "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
+                ),
+                keccak256("Angstrom"),
+                keccak256("v1"),
+                block.chainid,
+                address(angstrom)
+            )
+        );
+    }
+
+    function pythonRunCmd() internal pure returns (string[] memory args) {
+        args = new string[](1);
+        args[0] = ".venv/bin/python3.12";
+    }
+
+    function ffiPython(string[] memory args) internal returns (bytes memory) {
+        string[] memory runArgs = pythonRunCmd();
+        string[] memory all = new string[](runArgs.length + args.length);
+        for (uint256 i = 0; i < runArgs.length; i++) {
+            all[i] = runArgs[i];
+        }
+
+        for (uint256 i = 0; i < args.length; i++) {
+            all[runArgs.length + i] = args[i];
+        }
+
+        return vm.ffi(all);
     }
 
     function i24(uint256 x) internal pure returns (int24 y) {
@@ -150,6 +242,13 @@ contract BaseTest is Test, HookDeployer {
         }
     }
 
+    function sign(Account memory account, TopOfBlockOrder memory order, bytes32 domainSeparator)
+        internal
+        pure
+    {
+        sign(account, order.meta, erc712Hash(domainSeparator, order.hash()));
+    }
+
     function sign(Account memory account, OrderMeta memory targetMeta, bytes32 hash)
         internal
         pure
@@ -183,5 +282,34 @@ contract BaseTest is Test, HookDeployer {
         address asset0 = address(new MockERC20());
         address asset1 = address(new MockERC20());
         return asset0 < asset1 ? (asset0, asset1) : (asset1, asset0);
+    }
+
+    function addrs(bytes memory encoded) internal pure returns (address[] memory) {
+        return abi.decode(
+            bytes.concat(bytes32(uint256(0x20)), bytes32(encoded.length / 0x20), encoded),
+            (address[])
+        );
+    }
+
+    function min(uint256 x, uint256 y) internal pure returns (uint256) {
+        return x < y ? x : y;
+    }
+
+    function max(uint256 x, uint256 y) internal pure returns (uint256) {
+        return x > y ? x : y;
+    }
+
+    function poolId(Angstrom angstrom, address asset0, address asset1)
+        internal
+        view
+        returns (PoolId)
+    {
+        if (asset0 > asset1) (asset0, asset1) = (asset1, asset0);
+        address store = rawGetConfigStore(address(angstrom));
+        uint256 storeIndex = PairLib.getStoreIndex(store, asset0, asset1);
+        (int24 tickSpacing,) = PoolConfigStore.wrap(store).get(
+            PoolConfigStoreLib.keyFromAssetsUnchecked(asset0, asset1), storeIndex
+        );
+        return poolKey(angstrom, asset0, asset1, tickSpacing).toId();
     }
 }

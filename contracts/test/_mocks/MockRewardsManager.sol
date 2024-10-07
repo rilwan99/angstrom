@@ -1,55 +1,47 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {CalldataReader, CalldataReaderLib} from "../../src/types/CalldataReader.sol";
-import {HookManager} from "src/modules/HookManager.sol";
-import {Asset, AssetArray, AssetLib} from "../../src/types/Asset.sol";
+import {CalldataReader, CalldataReaderLib} from "src/types/CalldataReader.sol";
+import {Asset, AssetArray, AssetLib} from "src/types/Asset.sol";
 import {PairArray, PairLib} from "src/types/Pair.sol";
-import {UniSwapCallBuffer, UniCallLib} from "../../src/libraries/UniCallLib.sol";
-import {PoolConfigStore} from "../../src/libraries/pool-config/PoolConfigStore.sol";
-import {PoolUpdateManager} from "../../src/modules/PoolUpdateManager.sol";
-import {SettlementManager} from "../../src/modules/SettlementManager.sol";
-import {NodeManager} from "src/modules/NodeManager.sol";
-import {UniConsumer} from "../../src/modules/UniConsumer.sol";
+import {SwapCall, SwapCallLib} from "src/types/SwapCall.sol";
+import {PoolUpdates} from "src/modules/PoolUpdates.sol";
+import {Settlement} from "src/modules/Settlement.sol";
+import {TopLevelAuth} from "src/modules/TopLevelAuth.sol";
+import {UniConsumer} from "src/modules/UniConsumer.sol";
 import {PoolId} from "v4-core/src/types/PoolId.sol";
-import {POOL_FEE} from "../../src/Constants.sol";
-import {IUniV4, IPoolManager} from "../../src/interfaces/IUniV4.sol";
-
-import {PoolConfigStoreLib} from "src/libraries/pool-config/PoolConfigStore.sol";
+import {POOL_FEE} from "src/Constants.sol";
+import {IUniV4, IPoolManager} from "src/interfaces/IUniV4.sol";
 
 import {console} from "forge-std/console.sol";
 import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager, HookManager {
+contract MockRewardsManager is UniConsumer, Settlement, PoolUpdates {
     using FormatLib for *;
     using IUniV4 for IPoolManager;
 
-    constructor(address uniV4PoolManager, address controller)
-        UniConsumer(uniV4PoolManager)
-        NodeManager(controller)
+    constructor(IPoolManager uniV4, address controller)
+        UniConsumer(uniV4)
+        TopLevelAuth(controller)
+        Settlement(address(0))
     {
-        console.log("rewards manager deployed with controller address %s", controller);
+        _checkAngstromHookFlags();
     }
 
     /// @param encoded PADE `(List<Asset>, List<Pair>, PoolUpdate)`.
     function update(bytes calldata encoded) public {
-        console.log("Update called");
         CalldataReader reader = CalldataReaderLib.from(encoded);
 
         AssetArray assets;
         (reader, assets) = AssetLib.readFromAndValidate(reader);
-        console.log("Assets decoded");
         PairArray pairs;
         (reader, pairs) = PairLib.readFromAndValidate(reader, assets, _configStore);
-        console.log("Pairs decoded");
 
-        UniSwapCallBuffer memory swapCall = UniCallLib.newSwapCall(address(this));
-        reader = _updatePool(reader, swapCall, tBundleDeltas, pairs);
-        console.log("Pool updated");
+        SwapCall memory swapCall = SwapCallLib.newSwapCall(address(this));
+        reader = _updatePool(reader, swapCall, pairs);
 
         reader.requireAtEndOf(encoded);
-        console.log("Turns out we're at the end");
     }
 
     function updateAfterTickMove(PoolId id, int24 lastTick, int24 newTick, int24 tickSpacing)
@@ -67,7 +59,6 @@ contract MockRewardsManager is UniConsumer, SettlementManager, PoolUpdateManager
         view
         returns (uint256)
     {
-        console.log("getGrowthInsideTick has been called");
         _checkTickReal(id, tick, "tick");
         bool initialized;
         int24 nextTickUp;
