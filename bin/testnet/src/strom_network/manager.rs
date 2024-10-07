@@ -16,7 +16,7 @@ use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_primitives::Address;
 use reth_provider::{test_utils::NoopProvider, BlockReader, HeaderProvider};
 use reth_tasks::TokioTaskExecutor;
-use tracing::{span, Instrument, Level};
+use tracing::{span, Level};
 use validation::init_validation;
 
 use crate::{
@@ -42,20 +42,20 @@ impl<C> TestnetPeerManager<C>
 where
     C: BlockReader + HeaderProvider + Unpin + Clone + 'static
 {
-    pub async fn send_network_event_to_peer(
-        &self,
-        peer: &TestnetPeerManager<C>,
-        event: NetworkOrderEvent
-    ) -> eyre::Result<()> {
-        let id = peer.id;
-        tracing::trace!("sending network event to peer {id} - {:?}", event);
+    // pub async fn send_network_event_to_peer(
+    //     &self,
+    //     peer: &TestnetPeerManager<C>,
+    //     event: NetworkOrderEvent
+    // ) -> eyre::Result<()> {
+    //     let id = peer.id;
+    //     tracing::trace!("sending network event to peer {id} - {:?}", event);
 
-        //self.peer.eth_peer;
+    //     //self.peer.eth_peer;
 
-        tracing::trace!("sent network event to peer {id} - {:?}", event);
+    //     tracing::trace!("sent network event to peer {id} - {:?}", event);
 
-        Ok(())
-    }
+    //     Ok(())
+    // }
 
     pub fn send_bundles_to_network(&self, bundles: usize) -> eyre::Result<()> {
         let orders = AllOrders::gen_many(bundles);
@@ -109,7 +109,6 @@ where
         provider: C,
         rpc_wrapper: RpcStateProviderFactoryWrapper
     ) -> Self {
-        let span = span!(Level::TRACE, "testnet node", id = id);
         let handles = initialize_strom_handles();
         let peer = TestnetPeer::new_fully_configed(
             id,
@@ -117,7 +116,6 @@ where
             Some(handles.pool_tx.clone()),
             Some(handles.consensus_tx_op.clone())
         )
-        .instrument(span.clone())
         .await;
         let pk = peer.get_node_public_key();
 

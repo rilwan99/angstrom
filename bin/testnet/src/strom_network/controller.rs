@@ -16,7 +16,8 @@ use crate::{
 };
 
 pub struct StromController<C = NoopProvider> {
-    peers: HashMap<u64, TestnetPeerManager<C>>
+    peers:              HashMap<u64, TestnetPeerManager<C>>,
+    disconnected_peers: Vec<u64>
 }
 
 impl<C> StromController<C>
@@ -24,15 +25,17 @@ where
     C: BlockReader + HeaderProvider + Unpin + Clone + Default + 'static
 {
     pub fn new() -> Self {
-        Self { peers: Default::default() }
+        Self { peers: Default::default(), disconnected_peers: Vec::new() }
     }
 
     pub async fn spawn_testnet_framework(cli: Cli) -> eyre::Result<Self> {
         let mut angr_addr = Address::default();
         let mut all_nodes = Vec::new();
         for id in 0..cli.nodes_in_network {
-            let (node, addr) =
-                Self::build_node(id, cli.starting_port, cli.testnet_block_time_secs).await?;
+            let span = span!(Level::TRACE, "testnet node", id);
+            let (node, addr) = Self::build_peer(id, cli.starting_port, cli.testnet_block_time_secs)
+                .instrument(span)
+                .await?;
             angr_addr = addr;
             all_nodes.push(node);
         }
@@ -49,17 +52,20 @@ where
         Ok(this)
     }
 
-    async fn build_node(
+    async fn build_peer(
         id: u64,
         starting_port: u16,
         testnet_block_time_secs: u64
     ) -> eyre::Result<(TestnetPeerManagerBuilder<C>, Address)> {
-        tracing::info!(id, "deploying contracts to anvil");
-
+        tracing::debug!("connecting to state provider");
         let rpc_wrapper =
             RpcStateProviderFactoryWrapper::spawn_new(testnet_block_time_secs, id).await?;
+        tracing::info!("connected to state provider");
 
+        tracing::debug!("deploying contracts to anvil");
         let addresses = deploy_contract_and_create_pool(rpc_wrapper.provider().provider()).await?;
+        tracing::info!("deployed contracts to anvil");
+
         let angstrom_addr = addresses.contract;
 
         let peer =
