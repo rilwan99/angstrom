@@ -71,13 +71,15 @@ impl<S: StateFetchUtils> UserAccountProcessor<S> {
 
         // very we don't have a respend conflict
         let conflicting_orders = self.user_accounts.respend_conflicts(user, respend);
-        // only keep the ones with the lower order hash
+        // this returns an error if the new order has higher or same order hash, than
+        // what's in pending
         if conflicting_orders
             .iter()
             .any(|o| o.order_hash <= order_hash)
         {
             return Err(UserAccountVerificationError::DuplicateNonce(order_hash))
         }
+        // otherwise cancel all orders with the same nonce
         conflicting_orders.iter().for_each(|order| {
             self.user_accounts.cancel_order(&user, &order.order_hash);
         });
