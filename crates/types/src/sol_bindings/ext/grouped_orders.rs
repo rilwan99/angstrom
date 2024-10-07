@@ -1,7 +1,7 @@
 use std::{hash::Hash, ops::Deref};
 
 use alloy::primitives::{Address, Bytes, FixedBytes, TxHash, U256};
-use reth_primitives::B256;
+use alloy_primitives::B256;
 use serde::{Deserialize, Serialize};
 
 use super::{RawPoolOrder, RespendAvoidanceMethod};

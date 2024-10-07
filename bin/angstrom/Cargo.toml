@@ -19,6 +19,7 @@ normal = [
 [dependencies]
 # Alloy
 alloy-chains.workspace = true
+alloy-rpc-types.workspace = true
 
 # Reth
 reth.workspace = true
@@ -29,7 +30,6 @@ reth-network-peers.workspace = true
 reth-node-builder.workspace = true
 reth-node-ethereum.workspace = true
 reth-provider.workspace = true
-reth-rpc-types.workspace = true
 
 # Angstrom components
 angstrom-rpc.workspace = true

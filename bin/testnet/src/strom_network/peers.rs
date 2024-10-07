@@ -136,7 +136,7 @@ where
             peer_id,
             _span: span,
             eth_peer_handle,
-            futs: tokio::spawn(futs).instrument(span),
+            futs: tokio::spawn(futs.instrument(span)),
             running
         }
     }
@@ -150,7 +150,7 @@ where
     }
 
     pub fn eth_network_handle(&self) -> &PeerHandle<PeerPool> {
-        &self.eth.eth_peer_handle
+        &self.eth_network_handle().eth_peer_handle
     }
 
     pub fn get_node_public_key(&self) -> PeerId {

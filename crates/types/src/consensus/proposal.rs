@@ -1,5 +1,5 @@
+use alloy_primitives::keccak256;
 use bytes::Bytes;
-use reth_primitives::keccak256;
 use secp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
 

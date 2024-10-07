@@ -1,5 +1,5 @@
 use alloy::{primitives::B256, sol_types::SolStruct};
-use reth_primitives::Address;
+use alloy_primitives::Address;
 
 use crate::sol_bindings::sol::ContractBundle;
 
