@@ -116,20 +116,21 @@ where
             let mut all_connected = true;
             for (id, peer) in &mut peers {
                 let span = span!(Level::TRACE, "testnet node", ?id);
-                let e = span.enter();
-                if peer.manual_poll(cx).is_ready() {
+
+                if peer.poll_connect(cx, needed_peers) {
                     tracing::error!("peer failed");
+                } else {
+                    tracing::trace!("connected to {needed_peers} peers");
                 }
-                tracing::trace!("connected to {}/{needed_peers} peers", peer.get_peer_count());
-                all_connected &= peer.get_peer_count() == needed_peers;
-                drop(e);
+
+                // all_connected &= peer.get_peer_count() == needed_peers;
             }
 
-            if all_connected {
-                return Poll::Ready(())
-            }
+            //    if all_connected {
+            return Poll::Ready(())
+            //  }
 
-            Poll::Pending
+            // Poll::Pending
         })
         .await
     }

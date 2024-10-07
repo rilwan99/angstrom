@@ -253,13 +253,25 @@ where
         self.eth.peer_fut.abort();
     }
 
-    pub fn manual_poll(&mut self, cx: &mut Context<'_>) -> Poll<()> {
-        if self.strom.strom_network_fut.poll_unpin(cx).is_ready()
-            || self.eth.peer_fut.poll_unpin(cx).is_ready()
-        {
-            Poll::Ready(())
-        } else {
-            Poll::Pending
+    pub fn poll_connect(&mut self, cx: &mut Context<'_>, needed_peers: usize) -> bool {
+        let mut initial = 0;
+        loop {
+            if self.strom.strom_network_fut.poll_unpin(cx).is_ready()
+                || self.eth.peer_fut.poll_unpin(cx).is_ready()
+            {
+                tracing::error!("peer failed");
+                return false
+            }
+
+            let current_peer_cnt = self.get_peer_count();
+            if initial != current_peer_cnt {
+                tracing::trace!("connected to {}/{needed_peers} peers", current_peer_cnt);
+                initial = current_peer_cnt;
+            }
+
+            if current_peer_cnt == needed_peers {
+                return true
+            }
         }
     }
 }
