@@ -162,8 +162,6 @@ where
                 if all_connected {
                     return Poll::Ready(())
                 }
-
-                Poll::Pending
             }
         })
         .await
