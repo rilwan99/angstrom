@@ -70,8 +70,8 @@ where
 
         // wait on each peer to add all other peers
         let needed_peers = peer_set.len() - 1;
-        let streams = self.peers.iter().map(|(_, peer_handle)| {
-            NetworkEventStream::new(peer_handle.peer.eth_peer.event_listener())
+        let streams = self.peers.iter().map(|(id, peer_handle)| {
+            (*id, NetworkEventStream::new(peer_handle.peer.eth_peer.event_listener()))
         });
 
         // std::future::poll_fn(|cx| {
@@ -92,9 +92,15 @@ where
         // .await
 
         // await all sessions to be established
-        let fut = streams
-            .into_iter()
-            .map(|mut stream| async move { stream.take_session_established(needed_peers).await });
+        let fut = streams.into_iter().map(|(id, mut stream)| {
+            let span = span!(Level::DEBUG, "testnet node", id);
+            async move {
+                let connected = stream.take_session_established(needed_peers).await;
+
+                tracing::info!("connected to {} peers", connected.len());
+            }
+            .instrument(span)
+        });
 
         futures::future::join_all(fut).await;
     }
