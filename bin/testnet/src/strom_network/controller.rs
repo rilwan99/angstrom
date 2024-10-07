@@ -106,15 +106,22 @@ where
         // futures::future::join_all(fut).await;
 
         let needed_peers = peer_set.len() - 1;
-        let mut peers = peer_set.iter_mut().map(|p| &mut p.peer).collect::<Vec<_>>();
+        let mut peers = peer_set
+            .iter_mut()
+            .map(|p| (p.id, &mut p.peer))
+            .collect::<Vec<_>>();
 
         std::future::poll_fn(|cx| {
             let mut all_connected = true;
-            for peer in &mut peers {
+            for (id, peer) in &mut peers {
+                let span = span!(Level::TRACE, "testnet node", ?id);
+                let e = span.enter();
                 if peer.manual_poll(cx).is_ready() {
                     tracing::error!("peer failed");
                 }
-                all_connected &= peer.get_peer_count() == needed_peers
+                tracing::trace!("connected to {}/{needed_peers} peers", peer.get_peer_count());
+                all_connected &= peer.get_peer_count() == needed_peers;
+                drop(e);
             }
 
             if all_connected {
