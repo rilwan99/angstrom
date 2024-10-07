@@ -1,5 +1,5 @@
 use clap::{ArgAction, Parser};
-use tracing::Level;
+use tracing::{level_filters::LevelFilter, Level};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 
 #[derive(Parser)]
@@ -51,8 +51,9 @@ impl Cli {
         };
 
         let filter = EnvFilter::builder()
+            .with_default_directive(LevelFilter::INFO.into())
             // .with_default_directive(format!("testnet={level}").parse().unwrap())
-            .with_default_directive(format!("info,testnet={level}").parse().unwrap())
+            .with_default_directive(format!("testnet={level}").parse().unwrap())
             .from_env_lossy();
 
         // let filter = EnvFilter::default()
