@@ -75,9 +75,11 @@ impl StromTestnet {
         Ok(())
     }
 
+    /// increments the `current_max_peer_id` and returns the previous value
     fn incr_peer_id(&mut self) -> u64 {
+        let prev_id = self.current_max_peer_id;
         self.current_max_peer_id += 1;
-        self.current_max_peer_id
+        prev_id
     }
 
     fn random_valid_id(&self) -> u64 {
