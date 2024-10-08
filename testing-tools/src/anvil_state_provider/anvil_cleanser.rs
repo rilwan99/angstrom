@@ -65,7 +65,7 @@ impl<S: Stream<Item = (u64, Vec<Transaction>)> + Unpin + Send + 'static> AnvilEt
         }
     }
 
-    #[instrument(skip(self, block), fields(block_number = block.0))]
+    #[instrument(skip(self, block), fields(node = self.testnet_node_id, block_number = block.0))]
     fn on_new_block(&mut self, block: (u64, Vec<Transaction>)) {
         let (bn, txes) = block;
 
