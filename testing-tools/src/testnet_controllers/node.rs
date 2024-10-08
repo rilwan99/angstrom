@@ -7,7 +7,6 @@ use angstrom_types::{
     primitive::PeerId,
     sol_bindings::{grouped_orders::AllOrders, sol::ContractBundle, testnet::random::RandomValues}
 };
-use tracing::{span, Instrument, Level};
 
 use super::{config::StromTestnetConfig, strom_internals::StromTestnetNodeInternals};
 use crate::network::peers::TestnetNodeNetwork;
@@ -62,14 +61,48 @@ impl TestnetNode {
         self.network
             .initialize_connections(connections_expected)
             .await;
-
-        // futures::future::join_all(other_peers.iter_mut().map(|(_, peer)| {
-        //     peer.network
-        //         .initialize_connections(connections_expected)
-        //         .instrument(span!(Level::TRACE, "node", id =
-        // peer.testnet_node_id)) }))
-        // .await;
     }
+
+    // /// subscribes to the next message from the network and checks if it's as
+    // /// expected
+    // pub async fn subscribe_next_message(&mut self, msg: StromMessage) -> bool {
+    //     let rx = self.strom;
+
+    //     let Some(next) = rx.next().await else {
+    //         return false;
+    //     };
+
+    //     // fetch our sender peer
+    //     let (_, peer) =
+    // self.peers.iter_mut().take(1).collect::<Vec<_>>().remove(0);
+
+    //     // send message to other peers
+    //     self.network
+    //         .strom_peer_network()
+    //         .network_handle
+    //         .broadcast_message(msg.clone());
+    //     let expected_msg_cnt = self.peers.len() - 1;
+
+    //     let expected = if let StromMessage::PropagatePooledOrders(o) = msg {
+    //         o
+    //     } else {
+    //         tracing::warn!("broadcast message orders called with a non order
+    // message");         return false
+    //     };
+
+    //     let rx = Box::pin(rx.map(|msg| match msg {
+    //         angstrom_network::NetworkOrderEvent::IncomingOrders { orders, .. } =>
+    // orders     }));
+
+    //     let res = self.message_test(rx, expected, expected_msg_cnt).await;
+
+    //     // uninstall channel
+    //     self.peers.iter_mut().for_each(|(_, peer)| {
+    //         peer.manager_mut().remove_pool_manager();
+    //     });
+
+    //     res
+    // }
 
     pub fn send_bundles_to_network(&self, peer_id: PeerId, bundles: usize) -> eyre::Result<()> {
         let orders = AllOrders::gen_many(bundles);

@@ -7,7 +7,7 @@ use angstrom_network::{
 };
 use consensus::ConsensusCommand;
 use order_pool::PoolManagerUpdate;
-use reth_metrics::common::mpsc::UnboundedMeteredSender;
+use reth_metrics::common::mpsc::{UnboundedMeteredReceiver, UnboundedMeteredSender};
 use tokio::sync::mpsc::{Sender, UnboundedSender};
 
 #[derive(Clone)]

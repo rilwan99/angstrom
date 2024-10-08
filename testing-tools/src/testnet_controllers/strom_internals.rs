@@ -1,28 +1,15 @@
 use std::sync::Arc;
 
-use alloy::{primitives::FixedBytes, providers::Provider, sol_types::SolValue};
-use alloy_primitives::Address;
-use angstrom::cli::{initialize_strom_handles, StromHandles};
+use alloy::providers::Provider;
+use angstrom::cli::StromHandles;
 use angstrom_eth::handle::Eth;
-use angstrom_network::{
-    pool_manager::PoolHandle, NetworkOrderEvent, PoolManagerBuilder, StromNetworkHandle
-};
+use angstrom_network::{pool_manager::PoolHandle, PoolManagerBuilder, StromNetworkHandle};
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
-use angstrom_types::{
-    primitive::PeerId,
-    sol_bindings::{
-        grouped_orders::AllOrders,
-        sol::ContractBundle,
-        testnet::{random::RandomValues, TestnetHub}
-    }
-};
+use angstrom_types::sol_bindings::testnet::TestnetHub;
 use futures::StreamExt;
 use jsonrpsee::server::ServerBuilder;
 use order_pool::{order_storage::OrderStorage, PoolConfig};
-use reth_chainspec::Hardforks;
-use reth_provider::{test_utils::NoopProvider, BlockReader, ChainSpecProvider, HeaderProvider};
 use reth_tasks::TokioTaskExecutor;
-use tracing::{span, Level};
 use validation::init_validation;
 
 use super::config::StromTestnetConfig;
@@ -32,7 +19,6 @@ use crate::{
         AnvilEthDataCleanser, RpcStateProviderFactoryWrapper
     },
     contracts::deploy_contract_and_create_pool,
-    network::peers::TestnetNodeNetwork,
     types::SendingStromHandles
 };
 

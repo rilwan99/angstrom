@@ -28,11 +28,10 @@ use reth_metrics::common::mpsc::{MeteredPollSender, UnboundedMeteredSender};
 use reth_network::test_utils::PeerConfig;
 use reth_network_peers::{pk2id, PeerId};
 use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
-use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use secp256k1::{Secp256k1, SecretKey};
 pub use strom_peer::*;
 use tokio::task::JoinHandle;
 use tokio_util::sync::PollSender;
-use tracing::{span, Level};
 
 use crate::network::peers::StromNetworkPeer;
 
