@@ -14,7 +14,7 @@ use futures::{Future, Stream, StreamExt};
 use reth_tasks::TaskSpawner;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedSender};
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::{span, Instrument, Level};
+use tracing::{instrument, span, Instrument, Level};
 
 pub struct AnvilEthDataCleanser<S: Stream<Item = (u64, Vec<Transaction>)>> {
     testnet_node_id:             u64,
@@ -65,6 +65,7 @@ impl<S: Stream<Item = (u64, Vec<Transaction>)> + Unpin + Send + 'static> AnvilEt
         }
     }
 
+    #[instrument(skip(self, block), fields(node = self.testnet_node_id, block_number = block.0))]
     fn on_new_block(&mut self, block: (u64, Vec<Transaction>)) {
         let (bn, txes) = block;
 
