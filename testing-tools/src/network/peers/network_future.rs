@@ -122,6 +122,10 @@ where
     {
         f(&mut self.eth_peer.lock())
     }
+
+    pub(crate) fn poll_fut_to_initialize(&mut self, cx: &mut Context<'_>) -> Poll<()> {
+        self.fut.poll_unpin(cx).map(|_| ())
+    }
 }
 
 struct TestnetPeerStateFutureInternals<C> {

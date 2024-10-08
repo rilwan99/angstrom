@@ -20,12 +20,12 @@ use angstrom_network::{
     StromNetworkManager, StromProtocolHandler, StromSessionManager, Swarm, VerificationSidecar
 };
 pub use eth_peer::*;
-use network_future::TestnetPeerFuture;
+use network_future::{TestnetPeerFuture, TestnetPeerStateFuture};
 use parking_lot::RwLock;
 use rand::thread_rng;
 use reth_chainspec::Hardforks;
 use reth_metrics::common::mpsc::{MeteredPollSender, UnboundedMeteredSender};
-use reth_network::test_utils::PeerConfig;
+use reth_network::test_utils::{Peer, PeerConfig};
 use reth_network_peers::{pk2id, PeerId};
 use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
 use secp256k1::{Secp256k1, SecretKey};
@@ -35,7 +35,7 @@ use tokio_util::sync::PollSender;
 
 use crate::network::peers::StromNetworkPeer;
 
-pub struct TestnetNodeNetwork {
+pub struct TestnetNodeNetwork<C> {
     // eth components
     eth_handle:   EthNetworkPeer,
     // strom components
@@ -43,25 +43,25 @@ pub struct TestnetNodeNetwork {
     secret_key:   SecretKey,
     pubkey:       PeerId,
     running:      Arc<AtomicBool>,
-    network_futs: JoinHandle<()>
+    networks:     TestnetPeerStateFuture<C>
 }
 
-impl TestnetNodeNetwork {
-    pub async fn new_fully_configed<C>(
+impl<C> TestnetNodeNetwork<C>
+where
+    C: BlockReader
+        + HeaderProvider
+        + ChainSpecProvider
+        + Unpin
+        + Clone
+        + ChainSpecProvider<ChainSpec: Hardforks>
+        + 'static
+{
+    pub async fn new_fully_configed(
         testnet_node_id: u64,
         c: C,
         to_pool_manager: Option<UnboundedMeteredSender<NetworkOrderEvent>>,
         to_consensus_manager: Option<UnboundedMeteredSender<StromConsensusEvent>>
-    ) -> Self
-    where
-        C: BlockReader
-            + HeaderProvider
-            + ChainSpecProvider
-            + Unpin
-            + Clone
-            + ChainSpecProvider<ChainSpec: Hardforks>
-            + 'static
-    {
+    ) -> Self {
         let mut rng = thread_rng();
         let sk = SecretKey::new(&mut rng);
         let peer = PeerConfig::with_secret_key(c.clone(), sk);
@@ -107,16 +107,9 @@ impl TestnetNodeNetwork {
 
         let running = Arc::new(AtomicBool::new(true));
         let futs =
-            TestnetPeerFuture::new(testnet_node_id, eth_peer, strom_network, running.clone());
+            TestnetPeerStateFuture::new(testnet_node_id, eth_peer, strom_network, running.clone());
 
-        Self {
-            strom_handle,
-            secret_key: sk,
-            pubkey: peer_id,
-            network_futs: tokio::spawn(futs),
-            eth_handle,
-            running
-        }
+        Self { strom_handle, secret_key: sk, pubkey: peer_id, networks: futs, eth_handle, running }
     }
 
     pub fn new_with_consensus() -> Self {
@@ -143,8 +136,18 @@ impl TestnetNodeNetwork {
         self.running.store(false, Ordering::Relaxed);
     }
 
+    pub fn blocking_stop_network(&self) {
+        self.running.store(false, Ordering::Relaxed);
+        while self.is_network_on() {}
+    }
+
     pub fn start_network(&self) {
         self.running.store(true, Ordering::Relaxed);
+    }
+
+    pub fn blocking_start_network(&self) {
+        self.running.store(true, Ordering::Relaxed);
+        while self.is_network_off() {}
     }
 
     pub fn is_network_off(&self) -> bool {
@@ -155,11 +158,39 @@ impl TestnetNodeNetwork {
         self.running.load(Ordering::Relaxed) == true
     }
 
+    pub fn strom_network<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&StromNetworkManager<C>) -> R
+    {
+        self.networks.strom_network(f)
+    }
+
+    pub fn strom_network_mut<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut StromNetworkManager<C>) -> R
+    {
+        self.networks.strom_network_mut(f)
+    }
+
+    pub fn eth_peer<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&Peer<C>) -> R
+    {
+        self.networks.eth_peer(f)
+    }
+
+    pub fn eth_peer_mut<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut Peer<C>) -> R
+    {
+        self.networks.eth_peer_mut(f)
+    }
+
     pub(crate) async fn initialize_connections(&mut self, connections_needed: usize) {
         tracing::debug!(pubkey = ?self.pubkey, "attempting connections to {connections_needed} peers");
         let mut last_peer_count = 0;
         std::future::poll_fn(|cx| loop {
-            if self.poll_fut_to_initialize(cx).is_ready() {
+            if self.networks.poll_fut_to_initialize(cx).is_ready() {
                 panic!("peer connection failed");
             }
 
@@ -175,14 +206,10 @@ impl TestnetNodeNetwork {
         })
         .await
     }
-
-    fn poll_fut_to_initialize(&mut self, cx: &mut Context<'_>) -> Poll<()> {
-        self.network_futs.poll_unpin(cx).map(|_| ())
-    }
 }
 
-impl Drop for TestnetNodeNetwork {
-    fn drop(&mut self) {
-        self.network_futs.abort();
-    }
-}
+// impl Drop for TestnetNodeNetwork<C> {
+//     fn drop(&mut self) {
+//         self.network_futs.abort();
+//     }
+// }

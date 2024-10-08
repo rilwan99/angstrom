@@ -2,25 +2,39 @@ use std::collections::HashMap;
 
 use alloy_sol_types::SolValue;
 use angstrom::cli::StromHandles;
-use angstrom_network::NetworkOrderEvent;
+use angstrom_network::{NetworkOrderEvent, StromMessage};
 use angstrom_types::{
     primitive::PeerId,
     sol_bindings::{grouped_orders::AllOrders, sol::ContractBundle, testnet::random::RandomValues}
 };
+use reth_chainspec::Hardforks;
+use reth_metrics::common::mpsc::{
+    metered_unbounded_channel, UnboundedMeteredReceiver, UnboundedMeteredSender
+};
+use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
 
 use super::{config::StromTestnetConfig, strom_internals::StromTestnetNodeInternals};
 use crate::network::peers::TestnetNodeNetwork;
 
-pub struct TestnetNode {
+pub struct TestnetNode<C> {
     pub testnet_node_id: u64,
-    pub network:         TestnetNodeNetwork,
+    pub network:         TestnetNodeNetwork<C>,
     pub strom:           StromTestnetNodeInternals
 }
 
-impl TestnetNode {
+impl<C> TestnetNode<C>
+where
+    C: BlockReader
+        + HeaderProvider
+        + ChainSpecProvider
+        + Unpin
+        + Clone
+        + ChainSpecProvider<ChainSpec: Hardforks>
+        + 'static
+{
     pub async fn new(
         testnet_node_id: u64,
-        network: TestnetNodeNetwork,
+        network: TestnetNodeNetwork<C>,
         strom_handles: StromHandles,
         config: StromTestnetConfig
     ) -> eyre::Result<Self> {
@@ -63,46 +77,21 @@ impl TestnetNode {
             .await;
     }
 
-    // /// subscribes to the next message from the network and checks if it's as
-    // /// expected
-    // pub async fn subscribe_next_message(&mut self, msg: StromMessage) -> bool {
-    //     let rx = self.strom;
+    pub fn pre_post_network_event_pool_manager_swap(
+        &mut self,
+        tx: UnboundedMeteredSender<NetworkOrderEvent>,
+        is_pre_event: bool
+    ) -> UnboundedMeteredSender<NetworkOrderEvent> {
+        if is_pre_event {
+            self.network.blocking_stop_network();
+        } else {
+            self.network.blocking_start_network();
+        }
 
-    //     let Some(next) = rx.next().await else {
-    //         return false;
-    //     };
-
-    //     // fetch our sender peer
-    //     let (_, peer) =
-    // self.peers.iter_mut().take(1).collect::<Vec<_>>().remove(0);
-
-    //     // send message to other peers
-    //     self.network
-    //         .strom_peer_network()
-    //         .network_handle
-    //         .broadcast_message(msg.clone());
-    //     let expected_msg_cnt = self.peers.len() - 1;
-
-    //     let expected = if let StromMessage::PropagatePooledOrders(o) = msg {
-    //         o
-    //     } else {
-    //         tracing::warn!("broadcast message orders called with a non order
-    // message");         return false
-    //     };
-
-    //     let rx = Box::pin(rx.map(|msg| match msg {
-    //         angstrom_network::NetworkOrderEvent::IncomingOrders { orders, .. } =>
-    // orders     }));
-
-    //     let res = self.message_test(rx, expected, expected_msg_cnt).await;
-
-    //     // uninstall channel
-    //     self.peers.iter_mut().for_each(|(_, peer)| {
-    //         peer.manager_mut().remove_pool_manager();
-    //     });
-
-    //     res
-    // }
+        self.network
+            .strom_network_mut(|net| net.swap_pool_manager(tx))
+            .expect("old network event channel is empty")
+    }
 
     pub fn send_bundles_to_network(&self, peer_id: PeerId, bundles: usize) -> eyre::Result<()> {
         let orders = AllOrders::gen_many(bundles);

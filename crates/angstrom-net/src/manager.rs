@@ -60,10 +60,6 @@ impl<DB: Unpin> StromNetworkManager<DB> {
         }
     }
 
-    pub fn install_pool_manager(&mut self, tx: UnboundedMeteredSender<NetworkOrderEvent>) {
-        self.to_pool_manager = Some(tx);
-    }
-
     pub fn install_consensus_manager(&mut self, tx: UnboundedMeteredSender<StromConsensusEvent>) {
         self.to_consensus_manager = Some(tx);
     }
@@ -72,8 +68,30 @@ impl<DB: Unpin> StromNetworkManager<DB> {
         self.to_consensus_manager.take();
     }
 
+    pub fn swap_consensus_manager(
+        &mut self,
+        tx: UnboundedMeteredSender<StromConsensusEvent>
+    ) -> Option<UnboundedMeteredSender<StromConsensusEvent>> {
+        let mut other = Some(tx);
+        std::mem::swap(&mut self.to_consensus_manager, &mut other);
+        other
+    }
+
+    pub fn install_pool_manager(&mut self, tx: UnboundedMeteredSender<NetworkOrderEvent>) {
+        self.to_pool_manager = Some(tx);
+    }
+
     pub fn remove_pool_manager(&mut self) {
         self.to_pool_manager.take();
+    }
+
+    pub fn swap_pool_manager(
+        &mut self,
+        tx: UnboundedMeteredSender<NetworkOrderEvent>
+    ) -> Option<UnboundedMeteredSender<NetworkOrderEvent>> {
+        let mut other = Some(tx);
+        std::mem::swap(&mut self.to_pool_manager, &mut other);
+        other
     }
 
     pub fn swarm_mut(&mut self) -> &mut Swarm<DB> {
