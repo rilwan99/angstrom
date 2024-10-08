@@ -28,7 +28,7 @@ use angstrom_network::{
 };
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
 use clap::Parser;
-use consensus::{ConsensusManager, ManagerNetworkDeps, Signer};
+use consensus::{AngstromValidator, ConsensusManager, ManagerNetworkDeps, Signer};
 use reth::{
     api::NodeAddOns,
     args::utils::DefaultChainSpecParser,
@@ -236,7 +236,6 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
 
     let signer = Signer::new(secret_key);
 
-    let global_consensus_state = Arc::new(Mutex::new(GlobalConsensusState::default()));
     // TODO load the stakes from Eigen using node.provider
     // list of PeerIds will be known upfront on the first version
     let validators = vec![
