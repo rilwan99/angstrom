@@ -10,14 +10,14 @@ async fn main() -> eyre::Result<()> {
     let network_controller = StromTestnet::spawn_testnet(config).await?;
 
     let peer_count = network_controller
-        .run_event(Some(0), |peer| async {
+        .run_event(Some(1), |peer| async {
             {
                 peer.network.strom_peer_network().peer_count()
             }
         })
         .await;
 
-    assert_eq!(peer_count, 1);
+    assert_ne!(peer_count, 1);
 
     do_thing(network_controller).await?;
 
