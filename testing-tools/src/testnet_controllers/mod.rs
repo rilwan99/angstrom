@@ -144,12 +144,11 @@ where
     /// peer. Returns the latest block
     pub async fn update_state(&self, id: u64) -> eyre::Result<()> {
         let peer = self.get_peer(id);
-        let (updated_state, _) = peer.strom.state_provider.execute_and_return_state().await?;
+        let (updated_state, _) = peer.state_provider().execute_and_return_state().await?;
 
         futures::future::join_all(self.peers.iter().map(|(i, peer)| async {
             if id != *i {
-                peer.strom
-                    .state_provider
+                peer.state_provider()
                     .set_state(updated_state.clone())
                     .await?;
             }
@@ -174,8 +173,8 @@ where
             .run_network_order_event_on_all_peers_with_expection(
                 id.unwrap_or_else(|| self.random_valid_id()),
                 |peer| {
-                    let network_handle = peer.network.strom_peer_network().network_handle.clone();
-                    let peer_id = *peer.network.eth_peer_handle().peer_handle().peer_id();
+                    let network_handle = peer.strom_network_handle().clone();
+                    let peer_id = peer.peer_id();
 
                     async move {
                         network_handle.broadcast_message(sent_msg.clone());
@@ -257,7 +256,7 @@ where
             .iter()
             .filter(|(id, _)| **id != exception_id)
             .for_each(|(_, peer)| {
-                peer.network.blocking_start_network();
+                peer.start_network(true);
             });
 
         let out = expected_f(rx_channels, event_out).await;

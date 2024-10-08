@@ -17,7 +17,8 @@ use alloy_chains::Chain;
 use alloy_primitives::Address;
 use angstrom_network::{
     manager::StromConsensusEvent, state::StromState, NetworkOrderEvent, StatusState,
-    StromNetworkManager, StromProtocolHandler, StromSessionManager, Swarm, VerificationSidecar
+    StromNetworkHandle, StromNetworkManager, StromProtocolHandler, StromSessionManager, Swarm,
+    VerificationSidecar
 };
 pub use eth_peer::*;
 use network_future::{TestnetPeerFuture, TestnetPeerStateFuture};
@@ -25,7 +26,10 @@ use parking_lot::RwLock;
 use rand::thread_rng;
 use reth_chainspec::Hardforks;
 use reth_metrics::common::mpsc::{MeteredPollSender, UnboundedMeteredSender};
-use reth_network::test_utils::{Peer, PeerConfig};
+use reth_network::{
+    test_utils::{Peer, PeerConfig, PeerHandle},
+    NetworkHandle
+};
 use reth_network_peers::{pk2id, PeerId};
 use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
 use secp256k1::{Secp256k1, SecretKey};
@@ -37,13 +41,13 @@ use crate::network::peers::StromNetworkPeer;
 
 pub struct TestnetNodeNetwork<C> {
     // eth components
-    eth_handle:   EthNetworkPeer,
+    pub eth_handle:      EthNetworkPeer,
     // strom components
-    strom_handle: StromNetworkPeer,
-    secret_key:   SecretKey,
-    pubkey:       PeerId,
-    running:      Arc<AtomicBool>,
-    networks:     TestnetPeerStateFuture<C>
+    pub strom_handle:    StromNetworkPeer,
+    pub secret_key:      SecretKey,
+    pub pubkey:          PeerId,
+    pub running:         Arc<AtomicBool>,
+    pub(crate) networks: TestnetPeerStateFuture<C>
 }
 
 impl<C> TestnetNodeNetwork<C>
@@ -124,14 +128,6 @@ where
         self.pubkey
     }
 
-    pub fn strom_peer_network(&self) -> &StromNetworkPeer {
-        &self.strom_handle
-    }
-
-    pub fn eth_peer_handle(&self) -> &EthNetworkPeer {
-        &self.eth_handle
-    }
-
     pub fn stop_network(&self) {
         self.running.store(false, Ordering::Relaxed);
     }
@@ -158,34 +154,6 @@ where
         self.running.load(Ordering::Relaxed) == true
     }
 
-    pub fn strom_network<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce(&StromNetworkManager<C>) -> R
-    {
-        self.networks.strom_network(f)
-    }
-
-    pub fn strom_network_mut<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce(&mut StromNetworkManager<C>) -> R
-    {
-        self.networks.strom_network_mut(f)
-    }
-
-    pub fn eth_peer<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce(&Peer<C>) -> R
-    {
-        self.networks.eth_peer(f)
-    }
-
-    pub fn eth_peer_mut<F, R>(&self, f: F) -> R
-    where
-        F: FnOnce(&mut Peer<C>) -> R
-    {
-        self.networks.eth_peer_mut(f)
-    }
-
     pub(crate) async fn initialize_connections(&mut self, connections_needed: usize) {
         tracing::debug!(pubkey = ?self.pubkey, "attempting connections to {connections_needed} peers");
         let mut last_peer_count = 0;
@@ -194,7 +162,7 @@ where
                 panic!("peer connection failed");
             }
 
-            let peer_cnt = self.strom_peer_network().peer_count();
+            let peer_cnt = self.strom_handle.peer_count();
             if last_peer_count != peer_cnt {
                 tracing::trace!("connected to {peer_cnt}/{connections_needed} peers");
                 last_peer_count = peer_cnt;

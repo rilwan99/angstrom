@@ -14,7 +14,7 @@ use parking_lot::Mutex;
 use reth_network::test_utils::Peer;
 use reth_provider::BlockReader;
 use tokio::task::JoinHandle;
-use tracing::{span, Instrument, Level, Span};
+use tracing::{span, Level};
 
 pub(crate) struct TestnetPeerFuture {
     testnet_node_id:   u64,

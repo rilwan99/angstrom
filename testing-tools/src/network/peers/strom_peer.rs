@@ -8,8 +8,8 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 
 #[derive(Clone)]
 pub struct StromNetworkPeer {
-    pub network_handle: StromNetworkHandle,
-    pub validator_set:  Arc<RwLock<HashSet<Address>>>
+    network_handle: StromNetworkHandle,
+    validator_set:  Arc<RwLock<HashSet<Address>>>
 }
 
 impl StromNetworkPeer {

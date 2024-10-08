@@ -1,25 +1,41 @@
-use std::collections::HashMap;
+use std::{
+    collections::{HashMap, HashSet},
+    net::SocketAddr,
+    sync::Arc
+};
 
+use alloy_primitives::Address;
 use alloy_sol_types::SolValue;
 use angstrom::cli::StromHandles;
-use angstrom_network::{NetworkOrderEvent, StromMessage};
+use angstrom_network::{
+    NetworkOrderEvent, StromMessage, StromNetworkEvent, StromNetworkHandle, StromNetworkManager
+};
 use angstrom_types::{
     primitive::PeerId,
     sol_bindings::{grouped_orders::AllOrders, sol::ContractBundle, testnet::random::RandomValues}
 };
+use parking_lot::RwLock;
 use reth_chainspec::Hardforks;
 use reth_metrics::common::mpsc::{
     metered_unbounded_channel, UnboundedMeteredReceiver, UnboundedMeteredSender
 };
+use reth_network::{
+    test_utils::{Peer, PeerHandle},
+    NetworkHandle, NetworkInfo, Peers
+};
 use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use super::{config::StromTestnetConfig, strom_internals::StromTestnetNodeInternals};
-use crate::network::peers::TestnetNodeNetwork;
+use crate::{
+    anvil_state_provider::RpcStateProviderFactoryWrapper,
+    network::peers::{EthPeerPool, TestnetNodeNetwork}
+};
 
 pub struct TestnetNode<C> {
-    pub testnet_node_id: u64,
-    pub network:         TestnetNodeNetwork<C>,
-    pub strom:           StromTestnetNodeInternals
+    testnet_node_id: u64,
+    network:         TestnetNodeNetwork<C>,
+    strom:           StromTestnetNodeInternals
 }
 
 impl<C> TestnetNode<C>
@@ -41,7 +57,7 @@ where
         let strom = StromTestnetNodeInternals::new(
             testnet_node_id,
             strom_handles,
-            network.strom_peer_network().network_handle.clone(),
+            network.strom_handle.network_handle().clone(),
             config
         )
         .await?;
@@ -49,24 +65,130 @@ where
         Ok(Self { testnet_node_id, network, strom })
     }
 
-    fn add_validator_bidirectional(&mut self, other: &Self) {
-        self.network
-            .strom_peer_network()
-            .add_validator(other.network.pubkey());
+    /// General
+    /// -------------------------------------
+    pub fn peer_id(&self) -> PeerId {
+        *self.eth_network_handle().peer_id()
+    }
 
-        other
-            .network
-            .strom_peer_network()
-            .add_validator(self.network.pubkey());
+    pub fn state_provider(&self) -> &RpcStateProviderFactoryWrapper {
+        &self.strom.state_provider
+    }
+
+    /// Eth
+    /// -------------------------------------
+    pub fn eth_peer_handle(&self) -> &PeerHandle<EthPeerPool> {
+        self.network.eth_handle.peer_handle()
+    }
+
+    pub fn eth_network_handle(&self) -> &NetworkHandle {
+        self.network.eth_handle.network_handle()
+    }
+
+    pub fn connect_to_eth_peer(&self, id: PeerId, addr: SocketAddr) {
+        self.eth_network_handle().add_peer(id, addr);
+    }
+
+    pub fn eth_socket_addr(&self) -> SocketAddr {
+        self.eth_network_handle().local_addr()
+    }
+
+    /// Angstrom
+    /// -------------------------------------
+    pub fn strom_network_handle(&self) -> &StromNetworkHandle {
+        self.network.strom_handle.network_handle()
+    }
+
+    pub fn strom_validator_set(&self) -> Arc<RwLock<HashSet<Address>>> {
+        self.network.strom_handle.validator_set()
+    }
+
+    pub fn disconnect_strom_peer(&self, id: PeerId) {
+        self.network.strom_handle.disconnect_peer(id);
+    }
+
+    pub fn strom_peer_count(&self) -> usize {
+        self.network.strom_handle.peer_count()
+    }
+
+    pub fn remove_strom_validator(&self, id: PeerId) {
+        self.network.strom_handle.remove_validator(id);
+    }
+
+    pub fn add_strom_validator(&self, id: PeerId) {
+        self.network.strom_handle.add_validator(id);
+    }
+
+    pub fn subscribe_strom_network_events(&self) -> UnboundedReceiverStream<StromNetworkEvent> {
+        self.network.strom_handle.subscribe_network_events()
+    }
+
+    /// Network
+    /// -------------------------------------
+    pub fn strom_network_manager<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&StromNetworkManager<C>) -> R
+    {
+        self.network.networks.strom_network(f)
+    }
+
+    pub fn strom_network_manager_mut<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut StromNetworkManager<C>) -> R
+    {
+        self.network.networks.strom_network_mut(f)
+    }
+
+    pub fn eth_peer<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&Peer<C>) -> R
+    {
+        self.network.networks.eth_peer(f)
+    }
+
+    pub fn eth_peer_mut<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut Peer<C>) -> R
+    {
+        self.network.networks.eth_peer_mut(f)
+    }
+
+    pub fn start_network(&self, blocking: bool) {
+        if blocking {
+            self.network.blocking_start_network()
+        } else {
+            self.network.start_network()
+        }
+    }
+
+    pub fn stop_network(&self, blocking: bool) {
+        if blocking {
+            self.network.blocking_stop_network()
+        } else {
+            self.network.stop_network()
+        }
+    }
+
+    pub fn is_network_on(&self) -> bool {
+        self.network.is_network_on()
+    }
+
+    pub fn is_network_off(&self) -> bool {
+        self.network.is_network_off()
+    }
+
+    /// Testing Utils
+    /// -------------------------------------
+
+    fn add_validator_bidirectional(&mut self, other: &Self) {
+        self.add_strom_validator(other.network.pubkey());
+        other.add_strom_validator(self.network.pubkey());
     }
 
     pub async fn connect_to_all_peers(&mut self, other_peers: &mut HashMap<u64, Self>) {
         self.network.start_network();
         other_peers.iter().for_each(|(_, peer)| {
-            self.network.eth_peer_handle().connect_to_peer(
-                peer.network.pubkey(),
-                peer.network.eth_peer_handle().socket_addr()
-            );
+            self.connect_to_eth_peer(peer.network.pubkey(), peer.eth_socket_addr());
 
             self.add_validator_bidirectional(peer);
         });
@@ -88,8 +210,7 @@ where
             self.network.blocking_start_network();
         }
 
-        self.network
-            .strom_network_mut(|net| net.swap_pool_manager(tx))
+        self.strom_network_manager_mut(|net| net.swap_pool_manager(tx))
             .expect("old network event channel is empty")
     }
 
