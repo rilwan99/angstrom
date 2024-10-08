@@ -65,7 +65,6 @@ impl<S: Stream<Item = (u64, Vec<Transaction>)> + Unpin + Send + 'static> AnvilEt
         }
     }
 
-    #[instrument(skip(self, block), fields(node = self.testnet_node_id, block_number = block.0))]
     fn on_new_block(&mut self, block: (u64, Vec<Transaction>)) {
         let (bn, txes) = block;
 
@@ -117,7 +116,7 @@ impl<S: Stream<Item = (u64, Vec<Transaction>)> + Unpin + Send + 'static> Future
         let e = span.enter();
 
         while let Poll::Ready(Some(block)) = self.block_subscription.poll_next_unpin(cx) {
-            tracing::trace!("received new block from anvil");
+            tracing::trace!(block_number = block.0, "received new block from anvil");
             self.on_new_block(block);
         }
         while let Poll::Ready(Some(cmd)) = self.commander.poll_next_unpin(cx) {

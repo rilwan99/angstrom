@@ -27,12 +27,13 @@ impl TestnetPeerFuture {
         testnet_node_id: u64,
         eth_peer: Peer<C>,
         strom_network: StromNetworkManager<C>,
-        running: Arc<AtomicBool> //span: Span
+        running: Arc<AtomicBool>,
+        span: Span
     ) -> Self {
         Self {
             testnet_node_id,
-            eth_peer_fut: Box::pin(eth_peer), //.instrument(span.clone())),
-            strom_network_fut: Box::pin(strom_network), //.instrument(span.clone())),
+            eth_peer_fut: Box::pin(eth_peer.instrument(span.clone())),
+            strom_network_fut: Box::pin(strom_network.instrument(span.clone())),
             running
         }
     }
