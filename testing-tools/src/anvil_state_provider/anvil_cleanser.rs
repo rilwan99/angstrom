@@ -14,7 +14,7 @@ use futures::{Future, Stream, StreamExt};
 use reth_tasks::TaskSpawner;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedSender};
 use tokio_stream::wrappers::ReceiverStream;
-use tracing::{span, Instrument, Level, Span};
+use tracing::{span, Instrument, Level};
 
 pub struct AnvilEthDataCleanser<S: Stream<Item = (u64, Vec<Transaction>)>> {
     angstrom_contract:           Address,
