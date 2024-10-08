@@ -17,6 +17,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tracing::{span, Instrument, Level};
 
 pub struct AnvilEthDataCleanser<S: Stream<Item = (u64, Vec<Transaction>)>> {
+    testnet_node_id:             u64,
     angstrom_contract:           Address,
     /// our command receiver
     commander:                   ReceiverStream<EthCommand>,
@@ -38,6 +39,7 @@ impl<S: Stream<Item = (u64, Vec<Transaction>)> + Unpin + Send + 'static> AnvilEt
     ) -> eyre::Result<EthHandle> {
         let stream = ReceiverStream::new(rx);
         let this = Self {
+            testnet_node_id,
             commander: stream,
             event_listeners: Vec::new(),
             block_subscription,
@@ -45,8 +47,7 @@ impl<S: Stream<Item = (u64, Vec<Transaction>)> + Unpin + Send + 'static> AnvilEt
             block_finalization_lookback
         };
 
-        let span = span!(Level::TRACE, "testnet node", id = testnet_node_id);
-        tp.spawn_critical("eth handle", Box::pin(this.instrument(span)));
+        tp.spawn_critical("eth handle", Box::pin(this));
 
         let handle = EthHandle::new(tx);
 
@@ -111,6 +112,9 @@ impl<S: Stream<Item = (u64, Vec<Transaction>)> + Unpin + Send + 'static> Future
     type Output = ();
 
     fn poll(mut self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let span = span!(Level::TRACE, "node", id = self.testnet_node_id);
+        let e = span.enter();
+
         while let Poll::Ready(Some(block)) = self.block_subscription.poll_next_unpin(cx) {
             tracing::trace!("received new block from anvil");
             self.on_new_block(block);
@@ -119,6 +123,8 @@ impl<S: Stream<Item = (u64, Vec<Transaction>)> + Unpin + Send + 'static> Future
             tracing::trace!("received command from channel");
             self.on_command(cmd);
         }
+
+        drop(e);
 
         Poll::Pending
     }
