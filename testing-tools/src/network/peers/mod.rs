@@ -162,7 +162,7 @@ impl TestnetNodeNetwork {
         let mut last_peer_count = 0;
         std::future::poll_fn(|cx| loop {
             if self.poll_fut_to_initialize(cx).is_ready() {
-                tracing::error!("peer failed");
+                panic!("peer connection failed");
             }
 
             let peer_cnt = self.strom_peer_network().peer_count();

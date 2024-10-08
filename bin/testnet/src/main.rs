@@ -12,7 +12,18 @@ async fn main() -> eyre::Result<()> {
     let peer_count = network_controller
         .run_event(Some(0), |peer| async {
             {
-                peer.network.strom_peer_network().peer_count()
+                let v = peer.network.strom_peer_network().peer_count();
+                println!("0 - {v}");
+                v
+            }
+        })
+        .await;
+
+    let _ = network_controller
+        .run_event(Some(1), |peer| async {
+            {
+                let v = peer.network.strom_peer_network().peer_count();
+                println!("1 - {v}");
             }
         })
         .await;
