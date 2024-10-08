@@ -1272,22 +1272,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "angstrom-submission"
-version = "0.1.0"
-dependencies = [
- "alloy-primitives 0.8.3",
- "angstrom-types",
- "angstrom-utils",
- "anyhow",
- "futures",
- "pin-project",
- "reth-provider",
- "serde",
- "tokio",
- "tokio-stream",
-]
-
-[[package]]
 name = "angstrom-types"
 version = "0.1.0"
 dependencies = [

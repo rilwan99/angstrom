@@ -10,7 +10,6 @@ members = [
   "crates/order-pool",
   "crates/rpc",
   "crates/eth/",
-  "crates/submission",
   "testing-tools",
   "crates/matching-engine",
   "crates/pade",
