@@ -112,7 +112,7 @@ impl<S: Stream<Item = (u64, Vec<Transaction>)> + Unpin + Send + 'static> Future
     type Output = ();
 
     fn poll(mut self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let span = span!(Level::TRACE, "node", id = self.testnet_node_id);
+        let span = span!(Level::INFO, "node", id = self.testnet_node_id);
         let e = span.enter();
 
         while let Poll::Ready(Some(block)) = self.block_subscription.poll_next_unpin(cx) {
