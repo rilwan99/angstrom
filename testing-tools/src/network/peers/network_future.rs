@@ -48,7 +48,7 @@ impl Future for TestnetPeerFuture {
         let span = span!(Level::TRACE, "node", id = this.testnet_node_id);
         let e = span.enter();
 
-        while this.running.load(Ordering::Relaxed) {
+        if this.running.load(Ordering::Relaxed) {
             if this.eth_peer_fut.poll_unpin(cx).is_ready() {
                 return Poll::Ready(())
             }

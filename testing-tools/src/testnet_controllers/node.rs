@@ -71,7 +71,7 @@ impl TestnetNode {
             .network_tx
             .send(NetworkOrderEvent::IncomingOrders { peer_id, orders })?;
 
-        tracing::debug!("sent {num_orders} bundles to the network");
+        tracing::info!("sent {num_orders} bundles to the network");
 
         Ok(())
     }
