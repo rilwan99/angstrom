@@ -56,41 +56,19 @@ impl Cli {
             _ => Level::TRACE
         };
 
-        let filter_a = EnvFilter::builder()
+        let filter = EnvFilter::builder()
             // .with_default_directive(LevelFilter::INFO.into())
             .with_default_directive(format!("testnet={level}").parse().unwrap())
-            .from_env_lossy();
+            .from_env_lossy()
+            .add_directive(format!("angstrom={level}").parse().unwrap())
+            .add_directive(format!("testing_tools={level}").parse().unwrap());
 
-        let layer_a = tracing_subscriber::fmt::layer()
+        let layer = tracing_subscriber::fmt::layer()
             .with_ansi(true)
             .with_target(true)
-            .with_filter(filter_a)
+            .with_filter(filter)
             .boxed();
 
-        let filter_b = EnvFilter::builder()
-            // .with_default_directive(LevelFilter::INFO.into())
-            .with_default_directive(format!("angstrom={level}").parse().unwrap())
-            .from_env_lossy();
-
-        let layer_b = tracing_subscriber::fmt::layer()
-            .with_ansi(true)
-            .with_target(true)
-            .with_filter(filter_b)
-            .boxed();
-
-        let filter_c = EnvFilter::builder()
-            // .with_default_directive(LevelFilter::INFO.into())
-            .with_default_directive(format!("testing_tools={level}").parse().unwrap())
-            .from_env_lossy();
-
-        let layer_c = tracing_subscriber::fmt::layer()
-            .with_ansi(true)
-            .with_target(true)
-            .with_filter(filter_c)
-            .boxed();
-
-        tracing_subscriber::registry()
-            .with(vec![layer_a, layer_b, layer_c])
-            .init();
+        tracing_subscriber::registry().with(vec![layer]).init();
     }
 }
