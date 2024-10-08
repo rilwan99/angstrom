@@ -56,6 +56,10 @@ impl RpcStateProviderFactoryWrapper {
         Ok((self.provider.provider.anvil_dump_state().await?, block))
     }
 
+    pub async fn return_state(&self) -> eyre::Result<Bytes> {
+        Ok(self.provider.provider.anvil_dump_state().await?)
+    }
+
     pub async fn set_state(&self, state: Bytes) -> eyre::Result<()> {
         self.provider.provider.anvil_load_state(state).await?;
 

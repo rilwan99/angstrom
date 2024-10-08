@@ -88,6 +88,10 @@ where
         let mut node = TestnetNode::new(node_id, network, strom_handles, self.config).await?;
         node.connect_to_all_peers(&mut self.peers).await;
 
+        if node_id != 0 {
+            self.single_peer_update_state(0, node_id).await?;
+        }
+
         self.peers.insert(node_id, node);
 
         Ok(())
@@ -140,9 +144,8 @@ where
             .expect(&format!("peer {random_peer} not found"))
     }
 
-    /// updates the anvil state of all the peers from a given peer from a given
-    /// peer. Returns the latest block
-    pub async fn update_state(&self, id: u64) -> eyre::Result<()> {
+    /// updates the anvil state of all the peers from a given peer
+    pub async fn all_peers_update_state(&self, id: u64) -> eyre::Result<()> {
         let peer = self.get_peer(id);
         let (updated_state, _) = peer.state_provider().execute_and_return_state().await?;
 
@@ -157,6 +160,21 @@ where
         .await
         .into_iter()
         .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(())
+    }
+
+    /// updates the anvil state of all the peers from a given peer
+    pub async fn single_peer_update_state(
+        &self,
+        state_from_id: u64,
+        state_to_id: u64
+    ) -> eyre::Result<()> {
+        let peer_to_get = self.get_peer(state_from_id);
+        let state = peer_to_get.state_provider().return_state().await?;
+
+        let peer_to_set = self.peers.get(&state_to_id).expect("peer doesn't exists");
+        peer_to_set.state_provider().set_state(state).await?;
 
         Ok(())
     }
