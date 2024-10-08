@@ -35,7 +35,7 @@ impl TestnetNode {
         Ok(Self { testnet_node_id, network, strom })
     }
 
-    pub async fn connect_to_all_peers(&mut self, other_peers: &HashMap<u64, Self>) {
+    pub async fn connect_to_all_peers(&mut self, other_peers: &mut HashMap<u64, Self>) {
         self.network.start_network();
         other_peers.iter().for_each(|(_, peer)| {
             self.network
@@ -47,7 +47,17 @@ impl TestnetNode {
             );
         });
 
-        self.network.initialize_connections(other_peers.len()).await;
+        let connections_expected = other_peers.len();
+        self.network
+            .initialize_connections(connections_expected)
+            .await;
+
+        futures::future::join_all(
+            other_peers
+                .iter_mut()
+                .map(|(_, peer)| peer.network.initialize_connections(connections_expected))
+        )
+        .await;
     }
 
     pub fn send_bundles_to_network(&self, peer_id: PeerId, bundles: usize) -> eyre::Result<()> {
