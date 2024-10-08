@@ -9,7 +9,7 @@ use config::StromTestnetConfig;
 use node::TestnetNode;
 use rand::Rng;
 use reth_provider::test_utils::NoopProvider;
-use tracing::{span, Instrument, Level};
+use tracing::{instrument, span, Instrument, Level};
 
 use crate::network::peers::TestnetNodeNetwork;
 
@@ -52,12 +52,13 @@ impl StromTestnet {
 
     pub async fn spawn_new_node(&mut self) -> eyre::Result<()> {
         let node_id = self.incr_peer_id();
-        let span = span!(Level::TRACE, "testnet node", id = node_id);
-        self.initialize_new_node(node_id).instrument(span).await?;
+        //let span = span!(Level::TRACE, "testnet node", id = node_id);
+        self.initialize_new_node(node_id).await?;
 
         Ok(())
     }
 
+    #[instrument(name = "node", skip(self, node_id), fields(id = node_id))]
     async fn initialize_new_node(&mut self, node_id: u64) -> eyre::Result<()> {
         tracing::info!("spawning node");
         let strom_handles = initialize_strom_handles();
