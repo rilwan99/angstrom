@@ -33,7 +33,7 @@ use crate::{
     },
     contracts::deploy_contract_and_create_pool,
     network::peers::TestnetNodeNetwork,
-    types::{get_rpc_port_with_node_id, SendingStromHandles}
+    types::SendingStromHandles
 };
 
 pub struct StromTestnetNodeInternals {

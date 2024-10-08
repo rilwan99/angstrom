@@ -160,8 +160,8 @@ impl StromTestnet {
         };
 
         let peer = self.peers.get(&id).unwrap();
-        let span = span!(Level::DEBUG, "testnet node", ?id);
-        let r = f(&peer).instrument(span).await;
+        //let span = span!(Level::DEBUG, "testnet node", ?id);
+        let r = f(&peer).await; //.instrument(span).await;
         r
     }
 }
