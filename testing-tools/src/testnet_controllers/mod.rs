@@ -88,11 +88,11 @@ where
         let mut node = TestnetNode::new(node_id, network, strom_handles, self.config).await?;
         node.connect_to_all_peers(&mut self.peers).await;
 
+        self.peers.insert(node_id, node);
+
         if node_id != 0 {
             self.single_peer_update_state(0, node_id).await?;
         }
-
-        self.peers.insert(node_id, node);
 
         Ok(())
     }
