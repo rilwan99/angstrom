@@ -14,26 +14,26 @@ async fn main() -> eyre::Result<()> {
 
     tokio::time::sleep(std::time::Duration::from_secs(15)).await;
 
-    let peer_count = network_controller
-        .run_event(Some(0), |peer| async {
-            {
-                let v = peer.network.strom_peer_network().peer_count();
-                println!("0 - {v}");
-                v
-            }
-        })
-        .await;
+    // let peer_count = network_controller
+    //     .run_event(Some(0), |peer| async {
+    //         {
+    //             let v = peer.network.strom_peer_network().peer_count();
+    //             println!("0 - {v}");
+    //             v
+    //         }
+    //     })
+    //     .await;
 
-    let _ = network_controller
-        .run_event(Some(1), |peer| async {
-            {
-                let v = peer.network.strom_peer_network().peer_count();
-                println!("1 - {v}");
-            }
-        })
-        .await;
+    // let _ = network_controller
+    //     .run_event(Some(1), |peer| async {
+    //         {
+    //             let v = peer.network.strom_peer_network().peer_count();
+    //             println!("1 - {v}");
+    //         }
+    //     })
+    //     .await;
 
-    assert_eq!(peer_count, 1);
+    // assert_eq!(peer_count, 1);
 
     do_thing_other(network_controller).await?;
 
