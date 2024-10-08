@@ -106,11 +106,9 @@ impl TestnetNodeNetwork {
         let strom_handle = StromNetworkPeer::new(&strom_network);
         let eth_handle = EthNetworkPeer::new(&eth_peer);
 
-        let span = span!(Level::TRACE, "testnet node", testnet_node_id);
-
         let running = Arc::new(AtomicBool::new(true));
         let futs =
-            TestnetPeerFuture::new(testnet_node_id, eth_peer, strom_network, running.clone(), span);
+            TestnetPeerFuture::new(testnet_node_id, eth_peer, strom_network, running.clone());
 
         Self {
             strom_handle,

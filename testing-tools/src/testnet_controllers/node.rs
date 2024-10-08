@@ -36,16 +36,26 @@ impl TestnetNode {
         Ok(Self { testnet_node_id, network, strom })
     }
 
+    fn add_validator_bidirectional(&mut self, other: &Self) {
+        self.network
+            .strom_peer_network()
+            .add_validator(other.network.pubkey());
+
+        other
+            .network
+            .strom_peer_network()
+            .add_validator(self.network.pubkey());
+    }
+
     pub async fn connect_to_all_peers(&mut self, other_peers: &mut HashMap<u64, Self>) {
         self.network.start_network();
         other_peers.iter().for_each(|(_, peer)| {
-            self.network
-                .strom_peer_network()
-                .add_validator(peer.network.pubkey());
             self.network.eth_peer_handle().connect_to_peer(
                 peer.network.pubkey(),
                 peer.network.eth_peer_handle().socket_addr()
             );
+
+            self.add_validator_bidirectional(peer);
         });
 
         let connections_expected = other_peers.len();

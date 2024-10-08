@@ -12,7 +12,7 @@ use angstrom_network::StromNetworkManager;
 use futures::FutureExt;
 use reth_network::test_utils::Peer;
 use reth_provider::BlockReader;
-use tracing::{span, Instrument, Level, Span};
+use tracing::{span, Level};
 
 pub(crate) struct TestnetPeerFuture {
     testnet_node_id:   u64,
@@ -27,8 +27,7 @@ impl TestnetPeerFuture {
         testnet_node_id: u64,
         eth_peer: Peer<C>,
         strom_network: StromNetworkManager<C>,
-        running: Arc<AtomicBool>,
-        span: Span
+        running: Arc<AtomicBool>
     ) -> Self {
         Self {
             testnet_node_id,
