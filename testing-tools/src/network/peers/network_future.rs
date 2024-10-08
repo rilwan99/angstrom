@@ -42,17 +42,24 @@ impl Future for TestnetPeerFuture {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
-        if this.running.load(Ordering::Relaxed) {
-            if this.eth_peer_fut.poll_unpin(cx).is_ready() {
-                return Poll::Ready(())
+        let mut work = 1024;
+
+        loop {
+            if this.running.load(Ordering::Relaxed) {
+                if this.eth_peer_fut.poll_unpin(cx).is_ready() {
+                    return Poll::Ready(())
+                }
+
+                if this.strom_network_fut.poll_unpin(cx).is_ready() {
+                    return Poll::Ready(())
+                }
             }
 
-            if this.strom_network_fut.poll_unpin(cx).is_ready() {
-                return Poll::Ready(())
+            work -= 1;
+            if work == 0 {
+                cx.waker().wake_by_ref();
+                return Poll::Pending
             }
         }
-
-        cx.waker().wake_by_ref();
-        Poll::Pending
     }
 }

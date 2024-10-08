@@ -52,7 +52,6 @@ impl StromTestnet {
 
     pub async fn spawn_new_node(&mut self) -> eyre::Result<()> {
         let node_id = self.incr_peer_id();
-        //let span = span!(Level::TRACE, "testnet node", id = node_id);
         self.initialize_new_node(node_id).await?;
 
         Ok(())
