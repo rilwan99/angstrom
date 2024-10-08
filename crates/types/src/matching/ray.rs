@@ -143,16 +143,18 @@ impl Ray {
         self.into()
     }
 
-    /// Calculates a price ratio t0/t1
+    /// Calculates a price ratio t1/t0
     pub fn calc_price(t0: U256, t1: U256) -> Self {
-        let numerator = Natural::from_limbs_asc(t0.as_limbs()) * const_1e27();
-        let denominator = Natural::from_limbs_asc(t1.as_limbs());
+        let numerator = Natural::from_limbs_asc(t1.as_limbs()) * const_1e27();
+        let denominator = Natural::from_limbs_asc(t0.as_limbs());
         let output = Rational::from_naturals(numerator, denominator);
         let (natout, _): (Natural, _) = output.rounding_into(RoundingMode::Ceiling);
         let limbs = natout.limbs().collect::<Vec<_>>();
         let inner = U256::from_limbs_slice(&limbs);
         Self(inner)
     }
+
+    // TODO:  FIX THESE TO BE T1/T0 IN ACCORD WITH UNISWAP
 
     /// Given a price ratio t0/t1 calculates how much t0 would be needed to
     /// output the provided amount of t1 (q)
