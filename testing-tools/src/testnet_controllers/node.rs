@@ -36,6 +36,7 @@ impl TestnetNode {
     }
 
     pub async fn connect_to_all_peers(&mut self, other_peers: &HashMap<u64, Self>) {
+        self.network.start_network();
         other_peers.iter().for_each(|(_, peer)| {
             self.network
                 .strom_peer_network()
