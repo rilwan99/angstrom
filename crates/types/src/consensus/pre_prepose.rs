@@ -1,4 +1,3 @@
-// use bincode::{config::standard, encode_to_vec, Decode, Encode};
 use alloy::primitives::keccak256;
 use bytes::Bytes;
 use reth_network_peers::PeerId;
@@ -14,14 +13,7 @@ use crate::{
     }
 };
 
-// #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, RlpDecodable,
-// RlpEncodable)] pub struct PoolOrders {
-//     pub pool:         PoolId,
-//     pub searcher_bid: TopOfBlockOrder,
-//     pub orders:       Vec<OrderWithStorageData<GroupedVanillaOrder>>
-// }
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct PreProposal {
     pub ethereum_height: u64,
     pub source:          PeerId,

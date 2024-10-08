@@ -152,33 +152,35 @@ impl<DB: Unpin> Future for StromNetworkManager<DB> {
                 _ => {}
             };
 
-            macro_rules! send_msgs {
-                ($name:ident, $peer_id:ident, $($var:ident),+) => {
-                    match $name {
-                        $(
-                            StromMessage::$var(a) => {
-                                self.to_consensus_manager
-                                    .as_ref()
-                                    .map(|tx| tx.send(StromConsensusEvent::$var($peer_id, a)));
-                            },
-                        )+
-                        StromMessage::PropagatePooledOrders(a) => {
-                            self.to_pool_manager
-                                .as_ref()
-                                .map(|tx| tx.send(NetworkOrderEvent::IncomingOrders {
-                                    $peer_id,
-                                    orders: a
-                                }));
-                        },
-                        _ => {}
-                    }
-                };
-            }
-
             if let Poll::Ready(Some(event)) = self.swarm.poll_next_unpin(cx) {
                 match event {
                     SwarmEvent::ValidMessage { peer_id, msg } => {
-                        send_msgs!(msg, peer_id, Commit, Propose, PrePropose)
+                        match msg {
+                            StromMessage::Commit(a) => {
+                                self.to_consensus_manager
+                                    .as_ref()
+                                    .map(|tx| tx.send(StromConsensusEvent::Commit(peer_id, a)));
+                            },
+                            StromMessage::BidSubmission{..} => {
+                                self.to_consensus_manager
+                                    .as_ref()
+                                    .map(|tx| tx.send(StromConsensusEvent::BidSubmission(peer_id, PreProposal::default())));
+                            },
+                            StromMessage::BidAggregation(a) => {
+                                self.to_consensus_manager
+                                    .as_ref()
+                                    .map(|tx| tx.send(StromConsensusEvent::BidAggregation(peer_id, a)));
+                            },
+                            StromMessage::PropagatePooledOrders(a) => {
+                                self.to_pool_manager
+                                    .as_ref()
+                                    .map(|tx| tx.send(NetworkOrderEvent::IncomingOrders {
+                                        peer_id,
+                                        orders: a
+                                    }));
+                            },
+                            _ => {}
+                        }
                     }
                     SwarmEvent::Disconnected { peer_id } => {
                         self.notify_listeners(StromNetworkEvent::SessionClosed {
@@ -226,7 +228,7 @@ pub enum StromNetworkEvent {
 
 #[derive(Debug, Clone)]
 pub enum StromConsensusEvent {
-    PrePropose(PeerId, PreProposal),
-    Propose(PeerId, Proposal),
+    BidSubmission(PeerId, PreProposal),
+    BidAggregation(PeerId, Proposal),
     Commit(PeerId, Commit)
 }

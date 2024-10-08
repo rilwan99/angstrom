@@ -1,17 +1,20 @@
 #![allow(missing_docs)]
-use std::{fmt::Debug, sync::Arc};
-
+use crate::errors::StromStreamError;
+use alloy::primitives::BlockNumber;
 use alloy::rlp::{Decodable, Encodable};
+use angstrom_types::primitive::{PoolId, Signature};
+use angstrom_types::sol_bindings::grouped_orders::GroupedVanillaOrder;
+use angstrom_types::sol_bindings::rpc_orders::TopOfBlockOrder;
 use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
     sol_bindings::grouped_orders::AllOrders
 };
 use reth_eth_wire::{protocol::Protocol, Capability};
 use reth_network_p2p::error::RequestError;
+use reth_network_peers::PeerId;
 use reth_primitives::bytes::{Buf, BufMut};
 use serde::{Deserialize, Serialize};
-
-use crate::errors::StromStreamError;
+use std::{fmt::Debug, sync::Arc};
 /// Result alias for result of a request.
 pub type RequestResult<T> = Result<T, RequestError>;
 use crate::Status;
@@ -28,8 +31,8 @@ const STROM_PROTOCOL: Protocol = Protocol::new(STROM_CAPABILITY, 5);
 pub enum StromMessageID {
     Status     = 0,
     /// Consensus
-    PrePropose = 1,
-    Propose    = 2,
+    BidSubmission = 1,
+    BidAggregation    = 2,
     Commit     = 3,
     /// Propagation messages that broadcast new orders to all peers
     PropagatePooledOrders = 4
@@ -50,8 +53,8 @@ impl Decodable for StromMessageID {
         let id = buf.first().ok_or(alloy::rlp::Error::InputTooShort)?;
         let id = match id {
             0 => StromMessageID::Status,
-            1 => StromMessageID::PrePropose,
-            2 => StromMessageID::Propose,
+            1 => StromMessageID::BidSubmission,
+            2 => StromMessageID::BidAggregation,
             3 => StromMessageID::Commit,
             4 => StromMessageID::PropagatePooledOrders,
             _ => return Err(alloy::rlp::Error::Custom("Invalid message ID"))
@@ -107,14 +110,33 @@ impl From<StromBroadcastMessage> for ProtocolBroadcastMessage {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToBSubmission{
+    pool_id: PoolId,
+    tob: TopOfBlockOrder,
+    signature: Signature
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RobSubmission{
+    pool_id: PoolId,
+    tob: Vec<GroupedVanillaOrder>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StromMessage {
     /// init
     Status(Status),
     /// TODO: do we need a status ack?
 
     /// Consensus
-    PrePropose(PreProposal),
-    Propose(Proposal),
+    BidSubmission{
+        block_number: BlockNumber,
+        peer_id: PeerId,
+        tob: Option<ToBSubmission>,
+        rob: Option<RobSubmission>,
+        signature: Signature,
+    },
+    BidAggregation(Proposal),
     Commit(Commit),
 
     /// Propagation messages that broadcast new orders to all peers
@@ -125,8 +147,8 @@ impl StromMessage {
     pub fn message_id(&self) -> StromMessageID {
         match self {
             StromMessage::Status(_) => StromMessageID::Status,
-            StromMessage::PrePropose(_) => StromMessageID::PrePropose,
-            StromMessage::Propose(_) => StromMessageID::Propose,
+            StromMessage::BidSubmission{..} => StromMessageID::BidSubmission,
+            StromMessage::BidAggregation(_) => StromMessageID::BidAggregation,
             StromMessage::Commit(_) => StromMessageID::Commit,
             StromMessage::PropagatePooledOrders(_) => StromMessageID::PropagatePooledOrders
         }
@@ -144,8 +166,8 @@ impl StromMessage {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StromBroadcastMessage {
     // Consensus Broadcast
-    PrePropose(Arc<PreProposal>),
-    Propose(Arc<Proposal>),
+    BidSubmission(Arc<PreProposal>),
+    BidAggregation(Arc<Proposal>),
     Commit(Arc<Commit>),
     // Order Broadcast
     PropagatePooledOrders(Arc<Vec<AllOrders>>)
@@ -155,8 +177,8 @@ impl StromBroadcastMessage {
     /// Returns the message's ID.
     pub fn message_id(&self) -> StromMessageID {
         match self {
-            StromBroadcastMessage::PrePropose(_) => StromMessageID::PrePropose,
-            StromBroadcastMessage::Propose(_) => StromMessageID::Propose,
+            StromBroadcastMessage::BidSubmission(_) => StromMessageID::BidSubmission,
+            StromBroadcastMessage::BidAggregation(_) => StromMessageID::BidAggregation,
             StromBroadcastMessage::Commit(_) => StromMessageID::Commit,
             StromBroadcastMessage::PropagatePooledOrders(_) => StromMessageID::PropagatePooledOrders
         }

@@ -5,10 +5,7 @@ use secp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
 
 use super::PreProposal;
-use crate::{
-    orders::PoolSolution,
-    primitive::Signature
-};
+use crate::{orders::PoolSolution, primitive::Signature};
 
 #[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Proposal {

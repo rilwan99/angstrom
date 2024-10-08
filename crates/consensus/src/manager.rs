@@ -1,6 +1,8 @@
+use crate::{leader_selection::WeightedRoundRobin, round::{ConsensusState, DataMsg, RoundStateMachine}, signer::Signer, AngstromValidator, ConsensusListener, ConsensusMessage, ConsensusUpdater};
 use alloy_primitives::{private::proptest::collection::vec, BlockNumber};
 use angstrom_metrics::ConsensusMetricsWrapper;
 use angstrom_network::{manager::StromConsensusEvent, Peer, StromMessage, StromNetworkHandle};
+use angstrom_types::contract_payloads::angstrom::TopOfBlockOrder;
 use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
     orders::PoolSolution
@@ -30,8 +32,6 @@ use tokio::{
 use tokio_stream::wrappers::{BroadcastStream, ReceiverStream};
 use tracing::{error, warn};
 
-use crate::{leader_selection::WeightedRoundRobin, round::{ConsensusRoundState, DataMsg, RoundState}, signer::Signer, AngstromValidator, ConsensusListener, ConsensusMessage, ConsensusUpdater};
-
 enum ConsensusTaskResult {
     BuiltProposal(Proposal),
     ValidationSolutions { height: BlockNumber, solutions: Vec<PoolSolution> }
@@ -46,7 +46,7 @@ pub struct ConsensusManager {
 
     // those are cross round and are changed internally
     leader_selection: WeightedRoundRobin,
-    state_transition: RoundState,
+    state_transition: RoundStateMachine,
 
     /// keeps track of the current round state
     /// Used to trigger new consensus rounds
@@ -82,9 +82,10 @@ impl ConsensusManager {
             leader: PeerId::default(),
             current_height,
             leader_selection: WeightedRoundRobin::new(validators, current_height, None),
-            state_transition: RoundState::new(
-                ConsensusRoundState::OrderAccumulator {
-                    orders:       Vec::new(),
+            state_transition: RoundStateMachine::new(
+                ConsensusState::BidAggregation {
+                    tob_bids: Vec::new(),
+                    rob_transactions: Vec::new(),
                     block_height: current_height
                 },
                 order_storage,
@@ -117,11 +118,12 @@ impl ConsensusManager {
             // TODO (plamen): remove the unwrap; if we go back or choose the same block it's a problem
             self.leader = self.leader_selection.choose_proposer(new_block_height).unwrap();
             self.current_height = new_block_height;
-            let orders = Vec::new();
+            // let orders = Vec::new();
             self.state_transition
-                .force_transition(ConsensusRoundState::OrderAccumulator {
+                .force_transition(ConsensusState::BidSubmission {
                     block_height: new_block_height,
-                    orders
+                    tob_bids: Vec::new(),
+                   rob_transactions: Vec::new(),
                 });
         } else {
             tracing::error!("Block height is not sequential, this breaks round robin!");
@@ -131,11 +133,11 @@ impl ConsensusManager {
 
     async fn on_network_event(&mut self, event: StromConsensusEvent) {
         match event {
-            StromConsensusEvent::PrePropose(peer_id, pre_proposal) => {
+            StromConsensusEvent::BidSubmission(peer_id, pre_proposal) => {
                 self.state_transition
                     .on_data(DataMsg::PreProposal(peer_id, pre_proposal));
             }
-            StromConsensusEvent::Propose(peer_id, proposal) => {
+            StromConsensusEvent::BidAggregation(peer_id, proposal) => {
                 self.state_transition
                     .on_data(DataMsg::Proposal(peer_id, proposal.clone()))
             }
@@ -146,22 +148,29 @@ impl ConsensusManager {
         }
     }
 
-    pub fn on_state_transition(&mut self, new_stat: ConsensusRoundState) {
+    pub fn on_state_transition(&mut self, new_stat: ConsensusState) {
         match new_stat {
-            ConsensusRoundState::OrderAccumulator { orders, .. } => {}
-            ConsensusRoundState::PrePropose { pre_proposals, .. } => {
-                self.network.broadcast_message(StromMessage::PrePropose(
-                    pre_proposals.first().unwrap().clone()
-                ));
+            ConsensusState::BidSubmission  { tob_bids, .. } => {
+                // self.network.broadcast_message(StromMessage::BidSubmission{
+                //     peer_id: self.si
+                // }
+                //     pre_proposals.first().unwrap().clone()
+                // ));
             }
-            ConsensusRoundState::Propose { proposal, .. } => {
-                self.network
-                    .broadcast_message(StromMessage::Propose(proposal.clone()));
-            }
-            ConsensusRoundState::Commit { commits, .. } => {
-                self.network
-                    .broadcast_message(StromMessage::Commit(commits.first().unwrap().clone()));
-            }
+            ConsensusState::BidAggregation{  tob_bids, .. } => {}
+            // ConsensusState::PrePropose { pre_proposals, .. } => {
+            //     self.network.broadcast_message(StromMessage::PrePropose(
+            //         pre_proposals.first().unwrap().clone()
+            //     ));
+            // }
+            // ConsensusState::Propose { proposal, .. } => {
+            //     self.network
+            //         .broadcast_message(StromMessage::Propose(proposal.clone()));
+            // }
+            // ConsensusState::Commit { commits, .. } => {
+            //     self.network
+            //         .broadcast_message(StromMessage::Commit(commits.first().unwrap().clone()));
+            // }
         }
     }
 
