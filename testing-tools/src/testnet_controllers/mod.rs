@@ -6,14 +6,14 @@ pub mod config;
 
 use angstrom::cli::initialize_strom_handles;
 use config::StromTestnetConfig;
-use manager::TestnetNode;
+use node::TestnetNode;
 use rand::Rng;
 use reth_provider::test_utils::NoopProvider;
 use tracing::{span, Instrument, Level};
 
 use crate::network::peers::TestnetNodeNetwork;
 
-pub mod manager;
+pub mod node;
 
 pub mod strom_internals;
 
@@ -69,7 +69,9 @@ impl StromTestnet {
         )
         .await;
 
-        let node = TestnetNode::new(node_id, network, strom_handles, self.config).await?;
+        let mut node = TestnetNode::new(node_id, network, strom_handles, self.config).await?;
+        node.connect_to_all_peers(&self.peers).await;
+
         self.peers.insert(node_id, node);
 
         Ok(())
