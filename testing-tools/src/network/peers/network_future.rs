@@ -32,8 +32,8 @@ impl TestnetPeerFuture {
     ) -> Self {
         Self {
             testnet_node_id,
-            eth_peer_fut: Box::pin(eth_peer.instrument(span.clone())),
-            strom_network_fut: Box::pin(strom_network.instrument(span.clone())),
+            eth_peer_fut: Box::pin(eth_peer),
+            strom_network_fut: Box::pin(strom_network),
             running
         }
     }
@@ -45,8 +45,8 @@ impl Future for TestnetPeerFuture {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
-        // let span = span!(Level::TRACE, "node", id = this.testnet_node_id);
-        // let e = span.enter();
+        let span = span!(Level::TRACE, "node", id = this.testnet_node_id);
+        let e = span.enter();
 
         while this.running.load(Ordering::Relaxed) {
             if this.eth_peer_fut.poll_unpin(cx).is_ready() {
@@ -58,7 +58,7 @@ impl Future for TestnetPeerFuture {
             }
         }
 
-        //drop(e);
+        drop(e);
 
         cx.waker().wake_by_ref();
         Poll::Pending
