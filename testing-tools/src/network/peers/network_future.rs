@@ -12,7 +12,7 @@ use angstrom_network::StromNetworkManager;
 use futures::FutureExt;
 use reth_network::test_utils::Peer;
 use reth_provider::BlockReader;
-use tracing::{Instrument, Span};
+use tracing::{span, Instrument, Span};
 
 pub(crate) struct TestnetPeerFuture {
     testnet_node_id:   u64,
