@@ -57,7 +57,7 @@ impl Cli {
         };
 
         let filter_a = EnvFilter::builder()
-            .with_default_directive(LevelFilter::INFO.into())
+            // .with_default_directive(LevelFilter::INFO.into())
             .with_default_directive(format!("testnet={level}").parse().unwrap())
             .from_env_lossy();
 
@@ -68,7 +68,7 @@ impl Cli {
             .boxed();
 
         let filter_b = EnvFilter::builder()
-            .with_default_directive(LevelFilter::INFO.into())
+            // .with_default_directive(LevelFilter::INFO.into())
             .with_default_directive(format!("angstrom={level}").parse().unwrap())
             .from_env_lossy();
 
@@ -79,7 +79,7 @@ impl Cli {
             .boxed();
 
         let filter_c = EnvFilter::builder()
-            .with_default_directive(LevelFilter::INFO.into())
+            // .with_default_directive(LevelFilter::INFO.into())
             .with_default_directive(format!("testing_tools={level}").parse().unwrap())
             .from_env_lossy();
 
