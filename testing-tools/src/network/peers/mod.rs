@@ -108,7 +108,7 @@ impl TestnetNodeNetwork {
 
         let span = span!(Level::DEBUG, "testnet node", testnet_node_id);
 
-        let running = Arc::new(AtomicBool::new(false));
+        let running = Arc::new(AtomicBool::new(true));
         let futs =
             TestnetPeerFuture::new(testnet_node_id, eth_peer, strom_network, running.clone(), span);
 
