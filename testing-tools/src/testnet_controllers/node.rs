@@ -7,6 +7,7 @@ use angstrom_types::{
     primitive::PeerId,
     sol_bindings::{grouped_orders::AllOrders, sol::ContractBundle, testnet::random::RandomValues}
 };
+use tracing::{span, Instrument, Level};
 
 use super::{config::StromTestnetConfig, strom_internals::StromTestnetNodeInternals};
 use crate::network::peers::TestnetNodeNetwork;
@@ -52,11 +53,11 @@ impl TestnetNode {
             .initialize_connections(connections_expected)
             .await;
 
-        futures::future::join_all(
-            other_peers
-                .iter_mut()
-                .map(|(_, peer)| peer.network.initialize_connections(connections_expected))
-        )
+        futures::future::join_all(other_peers.iter_mut().map(|(_, peer)| {
+            peer.network
+                .initialize_connections(connections_expected)
+                .instrument(span!(Level::TRACE, "node", id = peer.testnet_node_id))
+        }))
         .await;
     }
 
