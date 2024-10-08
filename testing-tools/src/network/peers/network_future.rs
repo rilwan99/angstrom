@@ -12,7 +12,7 @@ use angstrom_network::StromNetworkManager;
 use futures::FutureExt;
 use reth_network::test_utils::Peer;
 use reth_provider::BlockReader;
-use tracing::{span, Instrument, Span};
+use tracing::{span, Instrument, Level, Span};
 
 pub(crate) struct TestnetPeerFuture {
     testnet_node_id:   u64,
@@ -45,7 +45,7 @@ impl Future for TestnetPeerFuture {
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let this = self.get_mut();
 
-        let span = span!(Level::Trace, "node", id = this.testnet_node_id);
+        let span = span!(Level::TRACE, "node", id = this.testnet_node_id);
         let e = span.enter();
 
         if this.running.load(Ordering::Relaxed) {
