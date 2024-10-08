@@ -158,6 +158,7 @@ impl TestnetNodeNetwork {
     }
 
     pub(crate) async fn initialize_connections(&mut self, connections_needed: usize) {
+        tracing::debug!("attempting connections to {connections_needed} peers");
         let mut last_peer_count = 0;
         std::future::poll_fn(|cx| loop {
             if self.poll_fut_to_initialize(cx).is_ready() {
