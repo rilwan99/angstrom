@@ -9,6 +9,8 @@ async fn main() -> eyre::Result<()> {
 
     let network_controller = StromTestnet::spawn_testnet(config).await?;
 
+    tokio::time::sleep(std::time::Duration::from_secs(15)).await;
+
     let peer_count = network_controller
         .run_event(Some(0), |peer| async {
             {

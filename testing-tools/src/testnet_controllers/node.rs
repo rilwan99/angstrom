@@ -53,12 +53,12 @@ impl TestnetNode {
             .initialize_connections(connections_expected)
             .await;
 
-        futures::future::join_all(other_peers.iter_mut().map(|(_, peer)| {
-            peer.network
-                .initialize_connections(connections_expected)
-                .instrument(span!(Level::TRACE, "node", id = peer.testnet_node_id))
-        }))
-        .await;
+        // futures::future::join_all(other_peers.iter_mut().map(|(_, peer)| {
+        //     peer.network
+        //         .initialize_connections(connections_expected)
+        //         .instrument(span!(Level::TRACE, "node", id =
+        // peer.testnet_node_id)) }))
+        // .await;
     }
 
     pub fn send_bundles_to_network(&self, peer_id: PeerId, bundles: usize) -> eyre::Result<()> {
