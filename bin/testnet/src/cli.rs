@@ -38,7 +38,7 @@ pub struct Cli {
 impl Cli {
     pub fn build_config() -> StromTestnetConfig {
         let this = Self::parse();
-        this.init_tracing();
+        this.init_tracing2();
 
         StromTestnetConfig {
             intial_node_count:       this.nodes_in_network,
@@ -59,7 +59,6 @@ impl Cli {
         let filter_a = EnvFilter::builder()
             .with_default_directive(LevelFilter::INFO.into())
             .with_default_directive(format!("testnet={level}").parse().unwrap())
-            // .with_default_directive(format!("{level}").parse().unwrap())
             .from_env_lossy();
 
         let layer_a = tracing_subscriber::fmt::layer()
@@ -71,7 +70,6 @@ impl Cli {
         let filter_b = EnvFilter::builder()
             .with_default_directive(LevelFilter::INFO.into())
             .with_default_directive(format!("angstrom={level}").parse().unwrap())
-            // .with_default_directive(format!("{level}").parse().unwrap())
             .from_env_lossy();
 
         let layer_b = tracing_subscriber::fmt::layer()
@@ -83,7 +81,6 @@ impl Cli {
         let filter_c = EnvFilter::builder()
             .with_default_directive(LevelFilter::INFO.into())
             .with_default_directive(format!("testing-tools={level}").parse().unwrap())
-            // .with_default_directive(format!("{level}").parse().unwrap())
             .from_env_lossy();
 
         let layer_c = tracing_subscriber::fmt::layer()
@@ -95,5 +92,27 @@ impl Cli {
         tracing_subscriber::registry()
             .with(vec![layer_a, layer_b, layer_c])
             .init();
+    }
+
+    fn init_tracing2(&self) {
+        let level = match self.verbosity - 1 {
+            0 => Level::ERROR,
+            1 => Level::WARN,
+            2 => Level::INFO,
+            3 => Level::DEBUG,
+            _ => Level::TRACE
+        };
+
+        let filter = EnvFilter::builder()
+            .with_default_directive(LevelFilter::DEBUG.into())
+            .from_env_lossy();
+
+        let layer = tracing_subscriber::fmt::layer()
+            .with_ansi(true)
+            .with_target(true)
+            .with_filter(filter)
+            .boxed();
+
+        tracing_subscriber::registry().with(vec![layer]).init();
     }
 }
