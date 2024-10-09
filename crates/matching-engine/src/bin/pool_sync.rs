@@ -7,8 +7,7 @@ use alloy::{
     providers::{ProviderBuilder, RootProvider, WsConnect},
     pubsub::PubSubFrontend
 };
-use amms::amm::uniswap_v3::UniswapV3Pool;
-use amms::amm::AutomatedMarketMaker;
+use amms::amm::{uniswap_v3::UniswapV3Pool, AutomatedMarketMaker};
 use matching_engine::cfmm::uniswap::{
     pool::EnhancedUniswapV3Pool, pool_manager::UniswapPoolManager,
     pool_providers::mock_block_stream::MockBlockStream
@@ -34,7 +33,8 @@ async fn main() -> eyre::Result<()> {
     let address = address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640");
     let mut pool = EnhancedUniswapV3Pool::new(address, ticks_per_side);
     tracing::info!(block_number = block_number, "loading old pool");
-    pool.initialize_pool(Some(block_number), ws_provider.clone()).await?;
+    pool.initialize_pool(Some(block_number), ws_provider.clone())
+        .await?;
     pool.set_sim_swap_sync(true);
 
     let state_change_buffer = 1;

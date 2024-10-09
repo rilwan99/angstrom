@@ -85,14 +85,15 @@ impl EnhancedUniswapV3Pool {
     pub async fn initialize_pool<T: Transport + Clone, N: Network>(
         &mut self,
         block_number: Option<BlockNumber>,
-        ws_provider: Arc<impl Provider<T, N>>,
+        ws_provider: Arc<impl Provider<T, N>>
     ) -> Result<(), AMMError> {
         tracing::info!(block_number = block_number, "loading old pool");
-        self.populate_data(block_number, ws_provider.clone()).await?;
+        self.populate_data(block_number, ws_provider.clone())
+            .await?;
         self.sync_ticks(block_number, ws_provider.clone()).await?;
         Ok(())
     }
-    
+
     pub fn set_sim_swap_sync(&mut self, sync_swap_with_sim: bool) {
         self.sync_swap_with_sim = sync_swap_with_sim;
     }
@@ -521,35 +522,6 @@ impl EnhancedUniswapV3Pool {
         tracing::debug!(?swap_event, address = ?self.address, sqrt_price = ?self.sqrt_price, liquidity = ?self.liquidity, tick = ?self.tick, "swap event");
 
         Ok(())
-    }
-
-    pub fn get_tick_word(&self, tick: i32) -> Result<U256, AMMError> {
-        let (word_position, _) = uniswap_v3_math::tick_bitmap::position(tick);
-        self.tick_bitmap.get(&word_position).cloned().ok_or(AMMError::PoolDataError)
-    }
-
-    // pub fn get_next_word(&self, word_position: i16) -> Result<U256, AMMError> {
-    //     self.tick_bitmap.get(&(word_position as i32)).cloned().ok_or(AMMError::PoolDataError)
-    // }
-
-    pub fn get_tick_spacing(&self) -> Result<i32, AMMError> {
-        Ok(self.tick_spacing)
-    }
-
-    pub fn get_tick(&self) -> Result<i32, AMMError> {
-        Ok(self.tick)
-    }
-
-    pub fn get_tick_info(&self, tick: i32) -> Result<&Info, AMMError> {
-        self.ticks.get(&tick).ok_or(AMMError::PoolDataError)
-    }
-
-    pub fn get_liquidity_net(&self, tick: i32) -> Result<i128, AMMError> {
-        self.get_tick_info(tick).map(|info| info.liquidity_net)
-    }
-
-    pub fn is_initialized(&self, tick: i32) -> Result<bool, AMMError> {
-        self.get_tick_info(tick).map(|info| info.initialized)
     }
 }
 

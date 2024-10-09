@@ -61,7 +61,7 @@ pub fn order_distribution(
                 },
                 pool_id: FixedBytes::default(),
                 valid_block: 0,
-                tob_reward: U256::ZERO,
+                tob_reward: U256::ZERO
             }
         })
         .take(number)

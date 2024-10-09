@@ -1,11 +1,11 @@
-use std::collections::HashMap;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc
+use std::{
+    collections::HashMap,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc
+    }
 };
 
-use super::{pool::SwapSimulationError, MarketSnapshot, PoolRange};
-use crate::cfmm::uniswap::{pool::EnhancedUniswapV3Pool, pool_providers::PoolManagerProvider};
 use alloy::{
     primitives::{Address, BlockNumber},
     rpc::types::eth::{Block, Filter}
@@ -18,20 +18,22 @@ use futures::StreamExt;
 use futures_util::stream::BoxStream;
 use reth_primitives::Log;
 use thiserror::Error;
-use tokio::sync::RwLockWriteGuard;
 use tokio::{
     sync::{
         mpsc::{Receiver, Sender},
-        RwLock, RwLockReadGuard
+        RwLock, RwLockReadGuard, RwLockWriteGuard
     },
     task::JoinHandle
 };
+
+use super::{pool::SwapSimulationError, MarketSnapshot, PoolRange};
+use crate::cfmm::uniswap::{pool::EnhancedUniswapV3Pool, pool_providers::PoolManagerProvider};
 
 pub type StateChangeCache = HashMap<Address, ArrayDeque<StateChange, 150>>;
 
 #[derive(Default)]
 pub struct UniswapPoolManager<P> {
-    pools:              Arc<Vec<RwLock<EnhancedUniswapV3Pool>>>,
+    pools:               Arc<Vec<RwLock<EnhancedUniswapV3Pool>>>,
     latest_synced_block: u64,
     state_change_buffer: usize,
     state_change_cache:  Arc<RwLock<StateChangeCache>>,
@@ -60,7 +62,10 @@ where
         }
     }
 
-    pub fn blocking_pool(&self, address: &Address) -> Option<RwLockReadGuard<'_, EnhancedUniswapV3Pool>> {
+    pub fn blocking_pool(
+        &self,
+        address: &Address
+    ) -> Option<RwLockReadGuard<'_, EnhancedUniswapV3Pool>> {
         self.pools.iter().find_map(|pool| {
             let pool_guard = pool.blocking_read();
             if pool_guard.address() == *address {
@@ -71,7 +76,10 @@ where
         })
     }
 
-    pub async fn pool_mut(&self, address: &Address) -> Option<RwLockWriteGuard<'_, EnhancedUniswapV3Pool>> {
+    pub async fn pool_mut(
+        &self,
+        address: &Address
+    ) -> Option<RwLockWriteGuard<'_, EnhancedUniswapV3Pool>> {
         for pool in self.pools.iter() {
             let pool_guard = pool.write().await;
             if pool_guard.address() == *address {
@@ -81,7 +89,10 @@ where
         None
     }
 
-    pub async fn pool(&self, address: &Address) -> Option<RwLockReadGuard<'_, EnhancedUniswapV3Pool>> {
+    pub async fn pool(
+        &self,
+        address: &Address
+    ) -> Option<RwLockReadGuard<'_, EnhancedUniswapV3Pool>> {
         for pool in self.pools.iter() {
             let pool_guard = pool.read().await;
             if pool_guard.address() == *address {
@@ -92,11 +103,10 @@ where
     }
 
     pub async fn filter(&self) -> Filter {
-        // it should crash given that no pools makes non sense
+        // it should crash given that no pools makes no sense
         let pool = self.pools.first().unwrap();
         let pool = pool.read().await;
-        Filter::new()
-            .event_signature(pool.sync_on_event_signatures())
+        Filter::new().event_signature(pool.sync_on_event_signatures())
     }
 
     /// Listens to new blocks and handles state changes, sending the pool
@@ -118,9 +128,7 @@ where
         let (pool_updated_tx, pool_updated_rx) =
             tokio::sync::mpsc::channel(self.state_change_buffer);
 
-        let updated_pool_handle = self
-            .handle_state_changes(Some(pool_updated_tx))
-            .await?;
+        let updated_pool_handle = self.handle_state_changes(Some(pool_updated_tx)).await?;
 
         Ok((pool_updated_rx, updated_pool_handle))
     }
@@ -199,7 +207,7 @@ where
                     let mut pool_guard = pool.write().await;
                     if let Some(logs) = logs_by_address.get_mut(&pool_guard.address()) {
                         if logs.is_empty() {
-                           continue
+                            continue
                         }
                         let mut state_change_cache = state_change_cache.write().await;
                         Self::handle_state_changes_from_logs(
@@ -236,6 +244,7 @@ where
     ) -> Result<(), PoolManagerError> {
         if let Some(cache) = state_change_cache.get_mut(&pool.address()) {
             loop {
+                // check if the most recent state change block is >= the block to unwind
                 match cache.get(0) {
                     Some(state_change) if state_change.block_number >= block_to_unwind => {
                         if let Some(option_state_change) = cache.pop_front() {
@@ -243,11 +252,22 @@ where
                                 *pool = pool_state;
                             }
                         } else {
+                            // We know that there is a state change from cache.get(0) so
+                            // when we pop front without returning a value,
+                            // there is an issue
                             return Err(PoolManagerError::PopFrontError);
                         }
                     }
                     Some(_) => return Ok(()),
-                    None => return Err(PoolManagerError::NoStateChangesInCache),
+                    None => {
+                        // We return an error here because we never want to be unwinding past where
+                        // we have state changes. For example, if you
+                        // initialize a state space that syncs to block 100,
+                        // then immediately after there is a chain reorg to 95,
+                        // we can not roll back the state changes for an accurate state
+                        // space. In this case, we return an error
+                        return Err(PoolManagerError::NoStateChangesInCache);
+                    }
                 }
             }
         } else {
@@ -260,7 +280,9 @@ where
         state_change: StateChange,
         address: Address
     ) -> Result<(), PoolManagerError> {
-        let cache = state_change_cache.entry(address).or_insert_with(|| ArrayDeque::new());
+        let cache = state_change_cache
+            .entry(address)
+            .or_insert_with(|| ArrayDeque::new());
         if cache.is_full() {
             cache.pop_back();
         }
@@ -287,11 +309,11 @@ where
         )
     }
 
-
-    
     pub fn get_market_snapshot(&self, address: &Address) -> Result<MarketSnapshot, Error> {
         let (ranges, price) = {
-            let pool_lock = self.blocking_pool(&address).ok_or(Error::msg("Pool not found"))?;
+            let pool_lock = self
+                .blocking_pool(&address)
+                .ok_or(Error::msg("Pool not found"))?;
             // Grab all ticks with any change in liquidity from our underlying pool data
             let mut tick_vec = pool_lock
                 .ticks
