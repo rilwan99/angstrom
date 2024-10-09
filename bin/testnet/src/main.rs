@@ -11,7 +11,7 @@ async fn main() -> eyre::Result<()> {
 
     let network_controller = StromTestnet::spawn_testnet(NoopProvider::default(), config).await?;
 
-    do_thing_other(network_controller).await?;
+    send_bundles(network_controller).await?;
 
     Ok(())
 }

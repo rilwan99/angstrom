@@ -257,11 +257,10 @@ where
     }
 
     /// if None, then a random id is used
-    pub async fn run_event<'a, 'b, F, O>(&'a self, id: Option<u64>, f: F) -> O::Output
+    pub async fn run_event<'a, F, O>(&'a self, id: Option<u64>, f: F) -> O::Output
     where
-        F: FnOnce(&'b TestnetNode<C>) -> O,
-        O: Future,
-        'a: 'b
+        F: FnOnce(&'a TestnetNode<C>) -> O,
+        O: Future
     {
         let id = if let Some(i) = id {
             assert!(!self.peers.is_empty());
