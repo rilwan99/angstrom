@@ -108,9 +108,15 @@ impl TokenApprovalSlot {
     }
 }
 
+#[cfg(not(feature = "testnet"))]
 pub fn load_data_fetcher_config(config_path: &Path) -> eyre::Result<DataFetcherConfig> {
     let file = std::fs::read_to_string(config_path)?;
     Ok(toml::from_str(&file)?)
+}
+
+#[cfg(feature = "testnet")]
+pub fn load_data_fetcher_config(_config_path: &Path) -> eyre::Result<DataFetcherConfig> {
+    Ok(DataFetcherConfig { approvals: vec![], balances: vec![] })
 }
 
 #[cfg(not(feature = "testnet"))]
