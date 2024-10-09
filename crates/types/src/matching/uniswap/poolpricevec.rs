@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, collections::HashMap};
 
 use alloy::primitives::{Uint, I256, U256};
 use eyre::{eyre, Context, OptionExt};
@@ -10,7 +10,7 @@ use uniswap_v3_math::{
     swap_math::compute_swap_step
 };
 
-use super::{poolprice::PoolPrice, Direction, LiqRangeRef, Quantity};
+use super::{poolprice::PoolPrice, Direction, LiqRangeRef, Quantity, Tick};
 use crate::{
     matching::{Ray, SqrtPriceX96},
     orders::OrderPrice
@@ -41,6 +41,30 @@ impl<'a> SwapStep<'a> {
     pub fn liquidity(&self) -> u128 {
         self.liq_range.liquidity
     }
+
+    pub fn input(&self) -> U256 {
+        if self.end_price > self.start_price {
+            self.d_t1
+        } else {
+            self.d_t0
+        }
+    }
+
+    pub fn output(&self) -> U256 {
+        if self.end_price > self.start_price {
+            self.d_t0
+        } else {
+            self.d_t1
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct DonationResult {
+    pub tick_donations: HashMap<Tick, U256>,
+    pub final_price:    SqrtPriceX96,
+    pub total_donated:  u128,
+    pub tribute:        u128
 }
 
 #[derive(Clone, Debug)]
@@ -57,6 +81,22 @@ impl<'a> PoolPriceVec<'a> {
         let (d_t0, d_t1) =
             Self::delta_to_price(start_bound.price, end_bound.price, start_bound.liquidity());
         Self { start_bound, end_bound, d_t0, d_t1, steps: None }
+    }
+
+    pub fn input(&self) -> U256 {
+        if self.end_bound.price > self.start_bound.price {
+            self.d_t1
+        } else {
+            self.d_t0
+        }
+    }
+
+    pub fn output(&self) -> U256 {
+        if self.end_bound.price > self.start_bound.price {
+            self.d_t0
+        } else {
+            self.d_t1
+        }
     }
 
     pub fn steps(&self) -> Option<&Vec<SwapStep>> {
@@ -81,6 +121,8 @@ impl<'a> PoolPriceVec<'a> {
             // Should be impossible
             format!("Quantity too large to convert u128 -> I256: {}", q)
         })?;
+
+        println!("Remaining is: {}", remaining);
 
         // "Exact out" is calculated with a negative quantity
         if !direction.is_input(&quantity) {
@@ -117,6 +159,8 @@ impl<'a> PoolPriceVec<'a> {
                 )
             })?;
 
+            println!("Step output: {} in {} out {} fee", amount_in, amount_out, amount_fee);
+
             // See how much output we have yet to go
             let signed_out = I256::try_from(amount_out)
                 .wrap_err("Output of step too large to convert U256 -> I256")?;
@@ -130,7 +174,12 @@ impl<'a> PoolPriceVec<'a> {
 
             // Based on our direction, sort out what our token0 and token1 are
             let (d_t0, d_t1) = direction.sort_tokens(amount_in, amount_out);
-
+            println!(
+                "S price: {}\nT price: {}\nE price: {}",
+                *current_price, *target_price, fin_price
+            );
+            println!("Sorted: {} t0 {} t1", d_t0, d_t1);
+            println!("Pushing to steps");
             // Push this step onto our list of swap steps
             steps.push(SwapStep {
                 start_price: current_price,
@@ -149,6 +198,81 @@ impl<'a> PoolPriceVec<'a> {
         let (d_t0, d_t1) = direction.sort_tokens(total_in, total_out);
         let end_bound = start.liq_range.pool_snap.at_price(current_price)?;
         Ok(Self { start_bound: start, end_bound, d_t0, d_t1, steps: Some(steps) })
+    }
+
+    pub fn donation(&self, q: u128) -> DonationResult {
+        let mut remaining_donation = U256::from(q);
+        let mut cur_q = U256::ZERO;
+        let mut filled_price = self
+            .steps
+            .as_ref()
+            .and_then(|v| v.first().map(|s| s.avg_price()))
+            .unwrap_or_default();
+        let empty = vec![];
+        let steps = self.steps.as_ref().unwrap_or(&empty);
+        let mut step_iter = steps.iter().peekable();
+        while let Some(step) = step_iter.next() {
+            let q_step = cur_q + step.output();
+            // Our target price is either the average price of the next stake or the end
+            // price of the current stake if there's no next stake to deal with
+            let target_price = step_iter
+                .peek()
+                .map(|next_stake| next_stake.avg_price())
+                .unwrap_or_else(|| Ray::from(step.end_price));
+            // The difference between this tick's average price and our target price
+            let d_price = target_price - step.avg_price();
+
+            // The step cost is the total cost in needed to ensure that all sold quantities
+            // were sold at our target price
+            let step_cost = d_price.mul_quantity(q_step);
+
+            if remaining_donation >= step_cost {
+                // If we have enough bribe to pay the whole cost, allocate that and step forward
+                // to the next price gap
+                cur_q = q_step;
+                filled_price = target_price;
+                remaining_donation -= step_cost;
+            } else {
+                // If we don't have enough bribe to pay the whole cost, figure out where the
+                // target price winds up based on what we do have and end this iteration
+                if remaining_donation > U256::ZERO {
+                    let partial_dprice = Ray::calc_price(q_step, remaining_donation);
+                    filled_price += partial_dprice;
+                }
+                break
+            }
+        }
+
+        // We've now found our filled price, we can allocate our reward to each tick
+        // based on how much it costs to bring them up to that price.
+        let mut reward_t = U256::ZERO;
+        let tick_donations: HashMap<Tick, U256> = steps
+            .iter()
+            //.filter_map(|(p_avg, _p_end, q_out, liq)| {
+            .filter_map(|step| {
+                // We always donate to the lower tick of our liquidity range as that is the
+                // appropriate initialized tick to target
+                let tick_num = step.liq_range.lower_tick();
+                if filled_price > step.avg_price() {
+                    let total_dprice = filled_price - step.avg_price();
+                    let total_reward = total_dprice.mul_quantity(step.output());
+                    if total_reward > U256::ZERO {
+                        reward_t += total_reward;
+                        Some((tick_num, total_reward))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect();
+        DonationResult {
+            tick_donations,
+            final_price: self.end_bound.as_sqrtpricex96(),
+            total_donated: 0,
+            tribute: 0
+        }
     }
 
     fn delta(start: PoolPrice<'a>, end: PoolPrice<'a>) -> eyre::Result<(U256, U256)> {
