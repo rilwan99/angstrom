@@ -11,6 +11,7 @@ use testing_tools::{
 };
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
+#[serial_test::serial]
 async fn test_broadcast_order_propagation() {
     reth_tracing::init_test_tracing();
     let config = StromTestnetConfig {
@@ -59,6 +60,7 @@ async fn test_broadcast_order_propagation() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
+#[serial_test::serial]
 async fn test_singular_order_propagation() {
     reth_tracing::init_test_tracing();
     let config = StromTestnetConfig {

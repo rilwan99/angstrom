@@ -41,7 +41,6 @@ pub fn init_validation<DB: BlockStateProviderFactory + Unpin + Clone + 'static>(
 ) -> ValidationClient {
     let (validator_tx, validator_rx) = unbounded_channel();
     let config_path = Path::new(TOKEN_CONFIG_FILE);
-    println!("{:?}", config_path.to_str());
     let validation_config = load_validation_config(config_path).unwrap();
     let data_fetcher_config = load_data_fetcher_config(config_path).unwrap();
     let current_block = Arc::new(AtomicU64::new(db.best_block_number().unwrap()));
