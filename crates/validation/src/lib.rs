@@ -33,7 +33,7 @@ use crate::{
     validator::ValidationClient
 };
 
-pub const TOKEN_CONFIG_FILE: &str = "crates/validation/state_config.toml";
+pub const TOKEN_CONFIG_FILE: &str = "crates/validation/src/state_config.toml";
 
 pub fn init_validation<DB: BlockStateProviderFactory + Unpin + Clone + 'static>(
     db: DB,
