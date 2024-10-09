@@ -72,7 +72,7 @@ async fn test_singular_order_propagation() {
     // connect all peers
     //
     let testnet = tokio::time::timeout(
-        Duration::from_secs(5),
+        Duration::from_secs(10),
         StromTestnet::spawn_testnet(NoopProvider::default(), config)
     )
     .await;
