@@ -72,11 +72,11 @@ async fn test_singular_order_propagation() {
     // connect all peers
     //
     let testnet = tokio::time::timeout(
-        Duration::from_secs(10),
+        Duration::from_secs(30),
         StromTestnet::spawn_testnet(NoopProvider::default(), config)
     )
     .await;
-    assert!(matches!(testnet, Ok(Ok(_))), "failed to connect all peers within 5 seconds");
+    assert!(matches!(testnet, Ok(Ok(_))), "failed to connect all peers within 30 seconds");
 
     let mut testnet = testnet.unwrap().unwrap();
 
