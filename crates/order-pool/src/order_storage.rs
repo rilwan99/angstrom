@@ -16,7 +16,7 @@ use angstrom_types::{
         rpc_orders::TopOfBlockOrder
     }
 };
-use reth_primitives::B256;
+use reth_primitives::{BlockNumber, B256};
 
 use crate::{
     finalization_pool::FinalizationPool,
@@ -130,6 +130,16 @@ impl OrderStorage {
             });
     }
 
+    pub fn top_tob_orders(&self) -> Option<TopOfBlockOrder> {
+        self.searcher_orders
+            .lock()
+            .expect("lock poisoned")
+            .get_all_orders()
+            .iter()
+            .max_by_key(|order| order.tob_reward)
+            .map(|order| order.order.clone())
+    }
+
     pub fn add_new_limit_order(
         &self,
         order: OrderWithStorageData<GroupedUserOrder>
@@ -181,7 +191,7 @@ impl OrderStorage {
 
     pub fn add_filled_orders(
         &self,
-        block_number: u64,
+        block_number: BlockNumber,
         orders: Vec<OrderWithStorageData<AllOrders>>
     ) {
         let num_orders = orders.len();
@@ -193,7 +203,7 @@ impl OrderStorage {
         self.metrics.incr_pending_finalization_orders(num_orders);
     }
 
-    pub fn finalized_block(&self, block_number: u64) {
+    pub fn finalized_block(&self, block_number: BlockNumber) {
         let orders = self
             .pending_finalization_orders
             .lock()
