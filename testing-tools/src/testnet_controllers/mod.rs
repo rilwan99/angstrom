@@ -5,7 +5,9 @@ use std::{
 pub mod config;
 
 use angstrom::cli::initialize_strom_handles;
-use angstrom_network::{NetworkOrderEvent, StromMessage};
+use angstrom_network::{
+    manager::StromConsensusEvent, NetworkOrderEvent, StromMessage, StromNetworkManager
+};
 use angstrom_types::sol_bindings::grouped_orders::AllOrders;
 use config::StromTestnetConfig;
 use futures::StreamExt;
@@ -15,7 +17,7 @@ use reth_chainspec::Hardforks;
 use reth_metrics::common::mpsc::{
     metered_unbounded_channel, UnboundedMeteredReceiver, UnboundedMeteredSender
 };
-use reth_provider::{test_utils::NoopProvider, BlockReader, ChainSpecProvider, HeaderProvider};
+use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
 use tracing::{instrument, span, Instrument, Level};
 
 use crate::network::peers::TestnetNodeNetwork;
@@ -181,14 +183,14 @@ where
 
     /// takes a random peer and gets them to broadcast the message. we then
     /// take all other peers and ensure that they received the message.
-    pub async fn broadcast_message_orders(
+    pub async fn broadcast_orders_message(
         &mut self,
         id: Option<u64>,
         sent_msg: StromMessage,
         expected_orders: Vec<AllOrders>
     ) -> bool {
         let out = self
-            .run_network_order_event_on_all_peers_with_expection(
+            .run_network_event_on_all_peers_with_expection(
                 id.unwrap_or_else(|| self.random_valid_id()),
                 |peer| {
                     let network_handle = peer.strom_network_handle().clone();
@@ -210,7 +212,44 @@ where
                     .await
                     .into_iter()
                     .sum::<usize>()
-                }
+                },
+                |manager, tx| manager.swap_pool_manager(tx)
+            )
+            .await;
+
+        out == self.peers.len() - 1
+    }
+
+    /// takes a random peer and gets them to broadcast the message. we then
+    /// take all other peers and ensure that they received the message.
+    pub async fn broadcast_consensus_message(
+        &mut self,
+        id: Option<u64>,
+        sent_msg: StromMessage,
+        expected_message: StromConsensusEvent
+    ) -> bool {
+        let out = self
+            .run_network_event_on_all_peers_with_expection(
+                id.unwrap_or_else(|| self.random_valid_id()),
+                |peer| {
+                    let network_handle = peer.strom_network_handle().clone();
+                    let peer_id = peer.peer_id();
+
+                    async move {
+                        network_handle.broadcast_message(sent_msg.clone());
+                        peer_id
+                    }
+                },
+                |other_rxs, _| async move {
+                    futures::future::join_all(other_rxs.into_iter().map(|mut rx| {
+                        let value = expected_message.clone();
+                        async move { (Some(value) == rx.next().await) as usize }
+                    }))
+                    .await
+                    .into_iter()
+                    .sum::<usize>()
+                },
+                |manager, tx| manager.swap_consensus_manager(tx)
             )
             .await;
 
@@ -242,17 +281,21 @@ where
         f(&peer).instrument(span).await
     }
 
-    /// runs an event that does something with the network orderpool
-    /// and compared some expected result against all peers
-    pub async fn run_network_order_event_on_all_peers_with_expection<F, P, O, R>(
+    /// runs an event that uses the consensus or orderpool channels in the
+    /// angstrom network and compares a expected result against all peers
+    pub async fn run_network_event_on_all_peers_with_expection<F, P, O, R, E>(
         &mut self,
         exception_id: u64,
         network_f: F,
-        expected_f: P
+        expected_f: P,
+        channel_swap_f: impl Fn(
+            &mut StromNetworkManager<C>,
+            UnboundedMeteredSender<E>
+        ) -> Option<UnboundedMeteredSender<E>>
     ) -> R::Output
     where
         F: FnOnce(&TestnetNode<C>) -> O,
-        P: FnOnce(Vec<UnboundedMeteredReceiver<NetworkOrderEvent>>, O::Output) -> R,
+        P: FnOnce(Vec<UnboundedMeteredReceiver<E>>, O::Output) -> R,
         O: Future,
         R: Future
     {
@@ -262,7 +305,8 @@ where
             .filter(|(id, _)| **id != exception_id)
             .map(|(id, peer)| {
                 let (new_tx, new_rx) = metered_unbounded_channel("new orderpool");
-                let old_tx = peer.pre_post_network_event_pool_manager_swap(new_tx, true);
+                let old_tx = peer
+                    .pre_post_network_event_channel_swap(true, |net| channel_swap_f(net, new_tx));
 
                 ((*id, old_tx), new_rx)
             })
@@ -281,7 +325,8 @@ where
 
         old_peer_channels.into_iter().for_each(|(id, old_tx)| {
             let peer = self.get_peer_mut(id);
-            let _ = peer.pre_post_network_event_pool_manager_swap(old_tx, false);
+            let _ =
+                peer.pre_post_network_event_channel_swap(false, |net| channel_swap_f(net, old_tx));
         });
 
         out

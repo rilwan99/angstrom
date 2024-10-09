@@ -15,7 +15,7 @@ pub use global::*;
 pub use leader_selection::AngstromValidator;
 pub use manager::*;
 pub use signer::*;
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ConsensusMessage {
     /// Start/Cycle the consensus process as a new block has begun
     NewBlock(u64),

@@ -243,7 +243,7 @@ pub enum StromNetworkEvent {
     PeerRemoved(PeerId)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum StromConsensusEvent {
     PrePropose(PeerId, PreProposal),
     Propose(PeerId, Proposal),

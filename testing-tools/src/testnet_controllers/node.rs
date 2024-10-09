@@ -199,18 +199,18 @@ where
             .await;
     }
 
-    pub fn pre_post_network_event_pool_manager_swap(
+    pub fn pre_post_network_event_channel_swap<E>(
         &mut self,
-        tx: UnboundedMeteredSender<NetworkOrderEvent>,
-        is_pre_event: bool
-    ) -> UnboundedMeteredSender<NetworkOrderEvent> {
+        is_pre_event: bool,
+        f: impl FnOnce(&mut StromNetworkManager<C>) -> Option<UnboundedMeteredSender<E>>
+    ) -> UnboundedMeteredSender<E> {
         if is_pre_event {
             self.network.blocking_stop_network();
         } else {
             self.network.blocking_start_network();
         }
 
-        self.strom_network_manager_mut(|net| net.swap_pool_manager(tx))
+        self.strom_network_manager_mut(f)
             .expect("old network event channel is empty")
     }
 

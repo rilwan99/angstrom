@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use angstrom_network::StromMessage;
 use rand::thread_rng;
 use reth_provider::test_utils::NoopProvider;
 use testing_tools::{
@@ -17,7 +18,9 @@ async fn test_broadcast_order_propagation() {
         initial_rpc_port:        5000,
         testnet_block_time_secs: 12
     };
-    let mut testnet = StromTestnet::spawn_testnet(config).await;
+    let mut testnet = StromTestnet::spawn_testnet(NoopProvider::default(), config)
+        .await
+        .unwrap();
 
     // let orders = (0..3)
     //     .map(|_| generate_random_valid_order())
@@ -27,9 +30,11 @@ async fn test_broadcast_order_propagation() {
     let delay_seconds = 4;
     let res = tokio::time::timeout(
         Duration::from_secs(delay_seconds),
-        testnet.broadcast_message_orders(angstrom_network::StromMessage::PropagatePooledOrders(
+        testnet.broadcast_message_orders(
+            Some(0),
+            StromMessage::PropagatePooledOrders(orders.clone()),
             orders.clone()
-        ))
+        )
     )
     .await;
 
@@ -41,10 +46,12 @@ async fn test_broadcast_order_propagation() {
     );
 
     let res = tokio::time::timeout(
-        Duration::from_secs(4),
-        testnet.broadcast_message_orders(angstrom_network::StromMessage::PropagatePooledOrders(
+        Duration::from_secs(delay_seconds),
+        testnet.broadcast_message_orders(
+            Some(0),
+            StromMessage::PropagatePooledOrders(orders.clone()),
             orders
-        ))
+        )
     )
     .await;
 
@@ -54,13 +61,22 @@ async fn test_broadcast_order_propagation() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
 async fn test_singular_order_propagation() {
     reth_tracing::init_test_tracing();
-    let noop = NoopProvider::default();
-    let mut testnet = AngstromTestnet::new(3, noop).await;
+    let config = StromTestnetConfig {
+        intial_node_count:       3,
+        initial_rpc_port:        5000,
+        testnet_block_time_secs: 12
+    };
 
     // connect all peers
     //
-    let res = tokio::time::timeout(Duration::from_secs(3), testnet.connect_all_peers()).await;
-    assert!(res.is_ok(), "failed to connect all peers within 3 seconds");
+    let testnet = tokio::time::timeout(
+        Duration::from_secs(5),
+        StromTestnet::spawn_testnet(NoopProvider::default(), config)
+    )
+    .await;
+    assert!(matches!(testnet, Ok(Ok(_))), "failed to connect all peers within 5 seconds");
+
+    let mut testnet = testnet.unwrap().unwrap();
 
     // let orders = (0..3)
     //     .map(|_| generate_random_valid_order())
@@ -71,9 +87,11 @@ async fn test_singular_order_propagation() {
 
     let res = tokio::time::timeout(
         Duration::from_secs(delay_seconds),
-        testnet.send_order_message(angstrom_network::StromMessage::PropagatePooledOrders(
+        testnet.broadcast_message_orders(
+            Some(0),
+            StromMessage::PropagatePooledOrders(orders.clone()),
             orders.clone()
-        ))
+        )
     )
     .await;
 
@@ -86,9 +104,11 @@ async fn test_singular_order_propagation() {
 
     let res = tokio::time::timeout(
         Duration::from_secs(4),
-        testnet.send_order_message(angstrom_network::StromMessage::PropagatePooledOrders(
+        testnet.broadcast_message_orders(
+            Some(0),
+            StromMessage::PropagatePooledOrders(orders.clone()),
             orders.clone()
-        ))
+        )
     )
     .await;
 

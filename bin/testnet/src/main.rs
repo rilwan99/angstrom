@@ -26,12 +26,32 @@ async fn do_thing(network_controller: StromTestnet<NoopProvider>) -> eyre::Resul
     }
 }
 
-async fn do_thing_other(mut network_controller: StromTestnet<NoopProvider>) -> eyre::Result<()> {
+async fn send_bundles(mut network_controller: StromTestnet<NoopProvider>) -> eyre::Result<()> {
     loop {
         tokio::time::sleep(Duration::from_secs(11)).await;
         let orders = vec![];
         let passed = network_controller
-            .broadcast_message_orders(
+            .broadcast_orders_message(
+                Some(0),
+                StromMessage::PropagatePooledOrders(orders.clone()),
+                orders
+            )
+            .await;
+
+        assert!(passed);
+
+        // Ok(())
+    }
+}
+
+async fn send_consensus_message(
+    mut network_controller: StromTestnet<NoopProvider>
+) -> eyre::Result<()> {
+    loop {
+        tokio::time::sleep(Duration::from_secs(11)).await;
+        let orders = vec![];
+        let passed = network_controller
+            .broadcast_orders_message(
                 Some(0),
                 StromMessage::PropagatePooledOrders(orders.clone()),
                 orders

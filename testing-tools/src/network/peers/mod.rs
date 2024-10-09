@@ -1,40 +1,33 @@
 mod eth_peer;
-use futures::FutureExt;
 
 mod network_future;
 mod strom_peer;
 use std::{
     collections::HashSet,
-    pin::Pin,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc
     },
-    task::{Context, Poll}
+    task::Poll
 };
 
 use alloy_chains::Chain;
 use alloy_primitives::Address;
 use angstrom_network::{
     manager::StromConsensusEvent, state::StromState, NetworkOrderEvent, StatusState,
-    StromNetworkHandle, StromNetworkManager, StromProtocolHandler, StromSessionManager, Swarm,
-    VerificationSidecar
+    StromNetworkManager, StromProtocolHandler, StromSessionManager, Swarm, VerificationSidecar
 };
 pub use eth_peer::*;
-use network_future::{TestnetPeerFuture, TestnetPeerStateFuture};
+use network_future::TestnetPeerStateFuture;
 use parking_lot::RwLock;
 use rand::thread_rng;
 use reth_chainspec::Hardforks;
 use reth_metrics::common::mpsc::{MeteredPollSender, UnboundedMeteredSender};
-use reth_network::{
-    test_utils::{Peer, PeerConfig, PeerHandle},
-    NetworkHandle
-};
+use reth_network::test_utils::PeerConfig;
 use reth_network_peers::{pk2id, PeerId};
 use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
 use secp256k1::{Secp256k1, SecretKey};
 pub use strom_peer::*;
-use tokio::task::JoinHandle;
 use tokio_util::sync::PollSender;
 
 use crate::network::peers::StromNetworkPeer;
@@ -175,9 +168,3 @@ where
         .await
     }
 }
-
-// impl Drop for TestnetNodeNetwork<C> {
-//     fn drop(&mut self) {
-//         self.network_futs.abort();
-//     }
-// }
