@@ -81,7 +81,6 @@ pub fn init_validation_tests<
 ) -> (ValidationClient, Arc<RevmLRU<DB>>) {
     let (tx, rx) = unbounded_channel();
     let config_path = Path::new(TOKEN_CONFIG_FILE);
-    println!("{:?}", config_path.to_str());
     let validation_config = load_validation_config(config_path).unwrap();
     let fetcher_config = load_data_fetcher_config(config_path).unwrap();
     let current_block = Arc::new(AtomicU64::new(db.best_block_number().unwrap()));
