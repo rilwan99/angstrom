@@ -8,9 +8,11 @@ use std::{
     time::Duration
 };
 
+use crate::Signer;
 use alloy_primitives::BlockNumber;
 use angstrom_metrics::ConsensusMetricsWrapper;
 use angstrom_network::manager::StromConsensusEvent;
+use angstrom_types::sol_bindings::AngstromContract::saveNodeFeeReturn;
 use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
     orders::{OrderSet, PoolSolution},
@@ -32,8 +34,6 @@ use tokio::{
     sync,
     time::{self, Instant}
 };
-
-use crate::Signer;
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct BidSubmission {
@@ -147,7 +147,7 @@ impl RoundStateMachine {
             }) => {
                 match strom_msg {
                     StromConsensusEvent::PreProposal(peer_id, pre_proposal) => {
-                        let PreProposal { ethereum_height: pre_proposal_height, source: pre_proposal_sender, limit, searcher, signature } =
+                        let PreProposal { block_height: pre_proposal_height, source: pre_proposal_sender, limit, searcher, signature } =
                             pre_proposal;
                         if pre_proposal_height < *block_height || pre_proposal_height > *block_height {
                             tracing::warn!(
@@ -173,7 +173,7 @@ impl RoundStateMachine {
                     }
                     StromConsensusEvent::Proposal(
                         peer_id,
-                        Proposal { ethereum_height, source, preproposals, solutions, signature }
+                        Proposal { block_height: ethereum_height, source, preproposals, solutions, signature }
                     ) => {
                         if ethereum_height < *block_height || ethereum_height > *block_height {
                             tracing::warn!(
@@ -207,7 +207,7 @@ impl RoundStateMachine {
             ConsensusState::BidAggregation(BidAggregation { block_height,pre_proposals, .. }) => {
                 match strom_msg {
                     StromConsensusEvent::PreProposal(peer_id, pre_proposal) => {
-                        let PreProposal { ethereum_height, source, ..} = pre_proposal;
+                        let PreProposal { block_height: ethereum_height, source, ..} = pre_proposal;
                         // if it's for old round ignore
                         if ethereum_height < *block_height || ethereum_height > *block_height {
                             tracing::warn!(
@@ -355,17 +355,8 @@ impl RoundStateMachine {
                 pre_proposals.push(pre_proposal);
                 ConsensusState::BidAggregation(BidAggregation { block_height, pre_proposals, proposal: None })
             }
-            ConsensusState::BidAggregation(BidAggregation { block_height, pre_proposals }) => {
-                let highest_tob_bid = tob_bids.iter().max_by_key(|bid|
-                bid.price).unwrap().clone(); let final_bundle
-                = signer.sign_proposal(block_height,
-                vec![highest_tob_bid.clone()], vec![]);
-                ConsensusState::BidSubmission(BidSubmission {
-                    block_height,
-                    pre_proposals: Vec::new(),
-                    tob_bids: HashSet::new(),
-                    rob_tx: HashSet::new()
-                })
+            ConsensusState::BidAggregation(BidAggregation { block_height, pre_proposals,proposal }) => {
+                ConsensusState::BidSubmission(BidSubmission::default())
             }
         }
     }

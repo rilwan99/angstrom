@@ -17,7 +17,6 @@ use tokio::sync::mpsc::UnboundedSender;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::error;
 
-use crate::manager::StromConsensusEvent::Commit;
 use crate::{NetworkOrderEvent, StromMessage, StromNetworkHandleMsg, Swarm, SwarmEvent};
 #[allow(unused_imports)]
 use crate::{StromNetworkConfig, StromNetworkHandle, StromSessionManager};
@@ -245,9 +244,9 @@ impl StromConsensusEvent {
 
     pub fn block_height(&self) -> BlockNumber {
         match self {
-            StromConsensusEvent::PreProposal(_, PreProposal{ethereum_height, ..}) => *ethereum_height,
-            StromConsensusEvent::Proposal(_, Proposal{ethereum_height, ..}) => *ethereum_height,
-            StromConsensusEvent::Commit(_, Commit{ethereum_height, ..}) => *ethereum_height,
+            StromConsensusEvent::PreProposal(_, PreProposal{ block_height: ethereum_height, ..}) => *ethereum_height,
+            StromConsensusEvent::Proposal(_, Proposal{ block_height: ethereum_height, ..}) => *ethereum_height,
+            StromConsensusEvent::Commit(_, Commit{block_height, ..}) => *block_height,
         }
     }
 }

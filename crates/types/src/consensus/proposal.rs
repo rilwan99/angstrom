@@ -11,7 +11,7 @@ use crate::{orders::PoolSolution, primitive::Signature};
 #[derive(Default, Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Proposal {
     // Might not be necessary as this is encoded in all the proposals anyways
-    pub ethereum_height: BlockNumber,
+    pub block_height: BlockNumber,
     pub source:          PeerId,
     /// PreProposals sorted by source
     pub preproposals:    Vec<PreProposal>,
@@ -43,7 +43,7 @@ impl Proposal {
         let hash = keccak256(buf);
         let sig = reth_primitives::sign_message(sk.secret_bytes().into(), hash).unwrap();
 
-        Self { ethereum_height, source, preproposals, solutions, signature: Signature(sig) }
+        Self { block_height: ethereum_height, source, preproposals, solutions, signature: Signature(sig) }
     }
 
     pub fn preproposals(&self) -> &Vec<PreProposal> {
@@ -65,7 +65,7 @@ impl Proposal {
 
     fn payload(&self) -> Bytes {
         let mut buf = vec![];
-        buf.extend(bincode::serialize(&self.ethereum_height).unwrap());
+        buf.extend(bincode::serialize(&self.block_height).unwrap());
         buf.extend(*self.source);
         buf.extend(bincode::serialize(&self.preproposals).unwrap());
         buf.extend(bincode::serialize(&self.solutions).unwrap());

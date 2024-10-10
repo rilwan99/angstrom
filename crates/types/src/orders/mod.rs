@@ -25,7 +25,7 @@ pub struct OrderSet<Limit, Searcher> {
     pub searcher: Vec<OrderWithStorageData<Searcher>>
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NetAmmOrder {
     Buy(U256, U256),
     Sell(U256, U256)
@@ -78,7 +78,7 @@ impl NetAmmOrder {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrderOutcome {
     pub id:      OrderId,
     pub outcome: OrderFillState

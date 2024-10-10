@@ -15,7 +15,7 @@ use crate::{
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct PreProposal {
-    pub ethereum_height: BlockNumber,
+    pub block_height: BlockNumber,
     pub source:          PeerId,
     pub limit:           Vec<OrderWithStorageData<GroupedVanillaOrder>>,
     pub searcher:        Vec<OrderWithStorageData<TopOfBlockOrder>>,
@@ -41,7 +41,7 @@ impl PreProposal {
         let hash = keccak256(buf);
         let sig = reth_primitives::sign_message(sk.secret_bytes().into(), hash).unwrap();
 
-        Self { limit, source, searcher, ethereum_height, signature: Signature(sig) }
+        Self { limit, source, searcher, block_height: ethereum_height, signature: Signature(sig) }
     }
 
     pub fn new(
@@ -64,7 +64,7 @@ impl PreProposal {
 
     fn payload(&self) -> Bytes {
         let mut buf = Vec::new();
-        buf.extend(bincode::serialize(&self.ethereum_height).unwrap());
+        buf.extend(bincode::serialize(&self.block_height).unwrap());
         buf.extend(bincode::serialize(&self.limit).unwrap());
         buf.extend(bincode::serialize(&self.searcher).unwrap());
         Bytes::from_iter(buf)
