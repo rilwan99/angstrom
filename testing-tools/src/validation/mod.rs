@@ -68,12 +68,15 @@ impl<DB: StateProviderFactory + Clone + Unpin + 'static> TestOrderValidator<DB> 
         let sim = SimValidation::new(revm_lru.clone());
         let (_, state_notification) =
             tokio::sync::broadcast::channel::<CanonStateNotification>(100);
+
         let pool_manager = UniswapPoolManager::new(
             vec![],
             current_block.load(Ordering::SeqCst),
             100,
             Arc::new(CanonicalStateAdapter::new(state_notification))
         );
+        // TODO: block on it
+        // let pool_watcher_handle = rt.block_on(async { pool_manager.watch_state_changes().await }).unwrap();
         let order_validator =
             OrderValidator::new(sim, current_block, pools, fetch, pool_manager, thread_pool);
         let val = Validator::new(rx, order_validator);

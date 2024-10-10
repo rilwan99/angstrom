@@ -1,5 +1,6 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
+    default::Default,
     future::Future,
     pin::Pin,
     sync::Arc,
@@ -7,53 +8,59 @@ use std::{
     time::Duration
 };
 
-use crate::Signer;
 use alloy_primitives::BlockNumber;
 use angstrom_metrics::ConsensusMetricsWrapper;
-use angstrom_types::orders::OrderSet;
-use angstrom_types::primitive::Signature;
-use angstrom_types::sol_bindings::grouped_orders::{GroupedComposableOrder, GroupedUserOrder, GroupedVanillaOrder, OrderWithStorageData};
-use angstrom_types::sol_bindings::rpc_orders::TopOfBlockOrder;
+use angstrom_network::manager::StromConsensusEvent;
 use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
-    orders::PoolSolution,
-    sol_bindings::grouped_orders::AllOrders
+    orders::{OrderSet, PoolSolution},
+    primitive::Signature,
+    sol_bindings::{
+        grouped_orders::{
+            AllOrders, GroupedComposableOrder, GroupedUserOrder, GroupedVanillaOrder,
+            OrderWithStorageData
+        },
+        rpc_orders::TopOfBlockOrder
+    }
 };
 use futures::{FutureExt, Stream};
 use matching_engine::MatchingManager;
 use order_pool::order_storage::OrderStorage;
-use reth_rpc_types::PeerId;
+use reth_rpc_types::{mev::BundleItem::Hash, PeerId};
 use serde::{Deserialize, Serialize};
 use tokio::{
     sync,
-    time::{
-        Instant, {self}
-    }
+    time::{self, Instant}
 };
 
-#[derive(Debug, Clone)]
-pub(crate) enum DataMsg {
-    Order(AllOrders),
-    PreProposal(PeerId, PreProposal),
-    Proposal(PeerId, Proposal),
-    Commit(PeerId, Commit)
+use crate::Signer;
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct BidSubmission {
+    pub block_height:  BlockNumber,
+    pub pre_proposals: Vec<PreProposal>,
+    pub tob_bids:      HashSet<OrderWithStorageData<TopOfBlockOrder>>,
+    pub rob_tx:        HashSet<OrderWithStorageData<GroupedVanillaOrder>>
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct BidAggregation {
+    pub block_height:  BlockNumber,
+    pub proposal:      Option<Proposal>,
+    pub pre_proposals: Vec<PreProposal>
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum ConsensusState {
-    BidSubmission { block_height: BlockNumber, tob_bids: Vec<OrderWithStorageData<TopOfBlockOrder>>, rob_transactions: Vec<OrderWithStorageData<GroupedVanillaOrder>> },
-    BidAggregation { block_height: BlockNumber, tob_bids: Vec<OrderWithStorageData<TopOfBlockOrder>>, rob_transactions: Vec<OrderWithStorageData<GroupedVanillaOrder>> },
-    // LeaderAction { block_height: BlockNumber, final_bundle: Proposal },
-    // PostConsensusVerification { block_height: BlockNumber, all_bids: Vec<AllOrders>, all_transactions: Vec<AllOrders> }
+    BidSubmission(BidSubmission),
+    BidAggregation(BidAggregation)
 }
 
 impl ConsensusState {
     fn as_key(&self) -> &'static str {
         match self {
-            ConsensusState::BidSubmission { .. } => "BidSubmission",
-            ConsensusState::BidAggregation { .. } => "BidAggregation",
-            // ConsensusState::LeaderAction { .. } => "LeaderAction",
-            // ConsensusState::PostConsensusVerification { .. } => "PostConsensusVerification"
+            ConsensusState::BidSubmission(_) => "BidSubmission",
+            ConsensusState::BidAggregation(_) => "BidAggregation"
         }
     }
 }
@@ -75,21 +82,30 @@ pub struct RoundStateMachine {
 
 impl RoundStateMachine {
     pub fn new(
-        initial_state: ConsensusState,
+        block: BlockNumber,
         order_storage: Arc<OrderStorage>,
         signer: Signer,
         metrics: ConsensusMetricsWrapper,
         durations: Option<HashMap<String, Duration>>
     ) -> Self {
         let default_durations = HashMap::from([
-            (String::from("BidSubmission"), Duration::from_secs(6)),
-            (String::from("BidAggregation"), Duration::from_secs(3)),
-            (String::from("LeaderAction"), Duration::from_secs(3)),
-            (String::from("PostConsensusVerification"), Duration::from_secs(3))
+            (
+                ConsensusState::BidSubmission(BidSubmission::default())
+                    .as_key()
+                    .to_string(),
+                Duration::from_secs(3)
+            ),
+            (
+                ConsensusState::BidAggregation(BidAggregation::default())
+                    .as_key()
+                    .to_string(),
+                Duration::from_secs(6)
+            )
         ]);
 
         let durations = durations.unwrap_or(default_durations);
 
+        let initial_state = RoundStateMachine::initial_state(block);
         let initial_state_duration = durations.get(initial_state.as_key()).unwrap();
         let timer = Box::pin(time::sleep(*initial_state_duration));
 
@@ -104,29 +120,147 @@ impl RoundStateMachine {
         }
     }
 
-    pub fn on_data(&mut self, data_msg: DataMsg) {
+    pub fn reset_state(&mut self, block: BlockNumber) {
+        let initial_state = RoundStateMachine::initial_state(block);
+        let initial_state_duration = self.durations.get(initial_state.as_key()).unwrap();
+        let timer = Box::pin(time::sleep(*initial_state_duration));
+        self.transition_future = None;
+        self.timer = timer
+    }
+
+    pub fn initial_state(block_height: BlockNumber) -> ConsensusState {
+        ConsensusState::BidSubmission(BidSubmission {
+            block_height,
+            pre_proposals: Vec::new(),
+            tob_bids: HashSet::new(),
+            rob_tx: HashSet::new()
+        })
+    }
+
+    pub fn on_strom_message(&mut self, strom_msg: StromConsensusEvent) {
         match &mut self.current_state {
-            ConsensusState::BidSubmission { ref mut tob_bids, ref mut rob_transactions, .. } => {
-                if let DataMsg::Order(order_msg) = data_msg {
-                    // tob_bids.push(order_msg.clone());
-                    // rob_transactions.push(order_msg);
+            // it's just a timeout to get enough orders from users
+            ConsensusState::BidSubmission(BidSubmission {
+                block_height,
+                mut pre_proposals,
+                ..
+            }) => {
+                match strom_msg {
+                    StromConsensusEvent::PreProposal(peer_id, pre_proposal) => {
+                        let PreProposal { ethereum_height: pre_proposal_height, source: pre_proposal_sender, limit, searcher, signature } =
+                            pre_proposal;
+                        if pre_proposal_height < *block_height || pre_proposal_height > *block_height {
+                            tracing::warn!(
+                                msg_sender = peer_id,
+                                ?block_height,
+                                ?pre_proposal_sender,
+                                ?pre_proposal_height,
+                                "received pre_proposal wrong height"
+                            );
+                            return
+                        }
+                        if !pre_proposal.validate() {
+                            tracing::warn!(
+                                msg_sender = peer_id,
+                                ?block_height,
+                                  ?pre_proposal_sender,
+                                ?pre_proposal_height,
+                                "received pre_proposal with invalid signature"
+                            );
+                            return
+                        }
+                        pre_proposals.push(pre_proposal.clone());
+                    }
+                    StromConsensusEvent::Proposal(
+                        peer_id,
+                        Proposal { ethereum_height, source, preproposals, solutions, signature }
+                    ) => {
+                        if ethereum_height < *block_height || ethereum_height > *block_height {
+                            tracing::warn!(
+                                messeg_sender = peer_id,
+                                ?block_height,
+                                pre_proposal_sender = source,
+                                bid_submissino_height = ethereum_height,
+                                "received proposal for wrong height"
+                            );
+                            return
+                        }
+
+                        // if it's for old round ignore
+                        // Handle BidAggregation event
+                        // Example: rob_tx.insert(proposal);
+                    }
+                    StromConsensusEvent::Commit(peer_id, Commit {block_height: commit_height, .. }) => {
+                        if commit_height < *block_height {
+                            tracing::debug!(
+                                messeg_sender = peer_id,
+                                ?block_height,
+                                "received commit for wrong height"
+                            );
+                            return
+                        }
+
+                        tracing::warn!("received a commit for the current or future block. That's weird, but I'll ignore")
+                    }
                 }
             }
-            ConsensusState::BidAggregation { ref mut tob_bids, ref mut rob_transactions, .. } => {
-                if let DataMsg::Order(order_msg) = data_msg {
-                    // tob_bids.push(order_msg.clone());
-                    // rob_transactions.push(order_msg);
+            ConsensusState::BidAggregation(BidAggregation { block_height,pre_proposals, .. }) => {
+                match strom_msg {
+                    StromConsensusEvent::PreProposal(peer_id, pre_proposal) => {
+                        let PreProposal { ethereum_height, source, ..} = pre_proposal;
+                        // if it's for old round ignore
+                        if ethereum_height < *block_height || ethereum_height > *block_height {
+                            tracing::warn!(
+                                messeg_sender = peer_id,
+                                ?block_height,
+                                pre_proposal_sender = source,
+                                bid_submissino_height = ethereum_height,
+                                "received pre_proposal for wrong height"
+                            );
+                            return
+                        }
+
+                        pre_proposals.push(pre_proposal);
+                    }
+                    StromConsensusEvent::Proposal(peer_id, proposal) => {
+                        // if it's for old round ignore
+
+                        // Handle BidAggregation event
+                        // Example: pre_proposals.push(proposal);
+                    }
+                    StromConsensusEvent::Commit(peer_id, commit) => {
+                        // if it's for old round ignore
+
+                        // Handle Commit event
+                        // Example: process_commit(commit);
+                    }
                 }
-            }
-            // ConsensusState::LeaderAction { .. } => {
-            //     // Handle LeaderAction data
-            // }
-            // ConsensusState::PostConsensusVerification { ref mut all_bids, ref mut all_transactions, .. } => {
-                       //     if let DataMsg::Order(order_msg) = data_msg {
-            //         all_bids.push(order_msg.clone());
-            //         all_transactions.push(order_msg);
-            //     }
-            // }
+            } /* ConsensusState::LeaderAction { .. } => {
+               *     match strom_msg {
+               *         StromConsensusEvent::BidSubmission(peer_id, pre_proposal) => {
+               *             // Handle BidSubmission event
+               *         }
+               *         StromConsensusEvent::BidAggregation(peer_id, proposal) => {
+               *             // Handle BidAggregation event
+               *         }
+               *         StromConsensusEvent::Commit(peer_id, commit) => {
+               *             // Handle Commit event
+               *         }
+               *     }
+               * }
+               * ConsensusState::PostConsensusVerification { ref mut all_bids, ref mut
+               * all_transactions, .. } => {     match strom_msg {
+               *         StromConsensusEvent::BidSubmission(peer_id, pre_proposal) => {
+               *             // Handle BidSubmission event
+               *         }
+               *         StromConsensusEvent::BidAggregation(peer_id, proposal) => {
+               *             // Handle BidAggregation event
+               *         }
+               *         StromConsensusEvent::Commit(peer_id, commit) => {
+               *             // Handle Commit event
+               *         }
+               *     }
+               * } */
         }
     }
 
@@ -137,23 +271,24 @@ impl RoundStateMachine {
     pub async fn force_transition(&mut self, new_state: ConsensusState) {
         let new_state = match (&self.current_state, &new_state) {
             (
-                ConsensusState::BidSubmission { block_height, .. },
-                ConsensusState::BidAggregation { .. }
+                ConsensusState::BidSubmission(BidSubmission { block_height, .. }),
+                ConsensusState::BidAggregation(_)
             ) => {
                 let tob_bids = self.order_storage.get_all_orders();
                 let rob_transactions = self.order_storage.get_all_orders();
-                ConsensusState::BidAggregation {
+                ConsensusState::BidAggregation(BidAggregation {
                     block_height:  *block_height,
-                    tob_bids: Vec::new(),
-                    rob_transactions: Vec::new(),
-                }
+                    proposal: None,
+                    pre_proposals: Vec::new()
+                })
             }
             // (
             //     ConsensusState::BidAggregation { block_height, tob_bids, rob_transactions, .. },
             //     ConsensusState::LeaderAction { .. }
             // ) => {
-            //     let highest_tob_bid = tob_bids.iter().max_by_key(|bid| *bid.price).unwrap().clone();
-            //     let final_bundle = self.signer.sign_proposal(*block_height, vec![highest_tob_bid.clone()], vec![]);
+            //     let highest_tob_bid = tob_bids.iter().max_by_key(|bid|
+            // *bid.price).unwrap().clone();     let final_bundle =
+            // self.signer.sign_proposal(*block_height, vec![highest_tob_bid.clone()], vec![]);
             //     ConsensusState::LeaderAction { block_height: *block_height, final_bundle }
             // }
             // (
@@ -204,40 +339,34 @@ impl RoundStateMachine {
         _metrics: ConsensusMetricsWrapper
     ) -> ConsensusState {
         match current_state {
-            ConsensusState::BidSubmission { block_height, .. } => {
+            ConsensusState::BidSubmission(BidSubmission {
+                block_height,
+                mut pre_proposals,
+                ..
+            }) => {
                 let OrderSet { limit, searcher } = order_storage.get_all_orders();
-                let rob_transactions = order_storage.get_all_orders();
-                ConsensusState::BidAggregation {
+                let pre_proposal = PreProposal::generate_pre_proposal(
                     block_height,
-                    tob_bids: searcher,
-                    rob_transactions: limit,
-                }
+                    signer.my_id,
+                    limit,
+                    searcher,
+                    &signer.key
+                );
+                pre_proposals.push(pre_proposal);
+                ConsensusState::BidAggregation(BidAggregation { block_height, pre_proposals, proposal: None })
             }
-            ConsensusState::BidAggregation { block_height, tob_bids, rob_transactions } => {
-                // let highest_tob_bid = tob_bids.iter().max_by_key(|bid| bid.price).unwrap().clone();
-                // let final_bundle = signer.sign_proposal(block_height, vec![highest_tob_bid.clone()], vec![]);
-                ConsensusState::BidSubmission {
+            ConsensusState::BidAggregation(BidAggregation { block_height, pre_proposals }) => {
+                let highest_tob_bid = tob_bids.iter().max_by_key(|bid|
+                bid.price).unwrap().clone(); let final_bundle
+                = signer.sign_proposal(block_height,
+                vec![highest_tob_bid.clone()], vec![]);
+                ConsensusState::BidSubmission(BidSubmission {
                     block_height,
-                    tob_bids,
-                    rob_transactions,
-                }
+                    pre_proposals: Vec::new(),
+                    tob_bids: HashSet::new(),
+                    rob_tx: HashSet::new()
+                })
             }
-            // ConsensusState::LeaderAction { block_height, final_bundle } => {
-            //     let all_bids = order_storage.get_all_orders();
-            //     let all_transactions = order_storage.get_all_orders();
-            //     ConsensusState::PostConsensusVerification {
-            //         block_height,
-            //         all_bids: all_bids,
-            //         all_transactions: all_transactions
-            //     }
-            // }
-            // ConsensusState::PostConsensusVerification { block_height, .. } => {
-            //     ConsensusState::BidSubmission {
-            //         block_height: block_height + 1,
-            //         tob_bids: vec![],
-            //         rob_transactions: vec![]
-            //     }
-            // }
         }
     }
 }

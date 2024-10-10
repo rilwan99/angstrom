@@ -13,8 +13,6 @@ pub type OrderID = u128;
 pub type OrderVolume = U256;
 pub type OrderPrice = MatchingPrice;
 
-// mod pooled;
-// pub use pooled::*;
 use crate::{
     matching::{MatchingPrice, Ray},
     primitive::PoolId,
@@ -92,7 +90,7 @@ impl OrderOutcome {
     }
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PoolSolution {
     /// Id of this pool
     pub id:           PoolId,

@@ -1,10 +1,4 @@
-use std::{
-    future::Future,
-    pin::Pin,
-    sync::{atomic::AtomicUsize, Arc},
-    task::Context
-};
-
+use alloy::primitives::BlockNumber;
 use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
     sol_bindings::ext::RawPoolOrder
@@ -12,11 +6,18 @@ use angstrom_types::{
 use futures::{task::Poll, StreamExt};
 use reth_eth_wire::DisconnectReason;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
-use reth_rpc_types::PeerId;
+use reth_rpc_types::{Block, PeerId};
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::{atomic::AtomicUsize, Arc},
+    task::Context
+};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::error;
 
+use crate::manager::StromConsensusEvent::Commit;
 use crate::{NetworkOrderEvent, StromMessage, StromNetworkHandleMsg, Swarm, SwarmEvent};
 #[allow(unused_imports)]
 use crate::{StromNetworkConfig, StromNetworkHandle, StromSessionManager};
@@ -161,15 +162,15 @@ impl<DB: Unpin> Future for StromNetworkManager<DB> {
                                     .as_ref()
                                     .map(|tx| tx.send(StromConsensusEvent::Commit(peer_id, a)));
                             },
-                            StromMessage::BidSubmission{..} => {
+                            StromMessage::PrePropose(p) => {
                                 self.to_consensus_manager
                                     .as_ref()
-                                    .map(|tx| tx.send(StromConsensusEvent::BidSubmission(peer_id, PreProposal::default())));
+                                    .map(|tx| tx.send(StromConsensusEvent::PreProposal(peer_id, PreProposal::default())));
                             },
-                            StromMessage::BidAggregation(a) => {
+                            StromMessage::Propose(a) => {
                                 self.to_consensus_manager
                                     .as_ref()
-                                    .map(|tx| tx.send(StromConsensusEvent::BidAggregation(peer_id, a)));
+                                    .map(|tx| tx.send(StromConsensusEvent::Proposal(peer_id, a)));
                             },
                             StromMessage::PropagatePooledOrders(a) => {
                                 self.to_pool_manager
@@ -226,9 +227,27 @@ pub enum StromNetworkEvent {
     PeerRemoved(PeerId)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum StromConsensusEvent {
-    BidSubmission(PeerId, PreProposal),
-    BidAggregation(PeerId, Proposal),
+    PreProposal(PeerId, PreProposal),
+    Proposal(PeerId, Proposal),
     Commit(PeerId, Commit)
+}
+
+impl StromConsensusEvent {
+   pub fn sender(&self) -> PeerId {
+        match self {
+            StromConsensusEvent::PreProposal(peer_id, _) => *peer_id,
+            StromConsensusEvent::Proposal(peer_id, _) => *peer_id,
+            StromConsensusEvent::Commit(peer_id, _) => *peer_id,
+        }
+    }
+
+    pub fn block_height(&self) -> BlockNumber {
+        match self {
+            StromConsensusEvent::PreProposal(_, PreProposal{ethereum_height, ..}) => *ethereum_height,
+            StromConsensusEvent::Proposal(_, Proposal{ethereum_height, ..}) => *ethereum_height,
+            StromConsensusEvent::Commit(_, Commit{ethereum_height, ..}) => *ethereum_height,
+        }
+    }
 }

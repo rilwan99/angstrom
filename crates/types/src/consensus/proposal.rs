@@ -1,3 +1,4 @@
+use alloy::primitives::BlockNumber;
 use bytes::Bytes;
 use reth_network_peers::PeerId;
 use reth_primitives::keccak256;
@@ -7,10 +8,10 @@ use serde::{Deserialize, Serialize};
 use super::PreProposal;
 use crate::{orders::PoolSolution, primitive::Signature};
 
-#[derive(Default, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Proposal {
     // Might not be necessary as this is encoded in all the proposals anyways
-    pub ethereum_height: u64,
+    pub ethereum_height: BlockNumber,
     pub source:          PeerId,
     /// PreProposals sorted by source
     pub preproposals:    Vec<PreProposal>,
@@ -23,7 +24,7 @@ pub struct Proposal {
 
 impl Proposal {
     pub fn generate_proposal(
-        ethereum_height: u64,
+        ethereum_height: BlockNumber,
         source: PeerId,
         preproposals: Vec<PreProposal>,
         mut solutions: Vec<PoolSolution>,

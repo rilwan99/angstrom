@@ -317,8 +317,8 @@ impl From<StromConsensusEvent> for ConsensusMsgTestCmp {
     fn from(value: StromConsensusEvent) -> Self {
         match value {
             StromConsensusEvent::Commit(_, c) => ConsensusMsgTestCmp::Commit(c),
-            StromConsensusEvent::BidSubmission{ .. } => ConsensusMsgTestCmp::Propose(Proposal::default()),
-            StromConsensusEvent::BidAggregation{..} => ConsensusMsgTestCmp::PrePropose(PreProposal::default()),
+            StromConsensusEvent::PreProposal { .. } => ConsensusMsgTestCmp::Propose(Proposal::default()),
+            StromConsensusEvent::Proposal {..} => ConsensusMsgTestCmp::PrePropose(PreProposal::default()),
         }
     }
 }

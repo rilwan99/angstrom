@@ -1,10 +1,17 @@
-use crate::{leader_selection::WeightedRoundRobin, round::{ConsensusState, DataMsg, RoundStateMachine}, signer::Signer, AngstromValidator, ConsensusListener, ConsensusMessage, ConsensusUpdater};
+use std::{
+    collections::{HashMap, HashSet},
+    pin::Pin,
+    sync::{Arc, Mutex},
+    task::{Context, Poll},
+    thread::current
+};
+
 use alloy_primitives::{private::proptest::collection::vec, BlockNumber};
 use angstrom_metrics::ConsensusMetricsWrapper;
 use angstrom_network::{manager::StromConsensusEvent, Peer, StromMessage, StromNetworkHandle};
-use angstrom_types::contract_payloads::angstrom::TopOfBlockOrder;
 use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
+    contract_payloads::angstrom::TopOfBlockOrder,
     orders::PoolSolution
 };
 use futures::{FutureExt, Stream, StreamExt};
@@ -13,17 +20,9 @@ use order_pool::{order_storage::OrderStorage, timer::async_time_fn};
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_primitives::transaction::WithEncoded;
 use reth_provider::{CanonStateNotification, CanonStateNotifications};
-use reth_rpc_types::beacon::relay::Validator;
-use reth_rpc_types::PeerId;
+use reth_rpc_types::{beacon::relay::Validator, PeerId};
 use reth_tasks::TaskSpawner;
 use serde_json::error::Category::Data;
-use std::thread::current;
-use std::{
-    collections::{HashMap, HashSet},
-    pin::Pin,
-    sync::{Arc, Mutex},
-    task::{Context, Poll}
-};
 use tokio::{
     select,
     sync::mpsc::{channel, unbounded_channel, Receiver, Sender, UnboundedReceiver},
@@ -31,6 +30,13 @@ use tokio::{
 };
 use tokio_stream::wrappers::{BroadcastStream, ReceiverStream};
 use tracing::{error, warn};
+
+use crate::{
+    leader_selection::WeightedRoundRobin,
+    round::{BidAggregation, BidSubmission, ConsensusState, RoundStateMachine},
+    signer::Signer,
+    AngstromValidator, ConsensusListener, ConsensusMessage, ConsensusUpdater
+};
 
 enum ConsensusTaskResult {
     BuiltProposal(Proposal),
@@ -53,7 +59,10 @@ pub struct ConsensusManager {
     canonical_block_stream: BroadcastStream<CanonStateNotification>,
     /// events from the network,
     strom_consensus_event:  UnboundedMeteredReceiver<StromConsensusEvent>,
-    network:                StromNetworkHandle
+    network:                StromNetworkHandle,
+
+    /// Track broadcasted messages to avoid rebroadcasting
+    broadcasted_messages: HashSet<StromConsensusEvent>
 }
 
 pub struct ManagerNetworkDeps {
@@ -73,7 +82,12 @@ impl ManagerNetworkDeps {
 }
 
 impl ConsensusManager {
-    fn new(netdeps: ManagerNetworkDeps, signer: Signer, validators: Vec<AngstromValidator>, order_storage: Arc<OrderStorage>) -> Self {
+    fn new(
+        netdeps: ManagerNetworkDeps,
+        signer: Signer,
+        validators: Vec<AngstromValidator>,
+        order_storage: Arc<OrderStorage>
+    ) -> Self {
         let ManagerNetworkDeps { network, canonical_block_stream, strom_consensus_event } = netdeps;
         let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
         let current_height = 0;
@@ -83,18 +97,15 @@ impl ConsensusManager {
             current_height,
             leader_selection: WeightedRoundRobin::new(validators, current_height, None),
             state_transition: RoundStateMachine::new(
-                ConsensusState::BidAggregation {
-                    tob_bids: Vec::new(),
-                    rob_transactions: Vec::new(),
-                    block_height: current_height
-                },
+                current_height,
                 order_storage,
                 signer,
                 ConsensusMetricsWrapper::new(),
                 None
             ),
             network,
-            canonical_block_stream: wrapped_broadcast_stream
+            canonical_block_stream: wrapped_broadcast_stream,
+            broadcasted_messages: HashSet::new()
         }
     }
 
@@ -115,16 +126,16 @@ impl ConsensusManager {
         let new_block_height = new_block.block.number;
 
         if self.current_height + 1 == new_block_height {
-            // TODO (plamen): remove the unwrap; if we go back or choose the same block it's a problem
-            self.leader = self.leader_selection.choose_proposer(new_block_height).unwrap();
+            // TODO: remove the unwrap; if we go back or choose the same block it's a problem
+            self.leader = self
+                .leader_selection
+                .choose_proposer(new_block_height)
+                .unwrap();
             self.current_height = new_block_height;
-            // let orders = Vec::new();
             self.state_transition
-                .force_transition(ConsensusState::BidSubmission {
-                    block_height: new_block_height,
-                    tob_bids: Vec::new(),
-                   rob_transactions: Vec::new(),
-                });
+                .force_transition(RoundStateMachine::initial_state(new_block_height)).await;
+            // Clear broadcasted messages on round transition
+            self.broadcasted_messages.clear();
         } else {
             tracing::error!("Block height is not sequential, this breaks round robin!");
             panic!("Unrecoverable consensus error - Block height not sequential");
@@ -132,45 +143,37 @@ impl ConsensusManager {
     }
 
     async fn on_network_event(&mut self, event: StromConsensusEvent) {
-        match event {
-            StromConsensusEvent::BidSubmission(peer_id, pre_proposal) => {
-                self.state_transition
-                    .on_data(DataMsg::PreProposal(peer_id, pre_proposal));
-            }
-            StromConsensusEvent::BidAggregation(peer_id, proposal) => {
-                self.state_transition
-                    .on_data(DataMsg::Proposal(peer_id, proposal.clone()))
-            }
-            StromConsensusEvent::Commit(peer_id, commit) => {
-                self.state_transition
-                    .on_data(DataMsg::Commit(peer_id, commit.clone()));
-            }
+        // Check if the event is not for the current block height
+        if self.current_height != event.block_height() {
+            tracing::info!(
+                "Ignoring event for block height: {:?}, from sender: {:?}",
+                event.block_height(),
+                event.sender()
+            );
+            return;
         }
+
+        if !self.broadcasted_messages.contains(&event) {
+            self.network.broadcast_message(event.clone());
+            self.broadcasted_messages.insert(event.clone());
+        }
+        self.state_transition.on_strom_message(event);
     }
 
     pub fn on_state_transition(&mut self, new_stat: ConsensusState) {
         match new_stat {
-            ConsensusState::BidSubmission  { tob_bids, .. } => {
-                // self.network.broadcast_message(StromMessage::BidSubmission{
-                //     peer_id: self.si
-                // }
-                //     pre_proposals.first().unwrap().clone()
-                // ));
+            ConsensusState::BidSubmission(BidSubmission { pre_proposals, .. }) => {
+                self.network.broadcast_message(StromMessage::PrePropose(
+                    pre_proposals.first().unwrap().clone()
+                ));
             }
-            ConsensusState::BidAggregation{  tob_bids, .. } => {}
-            // ConsensusState::PrePropose { pre_proposals, .. } => {
-            //     self.network.broadcast_message(StromMessage::PrePropose(
-            //         pre_proposals.first().unwrap().clone()
-            //     ));
-            // }
-            // ConsensusState::Propose { proposal, .. } => {
-            //     self.network
-            //         .broadcast_message(StromMessage::Propose(proposal.clone()));
-            // }
-            // ConsensusState::Commit { commits, .. } => {
-            //     self.network
-            //         .broadcast_message(StromMessage::Commit(commits.first().unwrap().clone()));
-            // }
+            ConsensusState::BidAggregation(BidAggregation { proposal, .. }) => {
+                if proposal.is_some() {
+                    self.network.broadcast_message(StromMessage::Propose(
+                        proposal.unwrap()
+                    ));
+                }
+            }
         }
     }
 

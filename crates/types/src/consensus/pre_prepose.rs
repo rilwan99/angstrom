@@ -1,4 +1,4 @@
-use alloy::primitives::keccak256;
+use alloy::primitives::{keccak256, BlockNumber};
 use bytes::Bytes;
 use reth_network_peers::PeerId;
 use secp256k1::SecretKey;
@@ -13,9 +13,9 @@ use crate::{
     }
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct PreProposal {
-    pub ethereum_height: u64,
+    pub ethereum_height: BlockNumber,
     pub source:          PeerId,
     pub limit:           Vec<OrderWithStorageData<GroupedVanillaOrder>>,
     pub searcher:        Vec<OrderWithStorageData<TopOfBlockOrder>>,
@@ -26,7 +26,7 @@ pub struct PreProposal {
 
 impl PreProposal {
     pub fn generate_pre_proposal(
-        ethereum_height: u64,
+        ethereum_height: BlockNumber,
         source: PeerId,
         limit: Vec<OrderWithStorageData<GroupedVanillaOrder>>,
         searcher: Vec<OrderWithStorageData<TopOfBlockOrder>>,

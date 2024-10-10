@@ -32,13 +32,13 @@ impl MockConsensusEventHandle {
 
     pub fn prepropose(&self, peer: PeerId, proposal: PreProposal) {
         self.tx
-            .send(StromConsensusEvent::BidSubmission(peer, proposal))
+            .send(StromConsensusEvent::PreProposal(peer, proposal))
             .expect("Failed to send proposal");
     }
 
     pub fn propose(&self, peer: PeerId, proposal: Proposal) {
         self.tx
-            .send(StromConsensusEvent::BidAggregation(peer, proposal))
+            .send(StromConsensusEvent::Proposal(peer, proposal))
             .expect("Failed to send proposal");
     }
 
