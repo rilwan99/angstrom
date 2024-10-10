@@ -190,7 +190,7 @@ where
         expected_orders: Vec<AllOrders>
     ) -> bool {
         let out = self
-            .run_network_event_on_all_peers_with_expection(
+            .run_network_event_on_all_peers_with_exception(
                 id.unwrap_or_else(|| self.random_valid_id()),
                 |peer| {
                     let network_handle = peer.strom_network_handle().clone();
@@ -229,7 +229,7 @@ where
         expected_message: StromConsensusEvent
     ) -> bool {
         let out = self
-            .run_network_event_on_all_peers_with_expection(
+            .run_network_event_on_all_peers_with_exception(
                 id.unwrap_or_else(|| self.random_valid_id()),
                 |peer| {
                     let network_handle = peer.strom_network_handle().clone();
@@ -282,7 +282,7 @@ where
 
     /// runs an event that uses the consensus or orderpool channels in the
     /// angstrom network and compares a expected result against all peers
-    pub async fn run_network_event_on_all_peers_with_expection<F, P, O, R, E>(
+    pub async fn run_network_event_on_all_peers_with_exception<F, P, O, R, E>(
         &mut self,
         exception_id: u64,
         network_f: F,
