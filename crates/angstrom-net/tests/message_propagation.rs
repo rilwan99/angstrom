@@ -116,7 +116,7 @@ async fn test_singular_order_propagation() {
 
     assert_eq!(res, Ok(true), "failed to receive and react to order within 4 seconds");
 }
-/*
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
 async fn test_broadcast_consensus_propagation() {
     reth_tracing::init_test_tracing();
@@ -223,5 +223,3 @@ async fn test_consensus_propagation() {
         assert_eq!(res, Ok(true), "failed to receive and react to proposal within 1 second");
     }
 }
-
- */
