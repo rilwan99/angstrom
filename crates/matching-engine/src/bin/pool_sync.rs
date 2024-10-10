@@ -33,7 +33,7 @@ async fn main() -> eyre::Result<()> {
     let address = address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640");
     let mut pool = EnhancedUniswapV3Pool::new(address, ticks_per_side);
     tracing::info!(block_number = block_number, "loading old pool");
-    pool.initialize_pool(Some(block_number), ws_provider.clone())
+    pool.initialize(Some(block_number), ws_provider.clone())
         .await?;
     pool.set_sim_swap_sync(true);
 
@@ -58,7 +58,7 @@ async fn main() -> eyre::Result<()> {
                 if let Some((address, changes_block_number)) = state_changes {
                    let pool_guard = state_space_manager.pool(&address).await.unwrap();
                     let mut fresh_pool = EnhancedUniswapV3Pool::new(address, ticks_per_side);
-                    fresh_pool.initialize_pool(Some(changes_block_number), ws_provider.clone()).await?;
+                    fresh_pool.initialize(Some(changes_block_number), ws_provider.clone()).await?;
 
                     // Compare the new pool with the old pool
                     compare_pools(&pool_guard, &fresh_pool, changes_block_number);

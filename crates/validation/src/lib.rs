@@ -80,7 +80,7 @@ pub fn init_validation<DB: BlockStateProviderFactory + Unpin + Clone + 'static>(
             .collect();
         uniswap_pools.iter_mut().for_each(|pool| {
             // TODO: initialize the pool
-            // pool.initialize_pool(Some(current_block.load(Ordering::SeqCst)),
+            // pool.initialize(Some(current_block.load(Ordering::SeqCst)),
             // db.into())
         });
         let state_change_buffer = 100;
@@ -146,7 +146,7 @@ pub fn init_validation_tests<
             .collect();
         uniswap_pools.iter_mut().for_each(|pool| {
             // TODO: initialize the pool
-            // pool.initialize_pool(Some(current_block.load(Ordering::SeqCst)),
+            // pool.initialize(Some(current_block.load(Ordering::SeqCst)),
             // db.into())
         });
         let state_change_buffer = 100;

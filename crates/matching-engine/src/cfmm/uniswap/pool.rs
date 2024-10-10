@@ -82,7 +82,7 @@ impl EnhancedUniswapV3Pool {
         }
     }
 
-    pub async fn initialize_pool<T: Transport + Clone, N: Network>(
+    pub async fn initialize<T: Transport + Clone, N: Network>(
         &mut self,
         block_number: Option<BlockNumber>,
         ws_provider: Arc<impl Provider<T, N>>
@@ -590,7 +590,7 @@ mod test {
     ) -> EnhancedUniswapV3Pool {
         let address = address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640");
         let mut pool = EnhancedUniswapV3Pool::new(address, ticks_per_side);
-        pool.initialize(Some(block_number), provider.clone())
+        pool.populate_data(Some(block_number), provider.clone())
             .await
             .unwrap();
         pool
