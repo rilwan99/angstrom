@@ -306,8 +306,12 @@ impl TryFrom<StromMessage> for ConsensusMsgTestCmp {
     fn try_from(value: StromMessage) -> Result<Self, Self::Error> {
         match value {
             StromMessage::Commit(c) => Ok(ConsensusMsgTestCmp::Commit(c)),
-            StromMessage::BidSubmission{ .. } => Ok(ConsensusMsgTestCmp::Propose(Proposal::default())),
-            StromMessage::BidAggregation{..} => Ok(ConsensusMsgTestCmp::PrePropose(PreProposal::default())),
+            StromMessage::BidSubmission { .. } => {
+                Ok(ConsensusMsgTestCmp::Propose(Proposal::default()))
+            }
+            StromMessage::BidAggregation { .. } => {
+                Ok(ConsensusMsgTestCmp::PrePropose(PreProposal::default()))
+            }
             _ => Err(0)
         }
     }
@@ -317,8 +321,12 @@ impl From<StromConsensusEvent> for ConsensusMsgTestCmp {
     fn from(value: StromConsensusEvent) -> Self {
         match value {
             StromConsensusEvent::Commit(_, c) => ConsensusMsgTestCmp::Commit(c),
-            StromConsensusEvent::PreProposal { .. } => ConsensusMsgTestCmp::Propose(Proposal::default()),
-            StromConsensusEvent::Proposal {..} => ConsensusMsgTestCmp::PrePropose(PreProposal::default()),
+            StromConsensusEvent::PreProposal { .. } => {
+                ConsensusMsgTestCmp::Propose(Proposal::default())
+            }
+            StromConsensusEvent::Proposal { .. } => {
+                ConsensusMsgTestCmp::PrePropose(PreProposal::default())
+            }
         }
     }
 }

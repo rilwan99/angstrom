@@ -22,6 +22,7 @@ use reth_primitives::transaction::WithEncoded;
 use reth_provider::{CanonStateNotification, CanonStateNotifications};
 use reth_rpc_types::{beacon::relay::Validator, PeerId};
 use reth_tasks::TaskSpawner;
+use serde::__private::ser::FlatMapSerializeStructVariantAsMapValue;
 use serde_json::error::Category::Data;
 use tokio::{
     select,
@@ -45,12 +46,7 @@ enum ConsensusTaskResult {
 
 #[allow(unused)]
 pub struct ConsensusManager {
-    // should we change behavior when we are leader and when we are not
-    // those are per round and should probably not be here
-    current_height: BlockNumber,
-    leader:         PeerId,
-
-    // those are cross round and are changed internally
+    current_height:   BlockNumber,
     leader_selection: WeightedRoundRobin,
     state_transition: RoundStateMachine,
 
@@ -90,16 +86,21 @@ impl ConsensusManager {
     ) -> Self {
         let ManagerNetworkDeps { network, canonical_block_stream, strom_consensus_event } = netdeps;
         let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
+        // TODO: what's the current block, siiir!?
         let current_height = 0;
+        let mut leader_selection =
+            WeightedRoundRobin::new(validators.clone(), current_height, None);
+        let leader = leader_selection.choose_proposer(current_height).unwrap();
         Self {
             strom_consensus_event,
-            leader: PeerId::default(),
             current_height,
-            leader_selection: WeightedRoundRobin::new(validators, current_height, None),
+            leader_selection,
             state_transition: RoundStateMachine::new(
                 current_height,
                 order_storage,
                 signer,
+                leader,
+                validators.clone(),
                 ConsensusMetricsWrapper::new(),
                 None
             ),
@@ -126,15 +127,18 @@ impl ConsensusManager {
         let new_block_height = new_block.block.number;
 
         if self.current_height + 1 == new_block_height {
-            // TODO: remove the unwrap; if we go back or choose the same block it's a problem
-            self.leader = self
+            // TODO: remove the unwrap; if we go back or choose the same block it's a
+            // problem
+            let round_leader = self
                 .leader_selection
                 .choose_proposer(new_block_height)
                 .unwrap();
             self.current_height = new_block_height;
+            // TODO: does reset here make sense? Do we care what state we were in?
+            // what if the transition does not complete before Ethereum fork-choices
             self.state_transition
-                .force_transition(RoundStateMachine::initial_state(new_block_height)).await;
-            // Clear broadcasted messages on round transition
+                .reset_state(new_block_height, round_leader);
+            // Clear broadcasted message cache on round transition
             self.broadcasted_messages.clear();
         } else {
             tracing::error!("Block height is not sequential, this breaks round robin!");
@@ -143,36 +147,50 @@ impl ConsensusManager {
     }
 
     async fn on_network_event(&mut self, event: StromConsensusEvent) {
-        // Check if the event is not for the current block height
+        // do we want to ignore all messages for the wrong height?
         if self.current_height != event.block_height() {
-            tracing::info!(
-                "Ignoring event for block height: {:?}, from sender: {:?}",
-                event.block_height(),
-                event.sender()
+            tracing::warn!(
+                event_block_height=%event.block_height(),
+                msg_sender=%event.sender(),
+                current_height=%self.current_height,
+                "ignoring event for wrong block",
             );
             return;
         }
 
+        if self.state_transition.my_id() == event.payload_source() {
+            tracing::debug!(
+                msg_sender=%event.sender(),
+                block_heighth=%event.block_height(),
+                message_type=%event.message_type(),
+                "ignoring event that we sent to node",
+            );
+            return;
+        }
+
+        // rebroadcast to the rest of the network
         if !self.broadcasted_messages.contains(&event) {
-            self.network.broadcast_message(event.clone());
+            self.network.broadcast_message(event.clone().into());
             self.broadcasted_messages.insert(event.clone());
         }
-        self.state_transition.on_strom_message(event);
+        self.state_transition.on_strom_message(event.clone()).await;
     }
 
     pub fn on_state_transition(&mut self, new_stat: ConsensusState) {
         match new_stat {
-            ConsensusState::BidSubmission(BidSubmission { pre_proposals, .. }) => {
+            // means we transitioned from commit phase to bid submission. nothing much to do here
+            // TODO: maybe trigger the previous round verification job
+            ConsensusState::BidSubmission(BidSubmission { pre_proposals, .. }) => {}
+            // means we transitioned from bid submission to aggregation, therefore we broadcast our
+            // pre-proposal to the network
+            ConsensusState::BidAggregation(BidAggregation { pre_proposals, .. }) => {
                 self.network.broadcast_message(StromMessage::PrePropose(
-                    pre_proposals.first().unwrap().clone()
+                    pre_proposals
+                        .iter()
+                        .find(|p| p.source == self.state_transition.my_id())
+                        .unwrap()
+                        .clone()
                 ));
-            }
-            ConsensusState::BidAggregation(BidAggregation { proposal, .. }) => {
-                if proposal.is_some() {
-                    self.network.broadcast_message(StromMessage::Propose(
-                        proposal.unwrap()
-                    ));
-                }
             }
         }
     }
@@ -189,8 +207,10 @@ impl ConsensusManager {
                 Some(msg) = self.strom_consensus_event.next() => {
                     self.on_network_event(msg).await;
                 },
-                Some(msg) = self.state_transition.next() => {
-                    self.on_state_transition(msg);
+                Some(new_state) = self.state_transition.next() => {
+                    // self.on_state_start(old_state)
+                    // self.on_state_end(new_state)
+                    self.on_state_transition(new_state);
                 },
             }
         }

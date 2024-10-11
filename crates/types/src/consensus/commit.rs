@@ -1,6 +1,7 @@
 use alloy::primitives::{keccak256, FixedBytes, Keccak256, B256};
 use bitmaps::Bitmap;
 use blsful::{Bls12381G1Impl, PublicKey, SecretKey};
+use reth_network_peers::PeerId;
 use serde::{Deserialize, Serialize};
 
 use super::Proposal;
@@ -8,10 +9,10 @@ use crate::primitive::{BLSSignature, BLSValidatorID};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct Commit {
-    pub block_height: u64,
-
+    pub block_height:     u64,
+    pub source:           PeerId,
     pub preproposal_hash: B256,
-    pub solution_hash:    B256,
+    pub solution_hash:    B256
     // This signature is (block_height | vanilla_bundle_hash |
     // lower_bound_hash | order_buffer_hash)
     // TODO: uncomment
@@ -25,6 +26,7 @@ pub struct Commit {
 impl Commit {
     pub fn generate_commit_all(
         block_height: u64,
+        source: PeerId,
         preproposal_hash: B256,
         solution_hash: B256,
         sk: &SecretKey<Bls12381G1Impl>
@@ -41,11 +43,11 @@ impl Commit {
 
         Self {
             block_height,
+            source,
             preproposal_hash,
-            solution_hash,
-            // message_sig,
-            // preproposal_sig,
-            // solution_sig
+            solution_hash /* message_sig,
+                           * preproposal_sig,
+                           * solution_sig */
         }
     }
 
@@ -79,8 +81,8 @@ impl Commit {
         sk: &SecretKey<Bls12381G1Impl>
     ) -> bool {
         todo!()
-        // These can only fail if the SK is zero in which case they'll all fail so no
-        // need to return early
+        // These can only fail if the SK is zero in which case they'll all fail
+        // so no need to return early
         // self.message_sig
         //     .sign_into(validator_id, sk, self.hash_message().as_slice());
         // self.preproposal_sig
@@ -89,15 +91,15 @@ impl Commit {
         //     .sign_into(validator_id, sk, self.solution_hash.as_slice())
     }
 
-    pub fn validate(&self, public_key_library: &[PublicKey<Bls12381G1Impl>]) -> bool {
+    pub fn is_valid(&self, public_key_library: &[PublicKey<Bls12381G1Impl>]) -> bool {
         // TODO: bring back
         todo!();
         // self.message_sig
         //     .validate(public_key_library, self.hash_message().as_slice())
         //     && self
         //         .preproposal_sig
-        //         .validate(public_key_library, self.preproposal_hash.as_slice())
-        //     && self
+        //         .validate(public_key_library,
+        // self.preproposal_hash.as_slice())     && self
         //         .solution_sig
         //         .validate(public_key_library, self.solution_hash.as_slice())
     }
@@ -129,6 +131,12 @@ impl Commit {
         buf.extend(bincode::serialize(&proposal.solutions).unwrap());
         let solution_hash = keccak256(buf);
 
-        Self::generate_commit_all(block_height, preproposal_hash, solution_hash, sk)
+        Self::generate_commit_all(
+            block_height,
+            proposal.source,
+            preproposal_hash,
+            solution_hash,
+            sk
+        )
     }
 }

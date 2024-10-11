@@ -12,14 +12,14 @@ use crate::{orders::PoolSolution, primitive::Signature};
 pub struct Proposal {
     // Might not be necessary as this is encoded in all the proposals anyways
     pub block_height: BlockNumber,
-    pub source:          PeerId,
+    pub source:       PeerId,
     /// PreProposals sorted by source
-    pub preproposals:    Vec<PreProposal>,
+    pub preproposals: Vec<PreProposal>,
     /// PoolSolutions sorted by PoolId
-    pub solutions:       Vec<PoolSolution>,
+    pub solutions:    Vec<PoolSolution>,
     /// This signature is over (etheruem_block | hash(vanilla_bundle) |
     /// hash(order_buffer) | hash(lower_bound))
-    pub signature:       Signature
+    pub signature:    Signature
 }
 
 impl Proposal {
@@ -43,16 +43,22 @@ impl Proposal {
         let hash = keccak256(buf);
         let sig = reth_primitives::sign_message(sk.secret_bytes().into(), hash).unwrap();
 
-        Self { block_height: ethereum_height, source, preproposals, solutions, signature: Signature(sig) }
+        Self {
+            block_height: ethereum_height,
+            source,
+            preproposals,
+            solutions,
+            signature: Signature(sig)
+        }
     }
 
     pub fn preproposals(&self) -> &Vec<PreProposal> {
         &self.preproposals
     }
 
-    pub fn validate(&self) -> bool {
+    pub fn is_valid(&self) -> bool {
         // All our preproposals have to be valid
-        if !self.preproposals.iter().all(|i| i.validate()) {
+        if !self.preproposals.iter().all(|i| i.is_valid()) {
             return false
         }
         // Then our own signature has to be valid
@@ -109,6 +115,6 @@ mod tests {
         let proposal =
             Proposal::generate_proposal(ethereum_height, source, preproposals, solutions, &sk);
 
-        assert!(proposal.validate(), "Unable to validate self");
+        assert!(proposal.is_valid(), "Unable to validate self");
     }
 }

@@ -16,12 +16,12 @@ use crate::{
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct PreProposal {
     pub block_height: BlockNumber,
-    pub source:          PeerId,
-    pub limit:           Vec<OrderWithStorageData<GroupedVanillaOrder>>,
-    pub searcher:        Vec<OrderWithStorageData<TopOfBlockOrder>>,
+    pub source:       PeerId,
+    pub limit:        Vec<OrderWithStorageData<GroupedVanillaOrder>>,
+    pub searcher:     Vec<OrderWithStorageData<TopOfBlockOrder>>,
     /// The signature is over the ethereum height as well as the limit and
     /// searcher sets
-    pub signature:       Signature
+    pub signature:    Signature
 }
 
 impl PreProposal {
@@ -54,7 +54,7 @@ impl PreProposal {
         Self::generate_pre_proposal(ethereum_height, source, limit, searcher, sk)
     }
 
-    pub fn validate(&self) -> bool {
+    pub fn is_valid(&self) -> bool {
         let hash = keccak256(self.payload());
         let Ok(source) = self.signature.recover_signer_full_public_key(hash) else {
             return false;
@@ -105,6 +105,6 @@ mod tests {
         let preproposal =
             PreProposal::generate_pre_proposal(ethereum_height, source, limit, searcher, &sk);
 
-        assert!(preproposal.validate(), "Unable to validate self");
+        assert!(preproposal.is_valid(), "Unable to validate self");
     }
 }

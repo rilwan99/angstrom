@@ -76,7 +76,8 @@ impl<DB: StateProviderFactory + Clone + Unpin + 'static> TestOrderValidator<DB> 
             Arc::new(CanonicalStateAdapter::new(state_notification))
         );
         // TODO: block on it
-        // let pool_watcher_handle = rt.block_on(async { pool_manager.watch_state_changes().await }).unwrap();
+        // let pool_watcher_handle = rt.block_on(async {
+        // pool_manager.watch_state_changes().await }).unwrap();
         let order_validator =
             OrderValidator::new(sim, current_block, pools, fetch, pool_manager, thread_pool);
         let val = Validator::new(rx, order_validator);

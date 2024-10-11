@@ -1,3 +1,10 @@
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::{atomic::AtomicUsize, Arc},
+    task::Context
+};
+
 use alloy::primitives::BlockNumber;
 use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
@@ -7,12 +14,6 @@ use futures::{task::Poll, StreamExt};
 use reth_eth_wire::DisconnectReason;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
 use reth_rpc_types::{Block, PeerId};
-use std::{
-    future::Future,
-    pin::Pin,
-    sync::{atomic::AtomicUsize, Arc},
-    task::Context
-};
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::error;
@@ -154,34 +155,32 @@ impl<DB: Unpin> Future for StromNetworkManager<DB> {
 
             if let Poll::Ready(Some(event)) = self.swarm.poll_next_unpin(cx) {
                 match event {
-                    SwarmEvent::ValidMessage { peer_id, msg } => {
-                        match msg {
-                            StromMessage::Commit(a) => {
-                                self.to_consensus_manager
-                                    .as_ref()
-                                    .map(|tx| tx.send(StromConsensusEvent::Commit(peer_id, a)));
-                            },
-                            StromMessage::PrePropose(p) => {
-                                self.to_consensus_manager
-                                    .as_ref()
-                                    .map(|tx| tx.send(StromConsensusEvent::PreProposal(peer_id, PreProposal::default())));
-                            },
-                            StromMessage::Propose(a) => {
-                                self.to_consensus_manager
-                                    .as_ref()
-                                    .map(|tx| tx.send(StromConsensusEvent::Proposal(peer_id, a)));
-                            },
-                            StromMessage::PropagatePooledOrders(a) => {
-                                self.to_pool_manager
-                                    .as_ref()
-                                    .map(|tx| tx.send(NetworkOrderEvent::IncomingOrders {
-                                        peer_id,
-                                        orders: a
-                                    }));
-                            },
-                            _ => {}
+                    SwarmEvent::ValidMessage { peer_id, msg } => match msg {
+                        StromMessage::Commit(a) => {
+                            self.to_consensus_manager
+                                .as_ref()
+                                .map(|tx| tx.send(StromConsensusEvent::Commit(peer_id, a)));
                         }
-                    }
+                        StromMessage::PrePropose(p) => {
+                            self.to_consensus_manager.as_ref().map(|tx| {
+                                tx.send(StromConsensusEvent::PreProposal(
+                                    peer_id,
+                                    PreProposal::default()
+                                ))
+                            });
+                        }
+                        StromMessage::Propose(a) => {
+                            self.to_consensus_manager
+                                .as_ref()
+                                .map(|tx| tx.send(StromConsensusEvent::Proposal(peer_id, a)));
+                        }
+                        StromMessage::PropagatePooledOrders(a) => {
+                            self.to_pool_manager.as_ref().map(|tx| {
+                                tx.send(NetworkOrderEvent::IncomingOrders { peer_id, orders: a })
+                            });
+                        }
+                        _ => {}
+                    },
                     SwarmEvent::Disconnected { peer_id } => {
                         self.notify_listeners(StromNetworkEvent::SessionClosed {
                             peer_id,
@@ -234,19 +233,47 @@ pub enum StromConsensusEvent {
 }
 
 impl StromConsensusEvent {
-   pub fn sender(&self) -> PeerId {
+    pub fn message_type(&self) -> &'static str {
+        match self {
+            StromConsensusEvent::PreProposal(_, _) => "PreProposal",
+            StromConsensusEvent::Proposal(_, _) => "Proposal",
+            StromConsensusEvent::Commit(_, _) => "Commit",
+        }
+    }
+    pub fn sender(&self) -> PeerId {
         match self {
             StromConsensusEvent::PreProposal(peer_id, _) => *peer_id,
             StromConsensusEvent::Proposal(peer_id, _) => *peer_id,
-            StromConsensusEvent::Commit(peer_id, _) => *peer_id,
+            StromConsensusEvent::Commit(peer_id, _) => *peer_id
+        }
+    }
+
+    pub fn payload_source(&self) -> PeerId {
+        match self {
+            StromConsensusEvent::PreProposal(_, pre_proposal) => pre_proposal.source,
+            StromConsensusEvent::Proposal(_, proposal) => proposal.source,
+            // TODO: this does not seem to make sense
+            StromConsensusEvent::Commit(_, commit) => commit.source
         }
     }
 
     pub fn block_height(&self) -> BlockNumber {
         match self {
-            StromConsensusEvent::PreProposal(_, PreProposal{ block_height: ethereum_height, ..}) => *ethereum_height,
-            StromConsensusEvent::Proposal(_, Proposal{ block_height: ethereum_height, ..}) => *ethereum_height,
-            StromConsensusEvent::Commit(_, Commit{block_height, ..}) => *block_height,
+            StromConsensusEvent::PreProposal(_, PreProposal { block_height, .. }) => *block_height,
+            StromConsensusEvent::Proposal(_, Proposal { block_height, .. }) => *block_height,
+            StromConsensusEvent::Commit(_, Commit { block_height, .. }) => *block_height
+        }
+    }
+}
+
+impl From<StromConsensusEvent> for StromMessage {
+    fn from(event: StromConsensusEvent) -> Self {
+        match event {
+            StromConsensusEvent::PreProposal(_, pre_proposal) => {
+                StromMessage::PrePropose(pre_proposal)
+            }
+            StromConsensusEvent::Proposal(_, proposal) => StromMessage::Propose(proposal),
+            StromConsensusEvent::Commit(_, commit) => StromMessage::Commit(commit)
         }
     }
 }
