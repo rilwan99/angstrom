@@ -235,11 +235,12 @@ pub enum StromConsensusEvent {
 impl StromConsensusEvent {
     pub fn message_type(&self) -> &'static str {
         match self {
-            StromConsensusEvent::PreProposal(_, _) => "PreProposal",
-            StromConsensusEvent::Proposal(_, _) => "Proposal",
-            StromConsensusEvent::Commit(_, _) => "Commit",
+            StromConsensusEvent::PreProposal(..) => "PreProposal",
+            StromConsensusEvent::Proposal(..) => "Proposal",
+            StromConsensusEvent::Commit(..) => "Commit"
         }
     }
+
     pub fn sender(&self) -> PeerId {
         match self {
             StromConsensusEvent::PreProposal(peer_id, _) => *peer_id,
