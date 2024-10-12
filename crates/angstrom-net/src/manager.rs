@@ -252,7 +252,6 @@ impl StromConsensusEvent {
         match self {
             StromConsensusEvent::PreProposal(_, pre_proposal) => pre_proposal.source,
             StromConsensusEvent::Proposal(_, proposal) => proposal.source,
-            // TODO: this does not seem to make sense
             StromConsensusEvent::Commit(_, commit) => commit.source
         }
     }

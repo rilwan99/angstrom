@@ -17,7 +17,9 @@ use crate::{
 pub struct PreProposal {
     pub block_height: BlockNumber,
     pub source:       PeerId,
+    // TODO: this really should be HashMap<PoolId, GroupedVanillaOrder>
     pub limit:        Vec<OrderWithStorageData<GroupedVanillaOrder>>,
+    // TODO: this really should be another type with HashMap<PoolId, {order, tob_reward}>
     pub searcher:     Vec<OrderWithStorageData<TopOfBlockOrder>>,
     /// The signature is over the ethereum height as well as the limit and
     /// searcher sets
@@ -25,6 +27,12 @@ pub struct PreProposal {
 }
 
 impl PreProposal {
+    fn sign_payload(sk: &SecretKey, payload: Vec<u8>) -> Signature {
+        let hash = keccak256(payload);
+        let sig = reth_primitives::sign_message(sk.secret_bytes().into(), hash).unwrap();
+        Signature(sig)
+    }
+
     pub fn generate_pre_proposal(
         ethereum_height: BlockNumber,
         source: PeerId,
@@ -32,16 +40,10 @@ impl PreProposal {
         searcher: Vec<OrderWithStorageData<TopOfBlockOrder>>,
         sk: &SecretKey
     ) -> Self {
-        let mut buf = Vec::new();
+        let payload = Self::serialize_payload(&ethereum_height, &limit, &searcher);
+        let signature = Self::sign_payload(sk, payload);
 
-        buf.extend(bincode::serialize(&ethereum_height).unwrap());
-        buf.extend(bincode::serialize(&limit).unwrap());
-        buf.extend(bincode::serialize(&searcher).unwrap());
-
-        let hash = keccak256(buf);
-        let sig = reth_primitives::sign_message(sk.secret_bytes().into(), hash).unwrap();
-
-        Self { limit, source, searcher, block_height: ethereum_height, signature: Signature(sig) }
+        Self { limit, source, searcher, block_height: ethereum_height, signature }
     }
 
     pub fn new(
@@ -62,12 +64,20 @@ impl PreProposal {
         source == self.source
     }
 
-    fn payload(&self) -> Bytes {
+    fn serialize_payload(
+        block_height: &BlockNumber,
+        limit: &Vec<OrderWithStorageData<GroupedVanillaOrder>>,
+        searcher: &Vec<OrderWithStorageData<TopOfBlockOrder>>
+    ) -> Vec<u8> {
         let mut buf = Vec::new();
-        buf.extend(bincode::serialize(&self.block_height).unwrap());
-        buf.extend(bincode::serialize(&self.limit).unwrap());
-        buf.extend(bincode::serialize(&self.searcher).unwrap());
-        Bytes::from_iter(buf)
+        buf.extend(bincode::serialize(block_height).unwrap());
+        buf.extend(bincode::serialize(limit).unwrap());
+        buf.extend(bincode::serialize(searcher).unwrap());
+        buf
+    }
+
+    fn payload(&self) -> Bytes {
+        Bytes::from(Self::serialize_payload(&self.block_height, &self.limit, &self.searcher))
     }
 }
 

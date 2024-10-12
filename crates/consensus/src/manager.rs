@@ -34,17 +34,11 @@ use tracing::{error, warn};
 
 use crate::{
     leader_selection::WeightedRoundRobin,
-    round::{BidAggregation, BidSubmission, ConsensusState, RoundStateMachine},
+    round::{BidAggregation, BidSubmission, ConsensusState, Finalization, RoundStateMachine},
     signer::Signer,
     AngstromValidator, ConsensusListener, ConsensusMessage, ConsensusUpdater
 };
 
-enum ConsensusTaskResult {
-    BuiltProposal(Proposal),
-    ValidationSolutions { height: BlockNumber, solutions: Vec<PoolSolution> }
-}
-
-#[allow(unused)]
 pub struct ConsensusManager {
     current_height:   BlockNumber,
     leader_selection: WeightedRoundRobin,
@@ -173,13 +167,14 @@ impl ConsensusManager {
             self.network.broadcast_message(event.clone().into());
             self.broadcasted_messages.insert(event.clone());
         }
-        self.state_transition.on_strom_message(event.clone()).await;
+        self.state_transition.on_strom_message(event.clone());
     }
 
-    pub fn on_state_transition(&mut self, new_stat: ConsensusState) {
+    pub fn on_state_start(&mut self, new_stat: ConsensusState) {
         match new_stat {
-            // means we transitioned from commit phase to bid submission. nothing much to do here
-            // TODO: maybe trigger the previous round verification job
+            // means we transitioned from commit phase to bid submission.
+            // nothing much to do here. we just wait sometime to accumulate orders
+            // TODO: maybe trigger the round verification job after it has finished?
             ConsensusState::BidSubmission(BidSubmission { pre_proposals, .. }) => {}
             // means we transitioned from bid submission to aggregation, therefore we broadcast our
             // pre-proposal to the network
@@ -192,6 +187,24 @@ impl ConsensusManager {
                         .clone()
                 ));
             }
+            ConsensusState::Finalization(Finalization { block_height, .. }) => {
+                // send out the commit phase only if we are leader?
+                // self.network.broadcast_message(StromMessage::Commit(
+                //     pre_proposals
+                //         .iter()
+                //         .find(|p| p.source == self.state_transition.my_id())
+                //         .unwrap()
+                //         .clone()
+                // ));
+            }
+        }
+    }
+
+    pub fn on_state_end(&mut self, old_state: ConsensusState) {
+        match old_state {
+            ConsensusState::BidSubmission(BidSubmission { .. }) => {}
+            ConsensusState::BidAggregation(BidAggregation { .. }) => {}
+            ConsensusState::Finalization(Finalization { .. }) => {}
         }
     }
 
@@ -208,9 +221,8 @@ impl ConsensusManager {
                     self.on_network_event(msg).await;
                 },
                 Some(new_state) = self.state_transition.next() => {
-                    // self.on_state_start(old_state)
-                    // self.on_state_end(new_state)
-                    self.on_state_transition(new_state);
+                    // self.on_state_end(old_state)
+                    self.on_state_start(new_state);
                 },
             }
         }

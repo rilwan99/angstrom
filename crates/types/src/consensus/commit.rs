@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use alloy::primitives::{keccak256, FixedBytes, Keccak256, B256};
 use bitmaps::Bitmap;
 use blsful::{Bls12381G1Impl, PublicKey, SecretKey};
@@ -12,15 +14,10 @@ pub struct Commit {
     pub block_height:     u64,
     pub source:           PeerId,
     pub preproposal_hash: B256,
-    pub solution_hash:    B256
+    pub solution_hash:    B256,
     // This signature is (block_height | vanilla_bundle_hash |
     // lower_bound_hash | order_buffer_hash)
-    // TODO: uncomment
-    // pub message_sig:      BLSSignature,
-    // is default if none. We have to due this due to the rlp requirements
-    // pub preproposal_sig:  BLSSignature,
-    // is default if none. We have to due this due to the rlp requirements
-    // pub solution_sig:     BLSSignature
+    pub signature:        BLSSignature
 }
 
 impl Commit {
@@ -37,34 +34,22 @@ impl Commit {
         hasher.update(solution_hash);
         let message = hasher.finalize();
 
-        let message_sig = BLSSignature::sign(0, sk, message.as_slice());
-        let preproposal_sig = BLSSignature::sign(0, sk, preproposal_hash.as_slice());
-        let solution_sig = BLSSignature::sign(0, sk, solution_hash.as_slice());
+        // TODO: where do we get the validator idx from
+        let signature = BLSSignature::sign(0, sk, message.as_slice());
 
-        Self {
-            block_height,
-            source,
-            preproposal_hash,
-            solution_hash /* message_sig,
-                           * preproposal_sig,
-                           * solution_sig */
-        }
+        Self { block_height, source, preproposal_hash, solution_hash, signature }
     }
 
     /// Get a reference to the validator bitmap for this Commit.  All the
     /// validator maps should always be the same so we return the one from
     /// `message_sig`
     pub fn validator_map(&self) -> &Bitmap<128> {
-        // TODO: bring back
-        todo!();
-        // self.message_sig.validator_map()
+        self.signature.validator_map()
     }
 
     /// Returns the number of validators that have signed this Commit message
     pub fn num_signed(&self) -> usize {
-        // TODO: bring back
-        todo!();
-        // self.message_sig.validator_map().len()
+        self.signature.validator_map().len()
     }
 
     fn hash_message(&self) -> FixedBytes<32> {
@@ -80,28 +65,15 @@ impl Commit {
         validator_id: BLSValidatorID,
         sk: &SecretKey<Bls12381G1Impl>
     ) -> bool {
-        todo!()
         // These can only fail if the SK is zero in which case they'll all fail
         // so no need to return early
-        // self.message_sig
-        //     .sign_into(validator_id, sk, self.hash_message().as_slice());
-        // self.preproposal_sig
-        //     .sign_into(validator_id, sk, self.preproposal_hash.as_slice());
-        // self.solution_sig
-        //     .sign_into(validator_id, sk, self.solution_hash.as_slice())
+        self.signature
+            .sign_into(validator_id, sk, self.hash_message().as_slice())
     }
 
     pub fn is_valid(&self, public_key_library: &[PublicKey<Bls12381G1Impl>]) -> bool {
-        // TODO: bring back
-        todo!();
-        // self.message_sig
-        //     .validate(public_key_library, self.hash_message().as_slice())
-        //     && self
-        //         .preproposal_sig
-        //         .validate(public_key_library,
-        // self.preproposal_hash.as_slice())     && self
-        //         .solution_sig
-        //         .validate(public_key_library, self.solution_hash.as_slice())
+        self.signature
+            .validate(public_key_library, self.hash_message().as_slice())
     }
 
     /// Validate that this commit message is associated with a specific Proposal
@@ -115,11 +87,7 @@ impl Commit {
     /// validator.  This does not inherently validate the Commit so make
     /// sure to do that as well!
     pub fn signed_by(&self, validator_id: BLSValidatorID) -> bool {
-        // TODO: bring back
-        todo!();
-        // self.message_sig.signed_by(validator_id)
-        //     && self.preproposal_sig.signed_by(validator_id)
-        //     && self.solution_sig.signed_by(validator_id)
+        self.signature.signed_by(validator_id)
     }
 
     pub fn from_proposal(proposal: &Proposal, sk: &SecretKey<Bls12381G1Impl>) -> Self {
