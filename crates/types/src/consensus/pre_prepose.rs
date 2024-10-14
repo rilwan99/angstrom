@@ -3,6 +3,7 @@ use bytes::Bytes;
 use reth_network_peers::PeerId;
 use secp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
+use std::hash::{Hash, Hasher};
 
 use crate::{
     orders::OrderSet,
@@ -21,6 +22,8 @@ pub struct PreProposal {
     pub limit:        Vec<OrderWithStorageData<GroupedVanillaOrder>>,
     // TODO: this really should be another type with HashMap<PoolId, {order, tob_reward}>
     pub searcher:     Vec<OrderWithStorageData<TopOfBlockOrder>>,
+    // if the below changes from a BLS to EcDSA,
+    // i.e. deterministic to non-deterministic signature, the Hash, PartialEq, Eq should be updated
     /// The signature is over the ethereum height as well as the limit and
     /// searcher sets
     pub signature:    Signature

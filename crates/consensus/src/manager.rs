@@ -35,8 +35,7 @@ use tracing::{error, warn};
 use crate::{
     leader_selection::WeightedRoundRobin,
     round::{BidAggregation, BidSubmission, ConsensusState, Finalization, RoundStateMachine},
-    signer::Signer,
-    AngstromValidator, ConsensusListener, ConsensusMessage, ConsensusUpdater
+    AngstromValidator, ConsensusListener, ConsensusMessage, ConsensusUpdater, Signer
 };
 
 pub struct ConsensusManager {
@@ -129,10 +128,9 @@ impl ConsensusManager {
                 .unwrap();
             self.current_height = new_block_height;
             // TODO: does reset here make sense? Do we care what state we were in?
-            // what if the transition does not complete before Ethereum fork-choices
+            // TODO: what if the transition does not complete before Ethereum fork-choices
             self.state_transition
-                .reset_state(new_block_height, round_leader);
-            // Clear broadcasted message cache on round transition
+                .reset_round(new_block_height, round_leader);
             self.broadcasted_messages.clear();
         } else {
             tracing::error!("Block height is not sequential, this breaks round robin!");
@@ -141,7 +139,7 @@ impl ConsensusManager {
     }
 
     async fn on_network_event(&mut self, event: StromConsensusEvent) {
-        // do we want to ignore all messages for the wrong height?
+        // TODO: do we want to ignore all messages for the wrong height?
         if self.current_height != event.block_height() {
             tracing::warn!(
                 event_block_height=%event.block_height(),
@@ -162,40 +160,39 @@ impl ConsensusManager {
             return;
         }
 
-        // rebroadcast to the rest of the network
+        // do we want to transition first and the send a message?
         if !self.broadcasted_messages.contains(&event) {
             self.network.broadcast_message(event.clone().into());
             self.broadcasted_messages.insert(event.clone());
         }
-        self.state_transition.on_strom_message(event.clone());
+
+        if let Some(msg) = self.state_transition.on_strom_message(event.clone()) {
+            self.network.broadcast_message(msg);
+        }
     }
 
     pub fn on_state_start(&mut self, new_stat: ConsensusState) {
         match new_stat {
             // means we transitioned from commit phase to bid submission.
             // nothing much to do here. we just wait sometime to accumulate orders
-            // TODO: maybe trigger the round verification job after it has finished?
             ConsensusState::BidSubmission(BidSubmission { pre_proposals, .. }) => {}
             // means we transitioned from bid submission to aggregation, therefore we broadcast our
             // pre-proposal to the network
             ConsensusState::BidAggregation(BidAggregation { pre_proposals, .. }) => {
-                self.network.broadcast_message(StromMessage::PrePropose(
-                    pre_proposals
-                        .iter()
-                        .find(|p| p.source == self.state_transition.my_id())
+                self.network.broadcast_message(
+                    self.state_transition
+                        .my_pre_proposal(&pre_proposals)
                         .unwrap()
-                        .clone()
-                ));
+                );
             }
-            ConsensusState::Finalization(Finalization { block_height, .. }) => {
-                // send out the commit phase only if we are leader?
-                // self.network.broadcast_message(StromMessage::Commit(
-                //     pre_proposals
-                //         .iter()
-                //         .find(|p| p.source == self.state_transition.my_id())
-                //         .unwrap()
-                //         .clone()
-                // ));
+            // TODO: maybe trigger the round verification job after it has finished, if we are not a
+            // leader
+            ConsensusState::Finalization(finalization) => {
+                // tell everyone what we sent out to Ethereum
+                if self.state_transition.i_am_leader() {
+                    self.network
+                        .broadcast_message(StromMessage::Propose(finalization.proposal.unwrap()))
+                }
             }
         }
     }
@@ -221,7 +218,6 @@ impl ConsensusManager {
                     self.on_network_event(msg).await;
                 },
                 Some(new_state) = self.state_transition.next() => {
-                    // self.on_state_end(old_state)
                     self.on_state_start(new_state);
                 },
             }

@@ -257,6 +257,13 @@ impl StromConsensusEvent {
         }
     }
 
+    pub fn set_peer_id(&mut self, peer_id: PeerId) {
+        match self {
+            StromConsensusEvent::PreProposal(_, _) => {}
+            StromConsensusEvent::Proposal(_, _) => {}
+            StromConsensusEvent::Commit(_, _) => {}
+        }
+    }
     pub fn block_height(&self) -> BlockNumber {
         match self {
             StromConsensusEvent::PreProposal(_, PreProposal { block_height, .. }) => *block_height,

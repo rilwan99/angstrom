@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{hash_set::Iter, HashMap, HashSet},
     default::Default,
     future::Future,
     pin::Pin,
@@ -10,9 +10,10 @@ use std::{
 
 use alloy_primitives::BlockNumber;
 use angstrom_metrics::ConsensusMetricsWrapper;
-use angstrom_network::manager::StromConsensusEvent;
+use angstrom_network::{manager::StromConsensusEvent, StromMessage};
 use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
+    contract_bindings::poolgate::PoolGate::initializePoolReturn,
     orders::{OrderSet, PoolSolution},
     primitive::Signature,
     sol_bindings::{
@@ -25,9 +26,10 @@ use angstrom_types::{
     }
 };
 use blsful::vsss_rs::elliptic_curve::rand_core::block;
-use futures::{FutureExt, Stream, StreamExt};
+use futures::{future::BoxFuture, FutureExt, Stream, StreamExt};
 use matching_engine::MatchingManager;
 use order_pool::order_storage::OrderStorage;
+use reth_primitives::revm_primitives::bitvec::ptr::bitslice_from_raw_parts;
 use reth_rpc_types::{mev::BundleItem::Hash, PeerId};
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -81,16 +83,16 @@ async fn build_proposal(pre_proposals: Vec<PreProposal>) -> Result<Vec<PoolSolut
 }
 
 pub struct RoundStateMachine {
-    current_state:     ConsensusState,
-    timer:             Pin<Box<time::Sleep>>,
-    transition_future: Option<Pin<Box<dyn Future<Output = ConsensusState> + Send>>>,
-    signer:            Signer,
-    round_leader:      PeerId,
-    validators:        Vec<AngstromValidator>,
-    order_storage:     Arc<OrderStorage>,
-    metrics:           ConsensusMetricsWrapper,
-    durations:         HashMap<String, Duration>,
-    waker:             Option<Waker>
+    current_state:          ConsensusState,
+    signer:                 Signer,
+    round_leader:           PeerId,
+    validators:             Vec<AngstromValidator>,
+    order_storage:          Arc<OrderStorage>,
+    initial_state_duration: Duration,
+    metrics:                ConsensusMetricsWrapper,
+    transition_future:      Option<BoxFuture<'static, ConsensusState>>,
+    initial_state_timer:    Option<Pin<Box<time::Sleep>>>,
+    waker:                  Option<Waker>
 }
 
 impl RoundStateMachine {
@@ -101,45 +103,25 @@ impl RoundStateMachine {
         round_leader: PeerId,
         validators: Vec<AngstromValidator>,
         metrics: ConsensusMetricsWrapper,
-        durations: Option<HashMap<String, Duration>>
+        initial_state_duration: Option<Duration>
     ) -> Self {
-        let default_durations = HashMap::from([
-            (
-                ConsensusState::BidSubmission(BidSubmission::default())
-                    .as_key()
-                    .to_string(),
-                Duration::from_secs(3)
-            ),
-            (
-                ConsensusState::BidAggregation(BidAggregation::default())
-                    .as_key()
-                    .to_string(),
-                Duration::from_secs(6)
-            ),
-            (
-                ConsensusState::Finalization(Finalization::default())
-                    .as_key()
-                    .to_string(),
-                Duration::from_secs(9)
-            )
-        ]);
-
-        let durations = durations.unwrap_or(default_durations);
-
-        let current_state = Self::initial_state(block_height);
-        let initial_state_duration = durations.get(current_state.as_key()).unwrap().clone();
+        // The sum of the rounds is longer than a slot, since only the first one is used
+        // to trigger state transition_intial_state. The other ones are mostly so they
+        // are not empty. At the end of the Eth slot, transition_intial_state
+        // will be forced.
+        let initial_state_duration = initial_state_duration.unwrap_or(Duration::from_secs(3));
         let timer = Box::pin(time::sleep(initial_state_duration));
 
         Self {
-            current_state,
+            current_state: Self::initial_state(block_height),
             round_leader,
             validators,
-            timer,
+            initial_state_duration,
             order_storage,
             signer,
             metrics,
-            durations,
             transition_future: None,
+            initial_state_timer: Some(timer),
             waker: None
         }
     }
@@ -160,36 +142,56 @@ impl RoundStateMachine {
         voters >= (self.validators.len() * 2) / 3 + 1
     }
 
-    pub fn reset_state(&mut self, block: BlockNumber, leader: PeerId) {
+    pub fn reset_round(&mut self, block: BlockNumber, leader: PeerId) {
         self.round_leader = leader;
-        self.reset_timer(Self::initial_state(block));
+        self.current_state = Self::initial_state(block);
+        self.initial_state_timer = Some(Box::pin(time::sleep(self.initial_state_duration)));
+        self.transition_future = None;
     }
 
     pub fn initial_state(block_height: BlockNumber) -> ConsensusState {
-        ConsensusState::BidSubmission(BidSubmission { block_height, pre_proposals: HashSet::new() })
+        ConsensusState::BidSubmission(BidSubmission { block_height, ..Default::default() })
+    }
+
+    pub fn my_pre_proposal(&self, pre_proposals: &HashSet<PreProposal>) -> Option<StromMessage> {
+        let pre_proposals = pre_proposals
+            .iter()
+            .find(|p| p.source == self.my_id())
+            .clone();
+        if let Some(pre_proposal) = pre_proposals {
+            return Some(StromMessage::PrePropose(pre_proposal.clone()))
+        };
+        None
     }
 
     /// Invariants:
-    ///  * won't be called with messages from ourselves
+    ///  * won't be called with messages with payload from ourselves
     ///  * won't be called with messages for non-current block height
-    pub fn on_strom_message(&mut self, strom_msg: StromConsensusEvent) {
+    ///
+    /// Returns:
+    ///   In general we do not want to return an updated message for broadcast.
+    ///   However, during bid aggregation, we need to updated our current
+    /// pre_proposal   with what the rest of the network saw, so that when
+    /// it's   time for the leader to propose, it needs to see an agreement
+    /// on the   ToB and RoB
+    pub fn on_strom_message(&mut self, strom_msg: StromConsensusEvent) -> Option<StromMessage> {
         let current_state = self.current_state.clone();
         let new_state: Option<ConsensusState> = match current_state {
             ConsensusState::BidSubmission(bid_submission) => {
                 let (updated_submission, new_state) =
-                    self.handle_in_bid_submission(bid_submission, strom_msg);
+                    self.handle_strom_msg_in_submission(bid_submission, strom_msg);
                 self.current_state = ConsensusState::BidSubmission(updated_submission);
                 new_state
             }
             ConsensusState::BidAggregation(bid_aggregation) => {
                 let (updated_aggregation, new_state) =
-                    self.handle_in_bid_aggregation(bid_aggregation, strom_msg);
+                    self.handle_strom_msg_in_aggregation(bid_aggregation, strom_msg);
                 self.current_state = ConsensusState::BidAggregation(updated_aggregation);
                 new_state
             }
             ConsensusState::Finalization(finalization) => {
                 let (updated_finalization, new_state) =
-                    self.handle_in_finalization(finalization, strom_msg);
+                    self.handle_strom_msg_in_finalization(finalization, strom_msg);
                 self.current_state = ConsensusState::Finalization(updated_finalization);
                 new_state
             }
@@ -198,15 +200,24 @@ impl RoundStateMachine {
         if let Some(new_state) = new_state {
             self.force_transition(new_state);
         }
+
+        // send the updated pre-proposal with the new orders
+        if let ConsensusState::BidAggregation(BidAggregation { pre_proposals, .. }) =
+            &self.current_state
+        {
+            return self.my_pre_proposal(pre_proposals)
+        }
+
+        None
     }
 
-    fn handle_in_bid_submission(
+    fn handle_strom_msg_in_submission(
         &self,
         mut bid_submission: BidSubmission,
         strom_msg: StromConsensusEvent
     ) -> (BidSubmission, Option<ConsensusState>) {
         match strom_msg {
-            // we are lagging, we should transition
+            // we are lagging, we should transition_intial_state
             StromConsensusEvent::PreProposal(msg_sender, pre_proposal) => {
                 let PreProposal {
                     block_height: pre_proposal_height,
@@ -225,39 +236,12 @@ impl RoundStateMachine {
                 }
                 bid_submission.pre_proposals.insert(pre_proposal.clone());
 
-                let merged_limit_orders = self.merge_limit_orders(
-                    bid_submission
-                        .pre_proposals
-                        .iter()
-                        .flat_map(|p| p.limit.clone())
-                        .collect()
-                );
+                let bid_aggregation = self.generate_bid_aggregation(bid_submission.clone());
 
-                let merged_searcher_orders = self.merge_searcher_orders(
-                    bid_submission
-                        .pre_proposals
-                        .iter()
-                        .flat_map(|p| p.searcher.clone())
-                        .collect()
-                );
-
-                let pre_proposal = PreProposal::generate_pre_proposal(
-                    pre_proposal_height,
-                    self.my_id(),
-                    merged_limit_orders,
-                    merged_searcher_orders,
-                    &self.signer.key
-                );
-                bid_submission.pre_proposals.insert(pre_proposal);
+                bid_submission.pre_proposals = bid_aggregation.pre_proposals.clone();
 
                 // TODO: do we want to skip bid aggregation if we have quorum here ?
-                (
-                    bid_submission.clone(),
-                    Some(ConsensusState::BidAggregation(BidAggregation {
-                        block_height:  pre_proposal_height,
-                        pre_proposals: bid_submission.pre_proposals.clone()
-                    }))
-                )
+                (bid_submission, Some(ConsensusState::BidAggregation(bid_aggregation)))
             }
             StromConsensusEvent::Proposal(msg_sender, proposal) => {
                 let Proposal {
@@ -298,7 +282,52 @@ impl RoundStateMachine {
         }
     }
 
-    fn handle_in_bid_aggregation(
+    fn generate_bid_aggregation(&self, bid_submission: BidSubmission) -> BidAggregation {
+        let BidSubmission { block_height, pre_proposals } = bid_submission;
+        let OrderSet { limit, searcher } = self.order_storage.get_all_orders();
+        let mut pre_proposals = pre_proposals.clone();
+
+        let pre_proposal =
+            self.generate_our_merged_pre_proposal(block_height, limit, searcher, &pre_proposals);
+        pre_proposals.insert(pre_proposal);
+
+        BidAggregation { block_height, pre_proposals }
+    }
+
+    fn generate_our_merged_pre_proposal(
+        &self,
+        block_height: BlockNumber,
+        limit: Vec<OrderWithStorageData<GroupedVanillaOrder>>,
+        searcher: Vec<OrderWithStorageData<TopOfBlockOrder>>,
+        pre_proposals: &HashSet<PreProposal>
+    ) -> PreProposal {
+        let merged_limit_orders = self.merge_limit_orders(
+            pre_proposals
+                .iter()
+                .flat_map(|p| p.limit.clone())
+                .chain(limit)
+                .collect()
+        );
+
+        let merged_searcher_orders = self.merge_searcher_orders(
+            pre_proposals
+                .iter()
+                .flat_map(|p| p.searcher.clone())
+                .chain(searcher)
+                .collect()
+        );
+
+        let pre_proposal = PreProposal::generate_pre_proposal(
+            block_height,
+            self.my_id(),
+            merged_limit_orders,
+            merged_searcher_orders,
+            &self.signer.key
+        );
+        pre_proposal
+    }
+
+    fn handle_strom_msg_in_aggregation(
         &self,
         mut bid_aggregation: BidAggregation,
         strom_msg: StromConsensusEvent
@@ -311,29 +340,15 @@ impl RoundStateMachine {
                     return (bid_aggregation, None);
                 }
 
-                let merged_limit_orders = self.merge_limit_orders(
-                    bid_aggregation
-                        .pre_proposals
-                        .iter()
-                        .flat_map(|p| p.limit.clone())
-                        .collect()
-                );
+                bid_aggregation.pre_proposals.insert(pre_proposal.clone());
 
-                let merged_searcher_orders = self.merge_searcher_orders(
-                    bid_aggregation
-                        .pre_proposals
-                        .iter()
-                        .flat_map(|p| p.searcher.clone())
-                        .collect()
-                );
-
-                let self_proposal = PreProposal {
+                // make it a bit prettier
+                let self_proposal = self.generate_our_merged_pre_proposal(
                     block_height,
-                    source: self.my_id(),
-                    limit: merged_limit_orders,
-                    searcher: merged_searcher_orders,
-                    ..Default::default() // Assuming other fields can be defaulted
-                };
+                    Vec::new(),
+                    Vec::new(),
+                    &bid_aggregation.pre_proposals
+                );
 
                 bid_aggregation.pre_proposals.insert(self_proposal);
 
@@ -389,15 +404,75 @@ impl RoundStateMachine {
         }
     }
 
-    fn handle_in_finalization(
+    fn handle_strom_msg_in_finalization(
         &self,
         mut finalization: Finalization,
         strom_msg: StromConsensusEvent
     ) -> (Finalization, Option<ConsensusState>) {
         match strom_msg {
-            // that is a very delayed message; ignore it maybe
-            StromConsensusEvent::PreProposal(..) => (finalization, None),
-            StromConsensusEvent::Proposal(..) => (finalization, None),
+            StromConsensusEvent::PreProposal(msg_sender, pre_proposal) => {
+                let PreProposal {
+                    block_height: pre_proposal_height,
+                    source: pre_proposal_sender,
+                    ..
+                } = pre_proposal;
+                if !pre_proposal.is_valid() {
+                    tracing::warn!(
+                        %msg_sender,
+                        %finalization.block_height,
+                        %pre_proposal_sender,
+                        %pre_proposal_height,
+                        "received pre_proposal with invalid signature",
+                    );
+                    return (finalization, None);
+                }
+
+                finalization.pre_proposals.insert(pre_proposal);
+
+                if !self.i_am_leader() {
+                    // if we are not leader wait for Ethereum to restart us
+                    return (finalization, None)
+                }
+
+                if !self.has_quorum(finalization.pre_proposals.len()) {
+                    return (finalization, None)
+                }
+
+                (finalization, None)
+            }
+            StromConsensusEvent::Proposal(msg_sender, proposal) => {
+                let Proposal {
+                    block_height: proposal_block_height, source: proposal_sender, ..
+                } = proposal;
+                // TODO: we got an invalid proposal; start slashing ?
+                if !proposal.is_valid() || !self.is_leader(proposal_sender) {
+                    return (finalization, None)
+                }
+
+                // we are following and lagging a bit
+                if !self.i_am_leader() {
+                    let pre_proposals = finalization.pre_proposals.clone();
+                    return (
+                        finalization,
+                        Some(ConsensusState::Finalization(Finalization {
+                            block_height: proposal_block_height,
+                            proposal: Some(proposal),
+                            pre_proposals
+                        }))
+                    )
+                }
+
+                // that should not be possible. it means we got our own proposal from another
+                // node, while we are in bid aggregation state
+                panic!(
+                    "Message sender: {}, Proposal block height: {}, Proposal source: {}, Current \
+                     state {}, something is terribly wrong",
+                    msg_sender,
+                    proposal_block_height,
+                    proposal_sender,
+                    self.current_state.as_key()
+                );
+            }
             // TODO: this could be used  by the leader to gossip the 2/3 + 1 pre_proposals that were
             // used for the bundle
             StromConsensusEvent::Commit(msg_sender, commit) => (finalization, None)
@@ -449,59 +524,39 @@ impl RoundStateMachine {
         top_searcher_per_pool.into_values().collect()
     }
 
-    pub fn duration(&self, state: &ConsensusState) -> Duration {
-        self.durations.get(state.as_key()).cloned().unwrap()
-    }
+    fn force_transition(&mut self, mut new_state: ConsensusState) {
+        let from_state = self.current_state.clone();
+        let signer = self.signer.clone(); // Clone signer outside the async block
 
-    fn reset_timer(&mut self, new_state: ConsensusState) {
-        let duration = self.duration(&new_state);
-        self.current_state = new_state;
-        self.timer.as_mut().reset(Instant::now() + duration);
-        self.transition_future = None;
-    }
+        self.transition_future = Some(Box::pin(async move {
+            match (from_state, &mut new_state) {
+                (
+                    ConsensusState::BidAggregation(BidAggregation {
+                        block_height: pre_proposal_height,
+                        pre_proposals
+                    }),
+                    ConsensusState::Finalization(ref mut finalization)
+                ) => {
+                    let pre_proposals: Vec<PreProposal> = pre_proposals.iter().cloned().collect();
+                    // TODO: maybe spawn a new thread here, since proposal building might be comp
+                    // expensive
+                    let solutions = build_proposal(pre_proposals.clone()).await.unwrap();
+                    let proposal =
+                        signer.sign_proposal(pre_proposal_height, pre_proposals, solutions);
 
-    fn force_transition(&mut self, new_state: ConsensusState) {
-        self.transition_future = Some(Box::pin(async { new_state }));
+                    finalization.proposal = Some(proposal);
+
+                    // TODO: submit the proposal to the chain
+                    // Ethereum.submit(proposal).await
+                }
+                _ => {}
+            }
+            new_state
+        }));
 
         // wake up the task to ensure poll_next is called
         if let Some(waker) = &self.waker {
             waker.wake_by_ref();
-        }
-    }
-
-    async fn transition(
-        current_state: ConsensusState,
-        order_storage: Arc<OrderStorage>,
-        signer: Signer,
-        _metrics: ConsensusMetricsWrapper
-    ) -> ConsensusState {
-        match current_state {
-            ConsensusState::BidSubmission(BidSubmission {
-                block_height,
-                mut pre_proposals,
-                ..
-            }) => {
-                let OrderSet { limit, searcher } = order_storage.get_all_orders();
-                let pre_proposal = PreProposal::generate_pre_proposal(
-                    block_height,
-                    signer.my_id,
-                    limit,
-                    searcher,
-                    &signer.key
-                );
-                pre_proposals.insert(pre_proposal);
-                ConsensusState::BidAggregation(BidAggregation { block_height, pre_proposals })
-            }
-            ConsensusState::BidAggregation(BidAggregation { block_height, pre_proposals }) => {
-                ConsensusState::Finalization(Finalization {
-                    block_height,
-                    pre_proposals,
-                    proposal: None
-                })
-            }
-            ConsensusState::Finalization(Finalization { block_height, .. }) => {
-                ConsensusState::BidSubmission(BidSubmission { block_height, ..Default::default() })
-            }
         }
     }
 }
@@ -515,25 +570,21 @@ impl Stream for RoundStateMachine {
         this.waker = Some(cx.waker().clone());
 
         if let Some(ref mut future) = this.transition_future {
-            match future.as_mut().poll(cx) {
-                Poll::Ready(new_state) => {
-                    this.reset_timer(new_state.clone());
-                    return Poll::Ready(Some(new_state));
-                }
-                Poll::Pending => return Poll::Pending
+            return match future.as_mut().poll(cx) {
+                Poll::Ready(new_state) => Poll::Ready(Some(new_state)),
+                Poll::Pending => Poll::Pending
             }
         }
 
-        if this.timer.as_mut().poll(cx).is_ready() {
-            if this.transition_future.is_none() {
-                let future = RoundStateMachine::transition(
-                    this.current_state.clone(),
-                    this.order_storage.clone(),
-                    this.signer.clone(),
-                    this.metrics.clone()
-                )
-                .boxed();
-                this.transition_future = Some(future);
+        if let Some(ref mut timer) = this.initial_state_timer {
+            if timer.as_mut().poll(cx).is_ready() {
+                // if that is not the case, then something curious has happened
+                if let ConsensusState::BidSubmission(ref bid_submission) = this.current_state {
+                    let bid_aggregation = this.generate_bid_aggregation(bid_submission.clone());
+                    this.transition_future =
+                        Some(Box::pin(async { ConsensusState::BidAggregation(bid_aggregation) }));
+                    this.initial_state_timer = None;
+                }
             }
         }
 
