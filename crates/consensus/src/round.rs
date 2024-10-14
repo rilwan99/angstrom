@@ -68,7 +68,7 @@ pub enum ConsensusState {
 }
 
 impl ConsensusState {
-    fn as_key(&self) -> &'static str {
+    fn name(&self) -> &'static str {
         match self {
             Self::BidSubmission(_) => "BidSubmission",
             Self::BidAggregation(_) => "BidAggregation",
@@ -105,10 +105,6 @@ impl RoundStateMachine {
         metrics: ConsensusMetricsWrapper,
         initial_state_duration: Option<Duration>
     ) -> Self {
-        // The sum of the rounds is longer than a slot, since only the first one is used
-        // to trigger state transition_intial_state. The other ones are mostly so they
-        // are not empty. At the end of the Eth slot, transition_intial_state
-        // will be forced.
         let initial_state_duration = initial_state_duration.unwrap_or(Duration::from_secs(3));
         let timer = Box::pin(time::sleep(initial_state_duration));
 
@@ -170,10 +166,9 @@ impl RoundStateMachine {
     ///
     /// Returns:
     ///   In general we do not want to return an updated message for broadcast.
-    ///   However, during bid aggregation, we need to updated our current
-    /// pre_proposal   with what the rest of the network saw, so that when
-    /// it's   time for the leader to propose, it needs to see an agreement
-    /// on the   ToB and RoB
+    ///   However, during bid aggregation, we need to tell the rest of the
+    ///   network what our updated pre_proposal is, so when it's time for the
+    ///   leader to propose, it needs to see an agreement on the ToB and RoB
     pub fn on_strom_message(&mut self, strom_msg: StromConsensusEvent) -> Option<StromMessage> {
         let current_state = self.current_state.clone();
         let new_state: Option<ConsensusState> = match current_state {
@@ -217,7 +212,7 @@ impl RoundStateMachine {
         strom_msg: StromConsensusEvent
     ) -> (BidSubmission, Option<ConsensusState>) {
         match strom_msg {
-            // we are lagging, we should transition_intial_state
+            // we are lagging, we should transition to bid aggregation
             StromConsensusEvent::PreProposal(msg_sender, pre_proposal) => {
                 let PreProposal {
                     block_height: pre_proposal_height,
@@ -273,7 +268,7 @@ impl RoundStateMachine {
                     msg_sender,
                     proposal_block_height,
                     proposal_sender,
-                    self.current_state.as_key()
+                    self.current_state.name()
                 );
             }
             // TODO: this could be used  by the leader to gossip the 2/3 + 1 pre_proposals that were
@@ -342,7 +337,7 @@ impl RoundStateMachine {
 
                 bid_aggregation.pre_proposals.insert(pre_proposal.clone());
 
-                // make it a bit prettier
+                // TODO: make it prettier
                 let self_proposal = self.generate_our_merged_pre_proposal(
                     block_height,
                     Vec::new(),
@@ -395,7 +390,7 @@ impl RoundStateMachine {
                     msg_sender,
                     proposal_block_height,
                     proposal_sender,
-                    self.current_state.as_key()
+                    self.current_state.name()
                 );
             }
             // TODO: used to broadcast after the
@@ -470,7 +465,7 @@ impl RoundStateMachine {
                     msg_sender,
                     proposal_block_height,
                     proposal_sender,
-                    self.current_state.as_key()
+                    self.current_state.name()
                 );
             }
             // TODO: this could be used  by the leader to gossip the 2/3 + 1 pre_proposals that were
@@ -498,7 +493,7 @@ impl RoundStateMachine {
                 orders.into_iter().map(move |order| OrderWithStorageData {
                     pool_id,
                     order,
-                    ..Default::default() // Assuming other fields can be defaulted
+                    ..Default::default()
                 })
             })
             .collect()
@@ -526,7 +521,7 @@ impl RoundStateMachine {
 
     fn force_transition(&mut self, mut new_state: ConsensusState) {
         let from_state = self.current_state.clone();
-        let signer = self.signer.clone(); // Clone signer outside the async block
+        let signer = self.signer.clone();
 
         self.transition_future = Some(Box::pin(async move {
             match (from_state, &mut new_state) {
@@ -546,7 +541,7 @@ impl RoundStateMachine {
 
                     finalization.proposal = Some(proposal);
 
-                    // TODO: submit the proposal to the chain
+                    // TODO: submit the proposal/bundle to the chain
                     // Ethereum.submit(proposal).await
                 }
                 _ => {}
@@ -578,7 +573,8 @@ impl Stream for RoundStateMachine {
 
         if let Some(ref mut timer) = this.initial_state_timer {
             if timer.as_mut().poll(cx).is_ready() {
-                // if that is not the case, then something curious has happened
+                // if the timer ran out and we are not in bid submission, something curious
+                // happened
                 if let ConsensusState::BidSubmission(ref bid_submission) = this.current_state {
                     let bid_aggregation = this.generate_bid_aggregation(bid_submission.clone());
                     this.transition_future =
