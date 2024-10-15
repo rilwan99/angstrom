@@ -33,7 +33,7 @@ async fn main() -> eyre::Result<()> {
     let address = address!("88e6A0c2dDD26FEEb64F039a2c41296FcB3f5640");
     let mut pool = EnhancedUniswapV3Pool::new(address, ticks_per_side);
     tracing::info!(block_number = block_number, "loading old pool");
-    pool.initialize(Some(block_number), Some(ws_provider.clone()))
+    pool.initialize(Some(block_number), ws_provider.clone())
         .await?;
     pool.set_sim_swap_sync(true);
 
