@@ -2,7 +2,7 @@ use std::{
     future::Future,
     pin::Pin,
     sync::{atomic::AtomicUsize, Arc},
-    task::Context
+    task::{Context, Poll}
 };
 
 use alloy::primitives::BlockNumber;
@@ -10,7 +10,7 @@ use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
     sol_bindings::ext::RawPoolOrder
 };
-use futures::{task::Poll, StreamExt};
+use futures::StreamExt;
 use reth_eth_wire::DisconnectReason;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
 use reth_rpc_types::{Block, PeerId};
