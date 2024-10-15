@@ -190,27 +190,29 @@ where
                     .map(|log| (log.address, log))
                     .into_group_map();
 
-                for (address, logs) in logs_by_address.into_iter() {
+                for (addr, logs) in logs_by_address {
                     if logs.is_empty() {
                         continue;
                     }
 
-                    if let Some(pool) = pools.get(&address) {
-                        let mut pool_guard = pool.write().await;
-                        let mut state_change_cache = state_change_cache.write().await;
-                        Self::handle_state_changes_from_logs(
-                            &mut pool_guard,
-                            &mut state_change_cache,
-                            logs,
-                            chain_head_block_number
-                        )?;
+                    let Some(pool) = pools.get(&addr) else {
+                        continue;
+                    };
 
-                        if let Some(tx) = &pool_updated_tx {
-                            tx.send((pool_guard.address(), chain_head_block_number))
-                                .await
-                                .map_err(|e| tracing::error!("Failed to send pool update: {}", e))
-                                .ok();
-                        }
+                    let mut pool_guard = pool.write().await;
+                    let mut state_change_cache = state_change_cache.write().await;
+                    Self::handle_state_changes_from_logs(
+                        &mut pool_guard,
+                        &mut state_change_cache,
+                        logs,
+                        chain_head_block_number
+                    )?;
+
+                    if let Some(tx) = &pool_updated_tx {
+                        tx.send((pool_guard.address(), chain_head_block_number))
+                            .await
+                            .map_err(|e| tracing::error!("Failed to send pool update: {}", e))
+                            .ok();
                     }
                 }
 
