@@ -5082,6 +5082,7 @@ dependencies = [
  "eyre",
  "futures",
  "futures-util",
+ "itertools 0.12.1",
  "malachite",
  "malachite-q",
  "pade",

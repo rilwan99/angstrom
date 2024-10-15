@@ -16,6 +16,7 @@ use arraydeque::ArrayDeque;
 use eyre::Error;
 use futures::StreamExt;
 use futures_util::stream::BoxStream;
+use itertools::Itertools;
 use reth_primitives::Log;
 use thiserror::Error;
 use tokio::{
@@ -184,23 +185,23 @@ where
                     )
                     .await?;
 
-                let mut logs_by_address: HashMap<Address, Vec<Log>> = HashMap::new();
-                for log in logs {
-                    logs_by_address.entry(log.address).or_default().push(log);
-                }
+                let logs_by_address = logs
+                    .into_iter()
+                    .map(|log| (log.address, log))
+                    .into_group_map();
 
-                for (address, logs) in logs_by_address.iter_mut() {
+                for (address, logs) in logs_by_address.into_iter() {
                     if logs.is_empty() {
                         continue;
                     }
 
-                    if let Some(pool) = pools.get(address) {
+                    if let Some(pool) = pools.get(&address) {
                         let mut pool_guard = pool.write().await;
                         let mut state_change_cache = state_change_cache.write().await;
                         Self::handle_state_changes_from_logs(
                             &mut pool_guard,
                             &mut state_change_cache,
-                            logs.drain(..).collect(),
+                            logs,
                             chain_head_block_number
                         )?;
 
