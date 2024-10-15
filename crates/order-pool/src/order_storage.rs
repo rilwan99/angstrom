@@ -130,14 +130,28 @@ impl OrderStorage {
             });
     }
 
-    pub fn top_tob_orders(&self) -> Option<TopOfBlockOrder> {
+    pub fn top_tob_order_for_pool(&self, pool_id: &PoolId) -> Option<OrderWithStorageData<TopOfBlockOrder>> {
         self.searcher_orders
             .lock()
             .expect("lock poisoned")
-            .get_all_orders()
+            .get_orders_for_pool(pool_id)
+            .expect(&format!("pool {} does not exist", pool_id))
             .iter()
             .max_by_key(|order| order.tob_reward)
-            .map(|order| order.order.clone())
+            .cloned()
+    }
+
+    pub fn top_tob_orders(&self) -> Vec<OrderWithStorageData<TopOfBlockOrder>> {
+        let mut top_orders = Vec::new();
+        let searcher_orders = self.searcher_orders.lock().expect("lock poisoned");
+
+        for pool_id in searcher_orders.get_all_pool_ids() {
+            if let Some(top_order) = self.top_tob_order_for_pool(&pool_id) {
+                top_orders.push(top_order);
+            }
+        }
+
+        top_orders
     }
 
     pub fn add_new_limit_order(
@@ -261,11 +275,7 @@ impl OrderStorage {
 
     pub fn get_all_orders(&self) -> OrderSet<GroupedVanillaOrder, TopOfBlockOrder> {
         let limit = self.limit_orders.lock().expect("poisoned").get_all_orders();
-        let searcher = self
-            .searcher_orders
-            .lock()
-            .expect("poisoned")
-            .get_all_orders();
+        let searcher = self.top_tob_orders();
 
         OrderSet { limit, searcher }
     }
