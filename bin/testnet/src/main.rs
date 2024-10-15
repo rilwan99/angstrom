@@ -18,6 +18,7 @@ use testnet::{
     ported_reth_testnet_network::{connect_all_peers, StromPeer},
     rpc_state_provider::RpcStateProviderFactory
 };
+use tokio::sync::broadcast;
 use tracing::{span, Instrument, Level};
 use validation::init_validation;
 
@@ -163,8 +164,8 @@ pub async fn spawn_testnet_node(
         span
     )
     .await?;
-
-    let validator = init_validation(rpc_wrapper, CACHE_VALIDATION_SIZE);
+    let (tx, rx) = tokio::sync::broadcast::channel(1);
+    let validator = init_validation(rpc_wrapper, rx,CACHE_VALIDATION_SIZE);
 
     let network_handle = network.handle.clone();
 

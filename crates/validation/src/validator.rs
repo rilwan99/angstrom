@@ -1,23 +1,15 @@
-use std::{
-    pin::Pin,
-    sync::{atomic::AtomicU64, Arc},
-    task::Poll
-};
+use std::task::Poll;
 
 use alloy::primitives::{Address, B256};
-use angstrom_utils::key_split_threadpool::KeySplitThreadpool;
 use futures_util::{Future, FutureExt};
-use tokio::{
-    runtime::Handle,
-    sync::mpsc::{UnboundedReceiver, UnboundedSender}
-};
+use matching_engine::cfmm::uniswap::pool_providers::PoolManagerProvider;
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 use crate::{
     common::lru_db::BlockStateProviderFactory,
     order::{
         order_validator::OrderValidator,
-        sim::SimValidation,
-        state::{account::user::UserAddress, db_state_utils::StateFetchUtils, pools::PoolsTracker},
+        state::{db_state_utils::StateFetchUtils, pools::PoolsTracker},
         OrderValidationRequest, OrderValidationResults
     }
 };
@@ -35,20 +27,21 @@ pub enum ValidationRequest {
 #[derive(Debug, Clone)]
 pub struct ValidationClient(pub UnboundedSender<ValidationRequest>);
 
-pub struct Validator<DB, Pools, Fetch> {
+pub struct Validator<DB, Pools, Fetch, Provider> {
     rx:              UnboundedReceiver<ValidationRequest>,
-    order_validator: OrderValidator<DB, Pools, Fetch>
+    order_validator: OrderValidator<DB, Pools, Fetch, Provider>
 }
 
-impl<DB, Pools, Fetch> Validator<DB, Pools, Fetch>
+impl<DB, Pools, Fetch, Provider> Validator<DB, Pools, Fetch, Provider>
 where
     DB: BlockStateProviderFactory + Unpin + Clone + 'static,
     Pools: PoolsTracker + Sync + 'static,
-    Fetch: StateFetchUtils + Sync + 'static
+    Fetch: StateFetchUtils + Sync + 'static,
+    Provider: PoolManagerProvider + Sync + 'static
 {
     pub fn new(
         rx: UnboundedReceiver<ValidationRequest>,
-        order_validator: OrderValidator<DB, Pools, Fetch>
+        order_validator: OrderValidator<DB, Pools, Fetch, Provider>
     ) -> Self {
         Self { order_validator, rx }
     }
@@ -67,11 +60,12 @@ where
     }
 }
 
-impl<DB, Pools, Fetch> Future for Validator<DB, Pools, Fetch>
+impl<DB, Pools, Fetch, Provider> Future for Validator<DB, Pools, Fetch, Provider>
 where
     DB: BlockStateProviderFactory + Unpin + Clone + 'static,
     Pools: PoolsTracker + Sync + Unpin + 'static,
-    Fetch: StateFetchUtils + Sync + Unpin + 'static
+    Fetch: StateFetchUtils + Sync + Unpin + 'static,
+    Provider: PoolManagerProvider + Sync + Unpin + 'static
 {
     type Output = ();
 

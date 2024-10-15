@@ -158,12 +158,13 @@ pub struct StoredOrderBuilder {
     order:       GroupedVanillaOrder,
     is_bid:      bool,
     pool_id:     Option<FixedBytes<32>>,
-    valid_block: Option<u64>
+    valid_block: Option<u64>,
+    tob_reward: Option<U256>
 }
 
 impl StoredOrderBuilder {
     pub fn new(order: GroupedVanillaOrder) -> Self {
-        Self { order, is_bid: false, pool_id: None, valid_block: None }
+        Self { order, is_bid: false, pool_id: None, valid_block: None, tob_reward: None }
     }
 
     pub fn from_builder(user_order: UserOrderBuilder) -> Self {
@@ -191,6 +192,10 @@ impl StoredOrderBuilder {
         Self { valid_block: Some(valid_block), ..self }
     }
 
+    pub fn tob_reward(self, tob_reward: U256) -> Self {
+        Self { tob_reward: Some(tob_reward), ..self }
+    }
+
     pub fn build(self) -> OrderWithStorageData<GroupedVanillaOrder> {
         let is_bid = self.is_bid;
         let pool_id = self.pool_id.unwrap_or_default();
@@ -208,6 +213,7 @@ impl StoredOrderBuilder {
             volume: self.order.quantity().to(),
             gas:    0
         };
+        let tob_reward = self.tob_reward.unwrap_or_default();
         OrderWithStorageData {
             invalidates: vec![],
             order: self.order,
@@ -217,7 +223,8 @@ impl StoredOrderBuilder {
             is_valid: true,
             order_id,
             pool_id,
-            valid_block
+            valid_block,
+            tob_reward
         }
     }
 }
@@ -294,7 +301,8 @@ pub fn generate_top_of_block_order(
         is_valid: true,
         order_id,
         pool_id,
-        valid_block
+        valid_block,
+        tob_reward: U256::ZERO
     }
 }
 
