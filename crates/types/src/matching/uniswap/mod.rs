@@ -88,6 +88,15 @@ impl Direction {
             Self::SellingT0 => (amount_in, amount_out)
         }
     }
+
+    /// Given our transaction direction turns (q_t0, q_t1) into (amount_in,
+    /// amount_out)
+    pub fn sort_amounts<T>(&self, token0: T, token1: T) -> (T, T) {
+        match self {
+            Self::BuyingT0 => (token1, token0),
+            Self::SellingT0 => (token0, token1)
+        }
+    }
 }
 
 /*
