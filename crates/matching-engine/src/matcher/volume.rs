@@ -272,7 +272,7 @@ impl<'a> VolumeFillMatcher<'a> {
         index: &Cell<usize>,
         book: &'a [OrderWithStorageData<GroupedVanillaOrder>],
         fill_state: &[OrderFillState],
-        amm: Option<&MarketPrice<'a>>
+        amm: Option<&PoolPrice<'a>>
     ) -> Option<OrderContainer<'a, 'b>> {
         let mut cur_idx = index.get();
         // Find the next unfilled order - we need to work with the index separately
