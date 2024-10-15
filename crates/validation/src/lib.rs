@@ -16,7 +16,10 @@ use std::{
     }
 };
 
-use alloy::{primitives::Address, signers::k256::elliptic_curve::rand_core::block::BlockRngCore};
+use alloy::{
+    network::Network, primitives::Address, providers::Provider,
+    signers::k256::elliptic_curve::rand_core::block::BlockRngCore, transports::Transport
+};
 use angstrom_utils::key_split_threadpool::KeySplitThreadpool;
 use common::lru_db::{BlockStateProviderFactory, RevmLRU};
 use futures::Stream;

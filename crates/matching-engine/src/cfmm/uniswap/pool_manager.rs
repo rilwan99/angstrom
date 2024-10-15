@@ -33,7 +33,7 @@ pub type StateChangeCache = HashMap<Address, ArrayDeque<StateChange, 150>>;
 
 #[derive(Default)]
 pub struct UniswapPoolManager<P> {
-    pools:               Arc<Vec<RwLock<EnhancedUniswapV3Pool>>>,
+    pools:               Arc<HashMap<Address, RwLock<EnhancedUniswapV3Pool>>>,
     latest_synced_block: u64,
     state_change_buffer: usize,
     state_change_cache:  Arc<RwLock<StateChangeCache>>,
@@ -51,7 +51,10 @@ where
         state_change_buffer: usize,
         provider: Arc<P>
     ) -> Self {
-        let rwlock_pools = pools.into_iter().map(RwLock::new).collect();
+        let rwlock_pools = pools
+            .into_iter()
+            .map(|pool| (pool.address(), RwLock::new(pool)))
+            .collect();
         Self {
             pools: Arc::new(rwlock_pools),
             latest_synced_block,
@@ -66,45 +69,28 @@ where
         &self,
         address: &Address
     ) -> Option<RwLockReadGuard<'_, EnhancedUniswapV3Pool>> {
-        self.pools.iter().find_map(|pool| {
-            let pool_guard = pool.blocking_read();
-            if pool_guard.address() == *address {
-                Some(RwLockReadGuard::map(pool_guard, |p| p))
-            } else {
-                None
-            }
-        })
+        self.pools.get(address).map(|pool| pool.blocking_read())
     }
 
     pub async fn pool_mut(
         &self,
         address: &Address
     ) -> Option<RwLockWriteGuard<'_, EnhancedUniswapV3Pool>> {
-        for pool in self.pools.iter() {
-            let pool_guard = pool.write().await;
-            if pool_guard.address() == *address {
-                return Some(pool_guard)
-            }
-        }
-        None
+        let pool = self.pools.get(address)?;
+        Some(pool.write().await)
     }
 
     pub async fn pool(
         &self,
         address: &Address
     ) -> Option<RwLockReadGuard<'_, EnhancedUniswapV3Pool>> {
-        for pool in self.pools.iter() {
-            let pool_guard = pool.read().await;
-            if pool_guard.address() == *address {
-                return Some(pool_guard)
-            }
-        }
-        None
+        let pool = self.pools.get(address)?;
+        Some(pool.read().await)
     }
 
     pub async fn filter(&self) -> Filter {
         // it should crash given that no pools makes no sense
-        let pool = self.pools.first().unwrap();
+        let pool = self.pools.values().next().unwrap();
         let pool = pool.read().await;
         Filter::new().event_signature(pool.sync_on_event_signatures())
     }
@@ -175,7 +161,7 @@ where
                     );
 
                     let mut state_change_cache = state_change_cache.write().await;
-                    for pool in pools.iter() {
+                    for pool in pools.values() {
                         let mut pool_guard = pool.write().await;
                         Self::unwind_state_changes(
                             &mut pool_guard,
@@ -203,12 +189,13 @@ where
                     logs_by_address.entry(log.address).or_default().push(log);
                 }
 
-                for pool in pools.iter() {
-                    let mut pool_guard = pool.write().await;
-                    if let Some(logs) = logs_by_address.get_mut(&pool_guard.address()) {
-                        if logs.is_empty() {
-                            continue
-                        }
+                for (address, logs) in logs_by_address.iter_mut() {
+                    if logs.is_empty() {
+                        continue;
+                    }
+
+                    if let Some(pool) = pools.get(address) {
+                        let mut pool_guard = pool.write().await;
                         let mut state_change_cache = state_change_cache.write().await;
                         Self::handle_state_changes_from_logs(
                             &mut pool_guard,
@@ -282,7 +269,7 @@ where
     ) -> Result<(), PoolManagerError> {
         let cache = state_change_cache
             .entry(address)
-            .or_insert_with(|| ArrayDeque::new());
+            .or_insert_with(ArrayDeque::new);
         if cache.is_full() {
             cache.pop_back();
         }
@@ -309,7 +296,7 @@ where
         )
     }
 
-    pub fn get_market_snapshot(&self, address: &Address) -> Result<MarketSnapshot, Error> {
+    pub fn get_market_snapshot(&self, address: Address) -> Result<MarketSnapshot, Error> {
         let (ranges, price) = {
             let pool_lock = self
                 .blocking_pool(&address)
