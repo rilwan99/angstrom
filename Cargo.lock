@@ -1316,6 +1316,7 @@ dependencies = [
  "secp256k1 0.29.1",
  "serde",
  "serde_json",
+ "testing-tools",
  "thiserror",
  "tracing",
  "uniswap_v3_math",

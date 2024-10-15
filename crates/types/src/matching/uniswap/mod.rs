@@ -8,6 +8,8 @@ pub use poolprice::PoolPrice;
 pub use poolpricevec::PoolPriceVec;
 pub use poolsnapshot::PoolSnapshot;
 
+use super::SqrtPriceX96;
+
 pub type Tick = i32;
 
 pub enum Quantity {
@@ -59,6 +61,13 @@ impl Direction {
 
     pub fn is_bid(&self) -> bool {
         matches!(self, Self::BuyingT0)
+    }
+
+    pub fn from_prices(start: SqrtPriceX96, end: SqrtPriceX96) -> Self {
+        match start.cmp(&end) {
+            std::cmp::Ordering::Less => Self::SellingT0,
+            _ => Self::BuyingT0
+        }
     }
 
     /// Returns true if the given quantity is on the input side of this

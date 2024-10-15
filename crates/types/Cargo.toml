@@ -39,6 +39,7 @@ rand = { version = "0.8.5", optional = true }
 
 [dev-dependencies]
 rand.workspace = true
+testing-tools.workspace = true
 
 [features]
 default = ["serde"]
