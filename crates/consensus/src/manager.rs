@@ -6,7 +6,7 @@ use std::{
     thread::current
 };
 
-use alloy_primitives::{private::proptest::collection::vec, BlockNumber};
+use alloy_primitives::{bloom, private::proptest::collection::vec, BlockNumber};
 use angstrom_metrics::ConsensusMetricsWrapper;
 use angstrom_network::{manager::StromConsensusEvent, Peer, StromMessage, StromNetworkHandle};
 use angstrom_types::{
@@ -75,12 +75,11 @@ impl ConsensusManager {
         netdeps: ManagerNetworkDeps,
         signer: Signer,
         validators: Vec<AngstromValidator>,
-        order_storage: Arc<OrderStorage>
+        order_storage: Arc<OrderStorage>,
+        current_height: BlockNumber
     ) -> Self {
         let ManagerNetworkDeps { network, canonical_block_stream, strom_consensus_event } = netdeps;
         let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
-        // TODO: what's the current block, siiir!?
-        let current_height = 0;
         let mut leader_selection =
             WeightedRoundRobin::new(validators.clone(), current_height, None);
         let leader = leader_selection.choose_proposer(current_height).unwrap();
@@ -108,9 +107,11 @@ impl ConsensusManager {
         netdeps: ManagerNetworkDeps,
         signer: Signer,
         validators: Vec<AngstromValidator>,
-        order_storage: Arc<OrderStorage>
+        order_storage: Arc<OrderStorage>,
+        current_height: BlockNumber
     ) -> JoinHandle<()> {
-        let manager = ConsensusManager::new(netdeps, signer, validators, order_storage);
+        let manager =
+            ConsensusManager::new(netdeps, signer, validators, order_storage, current_height);
         let fut = manager.message_loop().boxed();
         tp.spawn_critical("consensus", fut)
     }

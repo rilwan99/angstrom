@@ -1,7 +1,5 @@
 use std::{
-    collections::{hash_set::Iter, HashMap, HashSet},
-    default::Default,
-    future::Future,
+    collections::{HashMap, HashSet},
     pin::Pin,
     sync::Arc,
     task::{Context, Poll, Waker},
@@ -13,30 +11,18 @@ use angstrom_metrics::ConsensusMetricsWrapper;
 use angstrom_network::{manager::StromConsensusEvent, StromMessage};
 use angstrom_types::{
     consensus::{Commit, PreProposal, Proposal},
-    contract_bindings::poolgate::PoolGate::initializePoolReturn,
     orders::{OrderSet, PoolSolution},
-    primitive::Signature,
     sol_bindings::{
-        grouped_orders::{
-            AllOrders, GroupedComposableOrder, GroupedUserOrder, GroupedVanillaOrder,
-            OrderWithStorageData
-        },
-        rpc_orders::TopOfBlockOrder,
-        AngstromContract::saveNodeFeeReturn
+        grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
+        rpc_orders::TopOfBlockOrder
     }
 };
-use blsful::vsss_rs::elliptic_curve::rand_core::block;
-use futures::{future::BoxFuture, FutureExt, Stream, StreamExt};
+use futures::{future::BoxFuture, Future, Stream};
 use matching_engine::MatchingManager;
 use order_pool::order_storage::OrderStorage;
-use reth_primitives::revm_primitives::bitvec::ptr::bitslice_from_raw_parts;
-use reth_rpc_types::{mev::BundleItem::Hash, PeerId};
+use reth_rpc_types::PeerId;
 use serde::{Deserialize, Serialize};
-use tokio::{
-    sync,
-    time::{self, Instant}
-};
-use validation::validator::Validator;
+use tokio::time::{self, Instant};
 
 use crate::{AngstromValidator, Signer};
 
@@ -105,7 +91,8 @@ impl RoundStateMachine {
         metrics: ConsensusMetricsWrapper,
         initial_state_duration: Option<Duration>
     ) -> Self {
-        let initial_state_duration = initial_state_duration.unwrap_or(Duration::from_secs(3));
+        let initial_state_duration =
+            initial_state_duration.unwrap_or_else(|| Duration::from_secs(3));
         let timer = Box::pin(time::sleep(initial_state_duration));
 
         Self {
@@ -150,14 +137,11 @@ impl RoundStateMachine {
     }
 
     pub fn my_pre_proposal(&self, pre_proposals: &HashSet<PreProposal>) -> Option<StromMessage> {
-        let pre_proposals = pre_proposals
+        pre_proposals
             .iter()
             .find(|p| p.source == self.my_id())
-            .clone();
-        if let Some(pre_proposal) = pre_proposals {
-            return Some(StromMessage::PrePropose(pre_proposal.clone()))
-        };
-        None
+            .cloned()
+            .map(StromMessage::PrePropose)
     }
 
     /// Invariants:
@@ -171,7 +155,7 @@ impl RoundStateMachine {
     ///   leader to propose, it needs to see an agreement on the ToB and RoB
     pub fn on_strom_message(&mut self, strom_msg: StromConsensusEvent) -> Option<StromMessage> {
         let current_state = self.current_state.clone();
-        let new_state: Option<ConsensusState> = match current_state {
+        let new_state = match current_state {
             ConsensusState::BidSubmission(bid_submission) => {
                 let (updated_submission, new_state) =
                     self.handle_strom_msg_in_submission(bid_submission, strom_msg);
@@ -200,7 +184,7 @@ impl RoundStateMachine {
         if let ConsensusState::BidAggregation(BidAggregation { pre_proposals, .. }) =
             &self.current_state
         {
-            return self.my_pre_proposal(pre_proposals)
+            return self.my_pre_proposal(pre_proposals);
         }
 
         None
@@ -244,7 +228,7 @@ impl RoundStateMachine {
                 } = proposal;
                 // TODO: we got an invalid proposal; start slashing ?
                 if !proposal.is_valid() || !self.is_leader(proposal_sender) {
-                    return (bid_submission, None)
+                    return (bid_submission, None);
                 }
 
                 // we are following and lagging a lot
@@ -257,7 +241,7 @@ impl RoundStateMachine {
                             proposal: Some(proposal),
                             pre_proposals
                         }))
-                    )
+                    );
                 }
 
                 // that should not be possible. it means we got our own proposal from another
@@ -273,7 +257,7 @@ impl RoundStateMachine {
             }
             // TODO: this could be used  by the leader to gossip the 2/3 + 1 pre_proposals that were
             // used for the bundle
-            StromConsensusEvent::Commit(msg_sender, commit) => (bid_submission, None)
+            StromConsensusEvent::Commit(..) => (bid_submission, None)
         }
     }
 
@@ -312,14 +296,13 @@ impl RoundStateMachine {
                 .collect()
         );
 
-        let pre_proposal = PreProposal::generate_pre_proposal(
+        PreProposal::generate_pre_proposal(
             block_height,
             self.my_id(),
             merged_limit_orders,
             merged_searcher_orders,
             &self.signer.key
-        );
-        pre_proposal
+        )
     }
 
     fn handle_strom_msg_in_aggregation(
@@ -328,8 +311,8 @@ impl RoundStateMachine {
         strom_msg: StromConsensusEvent
     ) -> (BidAggregation, Option<ConsensusState>) {
         match strom_msg {
-            StromConsensusEvent::PreProposal(msg_sender, pre_proposal) => {
-                let PreProposal { block_height, source, .. } = pre_proposal;
+            StromConsensusEvent::PreProposal(_, pre_proposal) => {
+                let PreProposal { block_height, .. } = pre_proposal;
 
                 if !pre_proposal.is_valid() {
                     return (bid_aggregation, None);
@@ -355,7 +338,7 @@ impl RoundStateMachine {
                             proposal: None,
                             pre_proposals: bid_aggregation.pre_proposals
                         }))
-                    )
+                    );
                 }
 
                 (bid_aggregation, None)
@@ -366,7 +349,7 @@ impl RoundStateMachine {
                 } = proposal;
                 // TODO: we got an invalid proposal; start slashing ?
                 if !proposal.is_valid() || !self.is_leader(proposal_sender) {
-                    return (bid_aggregation, None)
+                    return (bid_aggregation, None);
                 }
 
                 // we are following and lagging a bit
@@ -379,7 +362,7 @@ impl RoundStateMachine {
                             proposal: Some(proposal),
                             pre_proposals
                         }))
-                    )
+                    );
                 }
 
                 // that should not be possible. it means we got our own proposal from another
@@ -393,8 +376,8 @@ impl RoundStateMachine {
                     self.current_state.name()
                 );
             }
-            // TODO: used to broadcast after the
-            StromConsensusEvent::Commit(msg_sender, ..) => (bid_aggregation, None),
+            // TODO: used to broadcast after the bundle submission
+            StromConsensusEvent::Commit(..) => (bid_aggregation, None),
             _ => (bid_aggregation, None)
         }
     }
@@ -426,11 +409,11 @@ impl RoundStateMachine {
 
                 if !self.i_am_leader() {
                     // if we are not leader wait for Ethereum to restart us
-                    return (finalization, None)
+                    return (finalization, None);
                 }
 
                 if !self.has_quorum(finalization.pre_proposals.len()) {
-                    return (finalization, None)
+                    return (finalization, None);
                 }
 
                 (finalization, None)
@@ -441,7 +424,7 @@ impl RoundStateMachine {
                 } = proposal;
                 // TODO: we got an invalid proposal; start slashing ?
                 if !proposal.is_valid() || !self.is_leader(proposal_sender) {
-                    return (finalization, None)
+                    return (finalization, None);
                 }
 
                 // we are following and lagging a bit
@@ -454,7 +437,7 @@ impl RoundStateMachine {
                             proposal: Some(proposal),
                             pre_proposals
                         }))
-                    )
+                    );
                 }
 
                 // that should not be possible. it means we got our own proposal from another
@@ -470,7 +453,7 @@ impl RoundStateMachine {
             }
             // TODO: this could be used  by the leader to gossip the 2/3 + 1 pre_proposals that were
             // used for the bundle
-            StromConsensusEvent::Commit(msg_sender, commit) => (finalization, None)
+            StromConsensusEvent::Commit(..) => (finalization, None)
         }
     }
 
@@ -480,7 +463,7 @@ impl RoundStateMachine {
     ) -> Vec<OrderWithStorageData<GroupedVanillaOrder>> {
         let mut unique_limit_per_pool: HashMap<_, HashSet<GroupedVanillaOrder>> = HashMap::new();
 
-        for order_with_data in left_limit.into_iter() {
+        for order_with_data in left_limit {
             unique_limit_per_pool
                 .entry(order_with_data.pool_id)
                 .or_insert_with(HashSet::new)
@@ -505,7 +488,7 @@ impl RoundStateMachine {
     ) -> Vec<OrderWithStorageData<TopOfBlockOrder>> {
         let mut top_searcher_per_pool: HashMap<_, OrderWithStorageData<TopOfBlockOrder>> =
             HashMap::new();
-        for order_with_data in left_searcher.into_iter() {
+        for order_with_data in left_searcher {
             let pool_id = order_with_data.pool_id;
             top_searcher_per_pool
                 .entry(pool_id)
@@ -524,27 +507,24 @@ impl RoundStateMachine {
         let signer = self.signer.clone();
 
         self.transition_future = Some(Box::pin(async move {
-            match (from_state, &mut new_state) {
-                (
-                    ConsensusState::BidAggregation(BidAggregation {
-                        block_height: pre_proposal_height,
-                        pre_proposals
-                    }),
-                    ConsensusState::Finalization(ref mut finalization)
-                ) => {
-                    let pre_proposals: Vec<PreProposal> = pre_proposals.iter().cloned().collect();
-                    // TODO: maybe spawn a new thread here, since proposal building might be comp
-                    // expensive
-                    let solutions = build_proposal(pre_proposals.clone()).await.unwrap();
-                    let proposal =
-                        signer.sign_proposal(pre_proposal_height, pre_proposals, solutions);
+            if let (
+                ConsensusState::BidAggregation(BidAggregation {
+                    block_height: pre_proposal_height,
+                    pre_proposals
+                }),
+                ConsensusState::Finalization(ref mut finalization)
+            ) = (from_state, &mut new_state)
+            {
+                let pre_proposals: Vec<PreProposal> = pre_proposals.iter().cloned().collect();
+                // TODO: maybe spawn a new thread here, since proposal building might be comp
+                // expensive
+                let solutions = build_proposal(pre_proposals.clone()).await.unwrap();
+                let proposal = signer.sign_proposal(pre_proposal_height, pre_proposals, solutions);
 
-                    finalization.proposal = Some(proposal);
+                finalization.proposal = Some(proposal);
 
-                    // TODO: submit the proposal/bundle to the chain
-                    // Ethereum.submit(proposal).await
-                }
-                _ => {}
+                // TODO: submit the proposal/bundle to the chain
+                // Ethereum.submit(proposal).await
             }
             new_state
         }));
@@ -568,7 +548,7 @@ impl Stream for RoundStateMachine {
             return match future.as_mut().poll(cx) {
                 Poll::Ready(new_state) => Poll::Ready(Some(new_state)),
                 Poll::Pending => Poll::Pending
-            }
+            };
         }
 
         if let Some(ref mut timer) = this.initial_state_timer {

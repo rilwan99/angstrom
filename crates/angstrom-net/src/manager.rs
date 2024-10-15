@@ -157,26 +157,26 @@ impl<DB: Unpin> Future for StromNetworkManager<DB> {
                 match event {
                     SwarmEvent::ValidMessage { peer_id, msg } => match msg {
                         StromMessage::Commit(a) => {
-                            self.to_consensus_manager
-                                .as_ref()
-                                .map(|tx| tx.send(StromConsensusEvent::Commit(peer_id, a)));
+                            self.to_consensus_manager.as_ref().inspect(|tx| {
+                                tx.send(StromConsensusEvent::Commit(peer_id, a));
+                            });
                         }
                         StromMessage::PrePropose(p) => {
-                            self.to_consensus_manager.as_ref().map(|tx| {
+                            self.to_consensus_manager.as_ref().inspect(|tx| {
                                 tx.send(StromConsensusEvent::PreProposal(
                                     peer_id,
                                     PreProposal::default()
-                                ))
+                                ));
                             });
                         }
                         StromMessage::Propose(a) => {
-                            self.to_consensus_manager
-                                .as_ref()
-                                .map(|tx| tx.send(StromConsensusEvent::Proposal(peer_id, a)));
+                            self.to_consensus_manager.as_ref().inspect(|tx| {
+                                tx.send(StromConsensusEvent::Proposal(peer_id, a));
+                            });
                         }
                         StromMessage::PropagatePooledOrders(a) => {
-                            self.to_pool_manager.as_ref().map(|tx| {
-                                tx.send(NetworkOrderEvent::IncomingOrders { peer_id, orders: a })
+                            self.to_pool_manager.as_ref().inspect(|tx| {
+                                tx.send(NetworkOrderEvent::IncomingOrders { peer_id, orders: a });
                             });
                         }
                         _ => {}

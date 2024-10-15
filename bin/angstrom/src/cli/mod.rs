@@ -34,7 +34,7 @@ use reth::{
     args::utils::DefaultChainSpecParser,
     builder::{FullNodeComponents, Node},
     cli::Cli,
-    providers::CanonStateSubscriptions,
+    providers::{BlockNumReader, CanonStateSubscriptions},
     tasks::TaskExecutor
 };
 use reth_cli_util::get_secret_key;
@@ -208,7 +208,7 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
         .with_pool_manager(handles.pool_tx)
         .with_consensus_manager(handles.consensus_tx_op)
         .build_handle(executor.clone(), node.provider.clone());
-
+    let block_height = node.provider.best_block_number().unwrap();
     let validator = init_validation(node.provider.clone(),  node.provider.subscribe_to_canonical_state(), config.validation_cache_size);
 
     // Create our pool config
@@ -253,6 +253,7 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
         signer,
         validators,
         order_storage.clone(),
+        block_height,
     );
 }
 

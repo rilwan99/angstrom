@@ -88,7 +88,7 @@ impl<Pools: PoolsTracker, Fetch: StateFetchUtils, Provider: PoolManagerProvider 
 
         let Some(pool_info) = self
             .pool_tacker
-            .read_arc()
+            .read()
             .fetch_pool_info_for_order(&order)
         else {
             return OrderValidationResults::Invalid(order_hash)
@@ -138,6 +138,6 @@ impl<Pools: PoolsTracker, Fetch: StateFetchUtils, Provider: PoolManagerProvider 
     }
 
     pub fn index_new_pool(&mut self, pool: NewInitializedPool) {
-        self.pool_tacker.write_arc().index_new_pool(pool);
+        self.pool_tacker.write().index_new_pool(pool);
     }
 }
