@@ -15,6 +15,7 @@ abstract contract Settlement is UniConsumer {
 
     error BundleChangeNetNegative(address asset);
     error NotFeeMaster();
+    error TransferFromFailed();
 
     /// @dev Address that can pull arbitrary funds from the contract, assumed to be trustless,
     /// log proof checking contract.
@@ -31,14 +32,14 @@ abstract contract Settlement is UniConsumer {
     /// @notice Pulls tokens from the caller and credits them to the caller for trading.
     /// @dev WARN: Assumes `asset` charges 0 fees upon transfers and is not rebasing.
     function deposit(address asset, uint256 amount) external {
-        asset.safeTransferFrom(msg.sender, address(this), amount);
+        _safeTransferFrom(asset, msg.sender, amount);
         _balances[asset][msg.sender] += amount;
     }
 
     /// @notice Pulls tokens from the caller and credits them to the `to` address for trading.
     /// @dev WARN: Assumes `asset` charges 0 fees upon transfers and is not rebasing.
     function deposit(address asset, address to, uint256 amount) external {
-        asset.safeTransferFrom(msg.sender, address(this), amount);
+        _safeTransferFrom(asset, msg.sender, amount);
         _balances[asset][to] += amount;
     }
 
@@ -123,7 +124,7 @@ abstract contract Settlement is UniConsumer {
         if (useInternal) {
             _balances[from][asset] -= amount;
         } else {
-            asset.safeTransferFrom(from, address(this), amount);
+            _safeTransferFrom(asset, from, amount);
         }
     }
 
@@ -136,6 +137,45 @@ abstract contract Settlement is UniConsumer {
             _balances[to][asset] += amount;
         } else {
             asset.safeTransfer(to, amount);
+        }
+    }
+
+    /// @dev Not using `SafeTransferLib.safeTransferFrom` becaues it doesn't check the codesize
+    function _safeTransferFrom(address token, address from, uint256 amount) internal {
+        assembly ("memory-safe") {
+            // Safe free pointer so it can be restored later.
+            let freePtr := mload(0x40)
+            // Encode `transferFrom(address,address,uint256)` data.
+            mstore(0x60, amount)
+            mstore(0x40, address())
+            mstore(0x20, from)
+            // Right pad selector to ensure potentially dirty bits in `from` are cleared.
+            mstore(0x0c, 0x23b872dd000000000000000000000000)
+
+            let success := call(gas(), token, 0, 0x1c, 0x64, 0x00, 0x20)
+
+            switch returndatasize()
+            case 0 {
+                // If `returndatasize == 0` then we want to double check that we actually called a
+                // token and not just an address with no code.
+                if iszero(gt(success, iszero(extcodesize(token)))) {
+                    mstore(0x00, 0x7939f424 /* TransferFromFailed() */ )
+                    revert(0x1c, 0x04)
+                }
+            }
+            default {
+                // If the token returned any data validate that it was the ERC20 standard `true`
+                // response. Length is implicitly checked to be >=32 bytes long because you need at
+                // least that many bytes to overwrite the selector in `mem[0:32]`.
+                if iszero(and(success, eq(mload(0x00), true))) {
+                    mstore(0x00, 0x7939f424 /* TransferFromFailed() */ )
+                    revert(0x1c, 0x04)
+                }
+            }
+
+            // Restore zero pointer and free pointer.
+            mstore(0x60, 0)
+            mstore(0x40, freePtr)
         }
     }
 }
