@@ -9,6 +9,12 @@ import {MockERC20} from "super-sol/mocks/MockERC20.sol";
 import {Angstrom} from "src/Angstrom.sol";
 import {Settlement} from "src/modules/Settlement.sol";
 import {LibSort} from "solady/src/utils/LibSort.sol";
+import {
+    NoReturnToken,
+    RevertsTrueToken,
+    ReturnStatusToken,
+    RevertsEmptyToken
+} from "../_mocks/NonStandardERC20s.sol";
 
 import {console} from "forge-std/console.sol";
 
@@ -50,6 +56,95 @@ contract SettlementTest is BaseTest {
 
         vm.prank(controller);
         angstrom.toggleNodes(addrs(abi.encode(validator)));
+    }
+
+    function test_fuzzing_prevents_depositingUndeployedToken(
+        address user,
+        address asset,
+        uint256 amount
+    ) public {
+        vm.assume(user != address(angstrom));
+        vm.assume(asset.code.length == 0);
+
+        vm.prank(user);
+        vm.expectRevert(Settlement.TransferFromFailed.selector);
+        angstrom.deposit(asset, amount);
+    }
+
+    function test_fuzzing_prevents_depositingWhenNoReturnRevert(address user, uint256 amount)
+        public
+    {
+        vm.assume(user != address(angstrom));
+
+        amount = bound(amount, 0, type(uint256).max - 1);
+
+        NoReturnToken token = new NoReturnToken();
+
+        deal(address(token), user, amount);
+
+        vm.prank(user);
+        token.approve(address(angstrom), type(uint256).max);
+
+        vm.prank(user);
+        vm.expectRevert(Settlement.TransferFromFailed.selector);
+        angstrom.deposit(address(token), amount + 1);
+    }
+
+    function test_fuzzing_prevents_depositingWhenNoRevertsWithTrue(address user, uint256 amount)
+        public
+    {
+        vm.assume(user != address(angstrom));
+
+        amount = bound(amount, 0, type(uint256).max - 1);
+
+        RevertsTrueToken token = new RevertsTrueToken();
+
+        deal(address(token), user, amount);
+
+        vm.prank(user);
+        token.approve(address(angstrom), type(uint256).max);
+
+        vm.prank(user);
+        vm.expectRevert(Settlement.TransferFromFailed.selector);
+        angstrom.deposit(address(token), amount + 1);
+    }
+
+    function test_fuzzing_prevents_depositingWhenReturnsFalse(address user, uint256 amount)
+        public
+    {
+        vm.assume(user != address(angstrom));
+
+        amount = bound(amount, 0, type(uint256).max - 1);
+
+        ReturnStatusToken token = new ReturnStatusToken();
+
+        deal(address(token), user, amount);
+
+        vm.prank(user);
+        token.approve(address(angstrom), type(uint256).max);
+
+        vm.prank(user);
+        vm.expectRevert(Settlement.TransferFromFailed.selector);
+        angstrom.deposit(address(token), amount + 1);
+    }
+
+    function test_fuzzing_prevents_depositingWhenReturnsEmpty(address user, uint256 amount)
+        public
+    {
+        vm.assume(user != address(angstrom));
+
+        amount = bound(amount, 0, type(uint256).max - 1);
+
+        RevertsEmptyToken token = new RevertsEmptyToken();
+
+        deal(address(token), user, amount);
+
+        vm.prank(user);
+        token.approve(address(angstrom), type(uint256).max);
+
+        vm.prank(user);
+        vm.expectRevert(Settlement.TransferFromFailed.selector);
+        angstrom.deposit(address(token), amount + 1);
     }
 
     function test_fuzzing_depositCaller(address user, uint256 assetIndex, uint256 amount) public {
