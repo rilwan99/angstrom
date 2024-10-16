@@ -3125,6 +3125,7 @@ dependencies = [
  "eyre",
  "futures",
  "hex-literal",
+ "itertools 0.12.1",
  "matching-engine",
  "order-pool",
  "rayon",
