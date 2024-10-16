@@ -42,10 +42,7 @@ pub struct ConsensusManager {
     leader_selection: WeightedRoundRobin,
     state_transition: RoundStateMachine,
 
-    /// keeps track of the current round state
-    /// Used to trigger new consensus rounds
     canonical_block_stream: BroadcastStream<CanonStateNotification>,
-    /// events from the network,
     strom_consensus_event:  UnboundedMeteredReceiver<StromConsensusEvent>,
     network:                StromNetworkHandle,
 
@@ -79,8 +76,7 @@ impl ConsensusManager {
     ) -> Self {
         let ManagerNetworkDeps { network, canonical_block_stream, strom_consensus_event } = netdeps;
         let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
-        let mut leader_selection =
-            WeightedRoundRobin::new(validators.clone(), current_height, None);
+        let mut leader_selection = WeightedRoundRobin::new(validators.clone(), current_height);
         let leader = leader_selection.choose_proposer(current_height).unwrap();
         Self {
             strom_consensus_event,
@@ -92,8 +88,7 @@ impl ConsensusManager {
                 signer,
                 leader,
                 validators.clone(),
-                ConsensusMetricsWrapper::new(),
-                None
+                ConsensusMetricsWrapper::new()
             ),
             network,
             canonical_block_stream: wrapped_broadcast_stream,
@@ -117,29 +112,17 @@ impl ConsensusManager {
 
     async fn on_blockchain_state(&mut self, notification: CanonStateNotification) {
         let new_block = notification.tip();
-        let new_block_height = new_block.block.number;
-
-        if self.current_height + 1 == new_block_height {
-            // TODO: remove the unwrap; if we go back or choose the same block it's a
-            // problem
-            let round_leader = self
-                .leader_selection
-                .choose_proposer(new_block_height)
-                .unwrap();
-            self.current_height = new_block_height;
-            // TODO: does reset here make sense? Do we care what state we were in?
-            // TODO: what if the transition does not complete before Ethereum fork-choices
-            self.state_transition
-                .reset_round(new_block_height, round_leader);
-            self.broadcasted_messages.clear();
-        } else {
-            tracing::error!("Block height is not sequential, this breaks round robin!");
-            panic!("Unrecoverable consensus error - Block height not sequential");
-        }
+        self.current_height = new_block.block.number;
+        let round_leader = self
+            .leader_selection
+            .choose_proposer(self.current_height)
+            .unwrap();
+        self.state_transition
+            .reset_round(self.current_height, round_leader);
+        self.broadcasted_messages.clear();
     }
 
     async fn on_network_event(&mut self, event: StromConsensusEvent) {
-        // TODO: do we want to ignore all messages for the wrong height?
         if self.current_height != event.block_height() {
             tracing::warn!(
                 event_block_height=%event.block_height(),
@@ -160,7 +143,7 @@ impl ConsensusManager {
             return;
         }
 
-        // do we want to transition first and the send a message?
+        // do we want to transition first and then send a message?
         if !self.broadcasted_messages.contains(&event) {
             self.network.broadcast_message(event.clone().into());
             self.broadcasted_messages.insert(event.clone());

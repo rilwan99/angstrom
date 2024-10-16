@@ -26,47 +26,12 @@ use tokio::time::{self, Instant};
 
 use crate::{AngstromValidator, Signer};
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct BidSubmission {
-    pub block_height:  BlockNumber,
-    // this is used mostly for early messages
-    pub pre_proposals: HashSet<PreProposal>
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct BidAggregation {
-    pub block_height:  BlockNumber,
-    pub pre_proposals: HashSet<PreProposal>
-}
-
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
-pub struct Finalization {
-    pub block_height:  BlockNumber,
-    pub pre_proposals: HashSet<PreProposal>,
-    pub proposal:      Option<Proposal>
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum ConsensusState {
-    BidSubmission(BidSubmission),
-    BidAggregation(BidAggregation),
-    Finalization(Finalization)
-}
-
-impl ConsensusState {
-    fn name(&self) -> &'static str {
-        match self {
-            Self::BidSubmission(_) => "BidSubmission",
-            Self::BidAggregation(_) => "BidAggregation",
-            Self::Finalization(_) => "Finalization"
-        }
-    }
-}
-
 async fn build_proposal(pre_proposals: Vec<PreProposal>) -> Result<Vec<PoolSolution>, String> {
     let matcher = MatchingManager {};
     matcher.build_proposal(pre_proposals).await
 }
+
+const INITIAL_STATE_DURATION: u64 = 3;
 
 pub struct RoundStateMachine {
     current_state:          ConsensusState,
@@ -88,11 +53,9 @@ impl RoundStateMachine {
         signer: Signer,
         round_leader: PeerId,
         validators: Vec<AngstromValidator>,
-        metrics: ConsensusMetricsWrapper,
-        initial_state_duration: Option<Duration>
+        metrics: ConsensusMetricsWrapper
     ) -> Self {
-        let initial_state_duration =
-            initial_state_duration.unwrap_or_else(|| Duration::from_secs(3));
+        let initial_state_duration = Duration::from_secs(INITIAL_STATE_DURATION);
         let timer = Box::pin(time::sleep(initial_state_duration));
 
         Self {
@@ -565,5 +528,42 @@ impl Stream for RoundStateMachine {
         }
 
         Poll::Pending
+    }
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct BidSubmission {
+    pub block_height:  BlockNumber,
+    // this is used mostly for early messages
+    pub pre_proposals: HashSet<PreProposal>
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct BidAggregation {
+    pub block_height:  BlockNumber,
+    pub pre_proposals: HashSet<PreProposal>
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Finalization {
+    pub block_height:  BlockNumber,
+    pub pre_proposals: HashSet<PreProposal>,
+    pub proposal:      Option<Proposal>
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub enum ConsensusState {
+    BidSubmission(BidSubmission),
+    BidAggregation(BidAggregation),
+    Finalization(Finalization)
+}
+
+impl ConsensusState {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::BidSubmission(_) => "BidSubmission",
+            Self::BidAggregation(_) => "BidAggregation",
+            Self::Finalization(_) => "Finalization"
+        }
     }
 }
