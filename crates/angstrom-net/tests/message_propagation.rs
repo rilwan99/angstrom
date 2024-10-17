@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use reth_provider::test_utils::NoopProvider;
-use testing_tools::{network::AngstromTestnet, type_generator::consensus::generate_random_commit};
+use testing_tools::network::AngstromTestnet;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 5)]
 async fn test_broadcast_order_propagation() {
