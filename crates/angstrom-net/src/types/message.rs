@@ -29,9 +29,8 @@ pub enum StromMessageID {
     /// Consensus
     PrePropose = 1,
     Propose    = 2,
-    Commit     = 3,
     /// Propagation messages that broadcast new orders to all peers
-    PropagatePooledOrders = 4
+    PropagatePooledOrders = 3
 }
 
 impl Encodable for StromMessageID {
@@ -51,8 +50,7 @@ impl Decodable for StromMessageID {
             0 => StromMessageID::Status,
             1 => StromMessageID::PrePropose,
             2 => StromMessageID::Propose,
-            3 => StromMessageID::Commit,
-            4 => StromMessageID::PropagatePooledOrders,
+            3 => StromMessageID::PropagatePooledOrders,
             _ => return Err(alloy::rlp::Error::Custom("Invalid message ID"))
         };
         buf.advance(1);
