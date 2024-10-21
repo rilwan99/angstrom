@@ -177,6 +177,8 @@ alloy-pubsub = { version = "0.4.2", default-features = false }
 alloy-json-rpc = { version = "0.4.2", default-features = false }
 alloy-rpc-client = { version = "0.4.2", default-features = false }
 
+aws-sdk-kms = "1.45.0"
+
 # Uniswap math helpers
 uniswap_v3_math = { git = "https://github.com/0xKitsune/uniswap-v3-math.git" }
 
