@@ -145,7 +145,7 @@
 //                 let mut res = vec![];
 //                 for hash in cloned_block.transactions.hashes() {
 //                     let Ok(Some(tx)) =
-// rpc.provider.get_transaction_by_hash(hash).await else {                      
+// rpc.provider.get_transaction_by_hash(hash).await else {
 // continue                     };
 //                     res.push(tx);
 //                 }
@@ -202,3 +202,5 @@
 
 //     Ok(())
 // }
+
+fn main() {}
