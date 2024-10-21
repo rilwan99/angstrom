@@ -3,7 +3,7 @@ use std::sync::{atomic::AtomicUsize, Arc};
 use angstrom_types::sol_bindings::grouped_orders::AllOrders;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
 use reth_network::DisconnectReason;
-use reth_rpc_types::PeerId;
+use angstrom_types::primitive::PeerId;
 use tokio::sync::{
     mpsc::{unbounded_channel, UnboundedSender},
     oneshot

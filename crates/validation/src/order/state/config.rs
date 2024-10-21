@@ -1,8 +1,7 @@
 use std::path::Path;
 
-use alloy::primitives::Address;
+use alloy::primitives::{keccak256, Address, U256};
 use angstrom_types::primitive::PoolId;
-use reth_primitives::{keccak256, U256};
 use reth_revm::DatabaseRef;
 use serde::Deserialize;
 

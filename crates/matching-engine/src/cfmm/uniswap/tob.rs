@@ -224,7 +224,7 @@ pub fn calculate_reward(
 #[cfg(test)]
 mod test {
     use alloy::{
-        primitives::{address, aliases::I24, Address, Bytes, Uint, U256},
+        primitives::{address, aliases::I24, keccak256, Address, Bytes, Uint, U256},
         providers::ProviderBuilder,
         sol_types::SolValue
     };
@@ -238,7 +238,6 @@ mod test {
         matching::SqrtPriceX96
     };
     use rand::thread_rng;
-    use reth_primitives::keccak256;
     use testing_tools::type_generator::orders::generate_top_of_block_order;
     use uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick;
 

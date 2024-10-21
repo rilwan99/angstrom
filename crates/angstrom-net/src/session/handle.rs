@@ -1,5 +1,5 @@
 use reth_network::Direction;
-use reth_network_peers::PeerId;
+use angstrom_types::primitive::PeerId;
 use tokio::{sync::mpsc, time::Instant};
 
 use crate::{session::DisconnectReason, types::message::StromMessage};
