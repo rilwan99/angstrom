@@ -67,7 +67,7 @@ where
                 pool_fee
             )
             .await?;
-        let results = join_all(snapshot.ranges().map(|r| {
+        let _results = join_all(snapshot.ranges().map(|r| {
             let lower_tick = I24::unchecked_from(r.lower_tick());
             let upper_tick = I24::unchecked_from(r.upper_tick());
             let liquidity = U256::from(r.liquidity());
@@ -97,6 +97,36 @@ where
         let (asset0, asset1) = mint_token_pair(self.provider()).await;
         self.create_pool(asset0, asset1, initial_price, tick_spacing, pool_fee)
             .await
+    }
+
+    async fn create_pool(
+        &self,
+        asset0: Address,
+        asset1: Address,
+        initial_price: SqrtPriceX96,
+        tick_spacing: I24,
+        pool_fee: U24
+    ) -> eyre::Result<PoolKey> {
+        self.mock_reward()
+            .initializePool(asset0, asset1, U256::ZERO, *initial_price)
+            .from(self.controller())
+            .run_safe()
+            .await?;
+        let pool_key = PoolKey {
+            currency0:   asset0,
+            currency1:   asset1,
+            fee:         pool_fee,
+            tickSpacing: tick_spacing,
+            hooks:       self.mock_reward
+        };
+        // TODO:  Make this tick spacing work properly
+        self.mock_reward()
+            .configurePool(asset0, asset1, 60, pool_fee)
+            .from(self.controller())
+            .run_safe()
+            .await?;
+
+        Ok(pool_key)
     }
 }
 
@@ -133,29 +163,6 @@ where
 
     fn pool_manager(&self) -> Address {
         self.inner.pool_manager()
-    }
-
-    async fn create_pool(
-        &self,
-        asset0: Address,
-        asset1: Address,
-        initial_price: SqrtPriceX96,
-        tick_spacing: I24,
-        pool_fee: U24
-    ) -> eyre::Result<PoolKey> {
-        // TODO:  Make this tick spacing work properly
-        self.mock_reward()
-            .configurePool(asset0, asset1, 60, pool_fee)
-            .from(self.controller())
-            .run_safe()
-            .await?;
-        let mut pool_key = self
-            .inner
-            .create_pool(asset0, asset1, initial_price, tick_spacing, pool_fee)
-            .await?;
-        pool_key.hooks = self.mock_reward;
-
-        Ok(pool_key)
     }
 
     async fn add_liquidity_position(
