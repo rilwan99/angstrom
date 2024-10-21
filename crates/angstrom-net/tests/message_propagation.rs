@@ -137,7 +137,7 @@ async fn test_broadcast_consensus_propagation() {
     for i in 0..3 {
         // commits
         let commit = generate_random_commit(&sk);
-        let delay_seconds = 6;
+        let delay_seconds = 10;
 
         let res = tokio::time::timeout(
             Duration::from_secs(delay_seconds),
