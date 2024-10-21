@@ -122,8 +122,8 @@ reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth", version = "1
 
 # alloy
 alloy = { version = "0.4.2", features = [
-  "full",
   "rlp",
+  "provider-ipc",
   "eip712",
   "node-bindings",
   "rpc-types-debug",
