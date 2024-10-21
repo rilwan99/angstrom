@@ -192,9 +192,9 @@ where
         cx: &mut std::task::Context<'_>
     ) -> std::task::Poll<Self::Output> {
         let this = self.get_mut();
-        let peer_id = this.get_node_public_key();
-        let span = span!(Level::TRACE, "peer_id: {:?}", ?peer_id);
-        let e = span.enter();
+        // let peer_id = this.get_node_public_key();
+        // let span = span!(Level::TRACE, "peer_id: {:?}", ?peer_id);
+        // let e = span.enter();
 
         if this.strom_network.poll_unpin(cx).is_ready() {
             return Poll::Ready(())
@@ -203,7 +203,7 @@ where
             return Poll::Ready(())
         }
 
-        drop(e);
+        // drop(e);
 
         Poll::Pending
     }
