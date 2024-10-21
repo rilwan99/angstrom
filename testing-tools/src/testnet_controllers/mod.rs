@@ -240,7 +240,7 @@ where
                         peer_id
                     }
                 },
-                |other_rxs, peer_id| async move {
+                |other_rxs, _| async move {
                     futures::future::join_all(other_rxs.into_iter().map(|mut rx| {
                         let value = expected_message.clone();
                         async move { (Some(value) == rx.next().await) as usize }
