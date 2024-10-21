@@ -82,6 +82,7 @@ impl<DB: StateProviderFactory + Clone + Unpin + 'static> TestOrderValidator<DB> 
             OrderValidator::new(sim, current_block, pools, fetch, pool_manager, thread_pool);
         let val = Validator::new(rx, order_validator);
         let client = ValidationClient(tx);
+        let config = ValidationConfig::default();
 
         Self { revm_lru, client, underlying: val, config: validation_config }
     }

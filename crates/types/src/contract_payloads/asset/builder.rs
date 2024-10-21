@@ -1,7 +1,7 @@
-use angstrom_types::contract_payloads::tob::Asset;
-use reth_primitives::Address;
+use alloy::primitives::Address;
 
-use super::{assetarray::AssetArray, state::StageTracker};
+use super::{state::StageTracker, AssetArray};
+use crate::contract_payloads::Asset;
 
 pub enum AssetBuilderStage {
     Swap,

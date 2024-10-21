@@ -1,7 +1,11 @@
+pub mod builder;
+pub mod state;
+
 use std::collections::HashMap;
 
-use angstrom_types::contract_payloads::tob::Asset;
-use reth_primitives::Address;
+use alloy::primitives::Address;
+
+use super::Asset;
 
 /// Lets us easily track an array of assets and indexes into that array for
 /// contract transformation purposes

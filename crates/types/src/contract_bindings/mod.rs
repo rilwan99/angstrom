@@ -1,3 +1,12 @@
+pub mod mintable_mock_erc_20 {
+    alloy::sol!(
+        #[allow(missing_docs)]
+        #[sol(rpc)]
+        MintableMockERC20,
+        "../../contracts/out/MintableMockERC20.sol/MintableMockERC20.json"
+    );
+}
+
 pub mod mock_rewards_manager {
     alloy::sol!(
         #[allow(missing_docs)]
