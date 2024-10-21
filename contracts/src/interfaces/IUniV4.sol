@@ -177,7 +177,7 @@ library IUniV4 {
         view
         returns (bool initialized)
     {
-        (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick, tickSpacing) - 1);
+        (int16 wordPos, uint8 bitPos) = TickLib.position(TickLib.compress(tick, tickSpacing));
         initialized = self.getPoolBitmapInfo(id, wordPos).isInitialized(bitPos);
     }
 
