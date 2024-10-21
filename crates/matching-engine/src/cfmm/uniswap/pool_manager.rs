@@ -270,9 +270,7 @@ where
         state_change: StateChange,
         address: Address
     ) -> Result<(), PoolManagerError> {
-        let cache = state_change_cache
-            .entry(address)
-            .or_default();
+        let cache = state_change_cache.entry(address).or_default();
         if cache.is_full() {
             cache.pop_back();
         }

@@ -36,6 +36,9 @@ serde = { workspace = true, optional = true, default-features = false, features 
 
 rand = { version = "0.8.5", optional = true }
 
+[build-dependencies]
+convert_case = "0.6.0"
+
 [dev-dependencies]
 rand.workspace = true
 

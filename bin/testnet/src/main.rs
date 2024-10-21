@@ -165,7 +165,7 @@ pub async fn spawn_testnet_node(
     )
     .await?;
     let (tx, rx) = tokio::sync::broadcast::channel(1);
-    let validator = init_validation(rpc_wrapper, rx,CACHE_VALIDATION_SIZE);
+    let validator = init_validation(rpc_wrapper, rx, CACHE_VALIDATION_SIZE);
 
     let network_handle = network.handle.clone();
 

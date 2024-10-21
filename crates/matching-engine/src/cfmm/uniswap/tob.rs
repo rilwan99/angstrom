@@ -231,8 +231,8 @@ mod test {
     use angstrom_types::{
         contract_bindings::{
             angstrom::Angstrom::PoolKey,
-            mockrewardsmanager::MockRewardsManager::MockRewardsManagerInstance,
-            poolmanager::PoolManager
+            mock_rewards_manager::MockRewardsManager::MockRewardsManagerInstance,
+            pool_manager::PoolManager
         },
         contract_payloads::tob::{Asset, MockContractMessage, PoolRewardsUpdate, RewardsUpdate},
         matching::SqrtPriceX96
@@ -483,8 +483,11 @@ mod test {
 
         for (tick, expected_reward) in tob_outcome.tick_donations.iter() {
             println!("Trying tick {}", tick);
-            let growth_call =
-                mock_tob.getGrowthInsideTick(pool_id, I24::unchecked_from(100020_i32));
+            let growth_call = mock_tob.getGrowthInsideTick(
+                pool_id,
+                I24::unchecked_from(100020_i32),
+                I24::unchecked_from(60_i32)
+            );
             let result = growth_call.call().await.unwrap();
             println!("Result for tick {}: {} - {:?}", tick, expected_reward, result._0);
         }
