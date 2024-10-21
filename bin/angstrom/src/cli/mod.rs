@@ -1,9 +1,5 @@
 //! CLI definition and entrypoint to executable
-use std::{
-    collections::HashSet,
-    path::PathBuf,
-    sync::Arc
-};
+use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
 use angstrom_metrics::{initialize_prometheus_metrics, METRICS_ENABLED};
 use angstrom_network::manager::StromConsensusEvent;
@@ -209,7 +205,11 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
         .with_consensus_manager(handles.consensus_tx_op)
         .build_handle(executor.clone(), node.provider.clone());
     let block_height = node.provider.best_block_number().unwrap();
-    let validator = init_validation(node.provider.clone(),  node.provider.subscribe_to_canonical_state(), config.validation_cache_size);
+    let validator = init_validation(
+        node.provider.clone(),
+        node.provider.subscribe_to_canonical_state(),
+        config.validation_cache_size
+    );
 
     // Create our pool config
     let pool_config = PoolConfig::default();
@@ -248,12 +248,12 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
         ManagerNetworkDeps::new(
             network_handle.clone(),
             node.provider.subscribe_to_canonical_state(),
-            handles.consensus_rx_op,
+            handles.consensus_rx_op
         ),
         signer,
         validators,
         order_storage.clone(),
-        block_height,
+        block_height
     );
 }
 

@@ -96,7 +96,9 @@ pub fn init_validation<DB: BlockStateProviderFactory + Unpin + Clone + 'static>(
         let thread_pool =
             KeySplitThreadpool::new(handle, validation_config.max_validation_per_user);
         let sim = SimValidation::new(revm_lru.clone());
-        let pool_watcher_handle = rt.block_on(async { pool_manager.watch_state_changes().await }).unwrap();
+        let pool_watcher_handle = rt
+            .block_on(async { pool_manager.watch_state_changes().await })
+            .unwrap();
         let order_validator =
             OrderValidator::new(sim, current_block, pools, fetch, pool_manager, thread_pool);
 
@@ -160,7 +162,9 @@ pub fn init_validation_tests<
             state_change_buffer,
             Arc::new(CanonicalStateAdapter::new(state_notification))
         );
-        let pool_watcher_handle = rt.block_on(async { pool_manager.watch_state_changes().await }).unwrap();
+        let pool_watcher_handle = rt
+            .block_on(async { pool_manager.watch_state_changes().await })
+            .unwrap();
         let order_validator =
             OrderValidator::new(sim, current_block, pool, state, pool_manager, thread_pool);
 

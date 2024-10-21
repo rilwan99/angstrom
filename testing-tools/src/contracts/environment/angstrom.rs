@@ -1,5 +1,5 @@
 use alloy::primitives::Address;
-use angstrom_types::contract_bindings::poolgate::PoolGate::PoolGateInstance;
+use angstrom_types::contract_bindings::pool_gate::PoolGate::PoolGateInstance;
 use tracing::debug;
 
 use super::{uniswap::TestUniswapEnv, TestAnvilEnvironment};

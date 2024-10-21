@@ -1,7 +1,7 @@
 use alloy::primitives::{aliases::I24, Address, FixedBytes, U256};
 use angstrom_types::contract_bindings::{
-    poolgate::PoolGate::{self, PoolGateInstance},
-    poolmanager::PoolManager
+    pool_gate::PoolGate::{self, PoolGateInstance},
+    pool_manager::PoolManager
 };
 use tracing::debug;
 
