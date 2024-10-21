@@ -121,7 +121,7 @@ reth-tokio-util = { git = "https://github.com/paradigmxyz/reth", version = "1.1.
 reth-node-ethereum = { git = "https://github.com/paradigmxyz/reth", version = "1.1.0", tag = "v1.1.0" }
 
 # alloy
-alloy = { version = "0.3", features = [
+alloy = { version = "0.4.2", features = [
   "full",
   "rlp",
   "eip712",
