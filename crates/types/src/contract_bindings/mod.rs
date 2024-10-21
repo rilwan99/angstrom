@@ -1,4 +1,4 @@
-pub mod PoolManager {
+pub mod pool_manager {
     alloy::sol!(
         #[allow(missing_docs)]
         #[sol(rpc)]
@@ -6,7 +6,8 @@ pub mod PoolManager {
         "../../contracts/out/PoolManager.sol/PoolManager.json"
     );
 }
-pub mod MockRewardsManager {
+
+pub mod mock_rewards_manager {
     alloy::sol!(
         #[allow(missing_docs)]
         #[sol(rpc)]
@@ -14,7 +15,8 @@ pub mod MockRewardsManager {
         "../../contracts/out/MockRewardsManager.sol/MockRewardsManager.json"
     );
 }
-pub mod Angstrom {
+
+pub mod angstrom {
     alloy::sol!(
         #[allow(missing_docs)]
         #[sol(rpc)]
@@ -22,7 +24,8 @@ pub mod Angstrom {
         "../../contracts/out/Angstrom.sol/Angstrom.json"
     );
 }
-pub mod PoolGate {
+
+pub mod pool_gate {
     alloy::sol!(
         #[allow(missing_docs)]
         #[sol(rpc)]
@@ -30,3 +33,4 @@ pub mod PoolGate {
         "../../contracts/out/PoolGate.sol/PoolGate.json"
     );
 }
+

@@ -1,5 +1,7 @@
 use std::{io::Write, os::unix::process::ExitStatusExt, process::Command};
 
+use convert_case::{Case, Casing};
+
 const CONTRACT_LOCATION: &str = "../../contracts/";
 const OUT_DIRECTORY: &str = "../../contracts/out/";
 const BINDINGS_PATH: &str = "./src/contract_bindings/mod.rs";
@@ -36,15 +38,17 @@ fn main() {
             Some((raw, path.to_str()?.to_owned()))
         })
         .map(|(name, path_of_contracts)| {
+            let mod_name = name.clone().to_case(Case::Snake);
             format!(
-                r#"pub mod {name} {{
+                r#"pub mod {mod_name} {{
     alloy::sol!(
         #[allow(missing_docs)]
         #[sol(rpc)]
         {name},
         "{path_of_contracts}"
     );
-}}"#
+}}
+"#
             )
         })
         .collect::<Vec<_>>();
