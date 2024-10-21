@@ -134,7 +134,7 @@ async fn test_broadcast_consensus_propagation() {
 
     let sk = blsful::SecretKey::random(&mut thread_rng());
 
-    for _ in 0..3 {
+    for i in 0..3 {
         // commits
         let commit = generate_random_commit(&sk);
         let delay_seconds = 6;
@@ -142,9 +142,9 @@ async fn test_broadcast_consensus_propagation() {
         let res = tokio::time::timeout(
             Duration::from_secs(delay_seconds),
             testnet.broadcast_consensus_message(
-                Some(0),
+                Some(i),
                 StromMessage::Commit(commit.clone()),
-                StromConsensusEvent::Commit(testnet.get_peer(0).peer_id(), commit)
+                StromConsensusEvent::Commit(testnet.get_peer(i).peer_id(), commit)
             )
         )
         .await;
@@ -167,9 +167,9 @@ async fn test_broadcast_consensus_propagation() {
         let res = tokio::time::timeout(
             Duration::from_secs(delay_seconds),
             testnet.broadcast_consensus_message(
-                Some(1),
+                Some(i),
                 StromMessage::PrePropose(preposal.clone()),
-                StromConsensusEvent::PreProposal(testnet.get_peer(1).peer_id(), preposal)
+                StromConsensusEvent::PreProposal(testnet.get_peer(i).peer_id(), preposal)
             )
         )
         .await;
@@ -189,9 +189,9 @@ async fn test_broadcast_consensus_propagation() {
         let res = tokio::time::timeout(
             Duration::from_secs(delay_seconds),
             testnet.broadcast_consensus_message(
-                Some(2),
+                Some(i),
                 StromMessage::Propose(proposal.clone()),
-                StromConsensusEvent::Proposal(testnet.get_peer(2).peer_id(), proposal)
+                StromConsensusEvent::Proposal(testnet.get_peer(i).peer_id(), proposal)
             )
         )
         .await;
