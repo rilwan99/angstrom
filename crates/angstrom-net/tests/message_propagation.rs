@@ -173,7 +173,12 @@ async fn test_broadcast_consensus_propagation() {
             )
         )
         .await;
-        assert_eq!(res, Ok(true), "failed to receive and react to preposal within 1 second");
+        assert_eq!(
+            res,
+            Ok(true),
+            "failed to receive and react to preposal within {delay_seconds} second{}",
+            if delay_seconds == 1 { "" } else { "s" }
+        );
 
         // proposals
         let proposal = ProposalBuilder::new()
@@ -190,7 +195,12 @@ async fn test_broadcast_consensus_propagation() {
             )
         )
         .await;
-        assert_eq!(res, Ok(true), "failed to receive and react to preposal within 1 second");
+        assert_eq!(
+            res,
+            Ok(true),
+            "failed to receive and react to preposal within {delay_seconds} second{}",
+            if delay_seconds == 1 { "" } else { "s" }
+        );
     }
 }
 
