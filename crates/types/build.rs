@@ -20,7 +20,7 @@ fn main() {
         .unwrap();
 
     if res.into_raw() != 0 {
-        panic!("foundry is not installed on this machine.");
+        panic!("foundry is not installed on this machine.\n https://book.getfoundry.sh/getting-started/installation go to here to install");
     }
 
     let sol_macro_invocation = std::fs::read_dir(OUT_DIRECTORY)
