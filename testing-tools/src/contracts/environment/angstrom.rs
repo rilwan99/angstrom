@@ -1,9 +1,9 @@
 use alloy::primitives::Address;
-use angstrom_types::contract_bindings::{angstrom::Angstrom, poolgate::PoolGate::PoolGateInstance};
+use angstrom_types::contract_bindings::poolgate::PoolGate::PoolGateInstance;
 use tracing::debug;
 
 use super::{uniswap::TestUniswapEnv, TestAnvilEnvironment};
-use crate::contracts::DebugTransaction;
+use crate::contracts::{deploy::angstrom::deploy_angstrom, DebugTransaction};
 
 pub trait TestAngstromEnv: TestAnvilEnvironment {
     fn angstrom(&self) -> Address;
@@ -21,14 +21,13 @@ where
     pub async fn new(inner: E) -> eyre::Result<Self> {
         let provider = inner.provider();
         debug!("Deploying mock rewards manager...");
-        let angstrom = *Angstrom::deploy(
+        let angstrom = deploy_angstrom(
             &provider,
             inner.pool_manager(),
             inner.controller(),
-            inner.controller()
+            Address::default()
         )
-        .await?
-        .address();
+        .await;
         debug!("Angstrom deployed at: {}", angstrom);
         // Set the PoolGate's hook to be our Mock
         debug!("Setting PoolGate hook...");
@@ -40,5 +39,22 @@ where
             .await?;
         debug!("Environment deploy complete!");
         Ok(Self { inner, angstrom })
+    }
+
+    pub fn angstrom(&self) -> Address {
+        self.angstrom
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AngstromEnv;
+    use crate::contracts::environment::{uniswap::UniswapEnv, SpawnedAnvil};
+
+    #[tokio::test]
+    async fn can_be_constructed() {
+        let anvil = SpawnedAnvil::new().await.unwrap();
+        let uniswap = UniswapEnv::new(anvil).await.unwrap();
+        AngstromEnv::new(uniswap).await.unwrap();
     }
 }

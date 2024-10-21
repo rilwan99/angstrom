@@ -187,3 +187,16 @@ where
         self.mock_reward
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::MockRewardEnv;
+    use crate::contracts::environment::{uniswap::UniswapEnv, SpawnedAnvil};
+
+    #[tokio::test]
+    async fn can_be_constructed() {
+        let anvil = SpawnedAnvil::new().await.unwrap();
+        let uniswap = UniswapEnv::new(anvil).await.unwrap();
+        MockRewardEnv::new(uniswap).await.unwrap();
+    }
+}

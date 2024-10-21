@@ -17,6 +17,8 @@ use angstrom_types::{
 use rand::{rngs::ThreadRng, Rng};
 use rand_distr::{num_traits::ToPrimitive, Distribution, SkewNormal};
 
+// mod stored;
+
 // fn build_priority_data(order: &GroupedVanillaOrder) -> OrderPriorityData {
 //     OrderPriorityData { price: order.price().into(), volume: order.quantity()
 // as u128, gas: 10 } }
@@ -292,6 +294,7 @@ pub fn generate_top_of_block_order(
         .order_hash(order.order_hash())
         .build();
     // Todo: Sign It, make this overall better
+    // StoredOrderBuilder::new(order).is_bid(is_bid).valid_block(valid_block).pool_id(pool_id).build();
     OrderWithStorageData {
         invalidates: vec![],
         order,

@@ -349,5 +349,7 @@ mod test {
     }
 
     #[test]
-    fn can_be_cretaed_from_proposal() {}
+    fn can_be_cretaed_from_proposal() {
+        // AngstromBundle::from_proposal(proposal, pools);
+    }
 }
