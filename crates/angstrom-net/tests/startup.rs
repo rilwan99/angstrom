@@ -1,8 +1,9 @@
+/*
 use std::time::Duration;
 
 use reth_provider::test_utils::NoopProvider;
 
-/*
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn test_startup() {
     reth_tracing::init_test_tracing();

@@ -10,16 +10,16 @@ use futures::StreamExt;
 use jsonrpsee::server::ServerBuilder;
 use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_tasks::TokioTaskExecutor;
-use validation::init_validation;
 
 use super::config::AngstromTestnetConfig;
 use crate::{
     anvil_state_provider::{
-        utils::{StromContractInstance, CACHE_VALIDATION_SIZE},
-        AnvilEthDataCleanser, RpcStateProviderFactoryWrapper
+        utils::StromContractInstance, AnvilEthDataCleanser, RpcStateProviderFactory,
+        RpcStateProviderFactoryWrapper
     },
     contracts::deploy_contract_and_create_pool,
-    types::SendingStromHandles
+    types::SendingStromHandles,
+    validation::TestOrderValidator
 };
 
 pub struct AngstromTestnetNodeInternals {
@@ -28,7 +28,8 @@ pub struct AngstromTestnetNodeInternals {
     pub order_storage:    Arc<OrderStorage>,
     pub pool_handle:      PoolHandle,
     pub tx_strom_handles: SendingStromHandles,
-    pub testnet_hub:      StromContractInstance
+    pub testnet_hub:      StromContractInstance,
+    pub validator:        TestOrderValidator<RpcStateProviderFactory>
 }
 
 impl AngstromTestnetNodeInternals {
@@ -95,14 +96,17 @@ impl AngstromTestnetNodeInternals {
         )
         .await?;
 
-        let (_, rx) = tokio::sync::broadcast::channel(1000);
-        let validator = init_validation(state_provider.provider(), rx, CACHE_VALIDATION_SIZE);
+        // let (_, rx) = tokio::sync::broadcast::channel(1000);
+        //let validator = init_validation(state_provider.provider(), rx,
+        // CACHE_VALIDATION_SIZE);
+
+        let validator = TestOrderValidator::new(state_provider.provider());
 
         let pool_config = PoolConfig::default();
         let order_storage = Arc::new(OrderStorage::new(&pool_config));
 
         let pool_handle = PoolManagerBuilder::new(
-            validator.clone(),
+            validator.client.clone(),
             Some(order_storage.clone()),
             strom_network_handle.clone(),
             eth_handle.subscribe_network(),
@@ -137,7 +141,8 @@ impl AngstromTestnetNodeInternals {
             order_storage,
             pool_handle,
             tx_strom_handles,
-            testnet_hub
+            testnet_hub,
+            validator
         })
     }
 }
