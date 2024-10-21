@@ -34,6 +34,7 @@ library UserOrderBufferLib {
     uint256 internal constant FLASH_ORDER_BYTES = 384;
 
     uint256 internal constant VARIANT_MAP_BYTES = 1;
+    /// @dev Destination offset for direct calldatacopy of 4-byte ref ID (therefore not word aligned).
     uint256 internal constant REF_ID_MEM_OFFSET = 0x3c;
     uint256 internal constant REF_ID_BYTES = 4;
 
