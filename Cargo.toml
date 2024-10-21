@@ -177,6 +177,8 @@ alloy-pubsub = { version = "0.4.2", default-features = false }
 alloy-json-rpc = { version = "0.4.2", default-features = false }
 alloy-rpc-client = { version = "0.4.2", default-features = false }
 
+aws-sdk-kms = "1.43.0"
+
 
 
 # Uniswap math helpers
@@ -245,7 +247,7 @@ pprof = "0.13"
 proptest = "1.0"
 proptest-derive = "0.4"
 serial_test = "3.0.0"
-aws-sdk-kms = { version = "0.0.26-alpha" }
+
 
 [patch.crates-io]
 blstrs_plus = { git = "https://github.com/JamesHinshelwood/blstrs", branch = "update-blst" }
