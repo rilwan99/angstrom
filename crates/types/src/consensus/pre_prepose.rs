@@ -1,6 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
-    hash::{Hash, Hasher}
+    hash::Hash
 };
 
 use alloy::primitives::{keccak256, BlockNumber};
