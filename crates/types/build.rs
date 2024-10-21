@@ -27,12 +27,12 @@ fn main() {
         .arg("build")
         .current_dir(contract_dir)
         .spawn()
-        .unwrap()
+        .expect("foundry is not installed on this machine.\n https://book.getfoundry.sh/getting-started/installation go to here to install")
         .wait()
         .unwrap();
 
     if res.into_raw() != 0 {
-        panic!("foundry is not installed on this machine.\n https://book.getfoundry.sh/getting-started/installation go to here to install");
+        panic!("foundry failed to build files");
     }
 
     let sol_macro_invocation = std::fs::read_dir(out_dir)
