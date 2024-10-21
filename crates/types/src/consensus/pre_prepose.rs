@@ -1,14 +1,13 @@
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 
 use alloy::primitives::{keccak256, BlockNumber};
 use bytes::Bytes;
-use reth_network_peers::PeerId;
 use secp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     orders::OrderSet,
-    primitive::Signature,
+    primitive::{PeerId, Signature},
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
         rpc_orders::TopOfBlockOrder

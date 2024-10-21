@@ -2,8 +2,8 @@ use alloy::{
     primitives::{Address, Bytes, B256},
     sol
 };
+use alloy_primitives::keccak256;
 use pade_macro::{PadeDecode, PadeEncode};
-use reth_primitives::keccak256;
 use serde::{Deserialize, Serialize};
 
 use crate::{

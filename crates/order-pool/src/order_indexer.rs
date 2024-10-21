@@ -6,7 +6,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH}
 };
 
-use alloy::primitives::{B256, U256};
+use alloy::primitives::{Address, BlockNumber, B256, U256};
 use angstrom_types::{
     orders::{OrderId, OrderOrigin, OrderSet},
     primitive::{NewInitializedPool, PoolId},
@@ -17,8 +17,7 @@ use angstrom_types::{
     }
 };
 use futures_util::{Stream, StreamExt};
-use reth_network_peers::PeerId;
-use reth_primitives::{Address, BlockNumber};
+use angstrom_types::primitive::PeerId;
 use tokio::sync::oneshot::Sender;
 use tracing::{error, trace};
 use validation::order::{
