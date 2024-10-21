@@ -122,7 +122,7 @@ abstract contract Settlement is UniConsumer {
         uint256 amount = amountIn.into();
         bundleDeltas.add(asset, amount);
         if (useInternal) {
-            _balances[from][asset] -= amount;
+            _balances[asset][from] -= amount;
         } else {
             asset.safeTransferFrom(from, address(this), amount);
         }
@@ -134,7 +134,7 @@ abstract contract Settlement is UniConsumer {
         uint256 amount = amountOut.into();
         bundleDeltas.sub(asset, amount);
         if (useInternal) {
-            _balances[to][asset] += amount;
+            _balances[asset][to] += amount;
         } else {
             asset.safeTransfer(to, amount);
         }
