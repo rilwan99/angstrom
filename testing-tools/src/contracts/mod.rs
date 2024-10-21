@@ -3,7 +3,7 @@ use alloy::{
     primitives::{address, keccak256, Address, Bytes, B256, U160, U256},
     sol_types::SolValue
 };
-use angstrom_types::contract_bindings::mockrewardsmanager::MockRewardsManager;
+use angstrom_types::contract_bindings::mock_rewards_manager::MockRewardsManager;
 
 const CREATE2_FACTORY: Address = address!("4e59b44847b379578588920cA78FbF26c0B4956C");
 
@@ -28,7 +28,7 @@ pub fn mine_address_with_factory(
         let target_address: Address = create2_factory.create2(B256::from(salt), init_code_hash);
         let u_address: U160 = target_address.into();
         if (u_address & mask) == flags {
-            break;
+            break
         }
         salt += U256::from(1_u8);
         counter += 1;
@@ -59,7 +59,8 @@ where {
     let flags = before_swap | before_initialize | before_add_liquidity | after_remove_liquidity;
     let mask: U160 = (U160::from(1_u8) << 14) - U160::from(1_u8);
 
-    let mock_builder = MockRewardsManager::deploy_builder(&provider, pool_manager);
+    let mock_builder =
+        MockRewardsManager::deploy_builder(&provider, pool_manager, Address::default());
     let (mock_tob, salt) = mine_address(flags, mask, mock_builder.calldata());
     let final_mock_initcode = [salt.abi_encode(), mock_builder.calldata().to_vec()].concat();
     let raw_deploy = RawCallBuilder::new_raw_deploy(&provider, final_mock_initcode.into());

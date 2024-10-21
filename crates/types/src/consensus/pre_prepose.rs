@@ -1,9 +1,10 @@
+use std::hash::{Hash, Hasher};
+
 use alloy::primitives::{keccak256, BlockNumber};
 use bytes::Bytes;
 use reth_network_peers::PeerId;
 use secp256k1::SecretKey;
 use serde::{Deserialize, Serialize};
-use std::hash::{Hash, Hasher};
 
 use crate::{
     orders::OrderSet,
