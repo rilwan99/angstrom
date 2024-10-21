@@ -245,6 +245,7 @@ pprof = "0.13"
 proptest = "1.0"
 proptest-derive = "0.4"
 serial_test = "3.0.0"
+aws-sdk-kms = "1.45.0"
 
 [patch.crates-io]
 blstrs_plus = { git = "https://github.com/JamesHinshelwood/blstrs", branch = "update-blst" }
