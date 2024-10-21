@@ -2,7 +2,6 @@
 members = [
   "bin/angstrom",
   "bin/testnet",
-  "bin/contract_test",
   "crates/angstrom-net",
   "crates/consensus",
   "crates/types",
@@ -15,7 +14,7 @@ members = [
   "crates/matching-engine",
   "crates/pade",
   "crates/pade-macro",
-  "crates/metrics", "bin/contract_test",
+  "crates/metrics"
 ]
 
 
