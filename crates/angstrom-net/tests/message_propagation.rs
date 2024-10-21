@@ -143,7 +143,7 @@ async fn test_broadcast_consensus_propagation() {
             Duration::from_secs(delay_seconds),
             testnet.broadcast_consensus_message(
                 Some(0),
-                StromMessage::Commit(commit),
+                StromMessage::Commit(commit.clone()),
                 StromConsensusEvent::Commit(testnet.get_peer(0).peer_id(), commit)
             )
         )
@@ -168,7 +168,7 @@ async fn test_broadcast_consensus_propagation() {
             Duration::from_secs(1),
             testnet.broadcast_consensus_message(
                 Some(1),
-                StromMessage::PrePropose(preposal),
+                StromMessage::PrePropose(preposal.clone()),
                 StromConsensusEvent::PreProposal(testnet.get_peer(1).peer_id(), preposal)
             )
         )
@@ -185,7 +185,7 @@ async fn test_broadcast_consensus_propagation() {
             Duration::from_secs(1),
             testnet.broadcast_consensus_message(
                 Some(2),
-                StromMessage::Propose(proposal),
+                StromMessage::Propose(proposal.clone()),
                 StromConsensusEvent::Proposal(testnet.get_peer(2).peer_id(), proposal)
             )
         )
