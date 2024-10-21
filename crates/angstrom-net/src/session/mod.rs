@@ -25,7 +25,7 @@ pub use connection_handler::*;
 use futures::task::Poll;
 use reth_eth_wire::DisconnectReason;
 use reth_network::Direction;
-use reth_network_peers::PeerId;
+use angstrom_types::primitive::PeerId;
 use tracing::warn;
 
 use crate::{errors::StromStreamError, PeerKind, StromMessage, StromProtocolMessage};

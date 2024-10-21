@@ -1,11 +1,11 @@
 #[derive(Debug, Clone, Copy, Default)]
-pub struct StromTestnetConfig {
+pub struct AngstromTestnetConfig {
     pub intial_node_count:       u64,
     pub initial_rpc_port:        u16,
     pub testnet_block_time_secs: u64
 }
 
-impl StromTestnetConfig {
+impl AngstromTestnetConfig {
     pub fn new(
         intial_node_count: u64,
         initial_rpc_port: u16,

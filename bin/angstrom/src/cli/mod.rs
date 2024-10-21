@@ -1,9 +1,5 @@
 //! CLI definition and entrypoint to executable
-use std::{
-    collections::HashSet,
-    path::PathBuf,
-    sync::{Arc, Mutex}
-};
+use std::{collections::HashSet, path::PathBuf, sync::Arc};
 
 use alloy_primitives::Address;
 use angstrom_metrics::{initialize_prometheus_metrics, METRICS_ENABLED};
@@ -29,16 +25,13 @@ use angstrom_network::{
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
 use angstrom_types::primitive::PeerId;
 use clap::Parser;
-use consensus::{
-    AngstromValidator, ConsensusCommand, ConsensusHandle, ConsensusManager, GlobalConsensusState,
-    ManagerNetworkDeps, Signer
-};
+use consensus::{AngstromValidator, ConsensusManager, ManagerNetworkDeps, Signer};
 use reth::{
     api::NodeAddOns,
-    args::utils::EthereumChainSpecParser,
     builder::{FullNodeComponents, Node},
+    chainspec::EthereumChainSpecParser,
     cli::Cli,
-    providers::CanonStateSubscriptions,
+    providers::{BlockNumReader, CanonStateSubscriptions},
     tasks::TaskExecutor
 };
 use reth_cli_util::get_secret_key;
@@ -80,7 +73,7 @@ pub fn run() -> eyre::Result<()> {
                     .components_builder()
                     .network(AngstromNetworkBuilder::new(protocol_handle))
             )
-            .with_add_ons::<EthereumAddOns>()
+            .with_add_ons::<EthereumAddOns>(Default::default())
             .extend_rpc_modules(move |rpc_context| {
                 let order_api = OrderApi::new(pool.clone(), executor_clone);
                 // let quotes_api = QuotesApi { pool: pool.clone() };
@@ -144,8 +137,8 @@ pub struct StromHandles {
 
     pub pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>,
 
-    pub consensus_tx:    Sender<ConsensusCommand>,
-    pub consensus_rx:    Receiver<ConsensusCommand>,
+    // pub consensus_tx:    Sender<ConsensusCommand>,
+    // pub consensus_rx:    Receiver<ConsensusCommand>,
     pub consensus_tx_op: UnboundedMeteredSender<StromConsensusEvent>,
     pub consensus_rx_op: UnboundedMeteredReceiver<StromConsensusEvent>
 }
@@ -158,15 +151,15 @@ impl StromHandles {
         }
     }
 
-    pub fn get_consensus_handle(&self) -> ConsensusHandle {
-        ConsensusHandle { sender: self.consensus_tx.clone() }
-    }
+    // pub fn get_consensus_handle(&self) -> ConsensusHandle {
+    //     ConsensusHandle { sender: self.consensus_tx.clone() }
+    // }
 }
 
 pub fn initialize_strom_handles() -> StromHandles {
     let (eth_tx, eth_rx) = channel(100);
     let (pool_manager_tx, _) = tokio::sync::broadcast::channel(100);
-    let (consensus_tx, consensus_rx) = channel(100);
+    // let (consensus_tx, consensus_rx) = channel(100);
     let (pool_tx, pool_rx) = reth_metrics::common::mpsc::metered_unbounded_channel("orderpool");
     let (orderpool_tx, orderpool_rx) = unbounded_channel();
     let (consensus_tx_op, consensus_rx_op) =
@@ -180,8 +173,8 @@ pub fn initialize_strom_handles() -> StromHandles {
         orderpool_tx,
         pool_manager_tx,
         orderpool_rx,
-        consensus_tx,
-        consensus_rx,
+        // consensus_tx,
+        // consensus_rx,
         consensus_tx_op,
         consensus_rx_op
     }
@@ -211,8 +204,12 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
         .with_pool_manager(handles.pool_tx)
         .with_consensus_manager(handles.consensus_tx_op)
         .build_handle(executor.clone(), node.provider.clone());
-
-    let validator = init_validation(node.provider.clone(), config.validation_cache_size);
+    let block_height = node.provider.best_block_number().unwrap();
+    let validator = init_validation(
+        node.provider.clone(),
+        node.provider.subscribe_to_canonical_state(),
+        config.validation_cache_size
+    );
 
     // Create our pool config
     let pool_config = PoolConfig::default();
@@ -239,7 +236,6 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
 
     let signer = Signer::new(secret_key);
 
-    let global_consensus_state = Arc::new(Mutex::new(GlobalConsensusState::default()));
     // TODO load the stakes from Eigen using node.provider
     // list of PeerIds will be known upfront on the first version
     let validators = vec![
@@ -249,18 +245,15 @@ pub fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeAddOns<
     ];
     let _consensus_handle = ConsensusManager::spawn(
         executor.clone(),
-        global_consensus_state,
         ManagerNetworkDeps::new(
             network_handle.clone(),
             node.provider.subscribe_to_canonical_state(),
-            handles.consensus_rx_op,
-            handles.consensus_tx,
-            handles.consensus_rx
+            handles.consensus_rx_op
         ),
         signer,
         validators,
         order_storage.clone(),
-        None
+        block_height
     );
 }
 

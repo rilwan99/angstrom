@@ -1,6 +1,6 @@
 use clap::{ArgAction, Parser};
-use testing_tools::testnet_controllers::config::StromTestnetConfig;
-use tracing::{level_filters::LevelFilter, Level};
+use testing_tools::testnet_controllers::config::AngstromTestnetConfig;
+use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 
 #[derive(Parser)]
@@ -36,11 +36,11 @@ pub struct Cli {
 }
 
 impl Cli {
-    pub fn build_config() -> StromTestnetConfig {
+    pub fn build_config() -> AngstromTestnetConfig {
         let this = Self::parse();
         this.init_tracing();
 
-        StromTestnetConfig {
+        AngstromTestnetConfig {
             intial_node_count:       this.nodes_in_network,
             initial_rpc_port:        this.starting_port,
             testnet_block_time_secs: this.testnet_block_time_secs

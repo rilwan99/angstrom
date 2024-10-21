@@ -2,7 +2,10 @@ use std::{
     future::{poll_fn, Future},
     path::Path,
     pin::Pin,
-    sync::{atomic::AtomicU64, Arc},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc
+    },
     task::Poll,
     time::Duration
 };
@@ -10,7 +13,11 @@ use std::{
 use alloy_primitives::{Address, U256};
 use angstrom_utils::key_split_threadpool::KeySplitThreadpool;
 use futures::FutureExt;
-use reth_provider::StateProviderFactory;
+use matching_engine::cfmm::uniswap::{
+    pool_manager::UniswapPoolManager,
+    pool_providers::{canonical_state_adapter::CanonicalStateAdapter, PoolManagerProvider}
+};
+use reth_provider::{CanonStateNotification, CanonStateNotifications, StateProviderFactory};
 use tokio::sync::mpsc::unbounded_channel;
 use validation::{
     common::lru_db::RevmLRU,
@@ -26,6 +33,8 @@ use validation::{
     validator::{ValidationClient, Validator}
 };
 
+use crate::Provider;
+
 type ValidatorOperation<DB, T> =
     dyn FnOnce(
         TestOrderValidator<DB>,
@@ -37,7 +46,7 @@ pub struct TestOrderValidator<DB: StateProviderFactory + Clone + Unpin + 'static
     pub revm_lru:   Arc<RevmLRU<DB>>,
     pub config:     ValidationConfig,
     pub client:     ValidationClient,
-    pub underlying: Validator<DB, AngstromPoolsTracker, FetchUtils<DB>>
+    pub underlying: Validator<DB, AngstromPoolsTracker, FetchUtils<DB>, CanonicalStateAdapter>
 }
 
 impl<DB: StateProviderFactory + Clone + Unpin + 'static> TestOrderValidator<DB> {
@@ -57,7 +66,20 @@ impl<DB: StateProviderFactory + Clone + Unpin + 'static> TestOrderValidator<DB> 
         let thread_pool =
             KeySplitThreadpool::new(handle, validation_config.max_validation_per_user);
         let sim = SimValidation::new(revm_lru.clone());
-        let order_validator = OrderValidator::new(sim, current_block, pools, fetch, thread_pool);
+        let (_, state_notification) =
+            tokio::sync::broadcast::channel::<CanonStateNotification>(100);
+
+        let pool_manager = UniswapPoolManager::new(
+            vec![],
+            current_block.load(Ordering::SeqCst),
+            100,
+            Arc::new(CanonicalStateAdapter::new(state_notification))
+        );
+        // TODO: block on it
+        // let pool_watcher_handle = rt.block_on(async {
+        // pool_manager.watch_state_changes().await }).unwrap();
+        let order_validator =
+            OrderValidator::new(sim, current_block, pools, fetch, pool_manager, thread_pool);
         let val = Validator::new(rx, order_validator);
         let client = ValidationClient(tx);
 

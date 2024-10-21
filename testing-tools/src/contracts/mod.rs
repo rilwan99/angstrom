@@ -7,7 +7,7 @@ use alloy::{
     sol_types::SolValue
 };
 use angstrom_types::{
-    contract_bindings::mockrewardsmanager::MockRewardsManager,
+    contract_bindings::mock_rewards_manager::MockRewardsManager,
     sol_bindings::testnet::{MockERC20, PoolManagerDeployer, TestnetHub}
 };
 use futures::Future;
@@ -38,7 +38,7 @@ pub fn mine_address_with_factory(
         let target_address: Address = create2_factory.create2(B256::from(salt), init_code_hash);
         let u_address: U160 = target_address.into();
         if (u_address & mask) == flags {
-            break;
+            break
         }
         salt += U256::from(1_u8);
         counter += 1;
@@ -69,7 +69,8 @@ where {
     let flags = before_swap | before_initialize | before_add_liquidity | after_remove_liquidity;
     let mask: U160 = (U160::from(1_u8) << 14) - U160::from(1_u8);
 
-    let mock_builder = MockRewardsManager::deploy_builder(&provider, pool_manager);
+    let mock_builder =
+        MockRewardsManager::deploy_builder(&provider, pool_manager, Address::default());
     let (mock_tob, salt) = mine_address(flags, mask, mock_builder.calldata());
     let final_mock_initcode = [salt.abi_encode(), mock_builder.calldata().to_vec()].concat();
     let raw_deploy = RawCallBuilder::new_raw_deploy(&provider, final_mock_initcode.into());

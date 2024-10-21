@@ -2,21 +2,22 @@ use std::time::Duration;
 
 use angstrom_network::StromMessage;
 use reth_provider::test_utils::NoopProvider;
-use testing_tools::testnet_controllers::StromTestnet;
+use testing_tools::testnet_controllers::AngstromTestnet;
 use testnet::cli::Cli;
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> eyre::Result<()> {
     let config = Cli::build_config();
 
-    let network_controller = StromTestnet::spawn_testnet(NoopProvider::default(), config).await?;
+    let network_controller =
+        AngstromTestnet::spawn_testnet(NoopProvider::default(), config).await?;
 
     send_bundles(network_controller).await?;
 
     Ok(())
 }
 
-async fn do_thing(network_controller: StromTestnet<NoopProvider>) -> eyre::Result<()> {
+async fn do_thing(network_controller: AngstromTestnet<NoopProvider>) -> eyre::Result<()> {
     loop {
         tokio::time::sleep(Duration::from_secs(11)).await;
         network_controller
@@ -26,7 +27,7 @@ async fn do_thing(network_controller: StromTestnet<NoopProvider>) -> eyre::Resul
     }
 }
 
-async fn send_bundles(mut network_controller: StromTestnet<NoopProvider>) -> eyre::Result<()> {
+async fn send_bundles(mut network_controller: AngstromTestnet<NoopProvider>) -> eyre::Result<()> {
     loop {
         tokio::time::sleep(Duration::from_secs(11)).await;
         let orders = vec![];
@@ -45,7 +46,7 @@ async fn send_bundles(mut network_controller: StromTestnet<NoopProvider>) -> eyr
 }
 
 async fn send_consensus_message(
-    mut network_controller: StromTestnet<NoopProvider>
+    mut network_controller: AngstromTestnet<NoopProvider>
 ) -> eyre::Result<()> {
     loop {
         tokio::time::sleep(Duration::from_secs(11)).await;

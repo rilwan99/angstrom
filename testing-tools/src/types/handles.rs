@@ -5,7 +5,7 @@ use angstrom_network::{
     pool_manager::{OrderCommand, PoolHandle},
     NetworkOrderEvent
 };
-use consensus::ConsensusCommand;
+use consensus::ConsensusMessage;
 use order_pool::PoolManagerUpdate;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
 use tokio::sync::mpsc::{Sender, UnboundedSender};
@@ -16,7 +16,7 @@ pub struct SendingStromHandles {
     pub network_tx:      UnboundedMeteredSender<NetworkOrderEvent>,
     pub orderpool_tx:    UnboundedSender<OrderCommand>,
     pub pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>,
-    pub consensus_tx:    Sender<ConsensusCommand>,
+    // pub consensus_tx:    Sender<ConsensusMessage>,
     pub consensus_tx_op: UnboundedMeteredSender<StromConsensusEvent>
 }
 
@@ -36,7 +36,7 @@ impl From<&StromHandles> for SendingStromHandles {
             network_tx:      value.pool_tx.clone(),
             orderpool_tx:    value.orderpool_tx.clone(),
             pool_manager_tx: value.pool_manager_tx.clone(),
-            consensus_tx:    value.consensus_tx.clone(),
+            // consensus_tx:    value.consensus_tx.clone(),
             consensus_tx_op: value.consensus_tx_op.clone()
         }
     }

@@ -9,7 +9,7 @@ use angstrom_network::{
     manager::StromConsensusEvent, NetworkOrderEvent, StromMessage, StromNetworkManager
 };
 use angstrom_types::sol_bindings::grouped_orders::AllOrders;
-use config::StromTestnetConfig;
+use config::AngstromTestnetConfig;
 use futures::StreamExt;
 use node::TestnetNode;
 use rand::Rng;
@@ -27,15 +27,15 @@ pub mod node;
 pub mod strom_internals;
 
 #[derive(Default)]
-pub struct StromTestnet<C> {
+pub struct AngstromTestnet<C> {
     peers:               HashMap<u64, TestnetNode<C>>,
     disconnected_peers:  HashSet<u64>,
     dropped_peers:       HashSet<u64>,
     current_max_peer_id: u64,
-    config:              StromTestnetConfig
+    config:              AngstromTestnetConfig
 }
 
-impl<C> StromTestnet<C>
+impl<C> AngstromTestnet<C>
 where
     C: BlockReader
         + HeaderProvider
@@ -45,7 +45,7 @@ where
         + ChainSpecProvider<ChainSpec: Hardforks>
         + 'static
 {
-    pub async fn spawn_testnet(c: C, config: StromTestnetConfig) -> eyre::Result<Self> {
+    pub async fn spawn_testnet(c: C, config: AngstromTestnetConfig) -> eyre::Result<Self> {
         let mut this = Self {
             peers: Default::default(),
             disconnected_peers: HashSet::new(),

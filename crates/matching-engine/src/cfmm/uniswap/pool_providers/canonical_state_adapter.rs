@@ -1,8 +1,9 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use alloy::{
+    eips::BlockNumberOrTag,
     primitives::Log,
-    rpc::types::{BlockNumberOrTag, Filter, FilterBlockOption}
+    rpc::types::{Filter, FilterBlockOption}
 };
 use futures_util::StreamExt;
 use reth_provider::CanonStateNotification;

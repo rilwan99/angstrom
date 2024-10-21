@@ -6,7 +6,7 @@ use std::{
     time::Instant
 };
 
-use alloy::primitives::{FixedBytes, B256};
+use alloy::primitives::{BlockNumber, FixedBytes, B256};
 use angstrom_metrics::OrderStorageMetricsWrapper;
 use angstrom_types::{
     orders::{OrderId, OrderLocation, OrderSet},
@@ -129,6 +129,33 @@ impl OrderStorage {
             });
     }
 
+    pub fn top_tob_order_for_pool(
+        &self,
+        pool_id: &PoolId
+    ) -> Option<OrderWithStorageData<TopOfBlockOrder>> {
+        self.searcher_orders
+            .lock()
+            .expect("lock poisoned")
+            .get_orders_for_pool(pool_id)
+            .expect(&format!("pool {} does not exist", pool_id))
+            .iter()
+            .max_by_key(|order| order.tob_reward)
+            .cloned()
+    }
+
+    pub fn top_tob_orders(&self) -> Vec<OrderWithStorageData<TopOfBlockOrder>> {
+        let mut top_orders = Vec::new();
+        let searcher_orders = self.searcher_orders.lock().expect("lock poisoned");
+
+        for pool_id in searcher_orders.get_all_pool_ids() {
+            if let Some(top_order) = self.top_tob_order_for_pool(&pool_id) {
+                top_orders.push(top_order);
+            }
+        }
+
+        top_orders
+    }
+
     pub fn add_new_limit_order(
         &self,
         order: OrderWithStorageData<GroupedUserOrder>
@@ -180,7 +207,7 @@ impl OrderStorage {
 
     pub fn add_filled_orders(
         &self,
-        block_number: u64,
+        block_number: BlockNumber,
         orders: Vec<OrderWithStorageData<AllOrders>>
     ) {
         let num_orders = orders.len();
@@ -192,7 +219,7 @@ impl OrderStorage {
         self.metrics.incr_pending_finalization_orders(num_orders);
     }
 
-    pub fn finalized_block(&self, block_number: u64) {
+    pub fn finalized_block(&self, block_number: BlockNumber) {
         let orders = self
             .pending_finalization_orders
             .lock()
@@ -250,11 +277,7 @@ impl OrderStorage {
 
     pub fn get_all_orders(&self) -> OrderSet<GroupedVanillaOrder, TopOfBlockOrder> {
         let limit = self.limit_orders.lock().expect("poisoned").get_all_orders();
-        let searcher = self
-            .searcher_orders
-            .lock()
-            .expect("poisoned")
-            .get_all_orders();
+        let searcher = self.top_tob_orders();
 
         OrderSet { limit, searcher }
     }

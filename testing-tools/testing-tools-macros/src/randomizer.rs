@@ -1,7 +1,5 @@
 use proc_macro2::Span;
-use syn::{
-    Data, DataEnum, DataStruct, DeriveInput, Fields, Generics, Ident, Type, Variant, Visibility
-};
+use syn::{Data, DataEnum, DataStruct, DeriveInput, Fields, Ident, Type, Visibility};
 
 pub(crate) fn derive(input: DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     match input.data {

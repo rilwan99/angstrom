@@ -4,8 +4,8 @@ use std::{
     sync::Arc
 };
 
+use alloy::sol_types::SolValue;
 use alloy_primitives::Address;
-use alloy_sol_types::SolValue;
 use angstrom::cli::StromHandles;
 use angstrom_network::{
     NetworkOrderEvent, StromMessage, StromNetworkEvent, StromNetworkHandle, StromNetworkManager
@@ -26,7 +26,7 @@ use reth_network::{
 use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
-use super::{config::StromTestnetConfig, strom_internals::StromTestnetNodeInternals};
+use super::{config::AngstromTestnetConfig, strom_internals::AngstromTestnetNodeInternals};
 use crate::{
     anvil_state_provider::RpcStateProviderFactoryWrapper,
     network::peers::{EthPeerPool, TestnetNodeNetwork}
@@ -35,7 +35,7 @@ use crate::{
 pub struct TestnetNode<C> {
     testnet_node_id: u64,
     network:         TestnetNodeNetwork<C>,
-    strom:           StromTestnetNodeInternals
+    strom:           AngstromTestnetNodeInternals
 }
 
 impl<C> TestnetNode<C>
@@ -52,9 +52,9 @@ where
         testnet_node_id: u64,
         network: TestnetNodeNetwork<C>,
         strom_handles: StromHandles,
-        config: StromTestnetConfig
+        config: AngstromTestnetConfig
     ) -> eyre::Result<Self> {
-        let strom = StromTestnetNodeInternals::new(
+        let strom = AngstromTestnetNodeInternals::new(
             testnet_node_id,
             strom_handles,
             network.strom_handle.network_handle().clone(),

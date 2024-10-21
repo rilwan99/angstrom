@@ -1,12 +1,8 @@
 //! Builder structs for messages.
 
-use std::{
-    collections::HashSet,
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH}
-};
+use std::{collections::HashSet, sync::Arc};
 
-use alloy::primitives::{keccak256, Address, FixedBytes, B256};
+use alloy::primitives::{Address, FixedBytes};
 use alloy_chains::Chain;
 use alloy_rpc_types::Peers;
 use angstrom_types::primitive::PeerId;
@@ -14,15 +10,14 @@ use futures::FutureExt;
 use parking_lot::RwLock;
 use reth_metrics::common::mpsc::{MeteredPollSender, UnboundedMeteredSender};
 use reth_tasks::TaskSpawner;
-use secp256k1::{Message, SecretKey, SECP256K1};
+use secp256k1::SecretKey;
 use tokio::sync::mpsc::Receiver;
-use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_util::sync::PollSender;
 
 use crate::{
     manager::StromConsensusEvent, state::StromState, types::status::StatusState, NetworkOrderEvent,
-    Status, StromNetworkHandle, StromNetworkHandleMsg, StromNetworkManager, StromProtocolHandler,
-    StromSessionManager, StromSessionMessage, Swarm, VerificationSidecar
+    Status, StromNetworkHandle, StromNetworkManager, StromProtocolHandler, StromSessionManager,
+    StromSessionMessage, Swarm, VerificationSidecar
 };
 
 pub struct NetworkBuilder {

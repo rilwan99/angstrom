@@ -12,7 +12,7 @@ use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_tasks::TokioTaskExecutor;
 use validation::init_validation;
 
-use super::config::StromTestnetConfig;
+use super::config::AngstromTestnetConfig;
 use crate::{
     anvil_state_provider::{
         utils::{StromContractInstance, CACHE_VALIDATION_SIZE},
@@ -22,7 +22,7 @@ use crate::{
     types::SendingStromHandles
 };
 
-pub struct StromTestnetNodeInternals {
+pub struct AngstromTestnetNodeInternals {
     pub rpc_port:         u64,
     pub state_provider:   RpcStateProviderFactoryWrapper,
     pub order_storage:    Arc<OrderStorage>,
@@ -31,12 +31,12 @@ pub struct StromTestnetNodeInternals {
     pub testnet_hub:      StromContractInstance
 }
 
-impl StromTestnetNodeInternals {
+impl AngstromTestnetNodeInternals {
     pub async fn new(
         testnet_node_id: u64,
         strom_handles: StromHandles,
         strom_network_handle: StromNetworkHandle,
-        config: StromTestnetConfig
+        config: AngstromTestnetConfig
     ) -> eyre::Result<Self> {
         tracing::debug!("connecting to state provider");
         let state_provider = RpcStateProviderFactoryWrapper::spawn_new(
@@ -95,7 +95,8 @@ impl StromTestnetNodeInternals {
         )
         .await?;
 
-        let validator = init_validation(state_provider.provider(), CACHE_VALIDATION_SIZE);
+        let (_, rx) = tokio::sync::broadcast::channel(1000);
+        let validator = init_validation(state_provider.provider(), rx, CACHE_VALIDATION_SIZE);
 
         let pool_config = PoolConfig::default();
         let order_storage = Arc::new(OrderStorage::new(&pool_config));
