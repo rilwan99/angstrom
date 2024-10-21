@@ -34,7 +34,6 @@ criterion.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 thiserror.workspace = true
-#reth-primitives.workspace = true
 reth-provider.workspace = true
 
 arraydeque = "0.5"
