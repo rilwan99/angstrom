@@ -240,7 +240,7 @@ where
                         peer_id
                     }
                 },
-                |other_rxs, _| async move {
+                |other_rxs, peer_id| async move {
                     futures::future::join_all(other_rxs.into_iter().map(|mut rx| {
                         let value = expected_message.clone();
                         async move { (Some(value) == rx.next().await) as usize }
@@ -256,7 +256,7 @@ where
         out == self.peers.len() - 1
     }
 
-    /// if None, then a random id is used
+    /// if id is None, then a random id is used
     pub async fn run_event<'a, F, O>(&'a self, id: Option<u64>, f: F) -> O::Output
     where
         F: FnOnce(&'a TestnetNode<C>) -> O,

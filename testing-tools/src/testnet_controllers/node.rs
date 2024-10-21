@@ -8,7 +8,7 @@ use alloy::sol_types::SolValue;
 use alloy_primitives::Address;
 use angstrom::cli::StromHandles;
 use angstrom_network::{
-    NetworkOrderEvent, StromMessage, StromNetworkEvent, StromNetworkHandle, StromNetworkManager
+    NetworkOrderEvent, StromNetworkEvent, StromNetworkHandle, StromNetworkManager
 };
 use angstrom_types::{
     primitive::PeerId,
@@ -16,9 +16,7 @@ use angstrom_types::{
 };
 use parking_lot::RwLock;
 use reth_chainspec::Hardforks;
-use reth_metrics::common::mpsc::{
-    metered_unbounded_channel, UnboundedMeteredReceiver, UnboundedMeteredSender
-};
+use reth_metrics::common::mpsc::UnboundedMeteredSender;
 use reth_network::{
     test_utils::{Peer, PeerHandle},
     NetworkHandle, NetworkInfo, Peers
