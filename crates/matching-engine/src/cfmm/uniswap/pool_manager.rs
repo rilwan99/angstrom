@@ -275,7 +275,7 @@ where
     ) -> Result<(), PoolManagerError> {
         let cache = state_change_cache
             .entry(address)
-            .or_insert_with(ArrayDeque::new);
+            .or_default();
         if cache.is_full() {
             cache.pop_back();
         }

@@ -120,7 +120,7 @@ impl AllOrders {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OrderWithStorageData<Order> {
     /// raw order
     pub order:              Order,
@@ -386,10 +386,15 @@ impl RawPoolOrder for FlashVariants {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub enum GroupedVanillaOrder {
     Standing(StandingVariants),
     KillOrFill(FlashVariants)
+}
+impl Default for GroupedVanillaOrder {
+    fn default() -> Self {
+        GroupedVanillaOrder::Standing(StandingVariants::Exact(ExactStandingOrder::default()))
+    }
 }
 
 impl GroupedVanillaOrder {

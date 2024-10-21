@@ -86,11 +86,7 @@ impl<Pools: PoolsTracker, Fetch: StateFetchUtils, Provider: PoolManagerProvider 
             return OrderValidationResults::Invalid(order_hash)
         }
 
-        let Some(pool_info) = self
-            .pool_tacker
-            .read_arc()
-            .fetch_pool_info_for_order(&order)
-        else {
+        let Some(pool_info) = self.pool_tacker.read().fetch_pool_info_for_order(&order) else {
             return OrderValidationResults::Invalid(order_hash)
         };
 
@@ -125,7 +121,7 @@ impl<Pools: PoolsTracker, Fetch: StateFetchUtils, Provider: PoolManagerProvider 
                         let pool_address = Address::from_slice(&order_with_storage.pool_id[..20]);
                         let market_snapshot =
                             self.pool_manager.get_market_snapshot(pool_address).unwrap();
-                        let rewards = calculate_reward(&tob_order, market_snapshot).unwrap();
+                        let rewards = calculate_reward(&tob_order, &market_snapshot).unwrap();
                         order_with_storage.tob_reward = rewards.total_reward;
                     }
                     _ => {}
@@ -138,6 +134,6 @@ impl<Pools: PoolsTracker, Fetch: StateFetchUtils, Provider: PoolManagerProvider 
     }
 
     pub fn index_new_pool(&mut self, pool: NewInitializedPool) {
-        self.pool_tacker.write_arc().index_new_pool(pool);
+        self.pool_tacker.write().index_new_pool(pool);
     }
 }

@@ -72,7 +72,7 @@ mod tests {
             .for_random_pools(1)
             .for_block(10)
             .build();
-        assert!(preproposal.validate(), "Preproposal cannot validate itself");
+        assert!(preproposal.is_valid(), "Preproposal cannot validate itself");
     }
 
     #[test]
@@ -82,7 +82,7 @@ mod tests {
             .for_random_pools(1)
             .for_block(10)
             .build();
-        assert!(proposal.validate(), "Proposal cannot validate itself");
+        assert!(proposal.is_valid(), "Proposal cannot validate itself");
     }
 
     #[test]
@@ -90,6 +90,6 @@ mod tests {
         // We generate our secret key first
         let sk = blsful::SecretKey::random(&mut thread_rng());
         let commit = generate_random_commit(&sk);
-        assert!(commit.validate(&[sk.public_key()]));
+        assert!(commit.is_valid(&[sk.public_key()]));
     }
 }

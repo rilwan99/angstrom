@@ -42,10 +42,10 @@ async fn main() -> eyre::Result<()> {
     let mock_block_stream =
         Arc::new(MockBlockStream::new(ws_provider.clone(), from_block, to_block));
     let pools = vec![pool];
-    let state_space_manager =
+    let uniswap_pool_manager =
         UniswapPoolManager::new(pools, block_number, state_change_buffer, mock_block_stream);
 
-    let (mut rx, _join_handles) = state_space_manager.subscribe_state_changes().await?;
+    let (mut rx, _join_handles) = uniswap_pool_manager.subscribe_state_changes().await?;
 
     let mut sigterm = signal(SignalKind::terminate())?;
     let mut sigint = signal(SignalKind::interrupt())?;
@@ -56,7 +56,7 @@ async fn main() -> eyre::Result<()> {
             _ = sigint.recv() => break,
             state_changes = rx.recv() => {
                 if let Some((address, changes_block_number)) = state_changes {
-                   let pool_guard = state_space_manager.pool(&address).await.unwrap();
+                   let pool_guard = uniswap_pool_manager.pool(&address).await.unwrap();
                     let mut fresh_pool = EnhancedUniswapV3Pool::new(address, ticks_per_side);
                     fresh_pool.initialize(Some(changes_block_number), ws_provider.clone()).await?;
 
