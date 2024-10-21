@@ -3,7 +3,7 @@ pub mod mock_rewards_manager {
         #[allow(missing_docs)]
         #[sol(rpc)]
         MockRewardsManager,
-        "/Users/josephnoorchashm/Desktop/SorellaLabs/GitHub/angstrom/contracts/out/MockRewardsManager.sol/MockRewardsManager.json"
+        "../../contracts/out/MockRewardsManager.sol/MockRewardsManager.json"
     );
 }
 
@@ -12,7 +12,7 @@ pub mod pool_manager {
         #[allow(missing_docs)]
         #[sol(rpc)]
         PoolManager,
-        "/Users/josephnoorchashm/Desktop/SorellaLabs/GitHub/angstrom/contracts/out/PoolManager.sol/PoolManager.json"
+        "../../contracts/out/PoolManager.sol/PoolManager.json"
     );
 }
 
@@ -21,7 +21,7 @@ pub mod pool_gate {
         #[allow(missing_docs)]
         #[sol(rpc)]
         PoolGate,
-        "/Users/josephnoorchashm/Desktop/SorellaLabs/GitHub/angstrom/contracts/out/PoolGate.sol/PoolGate.json"
+        "../../contracts/out/PoolGate.sol/PoolGate.json"
     );
 }
 
@@ -30,7 +30,7 @@ pub mod angstrom {
         #[allow(missing_docs)]
         #[sol(rpc)]
         Angstrom,
-        "/Users/josephnoorchashm/Desktop/SorellaLabs/GitHub/angstrom/contracts/out/Angstrom.sol/Angstrom.json"
+        "../../contracts/out/Angstrom.sol/Angstrom.json"
     );
 }
 
