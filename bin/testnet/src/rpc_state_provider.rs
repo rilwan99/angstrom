@@ -1,8 +1,11 @@
 use std::future::IntoFuture;
 
-use alloy::{primitives::keccak256, providers::Provider, transports::TransportResult};
+use alloy::{
+    primitives::{keccak256, Address, BlockNumber, StorageKey, StorageValue},
+    providers::Provider,
+    transports::TransportResult
+};
 use futures::Future;
-use reth_primitives::{Account, Address, BlockNumber, StorageKey, StorageValue};
 use reth_provider::{ProviderError, ProviderResult};
 use validation::common::lru_db::{BlockStateProvider, BlockStateProviderFactory};
 

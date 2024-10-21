@@ -9,6 +9,7 @@ use std::{
     task::{Context, Poll}
 };
 
+use alloy::primitives::{Address, TxHash, B256};
 use angstrom_eth::manager::EthEvent;
 use angstrom_types::{
     contract_bindings::pool_manager::PoolManager::{
@@ -36,9 +37,7 @@ use order_pool::{
 };
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_network::transactions::ValidationOutcome;
-use reth_network_peers::PeerId;
-use reth_primitives::{Address, TxHash, B256};
-use reth_rpc_types::txpool::TxpoolStatus;
+use angstrom_types::primitive::PeerId;
 use reth_tasks::TaskSpawner;
 use tokio::sync::{
     broadcast,

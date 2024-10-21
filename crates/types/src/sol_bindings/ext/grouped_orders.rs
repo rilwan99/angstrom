@@ -1,7 +1,7 @@
 use std::{hash::Hash, ops::Deref};
 
 use alloy::primitives::{Address, Bytes, FixedBytes, TxHash, U256};
-use reth_primitives::B256;
+use alloy_primitives::B256;
 use serde::{Deserialize, Serialize};
 
 use super::{RawPoolOrder, RespendAvoidanceMethod};
@@ -531,9 +531,9 @@ impl RawPoolOrder for TopOfBlockOrder {
     fn is_valid_signature(&self) -> bool {
         let Ok(sig) = Signature::new_from_bytes(&self.meta.signature) else { return false };
         let hash = self.no_meta_eip712_signing_hash(&ANGSTROM_DOMAIN);
-        sig.recover_signer(hash)
-            .filter(|recovered_addr| recovered_addr == &self.meta.from)
-            .is_some()
+        sig.recover_signer_full_public_key(hash)
+            .map(|pk| Address::from_raw_public_key(&*pk) == self.meta.from)
+            .unwrap_or_default()
     }
 
     fn order_location(&self) -> OrderLocation {
@@ -544,9 +544,9 @@ impl RawPoolOrder for PartialStandingOrder {
     fn is_valid_signature(&self) -> bool {
         let Ok(sig) = Signature::new_from_bytes(&self.meta.signature) else { return false };
         let hash = self.no_meta_eip712_signing_hash(&ANGSTROM_DOMAIN);
-        sig.recover_signer(hash)
-            .filter(|recovered_addr| recovered_addr == &self.meta.from)
-            .is_some()
+        sig.recover_signer_full_public_key(hash)
+            .map(|pk| Address::from_raw_public_key(&*pk) == self.meta.from)
+            .unwrap_or_default()
     }
 
     fn flash_block(&self) -> Option<u64> {
@@ -598,9 +598,9 @@ impl RawPoolOrder for ExactStandingOrder {
     fn is_valid_signature(&self) -> bool {
         let Ok(sig) = Signature::new_from_bytes(&self.meta.signature) else { return false };
         let hash = self.no_meta_eip712_signing_hash(&ANGSTROM_DOMAIN);
-        sig.recover_signer(hash)
-            .filter(|recovered_addr| recovered_addr == &self.meta.from)
-            .is_some()
+        sig.recover_signer_full_public_key(hash)
+            .map(|pk| Address::from_raw_public_key(&*pk) == self.meta.from)
+            .unwrap_or_default()
     }
 
     fn flash_block(&self) -> Option<u64> {
@@ -654,9 +654,9 @@ impl RawPoolOrder for PartialFlashOrder {
     fn is_valid_signature(&self) -> bool {
         let Ok(sig) = Signature::new_from_bytes(&self.meta.signature) else { return false };
         let hash = self.no_meta_eip712_signing_hash(&ANGSTROM_DOMAIN);
-        sig.recover_signer(hash)
-            .filter(|recovered_addr| recovered_addr == &self.meta.from)
-            .is_some()
+        sig.recover_signer_full_public_key(hash)
+            .map(|pk| Address::from_raw_public_key(&*pk) == self.meta.from)
+            .unwrap_or_default()
     }
 
     fn flash_block(&self) -> Option<u64> {
@@ -708,9 +708,9 @@ impl RawPoolOrder for ExactFlashOrder {
     fn is_valid_signature(&self) -> bool {
         let Ok(sig) = Signature::new_from_bytes(&self.meta.signature) else { return false };
         let hash = self.no_meta_eip712_signing_hash(&ANGSTROM_DOMAIN);
-        sig.recover_signer(hash)
-            .filter(|recovered_addr| recovered_addr == &self.meta.from)
-            .is_some()
+        sig.recover_signer_full_public_key(hash)
+            .map(|pk| Address::from_raw_public_key(&*pk) == self.meta.from)
+            .unwrap_or_default()
     }
 
     fn flash_block(&self) -> Option<u64> {

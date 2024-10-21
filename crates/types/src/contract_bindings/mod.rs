@@ -3,7 +3,7 @@ pub mod mintable_mock_erc_20 {
         #[allow(missing_docs)]
         #[sol(rpc)]
         MintableMockERC20,
-        "/Users/dbresnick/github/angstrom/contracts/out/MintableMockERC20.sol/MintableMockERC20.json"
+        "../../contracts/out/MintableMockERC20.sol/MintableMockERC20.json"
     );
 }
 
@@ -12,7 +12,7 @@ pub mod mock_rewards_manager {
         #[allow(missing_docs)]
         #[sol(rpc)]
         MockRewardsManager,
-        "/Users/dbresnick/github/angstrom/contracts/out/MockRewardsManager.sol/MockRewardsManager.json"
+        "../../contracts/out/MockRewardsManager.sol/MockRewardsManager.json"
     );
 }
 
@@ -21,7 +21,7 @@ pub mod pool_manager {
         #[allow(missing_docs)]
         #[sol(rpc)]
         PoolManager,
-        "/Users/dbresnick/github/angstrom/contracts/out/PoolManager.sol/PoolManager.json"
+        "../../contracts/out/PoolManager.sol/PoolManager.json"
     );
 }
 
@@ -30,7 +30,7 @@ pub mod pool_gate {
         #[allow(missing_docs)]
         #[sol(rpc)]
         PoolGate,
-        "/Users/dbresnick/github/angstrom/contracts/out/PoolGate.sol/PoolGate.json"
+        "../../contracts/out/PoolGate.sol/PoolGate.json"
     );
 }
 
@@ -39,7 +39,7 @@ pub mod angstrom {
         #[allow(missing_docs)]
         #[sol(rpc)]
         Angstrom,
-        "/Users/dbresnick/github/angstrom/contracts/out/Angstrom.sol/Angstrom.json"
+        "../../contracts/out/Angstrom.sol/Angstrom.json"
     );
 }
 

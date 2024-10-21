@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
-use alloy::primitives::{Address, Bytes, FixedBytes, B256, U256};
+use alloy::primitives::{keccak256, Address, Bytes, FixedBytes, B256, U256};
 use pade_macro::{PadeDecode, PadeEncode};
-use reth_primitives::keccak256;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
