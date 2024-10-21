@@ -165,7 +165,7 @@ async fn test_broadcast_consensus_propagation() {
             .build();
 
         let res = tokio::time::timeout(
-            Duration::from_secs(1),
+            Duration::from_secs(delay_seconds),
             testnet.broadcast_consensus_message(
                 Some(1),
                 StromMessage::PrePropose(preposal.clone()),
@@ -182,7 +182,7 @@ async fn test_broadcast_consensus_propagation() {
             .for_block(0)
             .build();
         let res = tokio::time::timeout(
-            Duration::from_secs(1),
+            Duration::from_secs(delay_seconds),
             testnet.broadcast_consensus_message(
                 Some(2),
                 StromMessage::Propose(proposal.clone()),
