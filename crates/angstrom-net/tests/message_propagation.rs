@@ -185,8 +185,8 @@ async fn test_broadcast_consensus_propagation() {
             Duration::from_secs(1),
             testnet.broadcast_consensus_message(
                 Some(2),
-                StromMessage::Propose(preposal),
-                StromConsensusEvent::Proposal(testnet.get_peer(2).peer_id(), preposal)
+                StromMessage::Propose(proposal),
+                StromConsensusEvent::Proposal(testnet.get_peer(2).peer_id(), proposal)
             )
         )
         .await;
