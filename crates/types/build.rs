@@ -1,19 +1,31 @@
-use std::{io::Write, os::unix::process::ExitStatusExt, process::Command};
+use std::{io::Write, os::unix::process::ExitStatusExt, path::PathBuf, process::Command};
 
 use convert_case::{Case, Casing};
 
-const CONTRACT_LOCATION: &str = "../../contracts/";
-const OUT_DIRECTORY: &str = "../../contracts/out/";
-const BINDINGS_PATH: &str = "./src/contract_bindings/mod.rs";
+const CONTRACT_LOCATION: &str = "contracts/";
+const OUT_DIRECTORY: &str = "contracts/out/";
+const BINDINGS_PATH: &str = "/src/contract_bindings/mod.rs";
 
 const WANTED_CONTRACTS: [&str; 4] =
     ["Angstrom.sol", "PoolManager.sol", "PoolGate.sol", "MockRewardsManager.sol"];
 
 // builds the contracts crate. then goes and generates bindings on this
 fn main() {
+    let this_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+
+    let mut base_dir = PathBuf::from(this_dir.clone());
+    base_dir.pop();
+    base_dir.pop();
+
+    let mut contract_dir = base_dir.clone();
+    contract_dir.push(CONTRACT_LOCATION);
+
+    let mut out_dir = base_dir.clone();
+    out_dir.push(OUT_DIRECTORY);
+
     let res = Command::new("forge")
         .arg("build")
-        .current_dir(CONTRACT_LOCATION)
+        .current_dir(contract_dir)
         .spawn()
         .unwrap()
         .wait()
@@ -23,7 +35,7 @@ fn main() {
         panic!("foundry is not installed on this machine.\n https://book.getfoundry.sh/getting-started/installation go to here to install");
     }
 
-    let sol_macro_invocation = std::fs::read_dir(OUT_DIRECTORY)
+    let sol_macro_invocation = std::fs::read_dir(out_dir)
         .unwrap()
         .filter_map(|folder| {
             let folder = folder.ok()?;
@@ -56,7 +68,7 @@ fn main() {
     let mut f = std::fs::File::options()
         .write(true)
         .truncate(true)
-        .open(BINDINGS_PATH)
+        .open(format!("/{this_dir}{BINDINGS_PATH}"))
         .unwrap();
 
     for contract_build in sol_macro_invocation {

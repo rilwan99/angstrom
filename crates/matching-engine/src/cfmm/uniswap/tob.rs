@@ -231,8 +231,8 @@ mod test {
     use angstrom_types::{
         contract_bindings::{
             angstrom::Angstrom::PoolKey,
-            mockrewardsmanager::MockRewardsManager::MockRewardsManagerInstance,
-            poolmanager::PoolManager
+            mock_rewards_manager::MockRewardsManager::MockRewardsManagerInstance,
+            pool_manager::PoolManager
         },
         contract_payloads::tob::{Asset, MockContractMessage, PoolRewardsUpdate, RewardsUpdate},
         matching::SqrtPriceX96
