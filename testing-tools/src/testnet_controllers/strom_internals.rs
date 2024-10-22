@@ -5,7 +5,7 @@ use angstrom::cli::StromHandles;
 use angstrom_eth::handle::Eth;
 use angstrom_network::{pool_manager::PoolHandle, PoolManagerBuilder, StromNetworkHandle};
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
-use angstrom_types::sol_bindings::testnet::TestnetHub;
+use angstrom_types::{primitive::PeerId, sol_bindings::testnet::TestnetHub};
 use consensus::{AngstromValidator, ConsensusManager, ManagerNetworkDeps, Signer};
 use futures::StreamExt;
 use jsonrpsee::server::ServerBuilder;
