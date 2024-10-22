@@ -15,9 +15,9 @@ use angstrom_utils::key_split_threadpool::KeySplitThreadpool;
 use futures::FutureExt;
 use matching_engine::cfmm::uniswap::{
     pool_manager::UniswapPoolManager,
-    pool_providers::{canonical_state_adapter::CanonicalStateAdapter, PoolManagerProvider}
+    pool_providers::canonical_state_adapter::CanonicalStateAdapter
 };
-use reth_provider::{CanonStateNotification, CanonStateNotifications, StateProviderFactory};
+use reth_provider::{CanonStateNotification, StateProviderFactory};
 use tokio::sync::mpsc::unbounded_channel;
 use validation::{
     common::lru_db::RevmLRU,
@@ -32,8 +32,6 @@ use validation::{
     },
     validator::{ValidationClient, Validator}
 };
-
-use crate::Provider;
 
 type ValidatorOperation<DB, T> =
     dyn FnOnce(
@@ -82,7 +80,6 @@ impl<DB: StateProviderFactory + Clone + Unpin + 'static> TestOrderValidator<DB> 
             OrderValidator::new(sim, current_block, pools, fetch, pool_manager, thread_pool);
         let val = Validator::new(rx, order_validator);
         let client = ValidationClient(tx);
-        let config = ValidationConfig::default();
 
         Self { revm_lru, client, underlying: val, config: validation_config }
     }

@@ -3197,22 +3197,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "contract_test"
-version = "0.1.0"
-dependencies = [
- "alloy",
- "angstrom-types",
- "eyre",
- "pade",
- "pade-macro",
- "testing-tools",
- "tokio",
- "tracing",
- "tracing-subscriber",
- "uniswap_v3_math",
-]
-
-[[package]]
 name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -7,8 +7,7 @@ use alloy::{
     primitives::{keccak256, FixedBytes},
     rlp::{BufMut, BytesMut}
 };
-use angstrom_types::primitive::Signature;
-use angstrom_types::primitive::PeerId;
+use angstrom_types::primitive::{PeerId, Signature};
 use serde::{Deserialize, Serialize};
 
 use crate::StatusBuilder;
