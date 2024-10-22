@@ -33,7 +33,6 @@ use reth::{
     chainspec::EthereumChainSpecParser,
     cli::Cli,
     providers::{BlockNumReader, CanonStateSubscriptions},
-    rpc::api::EthApiClient,
     tasks::TaskExecutor
 };
 use reth_cli_util::get_secret_key;

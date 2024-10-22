@@ -71,7 +71,7 @@ impl WeightedRoundRobin {
             .unwrap()
             .clone();
         proposer.priority -= total_voting_power as f64;
-        let proposer_name = proposer.peer_id.clone();
+        let proposer_name = proposer.peer_id;
 
         self.validators.replace(proposer);
 
@@ -133,7 +133,7 @@ impl WeightedRoundRobin {
         // will not have seen the reorg, thus would not have executed the extra rounds
         // after this if statement
         if block_number <= self.block_number {
-            return self.last_proposer.clone();
+            return self.last_proposer;
         }
 
         let rounds_to_catchup = (block_number - self.block_number) as usize;
@@ -142,7 +142,7 @@ impl WeightedRoundRobin {
             self.center_priorities();
             self.scale_priorities();
             leader = Some(self.proposer_selection());
-            self.last_proposer = leader.clone()
+            self.last_proposer = leader
         }
         self.block_number = block_number;
         leader

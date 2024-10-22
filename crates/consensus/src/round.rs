@@ -309,7 +309,7 @@ impl RoundStateMachine {
             self.current_state.pre_proposals().iter().cloned().collect();
 
         self.transition_future = Some(Box::pin(async move {
-            if let ConsensusState::Finalization(ref mut finalization) = &mut new_state {
+            if let ConsensusState::Finalization(finalization) = &mut new_state {
                 // someone already proposed and we are not a leader
                 if finalization.proposal.is_some() {
                     // TODO: use this opportunity to trigger the proposal validation
