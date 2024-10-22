@@ -3,7 +3,7 @@ use std::{fmt::Debug, sync::Arc};
 
 use alloy::rlp::{Buf, BufMut, Decodable, Encodable};
 use angstrom_types::{
-    consensus::{Commit, PreProposal, Proposal},
+    consensus::{PreProposal, Proposal},
     sol_bindings::grouped_orders::AllOrders
 };
 use reth_eth_wire::{protocol::Protocol, Capability};
@@ -114,7 +114,6 @@ pub enum StromMessage {
     /// Consensus
     PrePropose(PreProposal),
     Propose(Proposal),
-    Commit(Commit),
 
     /// Propagation messages that broadcast new orders to all peers
     PropagatePooledOrders(Vec<AllOrders>)
@@ -126,7 +125,6 @@ impl StromMessage {
             StromMessage::Status(_) => StromMessageID::Status,
             StromMessage::PrePropose(_) => StromMessageID::PrePropose,
             StromMessage::Propose(_) => StromMessageID::Propose,
-            StromMessage::Commit(_) => StromMessageID::Commit,
             StromMessage::PropagatePooledOrders(_) => StromMessageID::PropagatePooledOrders
         }
     }
@@ -145,7 +143,6 @@ pub enum StromBroadcastMessage {
     // Consensus Broadcast
     PrePropose(Arc<PreProposal>),
     Propose(Arc<Proposal>),
-    Commit(Arc<Commit>),
     // Order Broadcast
     PropagatePooledOrders(Arc<Vec<AllOrders>>)
 }
@@ -156,7 +153,6 @@ impl StromBroadcastMessage {
         match self {
             StromBroadcastMessage::PrePropose(_) => StromMessageID::PrePropose,
             StromBroadcastMessage::Propose(_) => StromMessageID::Propose,
-            StromBroadcastMessage::Commit(_) => StromMessageID::Commit,
             StromBroadcastMessage::PropagatePooledOrders(_) => StromMessageID::PropagatePooledOrders
         }
     }

@@ -19,8 +19,6 @@ pub enum ConsensusSubscriptionKind {
     NewBestPreProposal,
     /// Sends the proposal upon receiving it from the proposer
     Proposal,
-    /// Sends commits when received
-    Commits
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,7 +28,6 @@ pub enum ConsensusSubscriptionResult {
     /// Preprosal
     PreProposal(Arc<PreProposal>),
     Proposal(Arc<Proposal>),
-    Commits(Arc<Commit>)
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

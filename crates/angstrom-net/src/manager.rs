@@ -8,13 +8,13 @@ use std::{
 use alloy::primitives::BlockNumber;
 use alloy_rpc_types::Block;
 use angstrom_types::{
-    consensus::{Commit, PreProposal, Proposal},
-    primitive::PeerId,
+    consensus::{PreProposal, Proposal},
     sol_bindings::ext::RawPoolOrder
 };
 use futures::StreamExt;
 use reth_eth_wire::DisconnectReason;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
+use angstrom_types::primitive::PeerId;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tracing::error;
@@ -157,16 +157,11 @@ impl<DB: Unpin> Future for StromNetworkManager<DB> {
             if let Poll::Ready(Some(event)) = self.swarm.poll_next_unpin(cx) {
                 match event {
                     SwarmEvent::ValidMessage { peer_id, msg } => match msg {
-                        StromMessage::Commit(a) => {
-                            self.to_consensus_manager.as_ref().inspect(|tx| {
-                                tx.send(StromConsensusEvent::Commit(peer_id, a));
-                            });
-                        }
                         StromMessage::PrePropose(p) => {
                             self.to_consensus_manager.as_ref().inspect(|tx| {
                                 tx.send(StromConsensusEvent::PreProposal(
                                     peer_id,
-                                    PreProposal::default()
+                                    p
                                 ));
                             });
                         }
@@ -230,7 +225,6 @@ pub enum StromNetworkEvent {
 pub enum StromConsensusEvent {
     PreProposal(PeerId, PreProposal),
     Proposal(PeerId, Proposal),
-    Commit(PeerId, Commit)
 }
 
 impl StromConsensusEvent {
@@ -238,7 +232,6 @@ impl StromConsensusEvent {
         match self {
             StromConsensusEvent::PreProposal(..) => "PreProposal",
             StromConsensusEvent::Proposal(..) => "Proposal",
-            StromConsensusEvent::Commit(..) => "Commit"
         }
     }
 
@@ -246,7 +239,6 @@ impl StromConsensusEvent {
         match self {
             StromConsensusEvent::PreProposal(peer_id, _) => *peer_id,
             StromConsensusEvent::Proposal(peer_id, _) => *peer_id,
-            StromConsensusEvent::Commit(peer_id, _) => *peer_id
         }
     }
 
@@ -254,7 +246,6 @@ impl StromConsensusEvent {
         match self {
             StromConsensusEvent::PreProposal(_, pre_proposal) => pre_proposal.source,
             StromConsensusEvent::Proposal(_, proposal) => proposal.source,
-            StromConsensusEvent::Commit(_, commit) => commit.source
         }
     }
 
@@ -262,7 +253,6 @@ impl StromConsensusEvent {
         match self {
             StromConsensusEvent::PreProposal(_, PreProposal { block_height, .. }) => *block_height,
             StromConsensusEvent::Proposal(_, Proposal { block_height, .. }) => *block_height,
-            StromConsensusEvent::Commit(_, Commit { block_height, .. }) => *block_height
         }
     }
 }
@@ -274,7 +264,6 @@ impl From<StromConsensusEvent> for StromMessage {
                 StromMessage::PrePropose(pre_proposal)
             }
             StromConsensusEvent::Proposal(_, proposal) => StromMessage::Propose(proposal),
-            StromConsensusEvent::Commit(_, commit) => StromMessage::Commit(commit)
         }
     }
 }

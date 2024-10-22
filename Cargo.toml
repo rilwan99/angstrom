@@ -65,9 +65,6 @@ matching-engine = { path = "./crates/matching-engine/" }
 contract-bindings = { path = "./crates/contract-bindings/" }
 eyre = "0.6.12"
 
-# BLS library
-blsful = "2.5.7"
-
 ## async
 async-trait = "0.1.68"
 futures = "0.3.26"

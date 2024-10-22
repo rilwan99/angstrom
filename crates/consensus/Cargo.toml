@@ -15,7 +15,6 @@ exclude.workspace = true
 angstrom-metrics.workspace = true
 
 bitmaps.workspace = true
-blsful.workspace = true
 tokio.workspace = true
 futures.workspace = true
 thiserror.workspace = true

@@ -10,7 +10,7 @@ use alloy_primitives::{bloom, BlockNumber};
 use angstrom_metrics::ConsensusMetricsWrapper;
 use angstrom_network::{manager::StromConsensusEvent, Peer, StromMessage, StromNetworkHandle};
 use angstrom_types::{
-    consensus::{Commit, PreProposal, Proposal},
+    consensus::{PreProposal, Proposal},
     contract_payloads::angstrom::TopOfBlockOrder,
     orders::PoolSolution,
     primitive::PeerId
@@ -143,14 +143,18 @@ impl ConsensusManager {
             return;
         }
 
-        // do we want to transition first and then send a message?
+        // TODO: do we want to on_strom_message() and then rebroadcast the message?
         if !self.broadcasted_messages.contains(&event) {
             self.network.broadcast_message(event.clone().into());
             self.broadcasted_messages.insert(event.clone());
         }
 
-        if let Some(msg) = self.state_transition.on_strom_message(event.clone()) {
-            self.network.broadcast_message(msg);
+        if let Some((peer_id, msg)) = self.state_transition.on_strom_message(event.clone()) {
+            if let Some(peer_id) = peer_id {
+                self.network.send_message(peer_id, msg);
+            } else {
+                self.network.broadcast_message(msg);
+            }
         }
     }
 
