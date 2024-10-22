@@ -6,7 +6,6 @@ pub mod pool_manager {
         "../../contracts/out/PoolManager.sol/PoolManager.json"
     );
 }
-
 pub mod mock_rewards_manager {
     alloy::sol!(
         #[allow(missing_docs)]
@@ -15,7 +14,6 @@ pub mod mock_rewards_manager {
         "../../contracts/out/MockRewardsManager.sol/MockRewardsManager.json"
     );
 }
-
 pub mod angstrom {
     alloy::sol!(
         #[allow(missing_docs)]
@@ -24,7 +22,6 @@ pub mod angstrom {
         "../../contracts/out/Angstrom.sol/Angstrom.json"
     );
 }
-
 pub mod pool_gate {
     alloy::sol!(
         #[allow(missing_docs)]
@@ -33,7 +30,6 @@ pub mod pool_gate {
         "../../contracts/out/PoolGate.sol/PoolGate.json"
     );
 }
-
 pub mod mintable_mock_erc_20 {
     alloy::sol!(
         #[allow(missing_docs)]
@@ -42,4 +38,3 @@ pub mod mintable_mock_erc_20 {
         "../../contracts/out/MintableMockERC20.sol/MintableMockERC20.json"
     );
 }
-
