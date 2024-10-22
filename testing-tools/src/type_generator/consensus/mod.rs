@@ -1,3 +1,4 @@
+pub mod pool;
 pub mod preproposal;
 pub mod proposal;
 
@@ -9,8 +10,7 @@ use angstrom_types::{
 use blsful::{Bls12381G1Impl, SecretKey};
 use proposal::ProposalBuilder;
 
-use super::orders::{DistributionParameters, UserOrderBuilder};
-use crate::type_generator::orders::generate_order_distribution;
+use super::orders::{DistributionParameters, OrderDistributionBuilder, UserOrderBuilder};
 
 pub fn generate_limit_order_set(
     count: usize,
@@ -39,10 +39,26 @@ pub fn generate_limit_order_distribution(
     let (bidprice, askprice) = DistributionParameters::crossed_at(100_000_000.0);
     let (bidquant, askquant) = DistributionParameters::fixed_at(100.0);
     res.extend(
-        generate_order_distribution(true, count, bidprice, bidquant, pool_id, block).unwrap()
+        OrderDistributionBuilder::new()
+            .bid()
+            .order_count(count)
+            .price_params(bidprice)
+            .volume_params(bidquant)
+            .pool_id(pool_id)
+            .valid_block(block)
+            .build()
+            .unwrap()
     );
     res.extend(
-        generate_order_distribution(false, count, askprice, askquant, pool_id, block).unwrap()
+        OrderDistributionBuilder::new()
+            .ask()
+            .order_count(count)
+            .price_params(askprice)
+            .volume_params(askquant)
+            .pool_id(pool_id)
+            .valid_block(block)
+            .build()
+            .unwrap()
     );
     res
 }

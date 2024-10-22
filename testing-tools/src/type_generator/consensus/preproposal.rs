@@ -1,5 +1,9 @@
 use alloy_primitives::FixedBytes;
-use angstrom_types::{consensus::PreProposal, primitive::PoolId};
+use angstrom_types::{
+    consensus::PreProposal,
+    primitive::PoolId,
+    sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
+};
 use rand::thread_rng;
 use reth_network_peers::pk2id;
 use secp256k1::{Secp256k1, SecretKey as Secp256SecretKey};

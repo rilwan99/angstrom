@@ -11194,6 +11194,7 @@ dependencies = [
  "jsonrpsee",
  "matching-engine",
  "order-pool",
+ "pade",
  "parking_lot 0.12.3",
  "rand",
  "rand_distr",
