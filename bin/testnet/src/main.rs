@@ -44,23 +44,3 @@ async fn send_bundles(mut network_controller: AngstromTestnet<NoopProvider>) -> 
         // Ok(())
     }
 }
-
-async fn send_consensus_message(
-    mut network_controller: AngstromTestnet<NoopProvider>
-) -> eyre::Result<()> {
-    loop {
-        tokio::time::sleep(Duration::from_secs(11)).await;
-        let orders = vec![];
-        let passed = network_controller
-            .broadcast_orders_message(
-                Some(0),
-                StromMessage::PropagatePooledOrders(orders.clone()),
-                orders
-            )
-            .await;
-
-        assert!(passed);
-
-        // Ok(())
-    }
-}

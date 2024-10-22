@@ -6,10 +6,12 @@ use angstrom_eth::handle::Eth;
 use angstrom_network::{pool_manager::PoolHandle, PoolManagerBuilder, StromNetworkHandle};
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
 use angstrom_types::sol_bindings::testnet::TestnetHub;
+use consensus::{ConsensusManager, ManagerNetworkDeps, Signer};
 use futures::StreamExt;
 use jsonrpsee::server::ServerBuilder;
 use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_tasks::TokioTaskExecutor;
+use secp256k1::SecretKey;
 
 use super::config::AngstromTestnetConfig;
 use crate::{
@@ -29,7 +31,7 @@ pub struct AngstromTestnetNodeInternals {
     pub pool_handle:      PoolHandle,
     pub tx_strom_handles: SendingStromHandles,
     pub testnet_hub:      StromContractInstance,
-    pub validator:        TestOrderValidator<RpcStateProviderFactory>
+    pub validator:        TestOrderValidator<RpcStateProviderFactory> //pub consensus:
 }
 
 impl AngstromTestnetNodeInternals {
@@ -37,7 +39,9 @@ impl AngstromTestnetNodeInternals {
         testnet_node_id: u64,
         strom_handles: StromHandles,
         strom_network_handle: StromNetworkHandle,
-        config: AngstromTestnetConfig
+        secret_key: SecretKey,
+        config: AngstromTestnetConfig,
+        initial_validators: Vec<AngstromValidator>
     ) -> eyre::Result<Self> {
         tracing::debug!("connecting to state provider");
         let state_provider = RpcStateProviderFactoryWrapper::spawn_new(
@@ -114,7 +118,7 @@ impl AngstromTestnetNodeInternals {
         )
         .with_config(pool_config)
         .build_with_channels(
-            executor,
+            executor.clone(),
             strom_handles.orderpool_tx,
             strom_handles.orderpool_rx,
             strom_handles.pool_manager_tx
@@ -134,6 +138,23 @@ impl AngstromTestnetNodeInternals {
         });
 
         let testnet_hub = TestnetHub::new(angstrom_addr, state_provider.provider().provider());
+
+        let _consensus_handle = ConsensusManager::spawn(
+            executor,
+            ManagerNetworkDeps::new(
+                strom_network_handle.clone(),
+                state_provider.provider().subscribe_to_canonical_state(),
+                strom_handles.consensus_rx_op
+            ),
+            Signer::new(secret_key),
+            initial_validators,
+            order_storage.clone(),
+            state_provider
+                .provider()
+                .provider()
+                .get_block_number()
+                .await?
+        );
 
         Ok(Self {
             rpc_port,

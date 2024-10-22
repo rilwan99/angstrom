@@ -6,7 +6,11 @@ use alloy::{
     signers::local::PrivateKeySigner
 };
 use alloy_primitives::{BlockNumber, Bytes};
-use reth_provider::{ProviderError, ProviderResult};
+use reth_provider::{
+    CanonStateNotification, CanonStateNotifications, CanonStateSubscriptions, ProviderError,
+    ProviderResult
+};
+use tokio::sync::broadcast;
 use validation::common::lru_db::BlockStateProviderFactory;
 
 use super::{utils::AnvilWalletRpc, RpcStateProvider};
@@ -43,7 +47,12 @@ impl RpcStateProviderFactoryWrapper {
 
         tracing::info!("connected to anvil");
 
-        Ok(Self { provider: RpcStateProviderFactory { provider: rpc }, _instance: anvil })
+        let (tx, _) = broadcast::channel(1000);
+
+        Ok(Self {
+            provider:  RpcStateProviderFactory { provider: rpc, canon_state: tx },
+            _instance: anvil
+        })
     }
 
     pub fn provider(&self) -> RpcStateProviderFactory {
@@ -67,20 +76,25 @@ impl RpcStateProviderFactoryWrapper {
     }
 
     pub async fn mine_block(&self) -> eyre::Result<Block> {
-        Ok(self
+        let mined = self
             .provider
             .provider
             .anvil_mine_detailed(Some(MineOptions::Options { timestamp: None, blocks: Some(1) }))
             .await?
             .first()
             .cloned()
-            .unwrap())
+            .unwrap();
+
+        // self.provider.canon_state.send(CanonStateNotification::)
+
+        Ok(mined)
     }
 }
 
 #[derive(Clone, Debug)]
 pub struct RpcStateProviderFactory {
-    provider: AnvilWalletRpc
+    provider:    AnvilWalletRpc,
+    canon_state: broadcast::Sender<CanonStateNotification>
 }
 
 impl RpcStateProviderFactory {
@@ -99,5 +113,11 @@ impl BlockStateProviderFactory for RpcStateProviderFactory {
     fn best_block_number(&self) -> ProviderResult<BlockNumber> {
         async_to_sync(self.provider.get_block_number())
             .map_err(|_| ProviderError::BestBlockNotFound)
+    }
+}
+
+impl CanonStateSubscriptions for RpcStateProviderFactory {
+    fn subscribe_to_canonical_state(&self) -> CanonStateNotifications {
+        self.canon_state.subscribe()
     }
 }

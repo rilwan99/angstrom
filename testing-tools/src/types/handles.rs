@@ -5,7 +5,6 @@ use angstrom_network::{
     pool_manager::{OrderCommand, PoolHandle},
     NetworkOrderEvent
 };
-use consensus::ConsensusMessage;
 use order_pool::PoolManagerUpdate;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
 use tokio::sync::mpsc::{Sender, UnboundedSender};

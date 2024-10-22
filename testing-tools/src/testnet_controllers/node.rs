@@ -14,6 +14,7 @@ use angstrom_types::{
     primitive::PeerId,
     sol_bindings::{grouped_orders::AllOrders, sol::ContractBundle, testnet::random::RandomValues}
 };
+use consensus::AngstromValidator;
 use parking_lot::RwLock;
 use reth_chainspec::Hardforks;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
@@ -27,7 +28,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use super::{config::AngstromTestnetConfig, strom_internals::AngstromTestnetNodeInternals};
 use crate::{
     anvil_state_provider::RpcStateProviderFactoryWrapper,
-    network::peers::{EthPeerPool, TestnetNodeNetwork}
+    network::{EthPeerPool, TestnetNodeNetwork}
 };
 
 pub struct TestnetNode<C> {
@@ -50,13 +51,16 @@ where
         testnet_node_id: u64,
         network: TestnetNodeNetwork<C>,
         strom_handles: StromHandles,
-        config: AngstromTestnetConfig
+        config: AngstromTestnetConfig,
+        initial_validators: Vec<AngstromValidator>
     ) -> eyre::Result<Self> {
         let strom = AngstromTestnetNodeInternals::new(
             testnet_node_id,
             strom_handles,
             network.strom_handle.network_handle().clone(),
-            config
+            network.secret_key.clone(),
+            config,
+            initial_validators
         )
         .await?;
 

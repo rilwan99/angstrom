@@ -8,19 +8,22 @@ use angstrom::cli::initialize_strom_handles;
 use angstrom_network::{
     manager::StromConsensusEvent, NetworkOrderEvent, StromMessage, StromNetworkManager
 };
-use angstrom_types::sol_bindings::grouped_orders::AllOrders;
+use angstrom_types::{primitive::PeerId, sol_bindings::grouped_orders::AllOrders};
 use config::AngstromTestnetConfig;
+use consensus::AngstromValidator;
 use futures::StreamExt;
 use node::TestnetNode;
-use rand::Rng;
+use rand::{thread_rng, Rng};
 use reth_chainspec::Hardforks;
 use reth_metrics::common::mpsc::{
     metered_unbounded_channel, UnboundedMeteredReceiver, UnboundedMeteredSender
 };
+use reth_network_peers::pk2id;
 use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
+use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use tracing::{instrument, span, Instrument, Level};
 
-use crate::network::peers::TestnetNodeNetwork;
+use crate::network::TestnetNodeNetwork;
 
 pub mod node;
 
@@ -60,35 +63,63 @@ where
         Ok(this)
     }
 
-    pub async fn spawn_new_nodes(&mut self, c: C, number_nodes: u64) -> eyre::Result<()> {
-        for _ in 0..number_nodes {
-            self.spawn_new_node(c.clone()).await?;
+    async fn spawn_new_nodes(&mut self, c: C, number_nodes: u64) -> eyre::Result<()> {
+        let keys = Self::generate_node_keys(number_nodes);
+        let initial_validators = keys
+            .iter()
+            .map(|(pk, _)| AngstromValidator::new(pk2id(&pk), 100))
+            .collect::<Vec<_>>();
+
+        for (pk, sk) in keys {
+            let node_id = self.incr_peer_id();
+            self.initialize_new_node(c.clone(), node_id, pk, sk, initial_validators.clone())
+                .await?;
         }
 
         Ok(())
     }
 
-    pub async fn spawn_new_node(&mut self, c: C) -> eyre::Result<()> {
-        let node_id = self.incr_peer_id();
-        self.initialize_new_node(c, node_id).await?;
+    fn generate_node_keys(number_nodes: u64) -> Vec<(PublicKey, SecretKey)> {
+        let mut rng = thread_rng();
 
-        Ok(())
+        (0..number_nodes)
+            .into_iter()
+            .map(|_| {
+                let sk = SecretKey::new(&mut rng);
+                let secp = Secp256k1::default();
+                let pub_key = sk.public_key(&secp);
+                (pub_key, sk)
+            })
+            .collect()
     }
 
     #[instrument(name = "node", skip(self, node_id, c), fields(id = node_id))]
-    async fn initialize_new_node(&mut self, c: C, node_id: u64) -> eyre::Result<()> {
+    async fn initialize_new_node(
+        &mut self,
+        c: C,
+        node_id: u64,
+        pk: PublicKey,
+        sk: SecretKey,
+        initial_validators: Vec<AngstromValidator>
+    ) -> eyre::Result<PeerId> {
         tracing::info!("spawning node");
         let strom_handles = initialize_strom_handles();
         let network = TestnetNodeNetwork::new_fully_configed(
             node_id,
             c,
+            pk,
+            sk,
             Some(strom_handles.pool_tx.clone()),
             Some(strom_handles.consensus_tx_op.clone())
         )
         .await;
 
-        let mut node = TestnetNode::new(node_id, network, strom_handles, self.config).await?;
+        let mut node =
+            TestnetNode::new(node_id, network, strom_handles, self.config, initial_validators)
+                .await?;
         node.connect_to_all_peers(&mut self.peers).await;
+
+        let peer_id = node.peer_id();
 
         self.peers.insert(node_id, node);
 
@@ -96,7 +127,7 @@ where
             self.single_peer_update_state(0, node_id).await?;
         }
 
-        Ok(())
+        Ok(peer_id)
     }
 
     /// increments the `current_max_peer_id` and returns the previous value
@@ -331,3 +362,24 @@ where
         out
     }
 }
+
+/*
+
+
+Protocol Description
+The consensus mechanism operates in two primary rounds:
+Round 1 (Bid Submission):
+Before time T1, each validator: a) Signs the highest top-of-block (ToB) bid they've received. b) signs the set of all rest-of-bundle (RoB) transactions they've seen. c) Gossips both the signed ToB bid and the signed set of RoB transactions to all other validators.
+Round 2 (Bid Aggregation and Selection):
+Before time T2 (can be done immediately after T1), each validator: a) Reviews all signed ToB bids received before T1. b) Selects the transaction with the highest ToB bribe. c) Creates a de-duplicated set of all RoB transactions that execute at the batch uniform clearing price. d) Sends this aggregated information to the designated leader.
+Leader Action:
+Upon receiving 2f+1 (two-thirds majority plus one) Round 2 messages, the leader: a) Selects the highest ToB bid among all received messages. b) Finalizes the RoB transaction set based on the uniform clearing price algorithm. c) Constructs the final bundle combining the winning ToB bid and the RoB transaction set.
+Post-Consensus Verification:
+Asynchronously, after the main consensus rounds: a) Validators gossip a complete list of all bids and transactions they observed during Round 1. b) This information is used to verify the integrity of the process and detect any violations.
+Faults
+The protocol defines several fault conditions that can result in penalties for validators:
+Equivocation Fault:
+Occurs when a validator sends conflicting ToB bids or RoB transaction sets to different validators in Round 1.
+Easily provable and subject to severe penalties, potentially including full stake slashing.
+
+*/
