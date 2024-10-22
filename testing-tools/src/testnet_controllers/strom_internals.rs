@@ -10,6 +10,7 @@ use consensus::{AngstromValidator, ConsensusManager, ManagerNetworkDeps, Signer}
 use futures::StreamExt;
 use jsonrpsee::server::ServerBuilder;
 use order_pool::{order_storage::OrderStorage, PoolConfig};
+use reth_provider::CanonStateSubscriptions;
 use reth_tasks::TokioTaskExecutor;
 use secp256k1::SecretKey;
 
@@ -139,22 +140,22 @@ impl AngstromTestnetNodeInternals {
 
         let testnet_hub = TestnetHub::new(angstrom_addr, state_provider.provider().provider());
 
-        let _consensus_handle = ConsensusManager::spawn(
-            executor,
-            ManagerNetworkDeps::new(
-                strom_network_handle.clone(),
-                state_provider.provider().subscribe_to_canonical_state(),
-                strom_handles.consensus_rx_op
-            ),
-            Signer::new(secret_key),
-            initial_validators,
-            order_storage.clone(),
-            state_provider
-                .provider()
-                .provider()
-                .get_block_number()
-                .await?
-        );
+        // let _consensus_handle = ConsensusManager::spawn(
+        //     executor,
+        //     ManagerNetworkDeps::new(
+        //         strom_network_handle.clone(),
+        //         state_provider.provider().subscribe_to_canonical_state(),
+        //         strom_handles.consensus_rx_op
+        //     ),
+        //     Signer::new(secret_key),
+        //     initial_validators,
+        //     order_storage.clone(),
+        //     state_provider
+        //         .provider()
+        //         .provider()
+        //         .get_block_number()
+        //         .await?
+        // );
 
         Ok(Self {
             rpc_port,

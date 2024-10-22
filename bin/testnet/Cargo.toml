@@ -60,7 +60,6 @@ order-pool.workspace = true
 validation = { workspace = true, features = ["testnet"] }
 
 # Other
-blsful.workspace = true
 futures.workspace = true
 jsonrpsee.workspace = true
 tokio-util.workspace = true

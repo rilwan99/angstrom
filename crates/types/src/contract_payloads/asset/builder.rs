@@ -1,7 +1,7 @@
-use alloy_primitives::Address;
-use angstrom_types::contract_payloads::tob::Asset;
+use alloy::primitives::Address;
 
-use super::{assetarray::AssetArray, state::StageTracker};
+use super::{state::StageTracker, AssetArray};
+use crate::contract_payloads::Asset;
 
 pub enum AssetBuilderStage {
     Swap,
@@ -20,13 +20,7 @@ pub struct AssetBuilder {
 
 impl AssetBuilder {
     pub fn new() -> Self {
-        Self {
-            swaps:        StageTracker::new(),
-            rewards:      StageTracker::new(),
-            top_of_block: StageTracker::new(),
-            user_orders:  StageTracker::new(),
-            assets:       AssetArray::new()
-        }
+        Self::default()
     }
 
     fn get_stage(&mut self, stage: AssetBuilderStage) -> &mut StageTracker {
@@ -95,5 +89,17 @@ impl AssetBuilder {
                 asset
             })
             .collect()
+    }
+}
+
+impl Default for AssetBuilder {
+    fn default() -> Self {
+        Self {
+            swaps:        StageTracker::new(),
+            rewards:      StageTracker::new(),
+            top_of_block: StageTracker::new(),
+            user_orders:  StageTracker::new(),
+            assets:       AssetArray::new()
+        }
     }
 }

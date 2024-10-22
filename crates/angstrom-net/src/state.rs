@@ -1,9 +1,9 @@
 use std::{collections::HashSet, sync::Arc, task::Context};
 
 use alloy::{primitives::Address, sol};
+use angstrom_types::primitive::PeerId;
 use parking_lot::RwLock;
 use reth_network::DisconnectReason;
-use angstrom_types::primitive::PeerId;
 
 use crate::PeersManager;
 

@@ -7,7 +7,6 @@ edition.workspace = true
 base64 = "0.22.1"
 bitmaps.workspace = true
 reth-network-peers = { workspace = true, features = ["secp256k1"] }
-blsful.workspace = true
 bytes = "1.4"
 pade.workspace = true
 pade-macro.workspace = true
@@ -34,6 +33,7 @@ bincode = { workspace = true }
 serde = { workspace = true, optional = true, default-features = false, features = [
   "derive",
 ] }
+uniswap_v3_math.workspace = true
 
 testing-tools-macros = { workspace = true, optional = true }
 
@@ -44,6 +44,7 @@ convert_case = "0.6.0"
 
 [dev-dependencies]
 rand.workspace = true
+testing-tools.workspace = true
 
 [features]
 default = ["serde", "testnet"]

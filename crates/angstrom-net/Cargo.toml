@@ -69,7 +69,6 @@ metrics.workspace = true
 # misc
 auto_impl = "1"
 aquamarine.workspace = true
-blsful.workspace = true
 tracing.workspace = true
 thiserror.workspace = true
 parking_lot.workspace = true

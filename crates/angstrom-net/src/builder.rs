@@ -4,7 +4,6 @@ use std::{collections::HashSet, sync::Arc};
 
 use alloy::primitives::{Address, FixedBytes};
 use alloy_chains::Chain;
-use alloy_rpc_types::Peers;
 use angstrom_types::primitive::PeerId;
 use futures::FutureExt;
 use parking_lot::RwLock;

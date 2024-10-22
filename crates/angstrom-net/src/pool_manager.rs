@@ -16,7 +16,7 @@ use angstrom_types::{
         syncCall, PoolManagerCalls::updateDynamicLPFee
     },
     orders::{OrderOrigin, OrderSet},
-    primitive::Order,
+    primitive::{Order, PeerId},
     sol_bindings::{
         grouped_orders::{
             AllOrders, FlashVariants, GroupedVanillaOrder, OrderWithStorageData, StandingVariants
@@ -37,7 +37,6 @@ use order_pool::{
 };
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_network::transactions::ValidationOutcome;
-use angstrom_types::primitive::PeerId;
 use reth_tasks::TaskSpawner;
 use tokio::sync::{
     broadcast,

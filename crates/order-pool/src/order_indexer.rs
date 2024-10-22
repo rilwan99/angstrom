@@ -9,7 +9,7 @@ use std::{
 use alloy::primitives::{Address, BlockNumber, B256, U256};
 use angstrom_types::{
     orders::{OrderId, OrderOrigin, OrderSet},
-    primitive::{NewInitializedPool, PoolId},
+    primitive::{NewInitializedPool, PeerId, PoolId},
     sol_bindings::{
         grouped_orders::{AllOrders, OrderWithStorageData, *},
         rpc_orders::TopOfBlockOrder,
@@ -17,7 +17,6 @@ use angstrom_types::{
     }
 };
 use futures_util::{Stream, StreamExt};
-use angstrom_types::primitive::PeerId;
 use tokio::sync::oneshot::Sender;
 use tracing::{error, trace};
 use validation::order::{

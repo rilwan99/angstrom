@@ -6,8 +6,13 @@ const CONTRACT_LOCATION: &str = "contracts/";
 const OUT_DIRECTORY: &str = "contracts/out/";
 const BINDINGS_PATH: &str = "/src/contract_bindings/mod.rs";
 
-const WANTED_CONTRACTS: [&str; 4] =
-    ["Angstrom.sol", "PoolManager.sol", "PoolGate.sol", "MockRewardsManager.sol"];
+const WANTED_CONTRACTS: [&str; 5] = [
+    "Angstrom.sol",
+    "PoolManager.sol",
+    "PoolGate.sol",
+    "MockRewardsManager.sol",
+    "MintableMockERC20.sol"
+];
 
 // builds the contracts crate. then goes and generates bindings on this
 fn main() {
@@ -15,7 +20,6 @@ fn main() {
 
     let binding = base_dir.clone();
     let this_dir = binding.to_str().unwrap();
-    //panic!("{this_dir}");
 
     let mut contract_dir = base_dir.clone();
     contract_dir.push(CONTRACT_LOCATION);
@@ -50,7 +54,7 @@ fn main() {
             Some((raw, path.to_str()?.to_owned()))
         })
         .map(|(name, path_of_contracts)| {
-            let path_of_contracts = path_of_contracts.replace(&this_dir, "../..");
+            let path_of_contracts = path_of_contracts.replace(this_dir, "../..");
 
             let mod_name = name.clone().to_case(Case::Snake);
             format!(
@@ -76,7 +80,7 @@ fn main() {
         .unwrap();
 
     for contract_build in sol_macro_invocation {
-        writeln!(&mut f, "{}", contract_build).expect("failed to write sol macro to contract");
+        write!(&mut f, "{}", contract_build).expect("failed to write sol macro to contract");
     }
 }
 

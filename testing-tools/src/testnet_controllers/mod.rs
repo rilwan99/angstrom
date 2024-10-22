@@ -2,17 +2,15 @@ use std::{
     collections::{HashMap, HashSet},
     future::Future
 };
-pub mod config;
-
+mod config;
 use angstrom::cli::initialize_strom_handles;
 use angstrom_network::{
     manager::StromConsensusEvent, NetworkOrderEvent, StromMessage, StromNetworkManager
 };
 use angstrom_types::{primitive::PeerId, sol_bindings::grouped_orders::AllOrders};
-use config::AngstromTestnetConfig;
+pub use config::*;
 use consensus::AngstromValidator;
 use futures::StreamExt;
-use node::TestnetNode;
 use rand::{thread_rng, Rng};
 use reth_chainspec::Hardforks;
 use reth_metrics::common::mpsc::{
@@ -25,9 +23,11 @@ use tracing::{instrument, span, Instrument, Level};
 
 use crate::network::TestnetNodeNetwork;
 
-pub mod node;
+mod node;
+pub use node::*;
 
-pub mod strom_internals;
+mod strom_internals;
+pub use strom_internals::*;
 
 #[derive(Default)]
 pub struct AngstromTestnet<C> {

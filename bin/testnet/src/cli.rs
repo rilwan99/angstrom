@@ -1,5 +1,5 @@
 use clap::{ArgAction, Parser};
-use testing_tools::testnet_controllers::config::AngstromTestnetConfig;
+use testing_tools::testnet_controllers::AngstromTestnetConfig;
 use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 
