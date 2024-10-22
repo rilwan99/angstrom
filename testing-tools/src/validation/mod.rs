@@ -1,5 +1,4 @@
 use std::{
-    fmt::Debug,
     future::{poll_fn, Future},
     path::Path,
     pin::Pin,
