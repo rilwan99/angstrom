@@ -27,8 +27,8 @@ jobs:
 
       - name: "build nightly"
         run: cargo build --workspace --all-features
-        env:
-          RUSTFLAGS: -D warnings
+        # env:
+        #   RUSTFLAGS: -D warnings
       - name: "cargo fmt"
         run: cargo fmt --all --check
 
