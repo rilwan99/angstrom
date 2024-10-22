@@ -122,7 +122,7 @@ impl WeightedRoundRobin {
     }
 
     pub fn last_proposer(&self) -> Option<PeerId> {
-        self.last_proposer.clone()
+        self.last_proposer
     }
 
     pub fn choose_proposer(&mut self, block_number: BlockNumber) -> Option<PeerId> {
