@@ -1,12 +1,19 @@
 use std::{
+    borrow::BorrowMut,
     collections::{HashMap, HashSet},
+    marker::PhantomData,
     pin::Pin,
     sync::{Arc, Mutex},
     task::{Context, Poll},
     thread::current
 };
 
-use alloy_primitives::{bloom, BlockNumber};
+use alloy::{
+    network::Network,
+    primitives::{bloom, BlockNumber},
+    providers::Provider,
+    transports::Transport
+};
 use angstrom_metrics::ConsensusMetricsWrapper;
 use angstrom_network::{manager::StromConsensusEvent, Peer, StromMessage, StromNetworkHandle};
 use angstrom_types::{
@@ -15,8 +22,10 @@ use angstrom_types::{
     orders::PoolSolution,
     primitive::PeerId
 };
-use futures::{FutureExt, Stream, StreamExt};
-use matching_engine::MatchingManager;
+use futures::{pin_mut, FutureExt, Stream, StreamExt};
+use matching_engine::{
+    cfmm::uniswap::pool_providers::provider_adapter::ProviderAdapter, MatchingManager
+};
 use order_pool::{order_storage::OrderStorage, timer::async_time_fn};
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_provider::{CanonStateNotification, CanonStateNotifications};
@@ -37,17 +46,18 @@ use crate::{
     AngstromValidator, ConsensusListener, ConsensusMessage, ConsensusUpdater, Signer
 };
 
-pub struct ConsensusManager {
-    current_height:   BlockNumber,
-    leader_selection: WeightedRoundRobin,
-    state_transition: RoundStateMachine,
-
+pub struct ConsensusManager<P, TR, N> {
+    current_height:         BlockNumber,
+    leader_selection:       WeightedRoundRobin,
+    state_transition:       RoundStateMachine,
     canonical_block_stream: BroadcastStream<CanonStateNotification>,
     strom_consensus_event:  UnboundedMeteredReceiver<StromConsensusEvent>,
     network:                StromNetworkHandle,
 
     /// Track broadcasted messages to avoid rebroadcasting
-    broadcasted_messages: HashSet<StromConsensusEvent>
+    broadcasted_messages: HashSet<StromConsensusEvent>,
+    provider:             P,
+    _phantom:             PhantomData<(TR, N)>
 }
 
 pub struct ManagerNetworkDeps {
@@ -66,13 +76,19 @@ impl ManagerNetworkDeps {
     }
 }
 
-impl ConsensusManager {
-    fn new(
+impl<P, TR, N> ConsensusManager<P, TR, N>
+where
+    P: Provider<TR, N> + Send + Sync,
+    TR: Transport + Clone + Send + Sync,
+    N: Network + Send + Sync
+{
+    pub fn new(
         netdeps: ManagerNetworkDeps,
         signer: Signer,
         validators: Vec<AngstromValidator>,
         order_storage: Arc<OrderStorage>,
-        current_height: BlockNumber
+        current_height: BlockNumber,
+        provider: P
     ) -> Self {
         let ManagerNetworkDeps { network, canonical_block_stream, strom_consensus_event } = netdeps;
         let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
@@ -92,22 +108,10 @@ impl ConsensusManager {
             ),
             network,
             canonical_block_stream: wrapped_broadcast_stream,
-            broadcasted_messages: HashSet::new()
+            broadcasted_messages: HashSet::new(),
+            provider,
+            _phantom: PhantomData
         }
-    }
-
-    pub fn spawn<TP: TaskSpawner>(
-        tp: TP,
-        netdeps: ManagerNetworkDeps,
-        signer: Signer,
-        validators: Vec<AngstromValidator>,
-        order_storage: Arc<OrderStorage>,
-        current_height: BlockNumber
-    ) -> JoinHandle<()> {
-        let manager =
-            ConsensusManager::new(netdeps, signer, validators, order_storage, current_height);
-        let fut = manager.message_loop().boxed();
-        tp.spawn_critical("consensus", fut)
     }
 
     async fn on_blockchain_state(&mut self, notification: CanonStateNotification) {
@@ -143,7 +147,6 @@ impl ConsensusManager {
             return;
         }
 
-        // TODO: do we want to on_strom_message() and then rebroadcast the message?
         if !self.broadcasted_messages.contains(&event) {
             self.network.broadcast_message(event.clone().into());
             self.broadcasted_messages.insert(event.clone());

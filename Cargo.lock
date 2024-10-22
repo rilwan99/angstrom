@@ -1473,6 +1473,7 @@ checksum = "4b46cbb362ab8752921c97e041f5e366ee6297bd428a31275b9fcf1e380f7299"
 name = "angstrom"
 version = "0.1.0"
 dependencies = [
+ "alloy",
  "alloy-chains",
  "alloy-primitives 0.8.9",
  "alloy-rpc-types 0.4.2",
@@ -3065,9 +3066,8 @@ checksum = "baf0a07a401f374238ab8e2f11a104d2851bf9ce711ec69804834de8af45c7af"
 name = "consensus"
 version = "0.1.0"
 dependencies = [
- "alloy-primitives 0.8.9",
+ "alloy",
  "alloy-rlp",
- "alloy-rpc-types 0.4.2",
  "angstrom-metrics",
  "angstrom-network",
  "angstrom-types",

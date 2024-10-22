@@ -1,9 +1,9 @@
-use alloy_primitives::{BlockNumber, FixedBytes};
+use alloy::primitives::{BlockNumber, FixedBytes};
 use angstrom_types::{
     consensus::{PreProposal, Proposal},
-    orders::PoolSolution
+    orders::PoolSolution,
+    primitive::PeerId
 };
-use reth_rpc_types::PeerId;
 use secp256k1::{rand::thread_rng, SecretKey};
 
 /// The Signer deals with verifying external signatures as well as

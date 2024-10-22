@@ -1,4 +1,7 @@
-use std::hash::{Hash, Hasher};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::{Hash, Hasher}
+};
 
 use alloy::primitives::{keccak256, BlockNumber};
 use bytes::Bytes;
@@ -8,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     orders::OrderSet,
-    primitive::Signature,
+    primitive::{PoolId, Signature},
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
         rpc_orders::TopOfBlockOrder
@@ -126,6 +129,19 @@ impl PreProposal {
 
     fn payload(&self) -> Bytes {
         Bytes::from(Self::serialize_payload(&self.block_height, &self.limit, &self.searcher))
+    }
+
+    pub fn orders_by_pool_id(
+        preproposals: &[PreProposal]
+    ) -> HashMap<PoolId, HashSet<OrderWithStorageData<GroupedVanillaOrder>>> {
+        preproposals
+            .iter()
+            .flat_map(|p| p.limit.iter())
+            .cloned()
+            .fold(HashMap::new(), |mut acc, order| {
+                acc.entry(order.pool_id).or_default().insert(order);
+                acc
+            })
     }
 }
 

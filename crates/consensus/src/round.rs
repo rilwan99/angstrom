@@ -1,18 +1,25 @@
 use std::{
     collections::{HashMap, HashSet},
     hash::Hash,
+    marker::PhantomData,
     pin::Pin,
     sync::Arc,
     task::{Context, Poll, Waker},
     time::Duration
 };
 
-use alloy_primitives::BlockNumber;
+use alloy::{
+    primitives::{BlockNumber, Bytes},
+    providers::{network::Network, Provider},
+    transports::Transport
+};
 use angstrom_metrics::ConsensusMetricsWrapper;
 use angstrom_network::{manager::StromConsensusEvent, StromMessage};
 use angstrom_types::{
     consensus::{PreProposal, Proposal},
+    contract_payloads::angstrom::AngstromBundle,
     orders::{OrderSet, PoolSolution},
+    primitive::PeerId,
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
         rpc_orders::TopOfBlockOrder
@@ -23,7 +30,6 @@ use futures::{future::BoxFuture, Future, Stream, StreamExt};
 use itertools::Itertools;
 use matching_engine::MatchingManager;
 use order_pool::order_storage::OrderStorage;
-use reth_rpc_types::PeerId;
 use serde::{Deserialize, Serialize};
 use tokio::time;
 
@@ -59,7 +65,6 @@ impl RoundStateMachine {
         metrics: ConsensusMetricsWrapper
     ) -> Self {
         let timer = Box::pin(time::sleep(INITIAL_STATE_DURATION));
-
         Self {
             current_state: Self::initial_state(block_height),
             round_leader,
@@ -70,7 +75,9 @@ impl RoundStateMachine {
             metrics,
             transition_future: None,
             initial_state_timer: Some(timer),
-            waker: None
+
+            waker: None /* provider,
+                         * _phantom: PhantomData, */
         }
     }
 
@@ -324,10 +331,10 @@ impl RoundStateMachine {
 
                 match proposal_result {
                     Ok(proposal) => {
-                        finalization.proposal = Some(proposal);
-                        // TODO: submit the proposal/bundle to the chain
-                        // Dave ;( wen Dave!
-                        // rpc_provider.sendTransaction(bundle).await
+                        finalization.proposal = Some(proposal.clone());
+                        // TODO: use the actual pools
+                        let pools = HashMap::new();
+                        let bundle = AngstromBundle::from_proposal(&proposal, &pools).unwrap();
                     }
                     Err(err) => {
                         // Handle the error from build_proposal
@@ -342,7 +349,7 @@ impl RoundStateMachine {
             new_state
         }));
 
-        // wake up the task to ensure poll_next is called
+        // wake up the poller
         if let Some(waker) = &self.waker {
             waker.wake_by_ref();
         }
