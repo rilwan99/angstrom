@@ -161,7 +161,7 @@ pub struct StoredOrderBuilder {
     is_bid:      bool,
     pool_id:     Option<FixedBytes<32>>,
     valid_block: Option<u64>,
-    tob_reward: Option<U256>
+    tob_reward:  Option<U256>
 }
 
 impl StoredOrderBuilder {
@@ -294,7 +294,8 @@ pub fn generate_top_of_block_order(
         .order_hash(order.order_hash())
         .build();
     // Todo: Sign It, make this overall better
-    // StoredOrderBuilder::new(order).is_bid(is_bid).valid_block(valid_block).pool_id(pool_id).build();
+    // StoredOrderBuilder::new(order).is_bid(is_bid).valid_block(valid_block).
+    // pool_id(pool_id).build();
     OrderWithStorageData {
         invalidates: vec![],
         order,
