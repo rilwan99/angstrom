@@ -5,12 +5,11 @@ use angstrom::cli::StromHandles;
 use angstrom_eth::handle::Eth;
 use angstrom_network::{pool_manager::PoolHandle, PoolManagerBuilder, StromNetworkHandle};
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
-use angstrom_types::{primitive::PeerId, sol_bindings::testnet::TestnetHub};
-use consensus::{AngstromValidator, ConsensusManager, ManagerNetworkDeps, Signer};
+use angstrom_types::sol_bindings::testnet::TestnetHub;
+use consensus::AngstromValidator;
 use futures::StreamExt;
 use jsonrpsee::server::ServerBuilder;
 use order_pool::{order_storage::OrderStorage, PoolConfig};
-use reth_provider::CanonStateSubscriptions;
 use reth_tasks::TokioTaskExecutor;
 use secp256k1::SecretKey;
 
