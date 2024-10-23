@@ -220,16 +220,3 @@ where
         Poll::Pending
     }
 }
-
-impl<P, TR, N> Future for ConsensusManager<P, TR, N>
-where
-    P: Provider<TR, N> + Send + Sync,
-    TR: Transport + Clone + Send + Sync,
-    N: Network + Send + Sync
-{
-    type Output = ();
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
-    }
-}
