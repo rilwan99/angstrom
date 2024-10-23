@@ -39,7 +39,7 @@ pub struct TestnetNodeNetwork<C> {
     pub strom_handle:    StromNetworkPeer,
     pub secret_key:      SecretKey,
     pub pubkey:          PeerId,
-    pub running:         Arc<AtomicBool>,
+    running:             Arc<AtomicBool>,
     pub(crate) networks: TestnetPeerStateFuture<C>
 }
 
@@ -104,14 +104,6 @@ where
             TestnetPeerStateFuture::new(testnet_node_id, eth_peer, strom_network, running.clone());
 
         Self { strom_handle, secret_key: sk, pubkey: peer_id, networks: futs, eth_handle, running }
-    }
-
-    pub fn new_with_consensus() -> Self {
-        todo!("consensus not configured for test peer")
-    }
-
-    pub fn new_with_tx_pool() -> Self {
-        todo!("tx pool not configured for test peer")
     }
 
     pub fn pubkey(&self) -> PeerId {

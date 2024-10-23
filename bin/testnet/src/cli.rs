@@ -1,5 +1,5 @@
 use clap::{ArgAction, Parser};
-use testing_tools::testnet_controllers::AngstromTestnetConfig;
+use testing_tools::testnet_controllers::{AngstromTestnetConfig, TestnetKind};
 use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 
@@ -43,7 +43,8 @@ impl Cli {
         AngstromTestnetConfig {
             intial_node_count:       this.nodes_in_network,
             initial_rpc_port:        this.starting_port,
-            testnet_block_time_secs: this.testnet_block_time_secs
+            testnet_block_time_secs: this.testnet_block_time_secs,
+            testnet_kind:            TestnetKind::new_raw()
         }
     }
 

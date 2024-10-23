@@ -16,7 +16,8 @@ use validation::common::lru_db::BlockStateProviderFactory;
 use super::{utils::AnvilWalletRpc, RpcStateProvider};
 use crate::{
     anvil_state_provider::utils::async_to_sync,
-    mocks::canon_state::AnvilConsensusCanonStateNotification
+    mocks::canon_state::AnvilConsensusCanonStateNotification,
+    testnet_controllers::AngstromTestnetConfig
 };
 
 #[derive(Debug)]
@@ -25,16 +26,23 @@ pub struct RpcStateProviderFactoryWrapper {
     _instance: AnvilInstance
 }
 impl RpcStateProviderFactoryWrapper {
-    pub async fn spawn_new(block_time: u64, id: u64) -> eyre::Result<Self> {
-        let anvil = Anvil::new()
-            .block_time(block_time)
+    pub async fn spawn_new(config: AngstromTestnetConfig, id: u64) -> eyre::Result<Self> {
+        let mut anvil_builder = Anvil::new()
+            .block_time(config.testnet_block_time_secs)
             .chain_id(1)
             .arg("--ipc")
             .arg(format!("/tmp/anvil_{id}.ipc"))
             .arg("--code-size-limit")
             .arg("393216")
-            .arg("--disable-block-gas-limit")
-            .try_spawn()?;
+            .arg("--disable-block-gas-limit");
+
+        if let Some(config) = config.state_machine_config() {
+            anvil_builder = anvil_builder
+                .arg("--fork-block-number")
+                .arg(format!("{}", config.start_block));
+        }
+
+        let anvil = anvil_builder.try_spawn()?;
 
         let endpoint = format!("/tmp/anvil_{id}.ipc");
         tracing::info!(?endpoint);

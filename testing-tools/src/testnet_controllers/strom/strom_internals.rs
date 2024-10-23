@@ -14,7 +14,6 @@ use reth_provider::CanonStateSubscriptions;
 use reth_tasks::TokioTaskExecutor;
 use secp256k1::SecretKey;
 
-use super::config::AngstromTestnetConfig;
 use crate::{
     anvil_state_provider::{
         utils::{AnvilWalletRpc, StromContractInstance},
@@ -22,6 +21,7 @@ use crate::{
     },
     contracts::deploy_contract_and_create_pool,
     network::TestnetConsensusFuture,
+    testnet_controllers::AngstromTestnetConfig,
     types::SendingStromHandles,
     validation::TestOrderValidator
 };
@@ -48,11 +48,8 @@ impl AngstromTestnetNodeInternals {
         initial_validators: Vec<AngstromValidator>
     ) -> eyre::Result<Self> {
         tracing::debug!("connecting to state provider");
-        let state_provider = RpcStateProviderFactoryWrapper::spawn_new(
-            config.testnet_block_time_secs,
-            testnet_node_id
-        )
-        .await?;
+        let state_provider =
+            RpcStateProviderFactoryWrapper::spawn_new(config, testnet_node_id).await?;
         tracing::info!("connected to state provider");
 
         tracing::debug!("deploying contracts to anvil");

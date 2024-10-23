@@ -25,10 +25,11 @@ use reth_network::{
 use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
 use tokio_stream::wrappers::UnboundedReceiverStream;
 
-use super::{config::AngstromTestnetConfig, strom_internals::AngstromTestnetNodeInternals};
+use super::strom_internals::AngstromTestnetNodeInternals;
 use crate::{
     anvil_state_provider::RpcStateProviderFactoryWrapper,
-    network::{EthPeerPool, TestnetNodeNetwork}
+    network::{EthPeerPool, TestnetNodeNetwork},
+    testnet_controllers::AngstromTestnetConfig
 };
 
 pub struct TestnetNode<C> {
