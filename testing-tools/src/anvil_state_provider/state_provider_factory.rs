@@ -14,7 +14,10 @@ use tokio::sync::broadcast;
 use validation::common::lru_db::BlockStateProviderFactory;
 
 use super::{utils::AnvilWalletRpc, RpcStateProvider};
-use crate::anvil_state_provider::utils::async_to_sync;
+use crate::{
+    anvil_state_provider::utils::async_to_sync,
+    mocks::canon_state::AnvilConsensusCanonStateNotification
+};
 
 #[derive(Debug)]
 pub struct RpcStateProviderFactoryWrapper {
@@ -50,7 +53,11 @@ impl RpcStateProviderFactoryWrapper {
         let (tx, _) = broadcast::channel(1000);
 
         Ok(Self {
-            provider:  RpcStateProviderFactory { provider: rpc, canon_state: tx },
+            provider:  RpcStateProviderFactory {
+                provider:       rpc,
+                canon_state_tx: tx,
+                canon_state:    AnvilConsensusCanonStateNotification::new()
+            },
             _instance: anvil
         })
     }
@@ -85,21 +92,31 @@ impl RpcStateProviderFactoryWrapper {
             .cloned()
             .unwrap();
 
-        // self.provider.canon_state.send(CanonStateNotification::)
+        self.provider.update_canon_chain(&mined);
 
         Ok(mined)
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub struct RpcStateProviderFactory {
-    provider:    AnvilWalletRpc,
-    canon_state: broadcast::Sender<CanonStateNotification>
+    provider:       AnvilWalletRpc,
+    canon_state:    AnvilConsensusCanonStateNotification,
+    canon_state_tx: broadcast::Sender<CanonStateNotification>
 }
 
 impl RpcStateProviderFactory {
     pub fn provider(&self) -> AnvilWalletRpc {
         self.provider.clone()
+    }
+
+    fn update_canon_chain(&self, new_block: &Block) -> eyre::Result<()> {
+        let state = self.canon_state.new_block(new_block);
+        let _ = self
+            .canon_state_tx
+            .send(CanonStateNotification::Commit { new: state })?;
+
+        Ok(())
     }
 }
 
@@ -118,6 +135,6 @@ impl BlockStateProviderFactory for RpcStateProviderFactory {
 
 impl CanonStateSubscriptions for RpcStateProviderFactory {
     fn subscribe_to_canonical_state(&self) -> CanonStateNotifications {
-        self.canon_state.subscribe()
+        self.canon_state_tx.subscribe()
     }
 }

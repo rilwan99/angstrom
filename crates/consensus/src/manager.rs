@@ -1,6 +1,7 @@
 use std::{
     borrow::BorrowMut,
     collections::{HashMap, HashSet},
+    future::Future,
     marker::PhantomData,
     pin::Pin,
     sync::{Arc, Mutex},
@@ -23,15 +24,9 @@ use angstrom_types::{
     primitive::PeerId
 };
 use futures::{pin_mut, FutureExt, Stream, StreamExt};
-use matching_engine::{
-    cfmm::uniswap::pool_providers::provider_adapter::ProviderAdapter, MatchingManager
-};
 use order_pool::{order_storage::OrderStorage, timer::async_time_fn};
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_provider::{CanonStateNotification, CanonStateNotifications};
-use reth_tasks::TaskSpawner;
-use serde::__private::ser::FlatMapSerializeStructVariantAsMapValue;
-use serde_json::error::Category::Data;
 use tokio::{
     select,
     sync::mpsc::{channel, unbounded_channel, Receiver, Sender, UnboundedReceiver},
@@ -114,7 +109,7 @@ where
         }
     }
 
-    async fn on_blockchain_state(&mut self, notification: CanonStateNotification) {
+    fn on_blockchain_state(&mut self, notification: CanonStateNotification) {
         let new_block = notification.tip();
         self.current_height = new_block.block.number;
         let round_leader = self
@@ -126,7 +121,7 @@ where
         self.broadcasted_messages.clear();
     }
 
-    async fn on_network_event(&mut self, event: StromConsensusEvent) {
+    fn on_network_event(&mut self, event: StromConsensusEvent) {
         if self.current_height != event.block_height() {
             tracing::warn!(
                 event_block_height=%event.block_height(),
@@ -195,22 +190,35 @@ where
         }
     }
 
-    pub async fn message_loop(mut self) {
+    pub fn message_loop(mut self) {
         loop {
             select! {
                 Some(msg) = self.canonical_block_stream.next() => {
                     match msg {
-                        Ok(notification) => self.on_blockchain_state(notification).await,
+                        Ok(notification) => self.on_blockchain_state(notification),
                         Err(e) => tracing::error!("Error receiving chain state notification: {}", e)
                     };
                 },
                 Some(msg) = self.strom_consensus_event.next() => {
-                    self.on_network_event(msg).await;
+                    self.on_network_event(msg);
                 },
                 Some(new_state) = self.state_transition.next() => {
                     self.on_state_start(new_state);
                 },
             }
         }
+    }
+}
+
+impl<P, TR, N> Future for ConsensusManager<P, TR, N>
+where
+    P: Provider<TR, N> + Send + Sync,
+    TR: Transport + Clone + Send + Sync,
+    N: Network + Send + Sync
+{
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.get_mut();
     }
 }
