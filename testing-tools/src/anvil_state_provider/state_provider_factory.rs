@@ -92,7 +92,7 @@ impl RpcStateProviderFactoryWrapper {
             .cloned()
             .unwrap();
 
-        self.provider.update_canon_chain(&mined);
+        self.provider.update_canon_chain(&mined)?;
 
         Ok(mined)
     }

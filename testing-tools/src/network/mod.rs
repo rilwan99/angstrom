@@ -1,5 +1,6 @@
+mod consensus_future;
+pub(crate) use consensus_future::TestnetConsensusFuture;
 mod eth_peer;
-
 mod network_future;
 mod strom_peer;
 use std::{

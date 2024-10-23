@@ -1,6 +1,6 @@
-use std::sync::Arc;
+use std::sync::{atomic::AtomicBool, Arc};
 
-use alloy::providers::Provider;
+use alloy::{network::Ethereum, providers::Provider, pubsub::PubSubFrontend};
 use angstrom::cli::StromHandles;
 use angstrom_eth::handle::Eth;
 use angstrom_network::{pool_manager::PoolHandle, PoolManagerBuilder, StromNetworkHandle};
@@ -17,10 +17,11 @@ use secp256k1::SecretKey;
 use super::config::AngstromTestnetConfig;
 use crate::{
     anvil_state_provider::{
-        utils::StromContractInstance, AnvilEthDataCleanser, RpcStateProviderFactory,
-        RpcStateProviderFactoryWrapper
+        utils::{AnvilWalletRpc, StromContractInstance},
+        AnvilEthDataCleanser, RpcStateProviderFactory, RpcStateProviderFactoryWrapper
     },
     contracts::deploy_contract_and_create_pool,
+    network::TestnetConsensusFuture,
     types::SendingStromHandles,
     validation::TestOrderValidator
 };
@@ -32,7 +33,9 @@ pub struct AngstromTestnetNodeInternals {
     pub pool_handle:      PoolHandle,
     pub tx_strom_handles: SendingStromHandles,
     pub testnet_hub:      StromContractInstance,
-    pub validator:        TestOrderValidator<RpcStateProviderFactory> //pub consensus:
+    pub validator:        TestOrderValidator<RpcStateProviderFactory>,
+    consensus:            TestnetConsensusFuture<AnvilWalletRpc, PubSubFrontend, Ethereum>,
+    consensus_running:    Arc<AtomicBool>
 }
 
 impl AngstromTestnetNodeInternals {
@@ -136,7 +139,7 @@ impl AngstromTestnetNodeInternals {
 
         let testnet_hub = TestnetHub::new(angstrom_addr, state_provider.provider().provider());
 
-        let _consensus_handle = ConsensusManager::new(
+        let consensus_handle = ConsensusManager::new(
             ManagerNetworkDeps::new(
                 strom_network_handle.clone(),
                 state_provider.provider().subscribe_to_canonical_state(),
@@ -153,6 +156,14 @@ impl AngstromTestnetNodeInternals {
             state_provider.provider().provider()
         );
 
+        let consensus_running = Arc::new(AtomicBool::new(true));
+
+        let consensus = TestnetConsensusFuture::new(
+            testnet_node_id,
+            consensus_handle,
+            consensus_running.clone()
+        );
+
         Ok(Self {
             rpc_port,
             state_provider,
@@ -160,7 +171,9 @@ impl AngstromTestnetNodeInternals {
             pool_handle,
             tx_strom_handles,
             testnet_hub,
-            validator
+            validator,
+            consensus,
+            consensus_running
         })
     }
 }
