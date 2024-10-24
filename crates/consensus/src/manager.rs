@@ -24,15 +24,9 @@ use angstrom_types::{
     primitive::PeerId
 };
 use futures::{pin_mut, FutureExt, Stream, StreamExt};
-use matching_engine::{
-    cfmm::uniswap::pool_providers::provider_adapter::ProviderAdapter, MatchingManager
-};
 use order_pool::{order_storage::OrderStorage, timer::async_time_fn};
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_provider::{CanonStateNotification, CanonStateNotifications};
-use reth_tasks::TaskSpawner;
-use serde::__private::ser::FlatMapSerializeStructVariantAsMapValue;
-use serde_json::error::Category::Data;
 use tokio::{
     select,
     sync::mpsc::{channel, unbounded_channel, Receiver, Sender, UnboundedReceiver},

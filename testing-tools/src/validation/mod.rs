@@ -17,10 +17,10 @@ use matching_engine::cfmm::uniswap::{
     pool_manager::UniswapPoolManager,
     pool_providers::canonical_state_adapter::CanonicalStateAdapter
 };
-use reth_provider::{CanonStateNotification, StateProviderFactory};
+use reth_provider::CanonStateNotification;
 use tokio::sync::mpsc::unbounded_channel;
 use validation::{
-    common::lru_db::RevmLRU,
+    common::lru_db::{BlockStateProviderFactory, RevmLRU},
     order::{
         order_validator::OrderValidator,
         sim::SimValidation,
@@ -39,7 +39,7 @@ type ValidatorOperation<DB, T> =
         T
     ) -> Pin<Box<dyn Future<Output = (TestOrderValidator<DB>, T)>>>;
 
-pub struct TestOrderValidator<DB: StateProviderFactory + Clone + Unpin + 'static> {
+pub struct TestOrderValidator<DB: BlockStateProviderFactory + Clone + Unpin + 'static> {
     /// allows us to set values to ensure
     pub revm_lru:   Arc<RevmLRU<DB>>,
     pub config:     ValidationConfig,
@@ -47,7 +47,7 @@ pub struct TestOrderValidator<DB: StateProviderFactory + Clone + Unpin + 'static
     pub underlying: Validator<DB, AngstromPoolsTracker, FetchUtils<DB>, CanonicalStateAdapter>
 }
 
-impl<DB: StateProviderFactory + Clone + Unpin + 'static> TestOrderValidator<DB> {
+impl<DB: BlockStateProviderFactory + Clone + Unpin + 'static> TestOrderValidator<DB> {
     pub fn new(db: DB) -> Self {
         let (tx, rx) = unbounded_channel();
         let config_path = Path::new("./state_config.toml");
@@ -103,14 +103,17 @@ impl<DB: StateProviderFactory + Clone + Unpin + 'static> TestOrderValidator<DB> 
     }
 }
 
-pub struct OrderValidatorChain<DB: StateProviderFactory + Clone + Unpin + 'static, T: 'static> {
+pub struct OrderValidatorChain<DB: BlockStateProviderFactory + Clone + Unpin + 'static, T: 'static>
+{
     validator:     TestOrderValidator<DB>,
     state:         T,
     operations:    Vec<Box<ValidatorOperation<DB, T>>>,
     poll_duration: Duration
 }
 
-impl<DB: StateProviderFactory + Clone + Unpin + 'static, T: 'static> OrderValidatorChain<DB, T> {
+impl<DB: BlockStateProviderFactory + Clone + Unpin + 'static, T: 'static>
+    OrderValidatorChain<DB, T>
+{
     pub fn new(validator: TestOrderValidator<DB>, poll_duration: Duration, state: T) -> Self {
         Self { poll_duration, validator, operations: vec![], state }
     }

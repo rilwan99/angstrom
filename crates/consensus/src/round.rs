@@ -8,11 +8,7 @@ use std::{
     time::Duration
 };
 
-use alloy::{
-    primitives::{BlockNumber, Bytes},
-    providers::{network::Network, Provider},
-    transports::Transport
-};
+use alloy::primitives::BlockNumber;
 use angstrom_metrics::ConsensusMetricsWrapper;
 use angstrom_network::{manager::StromConsensusEvent, StromMessage};
 use angstrom_types::{
@@ -26,7 +22,7 @@ use angstrom_types::{
     }
 };
 use angstrom_utils::timer::async_time_fn;
-use futures::{future::BoxFuture, Future, Stream, StreamExt};
+use futures::{future::BoxFuture, Future, Stream};
 use itertools::Itertools;
 use matching_engine::MatchingManager;
 use order_pool::order_storage::OrderStorage;

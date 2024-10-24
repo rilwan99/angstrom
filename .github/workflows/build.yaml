@@ -1,5 +1,9 @@
 name: 'Build'
-on: push
+on:
+  push:
+    branches:
+    - !feat/AG-202
+
 
 env:
   CARGO_TERM_COLOR: always

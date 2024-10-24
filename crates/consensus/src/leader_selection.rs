@@ -1,7 +1,6 @@
 use std::{
     cmp::Ordering,
     collections::HashSet,
-    default::Default,
     fs::File,
     io::{self, Read, Write}
 };
