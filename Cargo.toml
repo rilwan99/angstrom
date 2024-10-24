@@ -173,8 +173,6 @@ alloy-pubsub = { version = "0.4.2", default-features = false }
 alloy-json-rpc = { version = "0.4.2", default-features = false }
 alloy-rpc-client = { version = "0.4.2", default-features = false }
 
-aws-sdk-kms = { version = "1", default-features = false }
-
 
 
 # Uniswap math helpers
