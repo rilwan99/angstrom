@@ -384,7 +384,8 @@ impl RoundStateMachine {
         proposal: &Proposal,
         pool_registry: UniswapAngstromRegistry
     ) -> HashMap<PoolId, (Address, Address, PoolSnapshot, u16)> {
-        proposal.preproposals
+        proposal
+            .preproposals
             .iter()
             .flat_map(|p| p.limit.iter().map(|order| order.pool_id.clone()))
             .collect::<HashSet<_>>()

@@ -40,7 +40,7 @@ impl From<PoolKey> for PoolId {
     }
 }
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct UniswapPoolRegistry {
     pools: HashMap<PoolId, PoolKey>
 }

@@ -354,7 +354,7 @@ pub struct AngPoolConfigEntry {
     pub store_index:      usize
 }
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct AngstromPoolConfigStore {
     entries: HashMap<AngstromPoolPartialKey, AngPoolConfigEntry>
 }
@@ -439,7 +439,7 @@ impl TryFrom<&[u8]> for AngstromPoolConfigStore {
     }
 }
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct UniswapAngstromRegistry {
     uniswap_pools:         UniswapPoolRegistry,
     angstrom_config_store: AngstromPoolConfigStore

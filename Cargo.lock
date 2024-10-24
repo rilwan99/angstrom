@@ -12265,8 +12265,3 @@ dependencies = [
  "cc",
  "pkg-config",
 ]
-
-[[patch.unused]]
-name = "blstrs_plus"
-version = "0.8.18"
-source = "git+https://github.com/JamesHinshelwood/blstrs?branch=update-blst#2706a367813056c6791a097012f3c0c22b494ea7"
