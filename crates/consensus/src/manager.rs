@@ -1,7 +1,6 @@
 use std::{
     borrow::BorrowMut,
     collections::{HashMap, HashSet},
-    future::Future,
     marker::PhantomData,
     pin::Pin,
     sync::{Arc, Mutex},
@@ -19,14 +18,20 @@ use angstrom_metrics::ConsensusMetricsWrapper;
 use angstrom_network::{manager::StromConsensusEvent, Peer, StromMessage, StromNetworkHandle};
 use angstrom_types::{
     consensus::{PreProposal, Proposal},
-    contract_payloads::angstrom::TopOfBlockOrder,
+    contract_payloads::angstrom::{TopOfBlockOrder, UniswapAngstromRegistry},
     orders::PoolSolution,
     primitive::PeerId
 };
-use futures::{pin_mut, FutureExt, Stream, StreamExt};
+use futures::{FutureExt, Stream, StreamExt};
+use matching_engine::{
+    cfmm::uniswap::pool_providers::provider_adapter::ProviderAdapter, MatchingManager
+};
 use order_pool::{order_storage::OrderStorage, timer::async_time_fn};
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_provider::{CanonStateNotification, CanonStateNotifications};
+use reth_tasks::TaskSpawner;
+use serde::__private::ser::FlatMapSerializeStructVariantAsMapValue;
+use serde_json::error::Category::Data;
 use tokio::{
     select,
     sync::mpsc::{channel, unbounded_channel, Receiver, Sender, UnboundedReceiver},
@@ -37,11 +42,14 @@ use tracing::{error, warn};
 
 use crate::{
     leader_selection::WeightedRoundRobin,
-    round::{BidAggregation, BidSubmission, ConsensusState, Finalization, RoundStateMachine},
+    round::{
+        ConsensusState, Finalization, PreProposalAggregation, PreProposalSubmission,
+        RoundStateMachine
+    },
     AngstromValidator, ConsensusListener, ConsensusMessage, ConsensusUpdater, Signer
 };
 
-pub struct ConsensusManager<P, TR, N> {
+pub struct ConsensusManager {
     current_height:         BlockNumber,
     leader_selection:       WeightedRoundRobin,
     state_transition:       RoundStateMachine,
@@ -50,9 +58,7 @@ pub struct ConsensusManager<P, TR, N> {
     network:                StromNetworkHandle,
 
     /// Track broadcasted messages to avoid rebroadcasting
-    broadcasted_messages: HashSet<StromConsensusEvent>,
-    provider:             P,
-    _phantom:             PhantomData<(TR, N)>
+    broadcasted_messages: HashSet<StromConsensusEvent>
 }
 
 pub struct ManagerNetworkDeps {
@@ -71,19 +77,15 @@ impl ManagerNetworkDeps {
     }
 }
 
-impl<P, TR, N> ConsensusManager<P, TR, N>
-where
-    P: Provider<TR, N> + Send + Sync,
-    TR: Transport + Clone + Send + Sync,
-    N: Network + Send + Sync
-{
+impl ConsensusManager {
     pub fn new(
         netdeps: ManagerNetworkDeps,
         signer: Signer,
         validators: Vec<AngstromValidator>,
         order_storage: Arc<OrderStorage>,
         current_height: BlockNumber,
-        provider: P
+        pool_registry: UniswapAngstromRegistry,
+        provider: impl Provider + 'static
     ) -> Self {
         let ManagerNetworkDeps { network, canonical_block_stream, strom_consensus_event } = netdeps;
         let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
@@ -99,17 +101,17 @@ where
                 signer,
                 leader,
                 validators.clone(),
-                ConsensusMetricsWrapper::new()
+                ConsensusMetricsWrapper::new(),
+                pool_registry,
+                provider
             ),
             network,
             canonical_block_stream: wrapped_broadcast_stream,
-            broadcasted_messages: HashSet::new(),
-            provider,
-            _phantom: PhantomData
+            broadcasted_messages: HashSet::new()
         }
     }
 
-    fn on_blockchain_state(&mut self, notification: CanonStateNotification) {
+    async fn on_blockchain_state(&mut self, notification: CanonStateNotification) {
         let new_block = notification.tip();
         self.current_height = new_block.block.number;
         let round_leader = self
@@ -121,7 +123,7 @@ where
         self.broadcasted_messages.clear();
     }
 
-    fn on_network_event(&mut self, event: StromConsensusEvent) {
+    async fn on_network_event(&mut self, event: StromConsensusEvent) {
         if self.current_height != event.block_height() {
             tracing::warn!(
                 event_block_height=%event.block_height(),
@@ -160,10 +162,15 @@ where
         match new_stat {
             // means we transitioned from commit phase to bid submission.
             // nothing much to do here. we just wait sometime to accumulate orders
-            ConsensusState::BidSubmission(BidSubmission { pre_proposals, .. }) => {}
+            ConsensusState::PreProposalSubmission(PreProposalSubmission {
+                pre_proposals, ..
+            }) => {}
             // means we transitioned from bid submission to aggregation, therefore we broadcast our
             // pre-proposal to the network
-            ConsensusState::BidAggregation(BidAggregation { pre_proposals, .. }) => {
+            ConsensusState::PreProposalAggregation(PreProposalAggregation {
+                pre_proposals,
+                ..
+            }) => {
                 self.network.broadcast_message(
                     self.state_transition
                         .my_pre_proposal(&pre_proposals)
@@ -184,39 +191,33 @@ where
 
     pub fn on_state_end(&mut self, old_state: ConsensusState) {
         match old_state {
-            ConsensusState::BidSubmission(BidSubmission { .. }) => {}
-            ConsensusState::BidAggregation(BidAggregation { .. }) => {}
+            ConsensusState::PreProposalSubmission(PreProposalSubmission { .. }) => {}
+            ConsensusState::PreProposalAggregation(PreProposalAggregation { .. }) => {}
             ConsensusState::Finalization(Finalization { .. }) => {}
         }
     }
-}
 
-impl<P, TR, N> Future for ConsensusManager<P, TR, N>
-where
-    P: Provider<TR, N> + Send + Sync + Unpin,
-    TR: Transport + Clone + Send + Sync + Unpin,
-    N: Network + Send + Sync + Unpin
-{
-    type Output = ();
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
-
-        if let Poll::Ready(Some(msg)) = this.canonical_block_stream.poll_next_unpin(cx) {
-            match msg {
-                Ok(notification) => this.on_blockchain_state(notification),
-                Err(e) => tracing::error!("Error receiving chain state notification: {}", e)
-            };
+    pub async fn message_loop(mut self) {
+        loop {
+            select! {
+                Some(msg) = self.canonical_block_stream.next() => {
+                    match msg {
+                        Ok(notification) => self.on_blockchain_state(notification).await,
+                        Err(e) => tracing::error!("Error receiving chain state notification: {}", e)
+                    };
+                },
+                Some(msg) = self.strom_consensus_event.next() => {
+                    self.on_network_event(msg).await;
+                },
+                Some(new_state) = self.state_transition.next() => {
+                    match new_state {
+                        Ok(new_state) => self.on_state_start(new_state),
+                        Err(e) => {
+                            tracing::error!("could not transition state: {}", e)
+                        }
+                    }
+                },
+            }
         }
-
-        if let Poll::Ready(Some(msg)) = this.strom_consensus_event.poll_next_unpin(cx) {
-            this.on_network_event(msg);
-        }
-
-        if let Poll::Ready(Some(new_state)) = this.state_transition.poll_next_unpin(cx) {
-            this.on_state_start(new_state);
-        }
-
-        Poll::Pending
     }
 }
