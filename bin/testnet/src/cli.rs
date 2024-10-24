@@ -4,12 +4,6 @@ use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Layer};
 
 #[derive(Parser)]
-#[clap(about = "
-Angstrom Anvil Testnet.
-Anvil must be installed on the system in order to spin up \
-                the testnode. 
-To install run `curl -L https://foundry.paradigm.xyz | bash`. then run foundryup to install anvil
-    ")]
 pub struct Cli {
     /// starting port for the rpc for submitting transactions.
     /// each node will have an rpc submission endpoint at this port + their
@@ -58,7 +52,6 @@ impl Cli {
         };
 
         let filter = EnvFilter::builder()
-            // .with_default_directive(LevelFilter::INFO.into())
             .with_default_directive(format!("testnet={level}").parse().unwrap())
             .from_env_lossy()
             .add_directive(format!("angstrom={level}").parse().unwrap())

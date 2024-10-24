@@ -20,6 +20,7 @@ use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use tracing::{instrument, span, Instrument, Level};
 
+use super::StateMachineTestnet;
 use crate::{
     network::TestnetNodeNetwork,
     testnet_controllers::{strom::TestnetNode, AngstromTestnetConfig}
@@ -56,6 +57,10 @@ where
         this.spawn_new_nodes(c, config.intial_node_count).await?;
 
         Ok(this)
+    }
+
+    pub fn as_state_machine(self) -> StateMachineTestnet<C> {
+        StateMachineTestnet::new(self)
     }
 
     async fn spawn_new_nodes(&mut self, c: C, number_nodes: u64) -> eyre::Result<()> {
