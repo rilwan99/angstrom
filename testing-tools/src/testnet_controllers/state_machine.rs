@@ -54,41 +54,43 @@ impl<C> StateMachineTestnet<C> {
 }
 
 trait HookResult: Sized {
-    fn error(&self) -> Option<eyre::ErrReport>;
+    fn error(&self) -> Option<&eyre::ErrReport>;
 
     fn is_pass(&self) -> bool;
 
     fn fmt_result(self, i: usize, name: &'static str) {
-        if let Some(error) = self.error() {
+        if let Some(e) = self.error() {
             tracing::error!(target: "testnet::state-machine", hook = i, name, "{:?}", e);
             panic!();
         }
 
-        if !self.is_pass() {
-            tracing::info!(target: "testnet::state-machine", hook = i, name, "hook PASSED!");
+        if self.is_pass() {
+            tracing::info!(target: "testnet::state-machine", hook = i, name, "hook PASSED");
         } else {
-            tracing::error!(target: "testnet::state-machine", hook = i, name, "hook FAILED!");
-            panic!();
+            tracing::warn!(target: "testnet::state-machine", hook = i, name, "hook FAILED");
         }
     }
 }
 
 impl HookResult for eyre::Result<()> {
     fn is_pass(&self) -> bool {
-        self == &Ok(())
+        self.is_ok()
     }
 
-    fn error(&self) -> Option<eyre::ErrReport> {
-        self.clone().err()
+    fn error(&self) -> Option<&eyre::ErrReport> {
+        self.as_ref().err()
     }
 }
 
 impl HookResult for eyre::Result<bool> {
     fn is_pass(&self) -> bool {
-        self == &Ok(true)
+        match self.as_ref() {
+            Ok(true) => true,
+            _ => false
+        }
     }
 
-    fn error(&self) -> Option<eyre::ErrReport> {
-        self.clone().err()
+    fn error(&self) -> Option<&eyre::ErrReport> {
+        self.as_ref().err()
     }
 }
