@@ -29,7 +29,8 @@ use crate::{
 pub struct OrderValidator<DB, Pools, Fetch, Provider> {
     sim:          SimValidation<DB>,
     state:        StateValidation<Pools, Fetch, Provider>,
-    thread_pool:  KeySplitThreadpool<UserAddress, Pin<Box<dyn Future<Output = ()> + Send>>, Handle>,
+    thread_pool:
+        KeySplitThreadpool<UserAddress, Pin<Box<dyn Future<Output = ()> + Send + Sync>>, Handle>,
     block_number: Arc<AtomicU64>
 }
 
@@ -48,7 +49,7 @@ where
         pool_manager: UniswapPoolManager<Provider>,
         thread_pool: KeySplitThreadpool<
             UserAddress,
-            Pin<Box<dyn Future<Output = ()> + Send>>,
+            Pin<Box<dyn Future<Output = ()> + Send + Sync>>,
             Handle
         >
     ) -> Self {

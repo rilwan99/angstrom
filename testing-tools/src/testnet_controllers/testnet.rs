@@ -59,7 +59,7 @@ where
         Ok(this)
     }
 
-    pub fn as_state_machine(self) -> StateMachineTestnet<C> {
+    pub fn as_state_machine<'a>(self) -> StateMachineTestnet<'a, C> {
         StateMachineTestnet::new(self)
     }
 
@@ -205,7 +205,7 @@ where
         id: Option<u64>,
         sent_msg: StromMessage,
         expected_orders: Vec<AllOrders>
-    ) -> bool {
+    ) -> eyre::Result<bool> {
         let out = self
             .run_network_event_on_all_peers_with_exception(
                 id.unwrap_or_else(|| self.random_valid_id()),
@@ -234,7 +234,7 @@ where
             )
             .await;
 
-        out == self.peers.len() - 1
+        Ok(out == self.peers.len() - 1)
     }
 
     /// takes a random peer and gets them to broadcast the message. we then
@@ -277,7 +277,7 @@ where
     pub async fn run_event<'a, F, O>(&'a self, id: Option<u64>, f: F) -> O::Output
     where
         F: FnOnce(&'a TestnetNode<C>) -> O,
-        O: Future
+        O: Future + Send + Sync
     {
         let id = if let Some(i) = id {
             assert!(!self.peers.is_empty());
@@ -312,8 +312,8 @@ where
     where
         F: FnOnce(&TestnetNode<C>) -> O,
         P: FnOnce(Vec<UnboundedMeteredReceiver<E>>, O::Output) -> R,
-        O: Future,
-        R: Future
+        O: Future + Send + Sync,
+        R: Future + Send + Sync
     {
         let (old_peer_channels, rx_channels): (Vec<_>, Vec<_>) = self
             .peers

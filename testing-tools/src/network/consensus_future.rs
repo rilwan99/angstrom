@@ -23,9 +23,9 @@ pub(crate) struct TestnetConsensusFuture<P, TR, N> {
 
 impl<P, TR, N> TestnetConsensusFuture<P, TR, N>
 where
-    P: Provider<TR, N> + Send + Sync + Unpin + 'static,
-    TR: Transport + Clone + Send + Sync + Unpin,
-    N: Network + Send + Sync + Unpin
+    P: Provider<TR, N> + Send + Unpin + 'static,
+    TR: Transport + Clone + Send + Unpin,
+    N: Network + Send + Unpin
 {
     pub(crate) fn new(
         testnet_node_id: u64,
@@ -61,9 +61,9 @@ struct TestnetConsensusFutureInternals<P, TR, N> {
 
 impl<P, TR, N> TestnetConsensusFutureInternals<P, TR, N>
 where
-    P: Provider<TR, N> + Send + Sync,
-    TR: Transport + Clone + Send + Sync,
-    N: Network + Send + Sync
+    P: Provider<TR, N> + Send,
+    TR: Transport + Clone + Send,
+    N: Network + Send
 {
     fn new(
         testnet_node_id: u64,
@@ -76,9 +76,9 @@ where
 
 impl<P, TR, N> Future for TestnetConsensusFutureInternals<P, TR, N>
 where
-    P: Provider<TR, N> + Send + Sync + Unpin,
-    TR: Transport + Clone + Send + Sync + Unpin,
-    N: Network + Send + Sync + Unpin
+    P: Provider<TR, N> + Send + Unpin,
+    TR: Transport + Clone + Send + Unpin,
+    N: Network + Send + Unpin
 {
     type Output = ();
 

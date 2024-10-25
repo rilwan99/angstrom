@@ -37,7 +37,7 @@ type ValidatorOperation<DB, T> =
     dyn FnOnce(
         TestOrderValidator<DB>,
         T
-    ) -> Pin<Box<dyn Future<Output = (TestOrderValidator<DB>, T)>>>;
+    ) -> Pin<Box<dyn Future<Output = (TestOrderValidator<DB>, T)> + Send>>;
 
 pub struct TestOrderValidator<DB: BlockStateProviderFactory + Clone + Unpin + 'static> {
     /// allows us to set values to ensure
@@ -123,7 +123,7 @@ impl<DB: BlockStateProviderFactory + Clone + Unpin + 'static, T: 'static>
         F: FnOnce(
                 TestOrderValidator<DB>,
                 T
-            ) -> Pin<Box<dyn Future<Output = (TestOrderValidator<DB>, T)>>>
+            ) -> Pin<Box<dyn Future<Output = (TestOrderValidator<DB>, T)> + Send>>
             + 'static
     {
         self.operations.push(Box::new(op));

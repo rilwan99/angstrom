@@ -12,9 +12,13 @@ use tokio::sync::Semaphore;
 
 use crate::{sync_pipeline::ThreadPool, PollExt};
 
-type PendingFut<F> = Pin<Box<dyn Future<Output = <F as Future>::Output> + Send>>;
+type PendingFut<F> = Pin<Box<dyn Future<Output = <F as Future>::Output> + Send + Sync>>;
 
-pub struct KeySplitThreadpool<K: PartialEq + Eq + Hash + Clone, F: Future, TP: ThreadPool> {
+pub struct KeySplitThreadpool<
+    K: PartialEq + Eq + Hash + Clone,
+    F: Future + Send + Sync,
+    TP: ThreadPool
+> {
     tp:              TP,
     pending_results: FuturesUnordered<PendingFut<F>>,
     permit_size:     usize,
@@ -22,10 +26,12 @@ pub struct KeySplitThreadpool<K: PartialEq + Eq + Hash + Clone, F: Future, TP: T
     waker:           Option<Waker>
 }
 
-impl<K: PartialEq + Eq + Hash + Clone, F: Future, TP: ThreadPool> KeySplitThreadpool<K, F, TP>
+impl<K: PartialEq + Eq + Hash + Clone, F: Future, TP: ThreadPool + Send + Sync>
+    KeySplitThreadpool<K, F, TP>
 where
     K: Send + Unpin + 'static,
-    F: Send + 'static + Unpin,
+    F: Send + Sync + 'static + Unpin,
+    F::Output: Send + Sync + 'static + Unpin,
     TP: Clone + Send + 'static + Unpin,
     <F as Future>::Output: Send + 'static + Unpin
 {
@@ -69,7 +75,7 @@ where
     }
 }
 
-impl<K: PartialEq + Eq + Hash + Clone, F: Future, TP: ThreadPool> Stream
+impl<K: PartialEq + Eq + Hash + Clone, F: Future + Send + Sync, TP: ThreadPool + Send + Sync> Stream
     for KeySplitThreadpool<K, F, TP>
 where
     K: Send + Unpin + 'static,
