@@ -9,4 +9,3 @@ mod primitives;
 pub use bitvec;
 pub use decode::*;
 pub use encode::*;
-
