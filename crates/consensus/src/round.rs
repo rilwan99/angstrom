@@ -402,6 +402,7 @@ where
                             (
                                 pool_key.currency0,
                                 pool_key.currency1,
+                                // TODO: will be fixed once pool manager supports v4 pools
                                 PoolSnapshot::default(),
                                 entry.store_index as u16
                             )
