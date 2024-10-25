@@ -1,45 +1,20 @@
 use std::{
-    borrow::BorrowMut,
-    collections::{HashMap, HashSet},
+    collections::HashSet,
     future::Future,
-    marker::PhantomData,
     pin::Pin,
-    sync::{Arc, Mutex},
-    task::{Context, Poll},
-    thread::current
+    sync::Arc,
+    task::{Context, Poll}
 };
 
-use alloy::{
-    network::Network,
-    primitives::{bloom, BlockNumber},
-    providers::Provider,
-    transports::Transport
-};
+use alloy::{primitives::BlockNumber, providers::Provider, transports::Transport};
 use angstrom_metrics::ConsensusMetricsWrapper;
-use angstrom_network::{manager::StromConsensusEvent, Peer, StromMessage, StromNetworkHandle};
-use angstrom_types::{
-    consensus::{PreProposal, Proposal},
-    contract_payloads::angstrom::{TopOfBlockOrder, UniswapAngstromRegistry},
-    orders::PoolSolution,
-    primitive::PeerId
-};
-use futures::{FutureExt, Stream, StreamExt};
-use matching_engine::{
-    cfmm::uniswap::pool_providers::provider_adapter::ProviderAdapter, MatchingManager
-};
-use order_pool::{order_storage::OrderStorage, timer::async_time_fn};
+use angstrom_network::{manager::StromConsensusEvent, StromMessage, StromNetworkHandle};
+use angstrom_types::contract_payloads::angstrom::UniswapAngstromRegistry;
+use futures::StreamExt;
+use order_pool::order_storage::OrderStorage;
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_provider::{CanonStateNotification, CanonStateNotifications};
-use reth_tasks::TaskSpawner;
-use serde::__private::ser::FlatMapSerializeStructVariantAsMapValue;
-use serde_json::error::Category::Data;
-use tokio::{
-    select,
-    sync::mpsc::{channel, unbounded_channel, Receiver, Sender, UnboundedReceiver},
-    task::{JoinHandle, JoinSet}
-};
-use tokio_stream::wrappers::{BroadcastStream, ReceiverStream};
-use tracing::{error, warn};
+use tokio_stream::wrappers::BroadcastStream;
 
 use crate::{
     leader_selection::WeightedRoundRobin,
@@ -47,13 +22,13 @@ use crate::{
         ConsensusState, Finalization, PreProposalAggregation, PreProposalSubmission,
         RoundStateMachine
     },
-    AngstromValidator, ConsensusListener, ConsensusMessage, ConsensusUpdater, Signer
+    AngstromValidator, Signer
 };
 
-pub struct ConsensusManager {
+pub struct ConsensusManager<T> {
     current_height:         BlockNumber,
     leader_selection:       WeightedRoundRobin,
-    state_transition:       RoundStateMachine,
+    state_transition:       RoundStateMachine<T>,
     canonical_block_stream: BroadcastStream<CanonStateNotification>,
     strom_consensus_event:  UnboundedMeteredReceiver<StromConsensusEvent>,
     network:                StromNetworkHandle,
@@ -78,7 +53,10 @@ impl ManagerNetworkDeps {
     }
 }
 
-impl ConsensusManager {
+impl<T> ConsensusManager<T>
+where
+    T: Transport + Clone
+{
     pub fn new(
         netdeps: ManagerNetworkDeps,
         signer: Signer,
@@ -86,7 +64,7 @@ impl ConsensusManager {
         order_storage: Arc<OrderStorage>,
         current_height: BlockNumber,
         pool_registry: UniswapAngstromRegistry,
-        provider: impl Provider + 'static
+        provider: impl Provider<T> + 'static
     ) -> Self {
         let ManagerNetworkDeps { network, canonical_block_stream, strom_consensus_event } = netdeps;
         let wrapped_broadcast_stream = BroadcastStream::new(canonical_block_stream);
@@ -163,9 +141,7 @@ impl ConsensusManager {
         match new_stat {
             // means we transitioned from commit phase to bid submission.
             // nothing much to do here. we just wait sometime to accumulate orders
-            ConsensusState::PreProposalSubmission(PreProposalSubmission {
-                pre_proposals, ..
-            }) => {}
+            ConsensusState::PreProposalSubmission(PreProposalSubmission { .. }) => {}
             // means we transitioned from bid submission to aggregation, therefore we broadcast our
             // pre-proposal to the network
             ConsensusState::PreProposalAggregation(PreProposalAggregation {
@@ -199,7 +175,10 @@ impl ConsensusManager {
     }
 }
 
-impl Future for ConsensusManager {
+impl<T> Future for ConsensusManager<T>
+where
+    T: Transport + Clone
+{
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {

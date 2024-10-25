@@ -15,7 +15,6 @@ impl<C> StateMachineTestnet<C> {
 
     pub async fn run(mut self) {
         let hooks = std::mem::take(&mut self.hooks);
-        let num_hooks = hooks.len();
         for (i, (name, hook)) in hooks.into_iter().enumerate() {
             self.run_hook(i, name, hook).await;
         }
@@ -44,11 +43,11 @@ impl<C> StateMachineTestnet<C> {
             .push((check_name, StateMachineHook::Check(Box::new(check))))
     }
 
-    async fn run_action(&mut self, action: StateMachineActionHookFn<C>) -> eyre::Result<()> {
+    async fn run_action(&mut self, _: StateMachineActionHookFn<C>) -> eyre::Result<()> {
         Ok(())
     }
 
-    async fn run_check(&mut self, check: StateMachineCheckHookFn<C>) -> eyre::Result<bool> {
+    async fn run_check(&mut self, _: StateMachineCheckHookFn<C>) -> eyre::Result<bool> {
         Ok(false)
     }
 }

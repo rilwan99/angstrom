@@ -120,10 +120,6 @@ impl WeightedRoundRobin {
         }
     }
 
-    pub fn last_proposer(&self) -> Option<PeerId> {
-        self.last_proposer
-    }
-
     pub fn choose_proposer(&mut self, block_number: BlockNumber) -> Option<PeerId> {
         // 1. this is not ideal, since on multi-block reorgs the same proposer will be
         //    chosen for the length of the reorg

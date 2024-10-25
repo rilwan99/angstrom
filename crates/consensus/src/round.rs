@@ -10,8 +10,9 @@ use std::{
 use alloy::{
     network::TransactionBuilder,
     primitives::{Address, BlockNumber},
-    providers::{network::Network, Provider},
-    rpc::types::TransactionRequest
+    providers::Provider,
+    rpc::types::TransactionRequest,
+    transports::Transport
 };
 use angstrom_metrics::ConsensusMetricsWrapper;
 use angstrom_network::{manager::StromConsensusEvent, StromMessage};
@@ -27,7 +28,7 @@ use angstrom_types::{
     }
 };
 use angstrom_utils::timer::async_time_fn;
-use futures::{future::BoxFuture, Future, Stream, StreamExt};
+use futures::{future::BoxFuture, Future, Stream};
 use itertools::Itertools;
 use matching_engine::MatchingManager;
 use order_pool::order_storage::OrderStorage;
@@ -53,7 +54,7 @@ async fn build_proposal(pre_proposals: Vec<PreProposal>) -> Result<Vec<PoolSolut
 
 const INITIAL_STATE_DURATION: Duration = Duration::from_secs(3);
 
-pub struct RoundStateMachine {
+pub struct RoundStateMachine<T> {
     current_state:          ConsensusState,
     signer:                 Signer,
     round_leader:           PeerId,
@@ -65,10 +66,13 @@ pub struct RoundStateMachine {
     initial_state_timer:    Option<Pin<Box<time::Sleep>>>,
     waker:                  Option<Waker>,
     pool_registry:          UniswapAngstromRegistry,
-    provider:               Arc<Pin<Box<dyn Provider>>>
+    provider:               Arc<Pin<Box<dyn Provider<T>>>>
 }
 
-impl RoundStateMachine {
+impl<T> RoundStateMachine<T>
+where
+    T: Transport + Clone
+{
     pub fn new(
         block_height: BlockNumber,
         order_storage: Arc<OrderStorage>,
@@ -77,7 +81,7 @@ impl RoundStateMachine {
         validators: Vec<AngstromValidator>,
         metrics: ConsensusMetricsWrapper,
         pool_registry: UniswapAngstromRegistry,
-        provider: impl Provider + 'static
+        provider: impl Provider<T> + 'static
     ) -> Self {
         let timer = Box::pin(time::sleep(INITIAL_STATE_DURATION));
         Self {
@@ -299,14 +303,14 @@ impl RoundStateMachine {
             .collect()
     }
 
-    fn have_quorum<T: Hash + Eq + Clone>(&self, orders: Vec<OrderWithStorageData<T>>) -> bool {
+    fn have_quorum<O: Hash + Eq + Clone>(&self, orders: Vec<OrderWithStorageData<O>>) -> bool {
         orders.len() == self.filter_quorum_orders(orders).len()
     }
 
-    fn filter_quorum_orders<T: Hash + Eq + Clone>(
+    fn filter_quorum_orders<O: Hash + Eq + Clone>(
         &self,
-        input: Vec<OrderWithStorageData<T>>
-    ) -> Vec<OrderWithStorageData<T>> {
+        input: Vec<OrderWithStorageData<O>>
+    ) -> Vec<OrderWithStorageData<O>> {
         input
             .into_iter()
             .fold(HashMap::new(), |mut acc, order| {
@@ -319,7 +323,7 @@ impl RoundStateMachine {
             .collect()
     }
 
-    fn force_transition(&mut self, mut new_state: ConsensusState) {
+    fn force_transition(&mut self, new_state: ConsensusState) {
         self.transition_future = Some(Box::pin(self.build_transition_future(new_state)));
 
         // wake up the poller
@@ -361,7 +365,7 @@ impl RoundStateMachine {
                 .await;
                 metrics.set_proposal_build_time(pre_proposal_height, timer);
                 let proposal = proposal?;
-                let pools = RoundStateMachine::build_pools_param(&proposal, pool_registry);
+                let pools = RoundStateMachine::<T>::build_pools_param(&proposal, pool_registry);
                 let bundle = AngstromBundle::from_proposal(&proposal, &pools).unwrap();
                 let tx = TransactionRequest::default()
                     .with_to(Address::default())
@@ -409,7 +413,10 @@ impl RoundStateMachine {
     }
 }
 
-impl Stream for RoundStateMachine {
+impl<T> Stream for RoundStateMachine<T>
+where
+    T: Transport + Clone
+{
     type Item = Result<ConsensusState, RoundStateMachineError>;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {

@@ -1,23 +1,19 @@
 use std::sync::{atomic::AtomicBool, Arc};
 
-use crate::{
-    anvil_state_provider::{
-        utils::{AnvilWalletRpc, StromContractInstance},
-        AnvilEthDataCleanser, RpcStateProviderFactory, RpcStateProviderFactoryWrapper
-    },
-    contracts::deploy_contract_and_create_pool,
-    network::TestnetConsensusFuture,
-    testnet_controllers::AngstromTestnetConfig,
-    types::SendingStromHandles,
-    validation::TestOrderValidator
+use alloy::{
+    eips::{BlockId, BlockNumberOrTag},
+    providers::Provider,
+    pubsub::PubSubFrontend
 };
-use alloy::{network::Ethereum, providers::Provider, pubsub::PubSubFrontend};
 use angstrom::cli::StromHandles;
 use angstrom_eth::handle::Eth;
 use angstrom_network::{pool_manager::PoolHandle, PoolManagerBuilder, StromNetworkHandle};
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
-use angstrom_types::contract_payloads::angstrom::UniswapAngstromRegistry;
-use angstrom_types::sol_bindings::testnet::TestnetHub;
+use angstrom_types::{
+    contract_payloads::angstrom::{AngstromPoolConfigStore, UniswapAngstromRegistry},
+    primitive::PoolKey,
+    sol_bindings::testnet::TestnetHub
+};
 use consensus::{AngstromValidator, ConsensusManager, ManagerNetworkDeps, Signer};
 use futures::StreamExt;
 use jsonrpsee::server::ServerBuilder;
@@ -25,6 +21,18 @@ use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_provider::CanonStateSubscriptions;
 use reth_tasks::TokioTaskExecutor;
 use secp256k1::SecretKey;
+
+use crate::{
+    anvil_state_provider::{
+        utils::StromContractInstance, AnvilEthDataCleanser, RpcStateProviderFactory,
+        RpcStateProviderFactoryWrapper
+    },
+    contracts::deploy_contract_and_create_pool,
+    network::TestnetConsensusFuture,
+    testnet_controllers::AngstromTestnetConfig,
+    types::SendingStromHandles,
+    validation::TestOrderValidator
+};
 
 pub struct AngstromTestnetNodeInternals {
     pub rpc_port:         u64,
@@ -34,7 +42,7 @@ pub struct AngstromTestnetNodeInternals {
     pub tx_strom_handles: SendingStromHandles,
     pub testnet_hub:      StromContractInstance,
     pub validator:        TestOrderValidator<RpcStateProviderFactory>,
-    consensus:            TestnetConsensusFuture,
+    consensus:            TestnetConsensusFuture<PubSubFrontend>,
     consensus_running:    Arc<AtomicBool>
 }
 
@@ -58,7 +66,7 @@ impl AngstromTestnetNodeInternals {
         tracing::info!("deployed contracts to anvil");
 
         let angstrom_addr = addresses.contract;
-
+        let pools = vec![PoolKey::new(addresses.token0, addresses.token1, 0, 5, addresses.hooks)];
         let pool = strom_handles.get_pool_handle();
         let executor: TokioTaskExecutor = Default::default();
         let tx_strom_handles = (&strom_handles).into();
@@ -135,6 +143,20 @@ impl AngstromTestnetNodeInternals {
         });
 
         let testnet_hub = TestnetHub::new(angstrom_addr, state_provider.provider().provider());
+        let block_id = state_provider
+            .provider()
+            .provider()
+            .get_block_number()
+            .await
+            .unwrap();
+        let pool_config_store = AngstromPoolConfigStore::load_from_chain(
+            angstrom_addr,
+            BlockId::Number(BlockNumberOrTag::Number(block_id)),
+            &state_provider.provider().provider()
+        )
+        .await
+        .unwrap();
+        let pool_registry = UniswapAngstromRegistry::new(pools.into(), pool_config_store);
 
         let consensus_handle = ConsensusManager::new(
             ManagerNetworkDeps::new(
@@ -150,7 +172,7 @@ impl AngstromTestnetNodeInternals {
                 .provider()
                 .get_block_number()
                 .await?,
-            UniswapAngstromRegistry::default(),
+            pool_registry,
             state_provider.provider().provider()
         );
 
