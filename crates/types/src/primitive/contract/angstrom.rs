@@ -1,4 +1,3 @@
-use crate::primitive::PoolKey;
 use alloy::{
     primitives::*,
     rlp::{length_of_length, Decodable, Encodable, Error, Header, RlpDecodable, RlpEncodable},
@@ -7,6 +6,8 @@ use alloy::{
 };
 use alloy_primitives::aliases::{I24, U24};
 use serde::{Deserialize, Serialize};
+
+use crate::primitive::PoolKey;
 
 sol! {
     #![sol(all_derives = true)]
@@ -292,13 +293,19 @@ impl Decodable for Angstrom::CurrencySettlement {
 }
 
 impl PoolKey {
-    pub fn new(currency0: Address, currency1: Address, fee: u32, tick_spacing: i32, hooks: Address) -> Self {
+    pub fn new(
+        currency0: Address,
+        currency1: Address,
+        fee: u32,
+        tick_spacing: i32,
+        hooks: Address
+    ) -> Self {
         Self {
             currency0,
             currency1,
-            fee:  U24::from_be_bytes(fee.to_be_bytes()),
-            tickSpacing:  I24::from_be_bytes(tick_spacing.to_be_bytes()),
-            hooks,
+            fee: U24::from_be_bytes(fee.to_be_bytes()),
+            tickSpacing: I24::from_be_bytes(tick_spacing.to_be_bytes()),
+            hooks
         }
     }
 }
