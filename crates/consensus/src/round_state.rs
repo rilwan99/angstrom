@@ -3,8 +3,7 @@ use std::{
     hash::Hash,
     pin::Pin,
     sync::Arc,
-    task::{Context, Poll, Waker},
-    time::Duration
+    task::{Context, Poll, Waker}
 };
 
 use alloy::{
@@ -28,14 +27,14 @@ use angstrom_types::{
     }
 };
 use angstrom_utils::timer::async_time_fn;
-use futures::{future::BoxFuture, Future, Stream};
+use futures::{future::BoxFuture, Future, Stream, StreamExt};
 use itertools::Itertools;
 use matching_engine::MatchingManager;
-use order_pool::order_storage::OrderStorage;
+use order_pool::order_storage::{OrderStorage, OrderStorageNotification};
 use pade::PadeEncode;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio::time;
+use tokio_stream::wrappers::BroadcastStream;
 
 use crate::{AngstromValidator, Signer};
 
@@ -52,21 +51,18 @@ async fn build_proposal(pre_proposals: Vec<PreProposal>) -> Result<Vec<PoolSolut
     matcher.build_proposal(pre_proposals).await
 }
 
-const INITIAL_STATE_DURATION: Duration = Duration::from_secs(3);
-
 pub struct RoundStateMachine<T> {
-    current_state:          ConsensusState,
-    signer:                 Signer,
-    round_leader:           PeerId,
-    validators:             Vec<AngstromValidator>,
-    order_storage:          Arc<OrderStorage>,
-    initial_state_duration: Duration,
-    metrics:                ConsensusMetricsWrapper,
+    current_state:     ConsensusState,
+    signer:            Signer,
+    round_leader:      PeerId,
+    validators:        Vec<AngstromValidator>,
+    order_storage:     Arc<OrderStorage>,
+    order_storage_rx:  BroadcastStream<OrderStorageNotification>,
+    metrics:           ConsensusMetricsWrapper,
     transition_future: Option<BoxFuture<'static, Result<ConsensusState, RoundStateMachineError>>>,
-    initial_state_timer:    Option<Pin<Box<time::Sleep>>>,
-    waker:                  Option<Waker>,
-    pool_registry:          UniswapAngstromRegistry,
-    provider:               Arc<Pin<Box<dyn Provider<T>>>>
+    waker:             Option<Waker>,
+    pool_registry:     UniswapAngstromRegistry,
+    provider:          Arc<Pin<Box<dyn Provider<T>>>>
 }
 
 impl<T> RoundStateMachine<T>
@@ -83,18 +79,16 @@ where
         pool_registry: UniswapAngstromRegistry,
         provider: impl Provider<T> + 'static
     ) -> Self {
-        let timer = Box::pin(time::sleep(INITIAL_STATE_DURATION));
         Self {
             current_state: Self::initial_state(block_height),
+            order_storage_rx: BroadcastStream::new(order_storage.subscribe_notifications()),
             round_leader,
             validators,
-            initial_state_duration: INITIAL_STATE_DURATION,
             order_storage,
             pool_registry,
             signer,
             metrics,
             transition_future: None,
-            initial_state_timer: Some(timer),
             waker: None,
             provider: Arc::new(Box::pin(provider))
         }
@@ -119,7 +113,6 @@ where
     pub fn reset_round(&mut self, block: BlockNumber, leader: PeerId) {
         self.round_leader = leader;
         self.current_state = Self::initial_state(block);
-        self.initial_state_timer = Some(Box::pin(time::sleep(self.initial_state_duration)));
         self.transition_future = None;
     }
 
@@ -148,8 +141,11 @@ where
         let i_am_leader = self.i_am_leader();
         match strom_msg {
             StromConsensusEvent::PreProposal(_, pre_proposal) => {
-                // it does not make sense to accumulate pre_proposals here, since the leader already submitted on chain
-                if !matches!(self.current_state, ConsensusState::Finalization(_)) || !pre_proposal.is_valid(){
+                // it does not make sense to accumulate pre_proposals here, since the leader
+                // already submitted on chain
+                if !matches!(self.current_state, ConsensusState::Finalization(_))
+                    || !pre_proposal.is_valid()
+                {
                     return None;
                 }
 
@@ -233,6 +229,27 @@ where
         }
 
         None
+    }
+
+    pub fn on_storage_notification(&mut self, notification: OrderStorageNotification) {
+        match notification {
+            OrderStorageNotification::FinalizationComplete(previous_block) => {
+                if !matches!(self.current_state, ConsensusState::PreProposalSubmission(_)) {
+                    return
+                };
+
+                let current_state_block = self.current_state.block_height();
+                if previous_block + 1 != current_state_block {
+                    tracing::warn!(%previous_block, %current_state_block, "got order storage finalization for unexpected block");
+                    // reorg? something else went wrong? wait for the timeout
+                    return;
+                }
+                let block_height = current_state_block;
+                let pre_proposals = self.current_state.pre_proposals();
+                let bid_aggregation = self.generate_bid_aggregation(block_height, pre_proposals);
+                self.force_transition(ConsensusState::PreProposalAggregation(bid_aggregation));
+            }
+        }
     }
 
     fn generate_bid_aggregation(
@@ -437,21 +454,8 @@ where
             };
         }
 
-        if let Some(timer) = &mut this.initial_state_timer {
-            if timer.as_mut().poll(cx).is_ready() {
-                if let ConsensusState::PreProposalSubmission(PreProposalSubmission {
-                    block_height,
-                    pre_proposals
-                }) = &this.current_state
-                {
-                    let bid_aggregation =
-                        this.generate_bid_aggregation(*block_height, pre_proposals);
-                    this.transition_future = Some(Box::pin(async {
-                        Ok(ConsensusState::PreProposalAggregation(bid_aggregation))
-                    }));
-                    this.initial_state_timer = None;
-                }
-            }
+        if let Poll::Ready(Some(Ok(msg))) = this.order_storage_rx.poll_next_unpin(cx) {
+            this.on_storage_notification(msg);
         }
 
         Poll::Pending

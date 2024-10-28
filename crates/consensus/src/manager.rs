@@ -154,8 +154,8 @@ where
                         .unwrap()
                 );
             }
-            // TODO: maybe trigger the round verification job after it has finished, if we are not a
-            // leader
+            // TODO: maybe trigger the round verification job after it has finished,
+            // if we are not a leader
             ConsensusState::Finalization(finalization) => {
                 // tell everyone what we sent out to Ethereum
                 if self.state_transition.i_am_leader() {

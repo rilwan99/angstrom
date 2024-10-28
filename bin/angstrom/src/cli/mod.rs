@@ -139,8 +139,6 @@ pub struct StromHandles {
 
     pub pool_manager_tx: tokio::sync::broadcast::Sender<PoolManagerUpdate>,
 
-    // pub consensus_tx:    Sender<ConsensusCommand>,
-    // pub consensus_rx:    Receiver<ConsensusCommand>,
     pub consensus_tx_op: UnboundedMeteredSender<StromConsensusEvent>,
     pub consensus_rx_op: UnboundedMeteredReceiver<StromConsensusEvent>
 }
@@ -161,7 +159,6 @@ impl StromHandles {
 pub fn initialize_strom_handles() -> StromHandles {
     let (eth_tx, eth_rx) = channel(100);
     let (pool_manager_tx, _) = tokio::sync::broadcast::channel(100);
-    // let (consensus_tx, consensus_rx) = channel(100);
     let (pool_tx, pool_rx) = reth_metrics::common::mpsc::metered_unbounded_channel("orderpool");
     let (orderpool_tx, orderpool_rx) = unbounded_channel();
     let (consensus_tx_op, consensus_rx_op) =
@@ -175,8 +172,6 @@ pub fn initialize_strom_handles() -> StromHandles {
         orderpool_tx,
         pool_manager_tx,
         orderpool_rx,
-        // consensus_tx,
-        // consensus_rx,
         consensus_tx_op,
         consensus_rx_op
     }
