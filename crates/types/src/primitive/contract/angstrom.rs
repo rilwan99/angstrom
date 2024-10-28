@@ -4,7 +4,10 @@ use alloy::{
     sol,
     sol_types::{eip712_domain, Eip712Domain}
 };
+use alloy_primitives::aliases::{I24, U24};
 use serde::{Deserialize, Serialize};
+
+use crate::primitive::PoolKey;
 
 sol! {
     #![sol(all_derives = true)]
@@ -289,6 +292,23 @@ impl Decodable for Angstrom::CurrencySettlement {
     }
 }
 
+impl PoolKey {
+    pub fn new(
+        currency0: Address,
+        currency1: Address,
+        fee: u32,
+        tick_spacing: i32,
+        hooks: Address
+    ) -> Self {
+        Self {
+            currency0,
+            currency1,
+            fee: U24::from_be_bytes(fee.to_be_bytes()),
+            tickSpacing: I24::from_be_bytes(tick_spacing.to_be_bytes()),
+            hooks
+        }
+    }
+}
 // The `eip712_domain` macro lets you easily define an EIP-712 domain
 // object :)
 #[allow(dead_code)]

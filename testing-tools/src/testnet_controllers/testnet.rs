@@ -274,7 +274,7 @@ where
     }
 
     /// if id is None, then a random id is used
-    pub async fn run_event<'a, F, O>(&'a self, id: Option<u64>, f: F) -> O::Output
+    async fn run_event<'a, F, O>(&'a self, id: Option<u64>, f: F) -> O::Output
     where
         F: FnOnce(&'a TestnetNode<C>) -> O,
         O: Future + Send + Sync
@@ -299,7 +299,7 @@ where
 
     /// runs an event that uses the consensus or orderpool channels in the
     /// angstrom network and compares a expected result against all peers
-    pub async fn run_network_event_on_all_peers_with_exception<F, P, O, R, E>(
+    async fn run_network_event_on_all_peers_with_exception<F, P, O, R, E>(
         &mut self,
         exception_id: u64,
         network_f: F,
