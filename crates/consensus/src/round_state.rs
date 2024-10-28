@@ -143,7 +143,7 @@ where
             StromConsensusEvent::PreProposal(_, pre_proposal) => {
                 // it does not make sense to accumulate pre_proposals here, since the leader
                 // already submitted on chain
-                if !matches!(self.current_state, ConsensusState::Finalization(_))
+                if matches!(self.current_state, ConsensusState::Finalization(_))
                     || !pre_proposal.is_valid()
                 {
                     return None;
