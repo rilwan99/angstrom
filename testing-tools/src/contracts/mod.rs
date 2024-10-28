@@ -49,7 +49,8 @@ fn get_or_set_signer(my_address: Address) -> Address {
 pub struct AngstromTestnetAddresses {
     pub contract: Address,
     pub token0:   Address,
-    pub token1:   Address
+    pub token1:   Address,
+    pub hooks:    Address
 }
 /// deploys the angstrom testhub contract along with two tokens, under the
 /// secret key
@@ -122,7 +123,12 @@ pub async fn deploy_contract_and_create_pool(
         .anvil_stop_impersonating_account(get_or_set_signer(provider.default_signer_address()))
         .await?;
 
-    Ok(AngstromTestnetAddresses { contract: angstrom_address, token0, token1 })
+    Ok(AngstromTestnetAddresses {
+        contract: angstrom_address,
+        token0,
+        token1,
+        hooks: Address::default()
+    })
 }
 
 // will wait for a specific delay and then call anvil mine wallet.

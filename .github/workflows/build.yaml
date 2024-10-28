@@ -1,8 +1,5 @@
 name: 'Build'
-on:
-  push:
-    branches:
-    - !feat/AG-202
+on: push
 
 
 env:
