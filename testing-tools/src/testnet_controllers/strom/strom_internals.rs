@@ -24,8 +24,8 @@ use secp256k1::SecretKey;
 
 use crate::{
     anvil_state_provider::{
-        utils::StromContractInstance, AnvilEthDataCleanser, RpcStateProviderFactory,
-        RpcStateProviderFactoryWrapper
+        utils::StromContractInstance, AnvilEthDataCleanser, AnvilStateProvider,
+        AnvilStateProviderWrapper
     },
     contracts::deploy_contract_and_create_pool,
     network::TestnetConsensusFuture,
@@ -36,12 +36,12 @@ use crate::{
 
 pub struct AngstromTestnetNodeInternals {
     pub rpc_port:         u64,
-    pub state_provider:   RpcStateProviderFactoryWrapper,
+    pub state_provider:   AnvilStateProviderWrapper,
     pub order_storage:    Arc<OrderStorage>,
     pub pool_handle:      PoolHandle,
     pub tx_strom_handles: SendingStromHandles,
     pub testnet_hub:      StromContractInstance,
-    pub validator:        TestOrderValidator<RpcStateProviderFactory>,
+    pub validator:        TestOrderValidator<AnvilStateProvider>,
     consensus:            TestnetConsensusFuture<PubSubFrontend>,
     consensus_running:    Arc<AtomicBool>
 }
@@ -56,8 +56,7 @@ impl AngstromTestnetNodeInternals {
         initial_validators: Vec<AngstromValidator>
     ) -> eyre::Result<Self> {
         tracing::debug!("connecting to state provider");
-        let state_provider =
-            RpcStateProviderFactoryWrapper::spawn_new(config, testnet_node_id).await?;
+        let state_provider = AnvilStateProviderWrapper::spawn_new(config, testnet_node_id).await?;
         tracing::info!("connected to state provider");
 
         tracing::debug!("deploying contracts to anvil");

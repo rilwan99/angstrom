@@ -10,14 +10,14 @@ use angstrom_network::{
 use angstrom_types::{primitive::PeerId, sol_bindings::grouped_orders::AllOrders};
 use consensus::AngstromValidator;
 use futures::StreamExt;
-use rand::{thread_rng, Rng};
+use rand::Rng;
 use reth_chainspec::Hardforks;
 use reth_metrics::common::mpsc::{
     metered_unbounded_channel, UnboundedMeteredReceiver, UnboundedMeteredSender
 };
 use reth_network_peers::pk2id;
 use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
-use secp256k1::{PublicKey, Secp256k1, SecretKey};
+use secp256k1::{PublicKey, SecretKey};
 use tracing::{instrument, span, Instrument, Level};
 
 use super::{utils::generate_node_keys, StateMachineTestnet};
@@ -28,8 +28,8 @@ use crate::{
 #[derive(Default)]
 pub struct AngstromTestnet<C> {
     peers:               HashMap<u64, TestnetNode<C>>,
-    disconnected_peers:  HashSet<u64>,
-    dropped_peers:       HashSet<u64>,
+    _disconnected_peers: HashSet<u64>,
+    _dropped_peers:      HashSet<u64>,
     current_max_peer_id: u64,
     config:              AngstromTestnetConfig
 }
@@ -47,8 +47,8 @@ where
     pub async fn spawn_testnet(c: C, config: AngstromTestnetConfig) -> eyre::Result<Self> {
         let mut this = Self {
             peers: Default::default(),
-            disconnected_peers: HashSet::new(),
-            dropped_peers: HashSet::new(),
+            _disconnected_peers: HashSet::new(),
+            _dropped_peers: HashSet::new(),
             current_max_peer_id: 0,
             config
         };

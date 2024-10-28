@@ -18,6 +18,9 @@ pub struct Cli {
     /// this will change in the future but is good enough for testing currently
     #[clap(short, long, default_value = "2")]
     pub nodes_in_network:        u64,
+    /// the secret key/address to use as the controller
+    #[clap(short, long, default_value = "7")]
+    pub anvil_key:               u16,
     /// Set the minimum log level.
     ///
     /// -v      Errors
@@ -35,6 +38,7 @@ impl Cli {
         this.init_tracing();
 
         AngstromTestnetConfig {
+            anvil_key:               this.anvil_key as usize,
             intial_node_count:       this.nodes_in_network,
             initial_rpc_port:        this.starting_port,
             testnet_block_time_secs: this.testnet_block_time_secs,

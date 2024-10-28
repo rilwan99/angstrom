@@ -1,5 +1,6 @@
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy)]
 pub struct AngstromTestnetConfig {
+    pub anvil_key:               usize,
     pub intial_node_count:       u64,
     pub initial_rpc_port:        u16,
     pub testnet_block_time_secs: u64,
@@ -8,12 +9,19 @@ pub struct AngstromTestnetConfig {
 
 impl AngstromTestnetConfig {
     pub fn new(
+        anvil_key: usize,
         intial_node_count: u64,
         initial_rpc_port: u16,
         testnet_block_time_secs: u64,
         testnet_kind: TestnetKind
     ) -> Self {
-        Self { intial_node_count, initial_rpc_port, testnet_block_time_secs, testnet_kind }
+        Self {
+            anvil_key,
+            intial_node_count,
+            initial_rpc_port,
+            testnet_block_time_secs,
+            testnet_kind
+        }
     }
 
     pub fn rpc_port_with_node_id(&self, node_id: u64) -> u64 {
@@ -24,6 +32,18 @@ impl AngstromTestnetConfig {
         match self.testnet_kind {
             TestnetKind::StateMachine(c) => Some(c),
             _ => None
+        }
+    }
+}
+
+impl Default for AngstromTestnetConfig {
+    fn default() -> Self {
+        Self {
+            anvil_key:               7,
+            intial_node_count:       2,
+            initial_rpc_port:        4200,
+            testnet_block_time_secs: 12,
+            testnet_kind:            TestnetKind::new_raw()
         }
     }
 }

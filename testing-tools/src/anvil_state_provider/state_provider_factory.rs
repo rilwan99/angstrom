@@ -2,10 +2,11 @@ use alloy::{
     network::{Ethereum, EthereumWallet},
     node_bindings::{Anvil, AnvilInstance},
     providers::{builder, ext::AnvilApi, Provider},
+    pubsub::PubSubFrontend,
     rpc::types::{anvil::MineOptions, Block},
     signers::local::PrivateKeySigner
 };
-use alloy_primitives::{BlockNumber, Bytes};
+use alloy_primitives::{Address, BlockNumber, Bytes};
 use reth_provider::{
     CanonStateNotification, CanonStateNotifications, CanonStateSubscriptions, ProviderError,
     ProviderResult
@@ -15,17 +16,17 @@ use validation::common::lru_db::BlockStateProviderFactory;
 
 use super::{utils::AnvilWalletRpc, RpcStateProvider};
 use crate::{
-    anvil_state_provider::utils::async_to_sync,
+    anvil_state_provider::utils::async_to_sync, contracts::environment::TestAnvilEnvironment,
     mocks::canon_state::AnvilConsensusCanonStateNotification,
     testnet_controllers::AngstromTestnetConfig
 };
 
 #[derive(Debug)]
-pub struct RpcStateProviderFactoryWrapper {
-    provider:  RpcStateProviderFactory,
+pub struct AnvilStateProviderWrapper {
+    provider:  AnvilStateProvider,
     _instance: AnvilInstance
 }
-impl RpcStateProviderFactoryWrapper {
+impl AnvilStateProviderWrapper {
     pub async fn spawn_new(config: AngstromTestnetConfig, id: u64) -> eyre::Result<Self> {
         let mut anvil_builder = Anvil::new()
             .block_time(config.testnet_block_time_secs)
@@ -47,7 +48,7 @@ impl RpcStateProviderFactoryWrapper {
         let endpoint = format!("/tmp/anvil_{id}.ipc");
         tracing::info!(?endpoint);
         let ipc = alloy::providers::IpcConnect::new(endpoint.to_string());
-        let sk: PrivateKeySigner = anvil.keys()[0].clone().into();
+        let sk: PrivateKeySigner = anvil.keys()[config.anvil_key].clone().into();
 
         let wallet = EthereumWallet::new(sk);
         let rpc = builder::<Ethereum>()
@@ -61,8 +62,9 @@ impl RpcStateProviderFactoryWrapper {
         let (tx, _) = broadcast::channel(1000);
 
         Ok(Self {
-            provider:  RpcStateProviderFactory {
+            provider:  AnvilStateProvider {
                 provider:       rpc,
+                controller:     anvil.addresses()[config.anvil_key],
                 canon_state_tx: tx,
                 canon_state:    AnvilConsensusCanonStateNotification::new()
             },
@@ -70,7 +72,44 @@ impl RpcStateProviderFactoryWrapper {
         })
     }
 
-    pub fn provider(&self) -> RpcStateProviderFactory {
+    pub async fn spawn_new_isolated() -> eyre::Result<Self> {
+        let anvil = Anvil::new()
+            .block_time(12)
+            .chain_id(1)
+            .arg("--ipc")
+            .arg("--code-size-limit")
+            .arg("393216")
+            .arg("--disable-block-gas-limit")
+            .try_spawn()?;
+
+        let endpoint = format!("/tmp/anvil.ipc");
+        tracing::info!(?endpoint);
+        let ipc = alloy::providers::IpcConnect::new(endpoint.to_string());
+        let sk: PrivateKeySigner = anvil.keys()[7].clone().into();
+
+        let wallet = EthereumWallet::new(sk);
+        let rpc = builder::<Ethereum>()
+            .with_recommended_fillers()
+            .wallet(wallet)
+            .on_ipc(ipc)
+            .await?;
+
+        tracing::info!("connected to anvil");
+
+        let (tx, _) = broadcast::channel(1000);
+
+        Ok(Self {
+            provider:  AnvilStateProvider {
+                provider:       rpc,
+                controller:     anvil.addresses()[7],
+                canon_state_tx: tx,
+                canon_state:    AnvilConsensusCanonStateNotification::new()
+            },
+            _instance: anvil
+        })
+    }
+
+    pub fn provider(&self) -> AnvilStateProvider {
         self.provider.clone()
     }
 
@@ -106,14 +145,28 @@ impl RpcStateProviderFactoryWrapper {
     }
 }
 
+impl TestAnvilEnvironment for AnvilStateProviderWrapper {
+    type P = AnvilWalletRpc;
+    type T = PubSubFrontend;
+
+    fn provider(&self) -> &AnvilWalletRpc {
+        &self.provider.provider
+    }
+
+    fn controller(&self) -> Address {
+        self.provider.controller
+    }
+}
+
 #[derive(Debug, Clone)]
-pub struct RpcStateProviderFactory {
+pub struct AnvilStateProvider {
     provider:       AnvilWalletRpc,
+    controller:     Address,
     canon_state:    AnvilConsensusCanonStateNotification,
     canon_state_tx: broadcast::Sender<CanonStateNotification>
 }
 
-impl RpcStateProviderFactory {
+impl AnvilStateProvider {
     pub fn provider(&self) -> AnvilWalletRpc {
         self.provider.clone()
     }
@@ -128,7 +181,7 @@ impl RpcStateProviderFactory {
     }
 }
 
-impl BlockStateProviderFactory for RpcStateProviderFactory {
+impl BlockStateProviderFactory for AnvilStateProvider {
     type Provider = RpcStateProvider;
 
     fn state_by_block(&self, block: u64) -> ProviderResult<Self::Provider> {
@@ -141,8 +194,21 @@ impl BlockStateProviderFactory for RpcStateProviderFactory {
     }
 }
 
-impl CanonStateSubscriptions for RpcStateProviderFactory {
+impl CanonStateSubscriptions for AnvilStateProvider {
     fn subscribe_to_canonical_state(&self) -> CanonStateNotifications {
         self.canon_state_tx.subscribe()
+    }
+}
+
+impl TestAnvilEnvironment for AnvilStateProvider {
+    type P = AnvilWalletRpc;
+    type T = PubSubFrontend;
+
+    fn provider(&self) -> &AnvilWalletRpc {
+        &self.provider
+    }
+
+    fn controller(&self) -> Address {
+        self.controller
     }
 }
