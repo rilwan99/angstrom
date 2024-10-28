@@ -20,7 +20,7 @@ use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
 use tracing::{instrument, span, Instrument, Level};
 
-use super::StateMachineTestnet;
+use super::{utils::generate_node_keys, StateMachineTestnet};
 use crate::{
     network::TestnetNodeNetwork,
     testnet_controllers::{strom::TestnetNode, AngstromTestnetConfig}
@@ -129,7 +129,7 @@ where
         ids[id_idx]
     }
 
-    pub fn get_peer(&self, id: u64) -> &TestnetNode<C> {
+    pub(crate) fn get_peer(&self, id: u64) -> &TestnetNode<C> {
         self.peers.get(&id).expect(&format!("peer {id} not found"))
     }
 
@@ -139,7 +139,7 @@ where
             .expect(&format!("peer {id} not found"))
     }
 
-    pub fn get_random_peer(&self, not_allowed_ids: Vec<u64>) -> &TestnetNode<C> {
+    pub(crate) fn get_random_peer(&self, not_allowed_ids: Vec<u64>) -> &TestnetNode<C> {
         assert!(self.peers.len() != 0);
 
         let peer_ids = self
@@ -164,7 +164,7 @@ where
     }
 
     /// updates the anvil state of all the peers from a given peer
-    pub async fn all_peers_update_state(&self, id: u64) -> eyre::Result<()> {
+    pub(crate) async fn all_peers_update_state(&self, id: u64) -> eyre::Result<()> {
         let peer = self.get_peer(id);
         let (updated_state, _) = peer.state_provider().execute_and_return_state().await?;
 
@@ -184,7 +184,7 @@ where
     }
 
     /// updates the anvil state of all the peers from a given peer
-    pub async fn single_peer_update_state(
+    pub(crate) async fn single_peer_update_state(
         &self,
         state_from_id: u64,
         state_to_id: u64
@@ -244,7 +244,7 @@ where
         id: Option<u64>,
         sent_msg: StromMessage,
         expected_message: StromConsensusEvent
-    ) -> bool {
+    ) -> eyre::Result<bool> {
         let out = self
             .run_network_event_on_all_peers_with_exception(
                 id.unwrap_or_else(|| self.random_valid_id()),
@@ -270,7 +270,7 @@ where
             )
             .await;
 
-        out == self.peers.len() - 1
+        Ok(out == self.peers.len() - 1)
     }
 
     /// if id is None, then a random id is used
@@ -347,20 +347,6 @@ where
 
         out
     }
-}
-
-fn generate_node_keys(number_nodes: u64) -> Vec<(PublicKey, SecretKey)> {
-    let mut rng = thread_rng();
-
-    (0..number_nodes)
-        .into_iter()
-        .map(|_| {
-            let sk = SecretKey::new(&mut rng);
-            let secp = Secp256k1::default();
-            let pub_key = sk.public_key(&secp);
-            (pub_key, sk)
-        })
-        .collect()
 }
 
 /*

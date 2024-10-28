@@ -1,7 +1,10 @@
 use std::{future::Future, pin::Pin};
 
-use angstrom_network::StromMessage;
-use angstrom_types::sol_bindings::grouped_orders::AllOrders;
+use angstrom_network::{manager::StromConsensusEvent, StromMessage};
+use angstrom_types::{
+    consensus::{PreProposal, Proposal},
+    sol_bindings::grouped_orders::AllOrders
+};
 use reth_chainspec::Hardforks;
 use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
 
@@ -22,7 +25,11 @@ where
 {
     type FunctionOutput = StateMachineCheckedActionHookFn<'a, C>;
 
-    fn send_bundles(&mut self, orders: Vec<AllOrders>);
+    fn send_pooled_orders(&mut self, orders: Vec<AllOrders>);
+
+    fn send_propose(&mut self, proposal: Proposal);
+
+    fn send_prepropose(&mut self, preproposal: PreProposal);
 }
 
 impl<'a, C> WithCheckedAction<'a, C> for StateMachineTestnet<'a, C>
@@ -35,12 +42,34 @@ where
         + ChainSpecProvider<ChainSpec: Hardforks>
         + 'static
 {
-    fn send_bundles(&mut self, orders: Vec<AllOrders>) {
+    fn send_pooled_orders(&mut self, orders: Vec<AllOrders>) {
         let f = |testnet: &'a mut AngstromTestnet<C>| {
             pin_action(testnet.broadcast_orders_message(
                 None,
                 StromMessage::PropagatePooledOrders(orders.clone()),
                 orders
+            ))
+        };
+        self.add_checked_action("send bundles", f);
+    }
+
+    fn send_propose(&mut self, proposal: Proposal) {
+        let f = |testnet: &'a mut AngstromTestnet<C>| {
+            pin_action(testnet.broadcast_consensus_message(
+                Some(0),
+                StromMessage::Propose(proposal.clone()),
+                StromConsensusEvent::Proposal(testnet.get_peer(0).peer_id(), proposal)
+            ))
+        };
+        self.add_checked_action("send bundles", f);
+    }
+
+    fn send_prepropose(&mut self, preproposal: PreProposal) {
+        let f = |testnet: &'a mut AngstromTestnet<C>| {
+            pin_action(testnet.broadcast_consensus_message(
+                Some(0),
+                StromMessage::PrePropose(preproposal.clone()),
+                StromConsensusEvent::PreProposal(testnet.get_peer(0).peer_id(), preproposal)
             ))
         };
         self.add_checked_action("send bundles", f);

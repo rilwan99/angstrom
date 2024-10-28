@@ -15,7 +15,8 @@ async fn main() -> eyre::Result<()> {
         .await?
         .as_state_machine();
 
-    testnet.send_bundles(vec![]);
+    testnet.send_pooled_orders(vec![]);
+    // testnet.send_prepropose(vec![]);
 
     testnet.run().await;
 
