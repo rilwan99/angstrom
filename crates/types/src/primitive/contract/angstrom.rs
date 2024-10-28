@@ -300,12 +300,12 @@ impl PoolKey {
         tick_spacing: i32,
         hooks: Address
     ) -> Self {
-        let mut fee_bytes: [u8; 24] = [0; 24];
-        fee_bytes[20..].copy_from_slice(&fee.to_be_bytes());
+        // let mut fee_bytes: [u8; 24] = [0; 24];
+        // fee_bytes[20..].copy_from_slice(&fee.to_be_bytes());
         Self {
             currency0,
             currency1,
-            fee: U24::from_be_bytes(fee_bytes),
+            fee: U24::from_be_slice(&fee.to_be_bytes()),
             tickSpacing: I24::from_be_bytes(tick_spacing.to_be_bytes()),
             hooks
         }
