@@ -3,10 +3,7 @@ use std::{future::Future, pin::Pin};
 use reth_chainspec::Hardforks;
 use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
 
-use crate::{
-    testnet_controllers::{AngstromTestnet, StateMachineTestnet},
-    types::{StateMachineActionHookFn, StateMachineHook}
-};
+use crate::{testnet_controllers::StateMachineTestnet, types::StateMachineActionHookFn};
 
 pub trait WithAction<'a, C>
 where
