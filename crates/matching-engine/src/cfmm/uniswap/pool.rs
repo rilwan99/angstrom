@@ -16,7 +16,8 @@ use uniswap_v3_math::{
 
 use crate::cfmm::uniswap::{
     i32_to_i24,
-    pool_data_loader::{DataLoader, ModifyPositionEvent, PoolDataLoader, TickData}
+    pool_data_loader::{DataLoader, ModifyPositionEvent, PoolDataLoader, TickData},
+    ConversionError
 };
 
 #[derive(Default)]
@@ -107,7 +108,7 @@ where
                 tick_start,
                 zero_for_one,
                 num_ticks,
-                i32_to_i24(self.tick_spacing),
+                i32_to_i24(self.tick_spacing)?,
                 block_number,
                 provider.clone()
             )
@@ -142,7 +143,7 @@ where
             let (mut batch_ticks, _) = self
                 .get_tick_data_batch_request(
                     // safe because we pull the ticks form chain where they are i24
-                    i32_to_i24(start_tick),
+                    i32_to_i24(start_tick)?,
                     false,
                     ticks_to_fetch,
                     block_number,
@@ -610,5 +611,7 @@ pub enum PoolError {
     #[error(transparent)]
     AlloyContractError(#[from] alloy::contract::Error),
     #[error(transparent)]
-    AlloySolTypeError(#[from] alloy::sol_types::Error)
+    AlloySolTypeError(#[from] alloy::sol_types::Error),
+    #[error(transparent)]
+    ConversionError(#[from] ConversionError)
 }
