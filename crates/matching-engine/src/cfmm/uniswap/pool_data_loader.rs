@@ -1,6 +1,5 @@
 use std::{collections::HashMap, future::Future, sync::Arc};
 
-use crate::cfmm::uniswap::{i128_to_i256, i256_to_i128, pool::PoolError};
 use alloy::{
     primitives::{address, aliases::I24, Address, BlockNumber, U256},
     providers::{Network, Provider},
@@ -9,10 +8,14 @@ use alloy::{
     transports::Transport
 };
 use alloy_primitives::{aliases::U24, Log, B256, I256};
-use angstrom_types::contract_payloads::angstrom::AngstromPoolConfigStore;
-use angstrom_types::primitive::{PoolId as AngstromPoolId, PoolKey, UniswapPoolRegistry};
+use angstrom_types::{
+    contract_payloads::angstrom::AngstromPoolConfigStore,
+    primitive::{PoolId as AngstromPoolId, PoolKey, UniswapPoolRegistry}
+};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
+
+use crate::cfmm::uniswap::{i128_to_i256, i256_to_i128, pool::PoolError};
 
 sol! {
     #[allow(missing_docs)]
