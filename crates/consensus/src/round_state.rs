@@ -148,12 +148,18 @@ where
         let i_am_leader = self.i_am_leader();
         match strom_msg {
             StromConsensusEvent::PreProposal(_, pre_proposal) => {
-                // we do not want to allow another node to push us to transition
-                if !matches!(self.current_state, ConsensusState::PreProposalAggregation(_)) {
+                // it does not make sense to accumulate pre_proposals here, since the leader already submitted on chain
+                if !matches!(self.current_state, ConsensusState::Finalization(_)) || !pre_proposal.is_valid(){
                     return None;
                 }
 
-                if !pre_proposal.is_valid() {
+                self.current_state
+                    .pre_proposals_mut()
+                    .insert(pre_proposal.clone());
+
+                // we do not want to allow another node to push us to transition
+                // we wait for our grace period of 3 seconds to finish
+                if !matches!(self.current_state, ConsensusState::PreProposalAggregation(_)) {
                     return None;
                 }
 
@@ -169,6 +175,7 @@ where
                     self.current_state
                         .pre_proposals_mut()
                         .insert(merged_pre_proposal.clone());
+
                     let pre_proposals = self.current_state.pre_proposals();
 
                     if self.have_quorum(self.all_searcher_orders(pre_proposals))
@@ -185,10 +192,8 @@ where
                 }
 
                 // Leader path
-                self.current_state.pre_proposals_mut().insert(pre_proposal);
                 let pre_proposals = self.current_state.pre_proposals();
                 let block_height = self.current_state.block_height();
-
                 if self.have_quorum(self.all_searcher_orders(pre_proposals))
                     && self.have_quorum(self.all_limit_orders(pre_proposals))
                 {
