@@ -66,7 +66,7 @@ impl AngstromTestnetNodeInternals {
         tracing::info!("deployed contracts to anvil");
 
         let angstrom_addr = addresses.contract;
-        let pools = vec![PoolKey::new(addresses.token0, addresses.token1, 0, 5, addresses.hooks)];
+        let pools = vec![PoolKey::new(addresses.token0, addresses.token1, 3, 5, addresses.hooks)];
         let pool = strom_handles.get_pool_handle();
         let executor: TokioTaskExecutor = Default::default();
         let tx_strom_handles = (&strom_handles).into();
