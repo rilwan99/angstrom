@@ -306,7 +306,7 @@ impl PoolKey {
             currency0,
             currency1,
             fee: U24::from(fee),
-            tickSpacing: I24::from_be_bytes(tick_spacing.to_be_bytes()),
+            tickSpacing: I24::from(tick_spacing),
             hooks
         }
     }
