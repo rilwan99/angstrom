@@ -1,6 +1,3 @@
-use std::time::Duration;
-
-use angstrom_network::StromMessage;
 use reth_provider::test_utils::NoopProvider;
 use testing_tools::{
     testnet_controllers::AngstromTestnet, types::checked_actions::WithCheckedAction
