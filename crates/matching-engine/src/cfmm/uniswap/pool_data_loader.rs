@@ -8,12 +8,11 @@ use alloy::{
     transports::Transport
 };
 use alloy_primitives::{aliases::U24, Log, B256, I256};
-use amms::errors::AMMError;
 use angstrom_types::primitive::{PoolId as AngstromPoolId, PoolKey};
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 
-use crate::cfmm::uniswap::{i128_to_i256, i256_to_i128};
+use crate::cfmm::uniswap::{i128_to_i256, i256_to_i128, pool::PoolError};
 
 sol! {
     #[allow(missing_docs)]
@@ -133,7 +132,7 @@ pub trait PoolDataLoader<A> {
         tick_spacing: I24,
         block_number: Option<BlockNumber>,
         provider: Arc<P>
-    ) -> impl Future<Output = Result<(Vec<TickData>, U256), AMMError>> + Send;
+    ) -> impl Future<Output = Result<(Vec<TickData>, U256), PoolError>> + Send;
 
     fn address(&self) -> A;
 
@@ -143,14 +142,12 @@ pub trait PoolDataLoader<A> {
         &self,
         block_number: Option<BlockNumber>,
         provider: Arc<P>
-    ) -> impl Future<Output = Result<PoolData, AMMError>> + Send;
+    ) -> impl Future<Output = Result<PoolData, PoolError>> + Send;
 
     fn is_swap_event(log: &Log) -> bool;
     fn is_modify_position_event(log: &Log) -> bool;
-    fn decode_swap_event(log: &Log) -> Result<SwapEvent, alloy::sol_types::Error>;
-    fn decode_modify_position_event(
-        log: &Log
-    ) -> Result<ModifyPositionEvent, alloy::sol_types::Error>;
+    fn decode_swap_event(log: &Log) -> Result<SwapEvent, PoolError>;
+    fn decode_modify_position_event(log: &Log) -> Result<ModifyPositionEvent, PoolError>;
 }
 
 impl PoolDataLoader<Address> for DataLoader<Address> {
@@ -162,7 +159,7 @@ impl PoolDataLoader<Address> for DataLoader<Address> {
         tick_spacing: I24,
         block_number: Option<BlockNumber>,
         provider: Arc<P>
-    ) -> Result<(Vec<TickData>, U256), AMMError> {
+    ) -> Result<(Vec<TickData>, U256), PoolError> {
         let deployer = IGetUniswapV3TickDataBatchRequest::deploy_builder(
             provider.clone(),
             self.address,
@@ -186,7 +183,7 @@ impl PoolDataLoader<Address> for DataLoader<Address> {
         &self,
         block_number: Option<BlockNumber>,
         provider: Arc<P>
-    ) -> Result<PoolData, AMMError> {
+    ) -> Result<PoolData, PoolError> {
         let deployer = IGetUniswapV3PoolDataBatchRequest::deploy_builder(provider, self.address);
         let res = if let Some(block_number) = block_number {
             deployer.block(block_number.into()).call_raw().await?
@@ -217,15 +214,18 @@ impl PoolDataLoader<Address> for DataLoader<Address> {
     }
 
     fn is_swap_event(log: &Log) -> bool {
-        log.topics()[0] == IUniswapV3Pool::Swap::SIGNATURE_HASH
+        log.topics()
+            .iter()
+            .any(|t| *t == IUniswapV3Pool::Swap::SIGNATURE_HASH)
     }
 
     fn is_modify_position_event(log: &Log) -> bool {
-        log.topics()[0] == IUniswapV3Pool::Mint::SIGNATURE_HASH
-            || log.topics()[0] == IUniswapV3Pool::Burn::SIGNATURE_HASH
+        log.topics().iter().any(|t| {
+            *t == IUniswapV3Pool::Swap::SIGNATURE_HASH || *t == IUniswapV3Pool::Burn::SIGNATURE_HASH
+        })
     }
 
-    fn decode_swap_event(log: &Log) -> Result<SwapEvent, alloy::sol_types::Error> {
+    fn decode_swap_event(log: &Log) -> Result<SwapEvent, PoolError> {
         let swap_event = IUniswapV3Pool::Swap::decode_log(log, true)?;
         Ok(SwapEvent {
             sender:         swap_event.sender,
@@ -237,9 +237,7 @@ impl PoolDataLoader<Address> for DataLoader<Address> {
         })
     }
 
-    fn decode_modify_position_event(
-        log: &Log
-    ) -> Result<ModifyPositionEvent, alloy::sol_types::Error> {
+    fn decode_modify_position_event(log: &Log) -> Result<ModifyPositionEvent, PoolError> {
         if log.topics()[0] == IUniswapV3Pool::Mint::SIGNATURE_HASH {
             let mint_event = IUniswapV3Pool::Mint::decode_log(log, true)?;
             Ok(ModifyPositionEvent {
@@ -284,7 +282,7 @@ impl PoolDataLoader<AngstromPoolId> for DataLoader<AngstromPoolId> {
         &self,
         block_number: Option<BlockNumber>,
         provider: Arc<P>
-    ) -> Result<PoolData, AMMError> {
+    ) -> Result<PoolData, PoolError> {
         let pool_key = V4_POOL_TABLE.get(&self.address()).unwrap().clone();
         let deployer = IGetUniswapV4PoolDataBatchRequest::deploy_builder(
             provider,
@@ -323,7 +321,7 @@ impl PoolDataLoader<AngstromPoolId> for DataLoader<AngstromPoolId> {
         tick_spacing: I24,
         block_number: Option<BlockNumber>,
         provider: Arc<P>
-    ) -> Result<(Vec<TickData>, U256), AMMError> {
+    ) -> Result<(Vec<TickData>, U256), PoolError> {
         let deployer = IGetUniswapV4TickDataBatchRequest::deploy_builder(
             provider.clone(),
             self.address(),
@@ -369,14 +367,18 @@ impl PoolDataLoader<AngstromPoolId> for DataLoader<AngstromPoolId> {
     }
 
     fn is_swap_event(log: &Log) -> bool {
-        log.topics()[0] == IUniswapV4Pool::Swap::SIGNATURE_HASH
+        log.topics()
+            .iter()
+            .any(|t| *t == IUniswapV4Pool::Swap::SIGNATURE_HASH)
     }
 
     fn is_modify_position_event(log: &Log) -> bool {
-        log.topics()[0] == IUniswapV4Pool::ModifyLiquidity::SIGNATURE_HASH
+        log.topics()
+            .iter()
+            .any(|t| *t == IUniswapV4Pool::ModifyLiquidity::SIGNATURE_HASH)
     }
 
-    fn decode_swap_event(log: &Log) -> Result<SwapEvent, alloy::sol_types::Error> {
+    fn decode_swap_event(log: &Log) -> Result<SwapEvent, PoolError> {
         let swap_event = IUniswapV4Pool::Swap::decode_log(log, true)?;
         Ok(SwapEvent {
             sender:         swap_event.sender,
@@ -388,9 +390,7 @@ impl PoolDataLoader<AngstromPoolId> for DataLoader<AngstromPoolId> {
         })
     }
 
-    fn decode_modify_position_event(
-        log: &Log
-    ) -> Result<ModifyPositionEvent, alloy::sol_types::Error> {
+    fn decode_modify_position_event(log: &Log) -> Result<ModifyPositionEvent, PoolError> {
         let modify_event = IUniswapV4Pool::ModifyLiquidity::decode_log(log, true)?;
         Ok(ModifyPositionEvent {
             sender:          modify_event.sender,

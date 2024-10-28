@@ -10,10 +10,10 @@ use std::{
 
 use alloy::{
     primitives::{Address, BlockNumber},
-    rpc::types::{eth::Filter, Block}
+    rpc::types::{eth::Filter, Block},
+    transports::{RpcError, TransportErrorKind}
 };
 use alloy_primitives::Log;
-use amms::errors::EventLogError;
 use angstrom_types::matching::{
     uniswap::{LiqRange, PoolSnapshot},
     SqrtPriceX96
@@ -30,7 +30,7 @@ use tokio::{
     task::JoinHandle
 };
 
-use super::pool::SwapSimulationError;
+use super::pool::PoolError;
 use crate::cfmm::uniswap::{
     pool::EnhancedUniswapPool, pool_data_loader::PoolDataLoader,
     pool_providers::PoolManagerProvider
@@ -162,7 +162,7 @@ where
             let mut block_stream: BoxStream<Option<u64>> = provider.subscribe_blocks();
             while let Some(block_number) = block_stream.next().await {
                 let chain_head_block_number =
-                    block_number.ok_or(PoolManagerError::BlockNumberNotFound)?;
+                    block_number.ok_or(PoolManagerError::EmptyBlockNumberFromStream)?;
                 // If there is a reorg, unwind state changes from last_synced block to the
                 // chain head block number
                 if chain_head_block_number <= last_synced_block {
@@ -352,8 +352,6 @@ impl<Loader: PoolDataLoader<A>, A> StateChange<Loader, A> {
 pub enum PoolManagerError {
     #[error("Invalid block range")]
     InvalidBlockRange,
-    #[error("No logs provided")]
-    NoLogsProvided,
     #[error("No state changes in cache")]
     NoStateChangesInCache,
     #[error("Error when removing a state change from the front of the deque")]
@@ -361,29 +359,15 @@ pub enum PoolManagerError {
     #[error("State change cache capacity error")]
     CapacityError,
     #[error(transparent)]
-    EventLogError(#[from] EventLogError),
-    #[error("Invalid event signature")]
-    InvalidEventSignature,
-    #[error("Provider error")]
-    ProviderError,
-    #[error("Swap simulation failed")]
-    SwapSimulationFailed,
-    #[error(transparent)]
-    SwapSimulationError(#[from] SwapSimulationError),
-    #[error("Block number not found")]
-    BlockNumberNotFound,
-    #[error(transparent)]
-    TransportError(#[from] alloy::transports::TransportError),
-    #[error(transparent)]
-    EthABIError(#[from] alloy::sol_types::Error),
-    #[error(transparent)]
-    AMMError(#[from] amms::errors::AMMError),
-    #[error(transparent)]
-    ArithmeticError(#[from] amms::errors::ArithmeticError),
+    PoolError(#[from] PoolError),
+    #[error("Empty block number of stream")]
+    EmptyBlockNumberFromStream,
     #[error(transparent)]
     BlockSendError(#[from] tokio::sync::mpsc::error::SendError<Block>),
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
     #[error("Synchronization has already been started")]
-    SyncAlreadyStarted
+    SyncAlreadyStarted,
+    #[error(transparent)]
+    RpcTransportError(#[from] RpcError<TransportErrorKind>)
 }
