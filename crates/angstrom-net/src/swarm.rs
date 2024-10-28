@@ -3,8 +3,8 @@ use std::{
     task::{Context, Poll}
 };
 
-use futures::{Stream, StreamExt};
 use angstrom_types::primitive::PeerId;
+use futures::{Stream, StreamExt};
 
 use crate::{
     peers::PeersManager,

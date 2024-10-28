@@ -72,8 +72,8 @@ macro_rules! prim_decode {
     };
 }
 
-prim_decode!(u8, u16, u64, i32, I24, U256, u128);
-use_alloy_default!(u16, u64, i32, I24, U256, u128, Address);
+prim_decode!(u8, u16, u32, u64, i32, I24, U256, u128);
+use_alloy_default!(u16, u32, u64, i32, I24, U256, u128, Address);
 
 impl PadeEncode for u8 {
     fn pade_encode(&self) -> Vec<u8> {

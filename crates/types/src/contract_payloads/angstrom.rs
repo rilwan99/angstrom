@@ -27,14 +27,15 @@ use crate::{
     PadeEncode, PadeDecode, Clone, Default, Debug, Hash, PartialEq, Eq, Serialize, Deserialize,
 )]
 pub struct TopOfBlockOrder {
-    pub use_internal:    bool,
-    pub quantity_in:     u128,
-    pub quantity_out:    u128,
-    pub asset_in_index:  u16,
-    pub asset_out_index: u16,
-    pub recipient:       Option<Address>,
-    pub hook_data:       Option<Bytes>,
-    pub signature:       Bytes
+    pub use_internal:     bool,
+    pub quantity_in:      u128,
+    pub quantity_out:     u128,
+    pub max_gas_asset_0:  u128,
+    pub gas_used_asset_0: u128,
+    pub pairs_index:      u16,
+    pub zero_for_1:       bool,
+    pub recipient:        Option<Address>,
+    pub signature:        Bytes
 }
 
 impl TopOfBlockOrder {
@@ -43,24 +44,22 @@ impl TopOfBlockOrder {
         keccak256(&self.signature)
     }
 
-    pub fn of(
-        internal: &OrderWithStorageData<RpcTopOfBlockOrder>,
-        asset_in_index: u16,
-        asset_out_index: u16
-    ) -> Self {
+    pub fn of(internal: &OrderWithStorageData<RpcTopOfBlockOrder>, pairs_index: u16) -> Self {
         let quantity_in = internal.quantityIn;
         let quantity_out = internal.quantityOut;
         let recipient = Some(internal.recipient);
-        let hook_data = Some(internal.hookPayload.clone());
+        // Zero_for_1 is an Ask, an Ask is NOT a bid
+        let zero_for_1 = !internal.is_bid;
         let signature = internal.meta.signature.clone();
         Self {
             use_internal: false,
             quantity_in,
             quantity_out,
-            asset_in_index,
-            asset_out_index,
+            max_gas_asset_0: 0,
+            gas_used_asset_0: 0,
+            pairs_index,
+            zero_for_1,
             recipient,
-            hook_data,
             signature
         }
     }
@@ -82,16 +81,19 @@ pub enum OrderQuantities {
 
 #[derive(Debug, PadeEncode, PadeDecode)]
 pub struct UserOrder {
-    pub use_internal:        bool,
-    pub pair_index:          u16,
-    pub min_price:           alloy::primitives::U256,
-    pub recipient:           Option<Address>,
-    pub hook_data:           Option<Bytes>,
-    pub a_to_b:              bool,
-    pub standing_validation: Option<StandingValidation>,
-    pub order_quantities:    OrderQuantities,
-    pub exact_in:            bool,
-    pub signature:           Bytes
+    pub ref_id:               u32,
+    pub use_internal:         bool,
+    pub pair_index:           u16,
+    pub min_price:            alloy::primitives::U256,
+    pub recipient:            Option<Address>,
+    pub hook_data:            Option<Bytes>,
+    pub zero_for_one:         bool,
+    pub standing_validation:  Option<StandingValidation>,
+    pub order_quantities:     OrderQuantities,
+    pub max_extra_fee_asset0: u128,
+    pub extra_fee_asset0:     u128,
+    pub exact_in:             bool,
+    pub signature:            Bytes
 }
 
 impl UserOrder {
@@ -123,16 +125,19 @@ impl UserOrder {
             GroupedVanillaOrder::Standing(ref o) => o.hook_data().clone()
         };
         Self {
-            a_to_b: order.is_bid,
-            exact_in: false,
-            hook_data: Some(hook_data),
-            min_price: *order.price(),
-            order_quantities,
+            ref_id: 0,
+            use_internal: false,
             pair_index,
+            min_price: *order.price(),
             recipient: None,
-            signature: order.signature().clone(),
+            hook_data: Some(hook_data),
+            zero_for_one: !order.is_bid,
             standing_validation: None,
-            use_internal: false
+            order_quantities,
+            max_extra_fee_asset0: 0,
+            extra_fee_asset0: 0,
+            exact_in: false,
+            signature: order.signature().clone()
         }
     }
 }
@@ -169,6 +174,7 @@ impl AngstromBundle {
 
         // Walk through our solutions to add them to the structure
         for solution in proposal.solutions.iter() {
+            println!("Processing solution");
             // Get the information for the pool or skip this solution if we can't find a
             // pool for it
             let Some((t0, t1, snapshot, store_index)) = pools.get(&solution.id) else {
@@ -177,6 +183,7 @@ impl AngstromBundle {
                 warn!("Skipped a solution as we couldn't find a pool for it: {:?}", solution);
                 continue;
             };
+            println!("Processing pair {} - {}", t0, t1);
             // Make sure the involved assets are in our assets array and we have the
             // appropriate asset index for them
             let t0_idx = asset_builder.add_or_get_asset(*t0) as u16;
@@ -267,7 +274,7 @@ impl AngstromBundle {
                     tob.quantityIn,
                     tob.quantityOut
                 );
-                let contract_tob = TopOfBlockOrder::of(tob, asset_in_index, asset_out_index);
+                let contract_tob = TopOfBlockOrder::of(tob, pair_idx as u16);
                 top_of_block_orders.push(contract_tob);
             }
 

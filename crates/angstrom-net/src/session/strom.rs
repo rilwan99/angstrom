@@ -7,6 +7,7 @@ use std::{
 };
 
 use alloy::rlp::{BytesMut, Encodable};
+use angstrom_types::primitive::PeerId;
 use angstrom_utils::{GenericExt, PollFlatten};
 use futures::{
     task::{Context, Poll},
@@ -15,7 +16,6 @@ use futures::{
 use reth_eth_wire::multiplex::ProtocolConnection;
 use reth_metrics::common::mpsc::MeteredPollSender;
 use reth_network_api::Direction;
-use angstrom_types::primitive::PeerId;
 use secp256k1::SecretKey;
 use tokio::time::Duration;
 use tokio_stream::wrappers::ReceiverStream;

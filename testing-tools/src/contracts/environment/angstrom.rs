@@ -99,15 +99,18 @@ mod tests {
     };
 
     use alloy::{
-        primitives::{Address, Bytes},
+        primitives::{
+            aliases::{I24, U24},
+            Address, Bytes, Uint, U256
+        },
         signers::{local::LocalSigner, SignerSync}
     };
-    use alloy_primitives::{Uint, U256};
     use angstrom_types::{
         contract_bindings::angstrom::Angstrom::AngstromInstance,
         contract_payloads::angstrom::{AngstromBundle, UserOrder},
+        matching::{uniswap::LiqRange, SqrtPriceX96},
         orders::{OrderFillState, OrderOutcome},
-        primitive::ANGSTROM_DOMAIN,
+        primitive::{PoolId, PoolKey, ANGSTROM_DOMAIN},
         sol_bindings::{
             grouped_orders::{GroupedVanillaOrder, OrderWithStorageData, StandingVariants},
             rpc_orders::OmitOrderMeta
@@ -118,7 +121,10 @@ mod tests {
     use super::{AngstromEnv, DebugTransaction};
     use crate::{
         contracts::environment::{uniswap::UniswapEnv, SpawnedAnvil, TestAnvilEnvironment},
-        type_generator::consensus::proposal::ProposalBuilder
+        type_generator::{
+            amm::AMMSnapshotBuilder,
+            consensus::{pool::Pool, proposal::ProposalBuilder}
+        }
     };
 
     #[tokio::test]
@@ -180,13 +186,36 @@ mod tests {
         let uniswap = UniswapEnv::new(anvil).await.unwrap();
         let env = AngstromEnv::new(uniswap).await.unwrap();
         let angstrom = AngstromInstance::new(env.angstrom(), provider);
-        let proposal = ProposalBuilder::new()
-            .for_random_pools(1)
-            .order_count(1)
+
+        // Setup our pool
+        let pool = PoolKey {
+            currency0:   Address::random(),
+            currency1:   Address::random(),
+            fee:         U24::ZERO,
+            tickSpacing: I24::unchecked_from(10),
+            hooks:       Address::default()
+        };
+        let amm = AMMSnapshotBuilder::new(SqrtPriceX96::at_tick(100000).unwrap())
+            .with_positions(vec![LiqRange::new(99000, 101000, 1_000_000_000_000_000_u128).unwrap()])
             .build();
-        println!("Proposal:\n{:?}", proposal);
-        let pools = HashMap::new();
+        // Configure our pool that we just made
+        angstrom
+            .configurePool(pool.currency0, pool.currency1, 10, U24::ZERO)
+            .from(controller)
+            .run_safe()
+            .await
+            .unwrap();
+        let pool = Pool::new(pool, amm.clone());
+        let pools = vec![pool.clone()];
+        let proposal = ProposalBuilder::new()
+            .for_pools(pools)
+            .order_count(100)
+            .preproposal_count(1)
+            .build();
+        println!("Proposal solutions:\n{:?}", proposal.solutions);
+        let pools = HashMap::from([(pool.id(), (pool.token0(), pool.token1(), amm, 0))]);
         let bundle = AngstromBundle::from_proposal(&proposal, &pools).unwrap();
+        println!("Bundle: {:?}", bundle);
         let encoded = bundle.pade_encode();
 
         angstrom.toggleNodes(nodes).run_safe().await.unwrap();

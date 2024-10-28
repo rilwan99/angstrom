@@ -1,21 +1,18 @@
-use alloy_primitives::FixedBytes;
-use angstrom_types::{
-    consensus::PreProposal,
-    primitive::PoolId,
-    sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
-};
+use angstrom_types::consensus::PreProposal;
 use rand::thread_rng;
 use reth_network_peers::pk2id;
 use secp256k1::{Secp256k1, SecretKey as Secp256SecretKey};
 
-use super::generate_limit_order_distribution;
-use crate::type_generator::orders::generate_top_of_block_order;
+use super::pool::{Pool, PoolBuilder};
+use crate::type_generator::orders::{
+    generate_top_of_block_order, DistributionParameters, OrderDistributionBuilder
+};
 
 #[derive(Debug, Default)]
 pub struct PreproposalBuilder {
     order_count: Option<usize>,
     block:       Option<u64>,
-    pools:       Option<Vec<PoolId>>,
+    pools:       Option<Vec<Pool>>,
     sk:          Option<Secp256SecretKey>
 }
 
@@ -32,12 +29,14 @@ impl PreproposalBuilder {
         Self { block: Some(block), ..self }
     }
 
-    pub fn for_pools(self, pools: Vec<PoolId>) -> Self {
+    pub fn for_pools(self, pools: Vec<Pool>) -> Self {
         Self { pools: Some(pools), ..self }
     }
 
     pub fn for_random_pools(self, pool_count: usize) -> Self {
-        let pools: Vec<PoolId> = (0..pool_count).map(|_| FixedBytes::random()).collect();
+        let pools: Vec<Pool> = (0..pool_count)
+            .map(|_| PoolBuilder::new().build())
+            .collect();
         Self { pools: Some(pools), ..self }
     }
 
@@ -47,7 +46,11 @@ impl PreproposalBuilder {
 
     pub fn build(self) -> PreProposal {
         // Extract values from our struct
-        let pools: Vec<FixedBytes<32>> = self.pools.unwrap_or_default();
+        let pools = self.pools.unwrap_or_default();
+        // let pools: Vec<PoolId> = self
+        //     .pools
+        //     .map(|p| p.iter().map(|key| key.id()).collect())
+        //     .unwrap_or_default();
         let count = self.order_count.unwrap_or_default();
         let block = self.block.unwrap_or_default();
         let sk = self
@@ -58,7 +61,30 @@ impl PreproposalBuilder {
 
         let limit = pools
             .iter()
-            .flat_map(|pool_id| generate_limit_order_distribution(count, *pool_id, block))
+            .flat_map(|pool| {
+                let (bid_dist, ask_dist) =
+                    DistributionParameters::crossed_at(pool.price().as_float());
+                let (bid_quant, ask_quant) = DistributionParameters::fixed_at(100.0);
+                let bids = OrderDistributionBuilder::new()
+                    .bid()
+                    .order_count(count)
+                    .pool_id(pool.id())
+                    .valid_block(block)
+                    .price_params(bid_dist)
+                    .volume_params(bid_quant)
+                    .build()
+                    .unwrap();
+                let asks = OrderDistributionBuilder::new()
+                    .ask()
+                    .order_count(count)
+                    .pool_id(pool.id())
+                    .valid_block(block)
+                    .price_params(ask_dist)
+                    .volume_params(ask_quant)
+                    .build()
+                    .unwrap();
+                [bids, asks].concat()
+            })
             .collect();
 
         let searcher = pools
@@ -67,7 +93,7 @@ impl PreproposalBuilder {
                 generate_top_of_block_order(
                     &mut thread_rng(),
                     true,
-                    Some(*pool_id),
+                    Some(pool_id.id()),
                     Some(block),
                     None,
                     None
