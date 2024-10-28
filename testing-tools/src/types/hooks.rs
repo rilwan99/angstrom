@@ -19,7 +19,7 @@ pub type StateMachineActionHookFn<'a, C> = Box<
 pub type StateMachineCheckHookFn<C> =
     Box<dyn FnOnce(&mut AngstromTestnet<C>) -> eyre::Result<bool>>;
 
-/// run and action and check something on the testnet
+/// execute an action and check something on the testnet
 pub type StateMachineCheckedActionHookFn<'a, C> = Box<
     dyn FnOnce(
         &'a mut AngstromTestnet<C>

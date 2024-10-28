@@ -32,7 +32,8 @@ async fn test_broadcast_order_propagation() {
             orders.clone()
         )
     )
-    .await;
+    .await
+    .map(|r| r.unwrap());
 
     assert_eq!(
         res,
@@ -49,7 +50,8 @@ async fn test_broadcast_order_propagation() {
             orders
         )
     )
-    .await;
+    .await
+    .map(|r| r.unwrap());
 
     assert_eq!(res, Ok(true), "failed to receive and react to order within 4 seconds");
 }
@@ -91,7 +93,8 @@ async fn test_singular_order_propagation() {
             orders.clone()
         )
     )
-    .await;
+    .await
+    .map(|r| r.unwrap());
 
     assert_eq!(
         res,
@@ -108,7 +111,8 @@ async fn test_singular_order_propagation() {
             orders.clone()
         )
     )
-    .await;
+    .await
+    .map(|r| r.unwrap());
 
     assert_eq!(res, Ok(true), "failed to receive and react to order within 4 seconds");
 }

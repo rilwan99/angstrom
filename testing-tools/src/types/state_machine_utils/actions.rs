@@ -19,18 +19,9 @@ where
         + 'static
 {
     type FunctionOutput = StateMachineActionHookFn<'a, C>;
-
-    fn add_action<F>(&mut self, action_name: &'static str, action: F)
-    where
-        F: FnOnce(
-                &'a mut AngstromTestnet<C>
-            )
-                -> Pin<Box<dyn Future<Output = eyre::Result<()>> + Send + Sync + 'a>>
-            + 'static;
 }
 
-impl<'a, C> WithAction<'a, C> for StateMachineTestnet<'a, C>
-where
+impl<'a, C> WithAction<'a, C> for StateMachineTestnet<'a, C> where
     C: BlockReader
         + HeaderProvider
         + ChainSpecProvider
@@ -39,15 +30,11 @@ where
         + ChainSpecProvider<ChainSpec: Hardforks>
         + 'static
 {
-    fn add_action<F>(&mut self, action_name: &'static str, action: F)
-    where
-        F: FnOnce(
-                &'a mut AngstromTestnet<C>
-            )
-                -> Pin<Box<dyn Future<Output = eyre::Result<()>> + Send + Sync + 'a>>
-            + 'static
-    {
-        self.hooks
-            .push((action_name, StateMachineHook::Action(Box::new(action))))
-    }
+}
+
+fn pin_action<'a, F>(fut: F) -> Pin<Box<dyn Future<Output = eyre::Result<()>> + Send + Sync + 'a>>
+where
+    F: Future<Output = eyre::Result<()>> + Send + Sync + 'a
+{
+    Box::pin(fut)
 }

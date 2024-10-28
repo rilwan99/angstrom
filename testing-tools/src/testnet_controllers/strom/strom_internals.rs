@@ -153,7 +153,7 @@ impl AngstromTestnetNodeInternals {
             state_provider.provider().provider()
         );
 
-        let consensus_running = Arc::new(AtomicBool::new(true));
+        let consensus_running = Arc::new(AtomicBool::new(false));
 
         let consensus = TestnetConsensusFuture::new(
             testnet_node_id,

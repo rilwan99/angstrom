@@ -25,20 +25,60 @@ where
         Self { testnet, hooks: Vec::new() }
     }
 
-    pub async fn run(&'a mut self) {
+    pub async fn run(mut self) {
         let hooks = std::mem::take(&mut self.hooks);
         for (i, (name, hook)) in hooks.into_iter().enumerate() {
-            self.run_hook(i, name, hook).await;
+            Self::run_hook(unsafe { std::mem::transmute(&mut self.testnet) }, i, name, hook).await;
         }
     }
 
-    async fn run_hook(&mut self, i: usize, name: &'static str, hook: StateMachineHook<'_, C>) {
+    async fn run_hook(
+        testnet: &'a mut AngstromTestnet<C>,
+        i: usize,
+        name: &'static str,
+        hook: StateMachineHook<'a, C>
+    ) {
         match hook {
-            StateMachineHook::Action(action) => action(&mut self.testnet).await.fmt_result(i, name),
-            StateMachineHook::Check(check) => check(&mut self.testnet).fmt_result(i, name),
+            StateMachineHook::Action(action) => action(testnet).await.fmt_result(i, name),
+            StateMachineHook::Check(check) => check(testnet).fmt_result(i, name),
             StateMachineHook::CheckedAction(checked_action) => {
-                checked_action(&mut self.testnet).await.fmt_result(i, name)
+                checked_action(testnet).await.fmt_result(i, name)
             }
-        }
+        };
+    }
+
+    pub(crate) fn add_check<F>(&mut self, check_name: &'static str, check: F)
+    where
+        F: Fn(&mut AngstromTestnet<C>) -> eyre::Result<bool> + 'static
+    {
+        self.hooks
+            .push((check_name, StateMachineHook::Check(Box::new(check))))
+    }
+
+    pub(crate) fn add_action<F>(&mut self, action_name: &'static str, action: F)
+    where
+        F: FnOnce(
+                &'a mut AngstromTestnet<C>
+            )
+                -> Pin<Box<dyn Future<Output = eyre::Result<()>> + Send + Sync + 'a>>
+            + 'static
+    {
+        self.hooks
+            .push((action_name, StateMachineHook::Action(Box::new(action))))
+    }
+
+    pub(crate) fn add_checked_action<F>(
+        &mut self,
+        checked_action_name: &'static str,
+        checked_action: F
+    ) where
+        F: FnOnce(
+                &'a mut AngstromTestnet<C>
+            )
+                -> Pin<Box<dyn Future<Output = eyre::Result<bool>> + Send + Sync + 'a>>
+            + 'static
+    {
+        self.hooks
+            .push((checked_action_name, StateMachineHook::CheckedAction(Box::new(checked_action))))
     }
 }
