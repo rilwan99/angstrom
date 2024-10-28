@@ -53,8 +53,8 @@ impl TopOfBlockOrder {
     }
 
     pub fn of(internal: &OrderWithStorageData<RpcTopOfBlockOrder>, pairs_index: u16) -> Self {
-        let quantity_in = internal.quantityIn;
-        let quantity_out = internal.quantityOut;
+        let quantity_in = internal.quantity_in;
+        let quantity_out = internal.quantity_out;
         let recipient = Some(internal.recipient);
         // Zero_for_1 is an Ask, an Ask is NOT a bid
         let zero_for_1 = !internal.is_bid;
@@ -220,9 +220,9 @@ impl AngstromBundle {
                 .as_ref()
                 .map(|tob| {
                     let swap = if tob.is_bid {
-                        (t1_idx, t0_idx, tob.quantityIn, tob.quantityOut)
+                        (t1_idx, t0_idx, tob.quantity_in, tob.quantity_out)
                     } else {
-                        (t0_idx, t1_idx, tob.quantityIn, tob.quantityOut)
+                        (t0_idx, t1_idx, tob.quantity_in, tob.quantity_out)
                     };
                     // We swallow an error here
                     let outcome = ToBOutcome::from_tob_and_snapshot(tob, snapshot).ok();
@@ -279,8 +279,8 @@ impl AngstromBundle {
                     AssetBuilderStage::TopOfBlock,
                     asset_in,
                     asset_out,
-                    tob.quantityIn,
-                    tob.quantityOut
+                    tob.quantity_in,
+                    tob.quantity_out
                 );
                 let contract_tob = TopOfBlockOrder::of(tob, pair_idx as u16);
                 top_of_block_orders.push(contract_tob);

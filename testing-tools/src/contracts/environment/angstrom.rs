@@ -139,23 +139,24 @@ mod tests {
         let user = LocalSigner::random();
         let address = user.address();
         let mut default = angstrom_types::sol_bindings::rpc_orders::ExactStandingOrder {
-            exactIn:     true,
-            amount:      10,
-            minPrice:    U256::from(1u128),
-            useInternal: false,
-            assetIn:     Address::random(),
-            assetOut:    Address::random(),
-            recipient:   Address::random(),
-            hook:        Address::ZERO,
-            hookPayload: alloy::primitives::Bytes::new(),
-            nonce:       0,
-            deadline:    Uint::<40, 1>::from_be_slice(
+            ref_id:               0,
+            max_extra_fee_asset0: 0,
+            exact_in:             true,
+            amount:               10,
+            min_price:            U256::from(1u128),
+            use_internal:         false,
+            asset_in:             Address::random(),
+            asset_out:            Address::random(),
+            recipient:            Address::random(),
+            hook_data:            alloy::primitives::Bytes::new(),
+            nonce:                0,
+            deadline:             Uint::<40, 1>::from_be_slice(
                 &(SystemTime::now().duration_since(UNIX_EPOCH).unwrap()
                     + Duration::from_secs(1000))
                 .as_secs()
                 .to_be_bytes()[3..]
             ),
-            meta:        Default::default()
+            meta:                 Default::default()
         };
         let hash = default.no_meta_eip712_signing_hash(&ANGSTROM_DOMAIN);
         let sig = user.sign_hash_sync(&hash).unwrap();

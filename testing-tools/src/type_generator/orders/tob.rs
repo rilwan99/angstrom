@@ -37,11 +37,11 @@ impl ToBOrderBuilder {
 
     pub fn build(self) -> TopOfBlockOrder {
         TopOfBlockOrder {
-            assetIn: self.asset_in.unwrap_or_default(),
-            assetOut: self.asset_out.unwrap_or_default(),
-            quantityIn: self.quantity_in.unwrap_or_default(),
-            quantityOut: self.quantity_out.unwrap_or_default(),
-            validForBlock: self.valid_block.unwrap_or_default(),
+            asset_in: self.asset_in.unwrap_or_default(),
+            asset_out: self.asset_out.unwrap_or_default(),
+            quantity_in: self.quantity_in.unwrap_or_default(),
+            quantity_out: self.quantity_out.unwrap_or_default(),
+            valid_for_block: self.valid_block.unwrap_or_default(),
             ..Default::default()
         }
     }

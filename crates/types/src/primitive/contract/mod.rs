@@ -26,20 +26,6 @@ pub const ANGSTROM_DOMAIN: Eip712Domain = eip712_domain!(
    version: "1",
 );
 
-impl From<PoolKey> for PoolId {
-    fn from(pool_key: PoolKey) -> Self {
-        let encoded = (
-            pool_key.currency0,
-            pool_key.currency1,
-            pool_key.fee,
-            pool_key.tickSpacing,
-            pool_key.hooks
-        )
-            .abi_encode();
-        PoolId::from(keccak256(&encoded))
-    }
-}
-
 #[derive(Default, Clone)]
 pub struct UniswapPoolRegistry {
     pools: HashMap<PoolId, PoolKey>

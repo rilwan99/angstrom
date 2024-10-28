@@ -89,10 +89,10 @@ impl UserOrderBuilder {
         match (self.is_standing, self.is_exact) {
             (true, true) => {
                 let order = ExactStandingOrder {
-                    assetIn: self.asset_in,
-                    assetOut: self.asset_out,
+                    asset_in: self.asset_in,
+                    asset_out: self.asset_out,
                     amount: self.amount,
-                    minPrice: *self.min_price,
+                    min_price: *self.min_price,
                     recipient: self.recipient,
                     nonce: self.nonce,
                     ..Default::default()
@@ -101,10 +101,10 @@ impl UserOrderBuilder {
             }
             (true, false) => {
                 let order = PartialStandingOrder {
-                    assetIn: self.asset_in,
-                    assetOut: self.asset_out,
-                    maxAmountIn: self.amount,
-                    minPrice: *self.min_price,
+                    asset_in: self.asset_in,
+                    asset_out: self.asset_out,
+                    max_amount_in: self.amount,
+                    min_price: *self.min_price,
                     recipient: self.recipient,
                     ..Default::default()
                 };
@@ -112,11 +112,11 @@ impl UserOrderBuilder {
             }
             (false, true) => {
                 let order = ExactFlashOrder {
-                    validForBlock: self.block,
-                    assetIn: self.asset_in,
-                    assetOut: self.asset_out,
+                    valid_for_block: self.block,
+                    asset_in: self.asset_in,
+                    asset_out: self.asset_out,
                     amount: self.amount,
-                    minPrice: *self.min_price,
+                    min_price: *self.min_price,
                     recipient: self.recipient,
                     ..Default::default()
                 };
@@ -124,11 +124,11 @@ impl UserOrderBuilder {
             }
             (false, false) => {
                 let order = PartialFlashOrder {
-                    validForBlock: self.block,
-                    assetIn: self.asset_in,
-                    assetOut: self.asset_out,
-                    maxAmountIn: self.amount,
-                    minPrice: *self.min_price,
+                    valid_for_block: self.block,
+                    asset_in: self.asset_in,
+                    asset_out: self.asset_out,
+                    max_amount_in: self.amount,
+                    min_price: *self.min_price,
                     recipient: self.recipient,
                     ..Default::default()
                 };
