@@ -28,6 +28,7 @@ async fn properly_communicates_tob_to_contract() -> eyre::Result<()> {
         AnvilStateProviderWrapper::spawn_new_isolated()
             .await
             .unwrap()
+            .provider()
     )
     .await
     .unwrap();

@@ -5,12 +5,17 @@ use alloy::{
     providers::Provider,
     pubsub::PubSubFrontend
 };
+use alloy_primitives::aliases::{I24, U24};
 use angstrom::cli::StromHandles;
 use angstrom_eth::handle::Eth;
 use angstrom_network::{pool_manager::PoolHandle, PoolManagerBuilder, StromNetworkHandle};
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
 use angstrom_types::{
     contract_payloads::angstrom::{AngstromPoolConfigStore, UniswapAngstromRegistry},
+    matching::{
+        uniswap::{LiqRange, PoolSnapshot},
+        SqrtPriceX96
+    },
     primitive::PoolKey,
     sol_bindings::testnet::TestnetHub
 };
@@ -21,13 +26,17 @@ use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_provider::CanonStateSubscriptions;
 use reth_tasks::TokioTaskExecutor;
 use secp256k1::SecretKey;
+use uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick;
 
 use crate::{
     anvil_state_provider::{
         utils::StromContractInstance, AnvilEthDataCleanser, AnvilStateProvider,
         AnvilStateProviderWrapper
     },
-    contracts::deploy_contract_and_create_pool,
+    contracts::{
+        deploy_contract_and_create_pool,
+        environment::{angstrom::AngstromEnv, mockreward::MockRewardEnv, uniswap::UniswapEnv}
+    },
     network::TestnetConsensusFuture,
     testnet_controllers::AngstromTestnetConfig,
     types::SendingStromHandles,
@@ -60,12 +69,25 @@ impl AngstromTestnetNodeInternals {
         tracing::info!("connected to state provider");
 
         tracing::debug!("deploying contracts to anvil");
-        let addresses =
-            deploy_contract_and_create_pool(state_provider.provider().provider()).await?;
+        let uni_env = UniswapEnv::with_anvil(state_provider.provider()).await?;
+        let angstrom_env = AngstromEnv::new(uni_env).await?;
+        let rewards_env = MockRewardEnv::with_anvil(state_provider.provider()).await?;
+
+        let sqrt_price_x96 = SqrtPriceX96::from(get_sqrt_ratio_at_tick(100020).unwrap());
+        let tick_spacing = I24::unchecked_from(60);
+        let pool_fee = U24::ZERO;
+        let snapshot = PoolSnapshot::new(
+            vec![LiqRange::new(99900, 100140, 5_000_000_000_000_000_000_000_u128).unwrap()],
+            sqrt_price_x96
+        )?;
+        let pool_key = rewards_env
+            .create_pool_and_tokens_from_snapshot(tick_spacing, pool_fee, snapshot)
+            .await?;
+
         tracing::info!("deployed contracts to anvil");
 
-        let angstrom_addr = addresses.contract;
-        let pools = vec![PoolKey::new(addresses.token0, addresses.token1, 3, 5, addresses.hooks)];
+        let angstrom_addr = angstrom_env.angstrom();
+        let pools = vec![pool_key];
         let pool = strom_handles.get_pool_handle();
         let executor: TokioTaskExecutor = Default::default();
         let tx_strom_handles = (&strom_handles).into();
