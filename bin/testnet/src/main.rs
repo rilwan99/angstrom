@@ -3,6 +3,7 @@ use testing_tools::{
     testnet_controllers::AngstromTestnet, types::checked_actions::WithCheckedAction
 };
 use testnet::cli::Cli;
+use tracing::{debug, info};
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> eyre::Result<()> {
@@ -12,7 +13,10 @@ async fn main() -> eyre::Result<()> {
         .await?
         .as_state_machine();
 
+    info!("deployed state machine");
+
     testnet.send_pooled_orders(vec![]);
+    debug!("added pooled orders to state machine");
     // testnet.send_prepropose(vec![]);
 
     testnet.run().await;

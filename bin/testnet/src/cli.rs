@@ -9,7 +9,7 @@ pub struct Cli {
     /// each node will have an rpc submission endpoint at this port + their
     /// node's number
     /// i.e. node 3/3 will have port 4202 if this value is set to 4200
-    #[clap(short = 'p', long, default_value_t = 4200)]
+    #[clap(short = 'p', long, default_value_t = 42000)]
     pub starting_port:           u16,
     /// the speed in which anvil will mine blocks.
     #[clap(short, long, default_value = "12")]
