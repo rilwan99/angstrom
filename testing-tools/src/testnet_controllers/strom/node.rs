@@ -210,11 +210,11 @@ where
     }
 
     pub fn start_conensus(&self) {
-        self.state_lock.set_network(true);
+        self.state_lock.set_consensus(true, false);
     }
 
     pub fn stop_consensus(&self) {
-        self.state_lock.set_consensus(false, true);
+        self.state_lock.set_consensus(false, false);
     }
 
     pub fn is_consensus_on(&self) -> bool {
