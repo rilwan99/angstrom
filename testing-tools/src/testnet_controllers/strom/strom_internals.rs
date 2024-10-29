@@ -33,9 +33,8 @@ use crate::{
         utils::StromContractInstance, AnvilEthDataCleanser, AnvilStateProvider,
         AnvilStateProviderWrapper
     },
-    contracts::{
-        deploy_contract_and_create_pool,
-        environment::{angstrom::AngstromEnv, mockreward::MockRewardEnv, uniswap::UniswapEnv}
+    contracts::environment::{
+        angstrom::AngstromEnv, mockreward::MockRewardEnv, uniswap::UniswapEnv
     },
     network::TestnetConsensusFuture,
     testnet_controllers::AngstromTestnetConfig,
@@ -71,23 +70,26 @@ impl AngstromTestnetNodeInternals {
         tracing::debug!("deploying contracts to anvil");
         let uni_env = UniswapEnv::with_anvil(state_provider.provider()).await?;
         let angstrom_env = AngstromEnv::new(uni_env).await?;
-        let rewards_env = MockRewardEnv::with_anvil(state_provider.provider()).await?;
+        // let rewards_env =
+        // MockRewardEnv::with_anvil(state_provider.provider()).await?;
 
-        let sqrt_price_x96 = SqrtPriceX96::from(get_sqrt_ratio_at_tick(100020).unwrap());
-        let tick_spacing = I24::unchecked_from(60);
-        let pool_fee = U24::ZERO;
-        let snapshot = PoolSnapshot::new(
-            vec![LiqRange::new(99900, 100140, 5_000_000_000_000_000_000_000_u128).unwrap()],
-            sqrt_price_x96
-        )?;
-        let pool_key = rewards_env
-            .create_pool_and_tokens_from_snapshot(tick_spacing, pool_fee, snapshot)
-            .await?;
+        // let sqrt_price_x96 =
+        // SqrtPriceX96::from(get_sqrt_ratio_at_tick(100020).unwrap());
+        // let tick_spacing = I24::unchecked_from(60);
+        // let pool_fee = U24::ZERO;
+        // let snapshot = PoolSnapshot::new(
+        //     vec![LiqRange::new(99900, 100140,
+        // 5_000_000_000_000_000_000_000_u128).unwrap()],     sqrt_price_x96
+        // )?;
+        // let pool_key = rewards_env
+        //     .create_pool_and_tokens_from_snapshot(tick_spacing, pool_fee, snapshot)
+        //     .await?;
 
         tracing::info!("deployed contracts to anvil");
 
         let angstrom_addr = angstrom_env.angstrom();
-        let pools = vec![pool_key];
+        // let pools = vec![pool_key];
+        let pools = vec![];
         let pool = strom_handles.get_pool_handle();
         let executor: TokioTaskExecutor = Default::default();
         let tx_strom_handles = (&strom_handles).into();
