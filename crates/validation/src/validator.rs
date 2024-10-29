@@ -1,17 +1,14 @@
-use std::task::Poll;
+use std::{fmt::Debug, task::Poll};
 
 use alloy::primitives::{Address, B256};
 use futures_util::{Future, FutureExt};
 use matching_engine::cfmm::uniswap::pool_providers::PoolManagerProvider;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
-use crate::{
-    common::lru_db::BlockStateProviderFactory,
-    order::{
-        order_validator::OrderValidator,
-        state::{db_state_utils::StateFetchUtils, pools::PoolsTracker},
-        OrderValidationRequest, OrderValidationResults
-    }
+use crate::order::{
+    order_validator::OrderValidator,
+    state::{db_state_utils::StateFetchUtils, pools::PoolsTracker},
+    OrderValidationRequest, OrderValidationResults
 };
 
 pub enum ValidationRequest {
@@ -34,9 +31,10 @@ pub struct Validator<DB, Pools, Fetch, Provider> {
 
 impl<DB, Pools, Fetch, Provider> Validator<DB, Pools, Fetch, Provider>
 where
-    DB: BlockStateProviderFactory + Unpin + Clone + 'static,
+    DB: Unpin + Clone + 'static + reth_provider::BlockNumReader + revm::DatabaseRef + Send + Sync,
     Pools: PoolsTracker + Sync + 'static,
     Fetch: StateFetchUtils + Sync + 'static,
+    <DB as revm::DatabaseRef>::Error: Send + Sync + Debug,
     Provider: PoolManagerProvider + Sync + 'static
 {
     pub fn new(
@@ -62,7 +60,8 @@ where
 
 impl<DB, Pools, Fetch, Provider> Future for Validator<DB, Pools, Fetch, Provider>
 where
-    DB: BlockStateProviderFactory + Unpin + Clone + 'static,
+    DB: Unpin + Clone + 'static + revm::DatabaseRef + reth_provider::BlockNumReader + Send + Sync,
+    <DB as revm::DatabaseRef>::Error: Send + Sync + Debug,
     Pools: PoolsTracker + Sync + Unpin + 'static,
     Fetch: StateFetchUtils + Sync + Unpin + 'static,
     Provider: PoolManagerProvider + Sync + Unpin + 'static

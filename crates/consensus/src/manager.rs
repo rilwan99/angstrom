@@ -110,7 +110,7 @@ where
                 current_height=%self.current_height,
                 "ignoring event for wrong block",
             );
-            return;
+            return
         }
 
         if self.state_transition.my_id() == event.payload_source() {
@@ -120,7 +120,7 @@ where
                 message_type=%event.message_type(),
                 "ignoring event that we sent to node",
             );
-            return;
+            return
         }
 
         if !self.broadcasted_messages.contains(&event) {

@@ -22,10 +22,7 @@ use super::{
     },
     OrderValidationRequest
 };
-use crate::{
-    common::lru_db::BlockStateProviderFactory,
-    order::{state::account::UserAccountProcessor, OrderValidation}
-};
+use crate::order::{state::account::UserAccountProcessor, OrderValidation};
 
 pub struct OrderValidator<DB, Pools, Fetch, Provider> {
     sim:          SimValidation<DB>,
@@ -36,7 +33,8 @@ pub struct OrderValidator<DB, Pools, Fetch, Provider> {
 
 impl<DB, Pools, Fetch, Provider> OrderValidator<DB, Pools, Fetch, Provider>
 where
-    DB: BlockStateProviderFactory + Unpin + Clone + 'static,
+    DB: Unpin + Clone + 'static + revm::DatabaseRef + reth_provider::BlockNumReader + Sync + Send,
+    <DB as revm::DatabaseRef>::Error: Send + Sync,
     Pools: PoolsTracker + Sync + 'static,
     Fetch: StateFetchUtils + Sync + 'static,
     Provider: PoolManagerProvider + Sync + 'static
@@ -53,14 +51,7 @@ where
             Handle
         >
     ) -> Self {
-        let state = StateValidation::new(
-            UserAccountProcessor::new(
-                block_number.load(std::sync::atomic::Ordering::SeqCst),
-                fetch
-            ),
-            pools,
-            pool_manager
-        );
+        let state = StateValidation::new(UserAccountProcessor::new(fetch), pools, pool_manager);
         Self { state, sim, block_number, thread_pool }
     }
 
@@ -72,8 +63,7 @@ where
     ) {
         self.block_number
             .store(block_number, std::sync::atomic::Ordering::SeqCst);
-        self.state
-            .new_block(block_number, completed_orders, address_changes);
+        self.state.new_block(completed_orders, address_changes);
     }
 
     /// only checks state
@@ -82,11 +72,26 @@ where
         let order_validation: OrderValidation = order.into();
         let user = order_validation.user();
         let cloned_state = self.state.clone();
+        let cloned_sim = self.sim.clone();
 
         self.thread_pool.add_new_task(
             user,
             Box::pin(async move {
-                cloned_state.validate_state_of_regular_order(order_validation, block_number)
+                match order_validation {
+                    OrderValidation::Limit(tx, order, _) => {
+                        let mut results = cloned_state.handle_regular_order(order, block_number);
+                        results.add_gas_cost_or_invalidate(&cloned_sim, true);
+
+                        let _ = tx.send(results);
+                    }
+                    OrderValidation::Searcher(tx, order, _) => {
+                        let mut results = cloned_state.handle_regular_order(order, block_number);
+                        results.add_gas_cost_or_invalidate(&cloned_sim, false);
+
+                        let _ = tx.send(results);
+                    }
+                    _ => unreachable!()
+                }
             })
         );
     }
@@ -98,7 +103,8 @@ where
 
 impl<DB, Pools, Fetch, Provider> Future for OrderValidator<DB, Pools, Fetch, Provider>
 where
-    DB: BlockStateProviderFactory + Clone + Unpin + 'static,
+    DB: Clone + Unpin + 'static + revm::DatabaseRef + Send + Sync,
+    <DB as revm::DatabaseRef>::Error: Send + Sync,
     Pools: PoolsTracker + Sync + Unpin + 'static,
     Fetch: StateFetchUtils + Sync + Unpin + 'static,
     Provider: PoolManagerProvider + Sync + Unpin + 'static
