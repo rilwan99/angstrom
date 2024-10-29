@@ -26,6 +26,7 @@ where
     }
 
     pub async fn run(mut self) {
+        println!("starting state machine run");
         let hooks = std::mem::take(&mut self.hooks);
         panic!("TOTAL HOOKS: {}", hooks.len());
         for (i, (name, hook)) in hooks.into_iter().enumerate() {
@@ -81,6 +82,7 @@ where
                 -> Pin<Box<dyn Future<Output = eyre::Result<bool>> + Send + Sync + 'a>>
             + 'static
     {
+        panic!("added checked actions");
         self.hooks
             .push((checked_action_name, StateMachineHook::CheckedAction(Box::new(checked_action))))
     }
