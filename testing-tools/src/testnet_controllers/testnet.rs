@@ -79,7 +79,7 @@ where
         Ok(())
     }
 
-    #[instrument(name = "node", skip(self, node_id, c), fields(id = node_id))]
+    #[instrument(name = "node", skip(self, node_id, c, pk, sk, initial_validators), fields(id = node_id))]
     async fn initialize_new_node(
         &mut self,
         c: C,
