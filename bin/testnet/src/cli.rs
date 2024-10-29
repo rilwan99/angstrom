@@ -42,7 +42,7 @@ impl Cli {
             intial_node_count:       this.nodes_in_network,
             initial_rpc_port:        this.starting_port,
             testnet_block_time_secs: this.testnet_block_time_secs,
-            testnet_kind:            TestnetKind::new_raw()
+            testnet_kind:            TestnetKind::new_state_machine(19000000, 19000001)
         }
     }
 
