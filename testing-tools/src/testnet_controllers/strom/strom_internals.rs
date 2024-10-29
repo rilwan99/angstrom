@@ -172,13 +172,14 @@ impl AngstromTestnetNodeInternals {
             .get_block_number()
             .await
             .unwrap();
-        let pool_config_store = AngstromPoolConfigStore::load_from_chain(
-            angstrom_addr,
-            BlockId::Number(BlockNumberOrTag::Number(block_id)),
-            &state_provider.provider().provider()
-        )
-        .await
-        .unwrap();
+        // let pool_config_store = AngstromPoolConfigStore::load_from_chain(
+        //     angstrom_addr,
+        //     BlockId::Number(BlockNumberOrTag::Number(block_id)),
+        //     &state_provider.provider().provider()
+        // )
+        // .await
+        // .unwrap();
+        let pool_config_store = AngstromPoolConfigStore::default();
         let pool_registry = UniswapAngstromRegistry::new(pools.into(), pool_config_store);
 
         let consensus_handle = ConsensusManager::new(
