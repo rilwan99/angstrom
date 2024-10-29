@@ -1,4 +1,7 @@
-use alloy_primitives::{Address, FixedBytes, U256};
+use alloy::{
+    primitives::{Address, FixedBytes, U256},
+    sol_types::Eip712Domain
+};
 use angstrom_types::{
     orders::{OrderId, OrderPriorityData},
     primitive::PoolId,
@@ -8,6 +11,7 @@ use angstrom_types::{
         rpc_orders::TopOfBlockOrder
     }
 };
+use enr::k256::ecdsa::SigningKey;
 use rand::{rngs::ThreadRng, Rng};
 
 // mod stored;
@@ -21,6 +25,13 @@ pub use user::UserOrderBuilder;
 // fn build_priority_data(order: &GroupedVanillaOrder) -> OrderPriorityData {
 //     OrderPriorityData { price: order.price().into(), volume: order.quantity()
 // as u128, gas: 10 } }
+
+#[derive(Clone, Debug)]
+pub struct SigningInfo {
+    pub domain:  Eip712Domain,
+    pub address: Address,
+    pub key:     SigningKey
+}
 
 #[derive(Clone, Debug)]
 pub struct StoredOrderBuilder {

@@ -1,11 +1,18 @@
-use angstrom_types::consensus::PreProposal;
-use rand::thread_rng;
+use alloy_primitives::{Address, U256};
+use angstrom_types::{
+    consensus::PreProposal,
+    orders::OrderPriorityData,
+    sol_bindings::{grouped_orders::OrderWithStorageData, RawPoolOrder}
+};
+use enr::k256::ecdsa::SigningKey;
+use rand::{thread_rng, Rng};
 use reth_network_peers::pk2id;
 use secp256k1::{Secp256k1, SecretKey as Secp256SecretKey};
 
 use super::pool::{Pool, PoolBuilder};
 use crate::type_generator::orders::{
-    generate_top_of_block_order, DistributionParameters, OrderDistributionBuilder
+    generate_top_of_block_order, DistributionParameters, OrderDistributionBuilder, OrderIdBuilder,
+    SigningInfo, ToBOrderBuilder
 };
 
 #[derive(Debug, Default)]
@@ -13,7 +20,8 @@ pub struct PreproposalBuilder {
     order_count: Option<usize>,
     block:       Option<u64>,
     pools:       Option<Vec<Pool>>,
-    sk:          Option<Secp256SecretKey>
+    sk:          Option<Secp256SecretKey>,
+    order_key:   Option<SigningInfo>
 }
 
 impl PreproposalBuilder {
@@ -44,6 +52,10 @@ impl PreproposalBuilder {
         Self { sk: Some(sk), ..self }
     }
 
+    pub fn order_key(self, order_key: Option<SigningInfo>) -> Self {
+        Self { order_key, ..self }
+    }
+
     pub fn build(self) -> PreProposal {
         // Extract values from our struct
         let pools = self.pools.unwrap_or_default();
@@ -72,6 +84,7 @@ impl PreproposalBuilder {
                     .valid_block(block)
                     .price_params(bid_dist)
                     .volume_params(bid_quant)
+                    .signing_key(self.order_key.clone())
                     .build()
                     .unwrap();
                 let asks = OrderDistributionBuilder::new()
@@ -81,6 +94,7 @@ impl PreproposalBuilder {
                     .valid_block(block)
                     .price_params(ask_dist)
                     .volume_params(ask_quant)
+                    .signing_key(self.order_key.clone())
                     .build()
                     .unwrap();
                 [bids, asks].concat()
@@ -90,14 +104,35 @@ impl PreproposalBuilder {
         let searcher = pools
             .iter()
             .map(|pool_id| {
-                generate_top_of_block_order(
-                    &mut thread_rng(),
-                    true,
-                    Some(pool_id.id()),
-                    Some(block),
-                    None,
-                    None
-                )
+                let mut rng = thread_rng();
+                let order = ToBOrderBuilder::new()
+                    .recipient(pool_id.tob_recipient())
+                    .asset_in(pool_id.token1())
+                    .asset_out(pool_id.token0())
+                    .quantity_in(2_201_872_310_000_u128)
+                    .quantity_out(100000000_u128)
+                    .signing_key(self.order_key.clone())
+                    .valid_block(block)
+                    .build();
+                let order_id = OrderIdBuilder::new()
+                    .pool_id(pool_id.id())
+                    .order_hash(order.order_hash())
+                    .build();
+                let price: u128 = rng.gen();
+                let priority_data =
+                    OrderPriorityData { price: U256::from(price), volume: 1, gas: rng.gen() };
+                OrderWithStorageData {
+                    invalidates: vec![],
+                    order,
+                    priority_data,
+                    is_bid: true,
+                    is_currently_valid: true,
+                    is_valid: true,
+                    order_id,
+                    pool_id: pool_id.id(),
+                    valid_block: block,
+                    tob_reward: U256::ZERO
+                }
             })
             .collect();
 

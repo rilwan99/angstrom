@@ -29,12 +29,13 @@ impl Default for OrderType {
 #[derive(Clone, Debug)]
 pub struct Pool {
     key:      PoolKey,
-    snapshot: PoolSnapshot
+    snapshot: PoolSnapshot,
+    tob:      Address
 }
 
 impl Pool {
-    pub fn new(key: PoolKey, snapshot: PoolSnapshot) -> Self {
-        Self { key, snapshot }
+    pub fn new(key: PoolKey, snapshot: PoolSnapshot, tob: Address) -> Self {
+        Self { key, snapshot, tob }
     }
 
     pub fn price(&self) -> PoolPrice {
@@ -43,6 +44,10 @@ impl Pool {
 
     pub fn id(&self) -> PoolId {
         self.key.clone().into()
+    }
+
+    pub fn tob_recipient(&self) -> Address {
+        self.tob
     }
 
     pub fn token0(&self) -> Address {
@@ -57,7 +62,8 @@ impl Pool {
 #[derive(Default, Debug)]
 pub struct PoolBuilder {
     key: Option<PoolKey>,
-    amm: Option<PoolSnapshot>
+    amm: Option<PoolSnapshot>,
+    tob: Option<Address>
 }
 
 impl PoolBuilder {
@@ -85,6 +91,10 @@ impl PoolBuilder {
         Self { key: Some(key), ..self }
     }
 
+    pub fn tob(self, tob: Address) -> Self {
+        Self { tob: Some(tob), ..self }
+    }
+
     pub fn snapshot(self, snapshot: PoolSnapshot) -> Self {
         Self { amm: Some(snapshot), ..self }
     }
@@ -92,7 +102,8 @@ impl PoolBuilder {
     pub fn build(self) -> Pool {
         let key = self.key.unwrap_or_else(|| Self::random_key());
         let snapshot = self.amm.unwrap_or_else(|| Self::random_snapshot());
-        Pool { key, snapshot }
+        let tob = self.tob.unwrap_or_else(|| Address::random());
+        Pool { key, snapshot, tob }
     }
 }
 

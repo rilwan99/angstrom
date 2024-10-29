@@ -8,6 +8,7 @@ use alloy::{
     sol_types::SolValue,
     transports::Transport
 };
+use pade::{PadeDecode, PadeEncode};
 use pade_macro::{PadeDecode, PadeEncode};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
@@ -16,7 +17,7 @@ use super::{
     asset::builder::{AssetBuilder, AssetBuilderStage},
     rewards::PoolUpdate,
     tob::ToBOutcome,
-    Asset, Pair, POOL_CONFIG_STORE_ENTRY_SIZE
+    Asset, Pair, Signature, POOL_CONFIG_STORE_ENTRY_SIZE
 };
 use crate::{
     consensus::{PreProposal, Proposal},
@@ -43,13 +44,13 @@ pub struct TopOfBlockOrder {
     pub pairs_index:      u16,
     pub zero_for_1:       bool,
     pub recipient:        Option<Address>,
-    pub signature:        Bytes
+    pub signature:        Signature
 }
 
 impl TopOfBlockOrder {
     // eip-712 hash_struct
     pub fn order_hash(&self) -> B256 {
-        keccak256(&self.signature)
+        keccak256(self.signature.pade_encode())
     }
 
     pub fn of(internal: &OrderWithStorageData<RpcTopOfBlockOrder>, pairs_index: u16) -> Self {
@@ -58,7 +59,10 @@ impl TopOfBlockOrder {
         let recipient = Some(internal.recipient);
         // Zero_for_1 is an Ask, an Ask is NOT a bid
         let zero_for_1 = !internal.is_bid;
-        let signature = internal.meta.signature.clone();
+        let sig_bytes = internal.meta.signature.to_vec();
+        let decoded_signature =
+            alloy::primitives::Signature::pade_decode(&mut sig_bytes.as_slice(), None).unwrap();
+        let signature = Signature::from(decoded_signature);
         Self {
             use_internal: false,
             quantity_in,

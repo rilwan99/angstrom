@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use alloy_primitives::{
     aliases::{I24, U24},
-    Address, FixedBytes
+    Address
 };
 use angstrom_types::{
     consensus::{PreProposal, Proposal},
@@ -10,6 +10,7 @@ use angstrom_types::{
     primitive::{PoolId, PoolKey},
     sol_bindings::{grouped_orders::OrderWithStorageData, rpc_orders::TopOfBlockOrder}
 };
+use enr::k256::ecdsa::SigningKey;
 use matching_engine::{
     strategy::{MatchingStrategy, SimpleCheckpointStrategy},
     MatchingManager
@@ -19,7 +20,7 @@ use reth_network_peers::pk2id;
 use secp256k1::{Secp256k1, SecretKey as Secp256SecretKey};
 
 use super::{pool::Pool, preproposal::PreproposalBuilder};
-use crate::type_generator::amm::AMMSnapshotBuilder;
+use crate::type_generator::{amm::AMMSnapshotBuilder, orders::SigningInfo};
 
 #[derive(Debug, Default)]
 pub struct ProposalBuilder {
@@ -29,7 +30,8 @@ pub struct ProposalBuilder {
     preproposal_count: Option<usize>,
     block:             Option<u64>,
     pools:             Option<Vec<Pool>>,
-    sk:                Option<Secp256SecretKey>
+    sk:                Option<Secp256SecretKey>,
+    order_key:         Option<SigningInfo>
 }
 
 impl ProposalBuilder {
@@ -74,7 +76,7 @@ impl ProposalBuilder {
                         LiqRange::new(99000, 101000, 1_000_000_000_000_000_u128).unwrap()
                     ])
                     .build();
-                Pool::new(key, amm)
+                Pool::new(key, amm, Address::random())
             })
             .collect();
         Self { pools: Some(pools), ..self }
@@ -82,6 +84,10 @@ impl ProposalBuilder {
 
     pub fn with_secret_key(self, sk: Secp256SecretKey) -> Self {
         Self { sk: Some(sk), ..self }
+    }
+
+    pub fn order_key(self, order_key: Option<SigningInfo>) -> Self {
+        Self { order_key, ..self }
     }
 
     pub fn build(self) -> Proposal {
@@ -104,6 +110,7 @@ impl ProposalBuilder {
                         .for_block(block)
                         .order_count(count)
                         .for_pools(pools.clone())
+                        .order_key(self.order_key.clone())
                         .build()
                 })
                 .collect::<Vec<_>>()

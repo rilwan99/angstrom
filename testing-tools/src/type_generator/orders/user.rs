@@ -1,15 +1,20 @@
-use alloy::primitives::Address;
+use alloy::{
+    primitives::Address,
+    signers::{local::LocalSigner, SignerSync}
+};
 use angstrom_types::{
     matching::Ray,
     sol_bindings::{
         grouped_orders::{FlashVariants, GroupedVanillaOrder, StandingVariants},
         rpc_orders::{
-            ExactFlashOrder, ExactStandingOrder, PartialFlashOrder, PartialStandingOrder
+            ExactFlashOrder, ExactStandingOrder, OmitOrderMeta, OrderMeta, PartialFlashOrder,
+            PartialStandingOrder
         }
     }
 };
+use pade::PadeEncode;
 
-use super::StoredOrderBuilder;
+use super::{SigningInfo, StoredOrderBuilder};
 
 #[derive(Clone, Debug, Default)]
 pub struct UserOrderBuilder {
@@ -23,7 +28,8 @@ pub struct UserOrderBuilder {
     asset_in:    Address,
     asset_out:   Address,
     amount:      u128,
-    min_price:   Ray
+    min_price:   Ray,
+    signing_key: Option<SigningInfo>
 }
 
 impl UserOrderBuilder {
@@ -85,10 +91,14 @@ impl UserOrderBuilder {
         Self { min_price, ..self }
     }
 
+    pub fn signing_key(self, signing_key: Option<SigningInfo>) -> Self {
+        Self { signing_key, ..self }
+    }
+
     pub fn build(self) -> GroupedVanillaOrder {
         match (self.is_standing, self.is_exact) {
             (true, true) => {
-                let order = ExactStandingOrder {
+                let mut order = ExactStandingOrder {
                     asset_in: self.asset_in,
                     asset_out: self.asset_out,
                     amount: self.amount,
@@ -97,10 +107,20 @@ impl UserOrderBuilder {
                     nonce: self.nonce,
                     ..Default::default()
                 };
+                if let Some(SigningInfo { domain, address, key }) = self.signing_key {
+                    let signer = LocalSigner::from_signing_key(key);
+                    let hash = order.no_meta_eip712_signing_hash(&domain);
+                    let sig = signer.sign_hash_sync(&hash).unwrap();
+                    order.meta = OrderMeta {
+                        isEcdsa:   true,
+                        from:      address,
+                        signature: sig.pade_encode().into()
+                    };
+                }
                 GroupedVanillaOrder::Standing(StandingVariants::Exact(order))
             }
             (true, false) => {
-                let order = PartialStandingOrder {
+                let mut order = PartialStandingOrder {
                     asset_in: self.asset_in,
                     asset_out: self.asset_out,
                     max_amount_in: self.amount,
@@ -108,10 +128,20 @@ impl UserOrderBuilder {
                     recipient: self.recipient,
                     ..Default::default()
                 };
+                if let Some(SigningInfo { domain, address, key }) = self.signing_key {
+                    let signer = LocalSigner::from_signing_key(key);
+                    let hash = order.no_meta_eip712_signing_hash(&domain);
+                    let sig = signer.sign_hash_sync(&hash).unwrap();
+                    order.meta = OrderMeta {
+                        isEcdsa:   true,
+                        from:      address,
+                        signature: sig.pade_encode().into()
+                    };
+                }
                 GroupedVanillaOrder::Standing(StandingVariants::Partial(order))
             }
             (false, true) => {
-                let order = ExactFlashOrder {
+                let mut order = ExactFlashOrder {
                     valid_for_block: self.block,
                     asset_in: self.asset_in,
                     asset_out: self.asset_out,
@@ -120,10 +150,20 @@ impl UserOrderBuilder {
                     recipient: self.recipient,
                     ..Default::default()
                 };
+                if let Some(SigningInfo { domain, address, key }) = self.signing_key {
+                    let signer = LocalSigner::from_signing_key(key);
+                    let hash = order.no_meta_eip712_signing_hash(&domain);
+                    let sig = signer.sign_hash_sync(&hash).unwrap();
+                    order.meta = OrderMeta {
+                        isEcdsa:   true,
+                        from:      address,
+                        signature: sig.pade_encode().into()
+                    };
+                }
                 GroupedVanillaOrder::KillOrFill(FlashVariants::Exact(order))
             }
             (false, false) => {
-                let order = PartialFlashOrder {
+                let mut order = PartialFlashOrder {
                     valid_for_block: self.block,
                     asset_in: self.asset_in,
                     asset_out: self.asset_out,
@@ -132,6 +172,16 @@ impl UserOrderBuilder {
                     recipient: self.recipient,
                     ..Default::default()
                 };
+                if let Some(SigningInfo { domain, address, key }) = self.signing_key {
+                    let signer = LocalSigner::from_signing_key(key);
+                    let hash = order.no_meta_eip712_signing_hash(&domain);
+                    let sig = signer.sign_hash_sync(&hash).unwrap();
+                    order.meta = OrderMeta {
+                        isEcdsa:   true,
+                        from:      address,
+                        signature: sig.pade_encode().into()
+                    };
+                }
                 GroupedVanillaOrder::KillOrFill(FlashVariants::Partial(order))
             }
         }

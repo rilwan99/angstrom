@@ -197,18 +197,18 @@ pub mod test {
         alloy::sol! {
             #[derive(Default)]
             struct PartialStandingOrder {
-                uint128 minAmountIn;
-                uint128 maxAmountIn;
-                uint256 minPrice;
-                bool useInternal;
-                address assetIn;
-                address assetOut;
+                uint32 ref_id;
+                uint128 min_amount_in;
+                uint128 max_amount_in;
+                uint128 max_extra_fee_asset0;
+                uint256 min_price;
+                bool use_internal;
+                address asset_in;
+                address asset_out;
                 address recipient;
-                address hook;
-                bytes hookPayload;
+                bytes hook_data;
                 uint64 nonce;
                 uint40 deadline;
-                uint128 amountFilled;
             }
         }
     }

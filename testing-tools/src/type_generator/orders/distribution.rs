@@ -1,13 +1,14 @@
-use alloy_primitives::Uint;
+use alloy::primitives::{Address, Uint};
 use angstrom_types::{
     matching::Ray,
     primitive::PoolId,
     sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
 };
+use enr::k256::ecdsa::SigningKey;
 use eyre::eyre;
 use rand_distr::{num_traits::ToPrimitive, Distribution, SkewNormal};
 
-use super::{DistributionParameters, UserOrderBuilder};
+use super::{DistributionParameters, SigningInfo, UserOrderBuilder};
 
 #[derive(Default)]
 pub struct OrderDistributionBuilder {
@@ -16,7 +17,8 @@ pub struct OrderDistributionBuilder {
     priceparams:  Option<DistributionParameters>,
     volumeparams: Option<DistributionParameters>,
     pool_id:      Option<PoolId>,
-    valid_block:  Option<u64>
+    valid_block:  Option<u64>,
+    signing_key:  Option<SigningInfo>
 }
 
 impl OrderDistributionBuilder {
@@ -56,6 +58,10 @@ impl OrderDistributionBuilder {
         Self { valid_block: Some(valid_block), ..self }
     }
 
+    pub fn signing_key(self, signing_key: Option<SigningInfo>) -> Self {
+        Self { signing_key, ..self }
+    }
+
     pub fn build(self) -> eyre::Result<Vec<OrderWithStorageData<GroupedVanillaOrder>>> {
         let order_count = self.order_count.unwrap_or_default();
         let pool_id = self.pool_id.unwrap_or_default();
@@ -85,6 +91,7 @@ impl OrderDistributionBuilder {
                     .block(valid_block)
                     .amount(v.to_u128().unwrap_or_default())
                     .min_price(Ray::from(Uint::from(p.to_u128().unwrap_or_default())))
+                    .signing_key(self.signing_key.clone())
                     .with_storage()
                     .pool_id(pool_id)
                     .is_bid(self.is_bid)
