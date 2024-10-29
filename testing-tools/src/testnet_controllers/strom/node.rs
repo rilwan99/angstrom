@@ -1,10 +1,11 @@
 use std::{
     collections::{HashMap, HashSet},
     net::SocketAddr,
-    sync::Arc
+    sync::Arc,
+    task::Poll
 };
 
-use alloy::sol_types::SolValue;
+use alloy::{pubsub::PubSubFrontend, sol_types::SolValue};
 use alloy_primitives::Address;
 use angstrom::cli::StromHandles;
 use angstrom_network::{
@@ -14,7 +15,7 @@ use angstrom_types::{
     primitive::PeerId,
     sol_bindings::{grouped_orders::AllOrders, sol::ContractBundle, testnet::random::RandomValues}
 };
-use consensus::AngstromValidator;
+use consensus::{AngstromValidator, ConsensusManager};
 use parking_lot::RwLock;
 use reth_chainspec::Hardforks;
 use reth_metrics::common::mpsc::UnboundedMeteredSender;
@@ -29,13 +30,14 @@ use super::strom_internals::AngstromTestnetNodeInternals;
 use crate::{
     anvil_state_provider::AnvilStateProviderWrapper,
     network::{EthPeerPool, TestnetNodeNetwork},
-    testnet_controllers::AngstromTestnetConfig
+    testnet_controllers::{AngstromTestnetConfig, TestnetStateFutureLock}
 };
 
 pub struct TestnetNode<C> {
     _testnet_node_id: u64,
-    network:          TestnetNodeNetwork<C>,
-    strom:            AngstromTestnetNodeInternals
+    network:          TestnetNodeNetwork,
+    strom:            AngstromTestnetNodeInternals,
+    state_lock:       TestnetStateFutureLock<C, PubSubFrontend>
 }
 
 impl<C> TestnetNode<C>
@@ -50,12 +52,14 @@ where
 {
     pub async fn new(
         _testnet_node_id: u64,
-        network: TestnetNodeNetwork<C>,
+        network: TestnetNodeNetwork,
+        strom_network_manager: StromNetworkManager<C>,
+        eth_peer: Peer<C>,
         strom_handles: StromHandles,
         config: AngstromTestnetConfig,
         initial_validators: Vec<AngstromValidator>
     ) -> eyre::Result<Self> {
-        let strom = AngstromTestnetNodeInternals::new(
+        let (strom, consensus) = AngstromTestnetNodeInternals::new(
             _testnet_node_id,
             strom_handles,
             network.strom_handle.network_handle().clone(),
@@ -65,7 +69,14 @@ where
         )
         .await?;
 
-        Ok(Self { _testnet_node_id, network, strom })
+        let state_lock = TestnetStateFutureLock::new(
+            _testnet_node_id,
+            eth_peer,
+            strom_network_manager,
+            consensus
+        );
+
+        Ok(Self { _testnet_node_id, network, strom, state_lock })
     }
 
     /// General
@@ -132,52 +143,86 @@ where
     where
         F: FnOnce(&StromNetworkManager<C>) -> R
     {
-        self.network.networks.strom_network(f)
+        self.state_lock.strom_network_manager(f)
     }
 
     pub fn strom_network_manager_mut<F, R>(&self, f: F) -> R
     where
         F: FnOnce(&mut StromNetworkManager<C>) -> R
     {
-        self.network.networks.strom_network_mut(f)
+        self.state_lock.strom_network_manager_mut(f)
     }
 
     pub fn eth_peer<F, R>(&self, f: F) -> R
     where
         F: FnOnce(&Peer<C>) -> R
     {
-        self.network.networks.eth_peer(f)
+        self.state_lock.eth_peer(f)
     }
 
     pub fn eth_peer_mut<F, R>(&self, f: F) -> R
     where
         F: FnOnce(&mut Peer<C>) -> R
     {
-        self.network.networks.eth_peer_mut(f)
+        self.state_lock.eth_peer_mut(f)
     }
 
-    pub fn start_network(&self, blocking: bool) {
-        if blocking {
-            self.network.blocking_start_network()
-        } else {
-            self.network.start_network()
-        }
+    pub fn start_network(&self) {
+        self.state_lock.set_network(true);
     }
 
-    pub fn stop_network(&self, blocking: bool) {
-        if blocking {
-            self.network.blocking_stop_network()
-        } else {
-            self.network.stop_network()
-        }
+    pub fn stop_network(&self) {
+        self.state_lock.set_network(false);
     }
 
     pub fn is_network_on(&self) -> bool {
-        self.network.is_network_on()
+        self.state_lock.network_state()
     }
 
     pub fn is_network_off(&self) -> bool {
-        self.network.is_network_off()
+        !self.state_lock.network_state()
+    }
+
+    pub fn start_network_and_consensus(&self) {
+        self.start_network();
+        self.start_conensus();
+    }
+
+    pub fn stop_network_and_consensus(&self) {
+        self.stop_network();
+        self.stop_consensus();
+    }
+
+    /// Consensus
+    /// -------------------------------------
+    pub fn strom_consensus<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&ConsensusManager<PubSubFrontend>) -> R
+    {
+        self.state_lock.strom_consensus(f)
+    }
+
+    pub fn strom_consensus_mut<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut ConsensusManager<PubSubFrontend>) -> R
+    {
+        self.state_lock.strom_consensus_mut(f)
+    }
+
+    pub fn start_conensus(&self) {
+        self.state_lock.set_network(true);
+    }
+
+    pub fn stop_consensus(&self) {
+        self.state_lock.set_consensus(false, true);
+    }
+
+    pub fn is_consensus_on(&self) -> bool {
+        self.state_lock.consensus_state()
+    }
+
+    pub fn is_consensus_off(&self) -> bool {
+        !self.state_lock.consensus_state()
     }
 
     /// Testing Utils
@@ -189,7 +234,7 @@ where
     }
 
     pub async fn connect_to_all_peers(&mut self, other_peers: &mut HashMap<u64, Self>) {
-        self.network.start_network();
+        self.start_network();
         other_peers.iter().for_each(|(_, peer)| {
             self.connect_to_eth_peer(peer.network.pubkey(), peer.eth_socket_addr());
 
@@ -197,9 +242,7 @@ where
         });
 
         let connections_expected = other_peers.len();
-        self.network
-            .initialize_connections(connections_expected)
-            .await;
+        self.initialize_connections(connections_expected).await;
     }
 
     pub fn pre_post_network_event_channel_swap<E>(
@@ -208,9 +251,9 @@ where
         f: impl FnOnce(&mut StromNetworkManager<C>) -> Option<UnboundedMeteredSender<E>>
     ) -> UnboundedMeteredSender<E> {
         if is_pre_event {
-            self.network.blocking_stop_network();
+            self.stop_network();
         } else {
-            self.network.blocking_start_network();
+            self.start_network();
         }
 
         self.strom_network_manager_mut(f)
@@ -249,5 +292,30 @@ where
         tracing::debug!(?tx_hash, "tx hash with angstrom contract sent");
 
         Ok(())
+    }
+
+    pub(crate) async fn initialize_connections(&mut self, connections_needed: usize) {
+        tracing::debug!(pubkey = ?self.network.pubkey, "attempting connections to {connections_needed} peers");
+        let mut last_peer_count = 0;
+        std::future::poll_fn(|cx| loop {
+            if self
+                .state_lock
+                .poll_fut_to_initialize_network_connections(cx)
+                .is_ready()
+            {
+                panic!("peer connection failed");
+            }
+
+            let peer_cnt = self.network.strom_handle.peer_count();
+            if last_peer_count != peer_cnt {
+                tracing::trace!("connected to {peer_cnt}/{connections_needed} peers");
+                last_peer_count = peer_cnt;
+            }
+
+            if connections_needed == peer_cnt {
+                return Poll::Ready(())
+            }
+        })
+        .await
     }
 }

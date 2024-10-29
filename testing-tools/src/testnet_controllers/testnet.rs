@@ -90,19 +90,26 @@ where
     ) -> eyre::Result<PeerId> {
         tracing::info!("spawning node");
         let strom_handles = initialize_strom_handles();
-        let network = TestnetNodeNetwork::new_fully_configed(
-            node_id,
-            c,
-            pk,
-            sk,
-            Some(strom_handles.pool_tx.clone()),
-            Some(strom_handles.consensus_tx_op.clone())
-        )
-        .await;
+        let (strom_network, eth_peer, strom_network_manager) =
+            TestnetNodeNetwork::new_fully_configed(
+                c,
+                pk,
+                sk,
+                Some(strom_handles.pool_tx.clone()),
+                Some(strom_handles.consensus_tx_op.clone())
+            )
+            .await;
 
-        let mut node =
-            TestnetNode::new(node_id, network, strom_handles, self.config, initial_validators)
-                .await?;
+        let mut node = TestnetNode::new(
+            node_id,
+            strom_network,
+            strom_network_manager,
+            eth_peer,
+            strom_handles,
+            self.config,
+            initial_validators
+        )
+        .await?;
         node.connect_to_all_peers(&mut self.peers).await;
 
         let peer_id = node.peer_id();
@@ -334,7 +341,7 @@ where
             .iter()
             .filter(|(id, _)| **id != exception_id)
             .for_each(|(_, peer)| {
-                peer.start_network(true);
+                peer.start_network();
             });
 
         let out = expected_f(rx_channels, event_out).await;

@@ -1,4 +1,4 @@
-use std::sync::{atomic::AtomicBool, Arc};
+use std::sync::Arc;
 
 use alloy::{
     eips::{BlockId, BlockNumberOrTag},
@@ -36,7 +36,6 @@ use crate::{
     contracts::environment::{
         angstrom::AngstromEnv, mockreward::MockRewardEnv, uniswap::UniswapEnv
     },
-    network::TestnetConsensusFuture,
     testnet_controllers::AngstromTestnetConfig,
     types::SendingStromHandles,
     validation::TestOrderValidator
@@ -49,9 +48,7 @@ pub struct AngstromTestnetNodeInternals {
     pub pool_handle:      PoolHandle,
     pub tx_strom_handles: SendingStromHandles,
     pub testnet_hub:      StromContractInstance,
-    pub validator:        TestOrderValidator<AnvilStateProvider>,
-    consensus:            TestnetConsensusFuture<PubSubFrontend>,
-    consensus_running:    Arc<AtomicBool>
+    pub validator:        TestOrderValidator<AnvilStateProvider>
 }
 
 impl AngstromTestnetNodeInternals {
@@ -62,7 +59,7 @@ impl AngstromTestnetNodeInternals {
         secret_key: SecretKey,
         config: AngstromTestnetConfig,
         initial_validators: Vec<AngstromValidator>
-    ) -> eyre::Result<Self> {
+    ) -> eyre::Result<(Self, Option<ConsensusManager<PubSubFrontend>>)> {
         tracing::debug!("connecting to state provider");
         let state_provider = AnvilStateProviderWrapper::spawn_new(config, testnet_node_id).await?;
         tracing::info!("connected to state provider");
@@ -166,55 +163,50 @@ impl AngstromTestnetNodeInternals {
         });
 
         let testnet_hub = TestnetHub::new(angstrom_addr, state_provider.provider().provider());
-        let block_number = state_provider
-            .provider()
-            .provider()
-            .get_block_number()
+        let consensus = if config.is_state_machine() {
+            let block_number = state_provider
+                .provider()
+                .provider()
+                .get_block_number()
+                .await
+                .unwrap();
+            let pool_config_store = AngstromPoolConfigStore::load_from_chain(
+                angstrom_addr,
+                BlockId::Number(BlockNumberOrTag::Number(block_number)),
+                &state_provider.provider().provider()
+            )
             .await
             .unwrap();
-        // let pool_config_store = AngstromPoolConfigStore::load_from_chain(
-        //     angstrom_addr,
-        //     BlockId::Number(BlockNumberOrTag::Number(block_id)),
-        //     &state_provider.provider().provider()
-        // )
-        // .await
-        // .unwrap();
-        println!("block_number: {block_number}");
-        let pool_config_store = AngstromPoolConfigStore::default();
-        let pool_registry = UniswapAngstromRegistry::new(pools.into(), pool_config_store);
+            let pool_registry = UniswapAngstromRegistry::new(pools.into(), pool_config_store);
 
-        let consensus_handle = ConsensusManager::new(
-            ManagerNetworkDeps::new(
-                strom_network_handle.clone(),
-                state_provider.provider().subscribe_to_canonical_state(),
-                strom_handles.consensus_rx_op
-            ),
-            Signer::new(secret_key),
-            initial_validators,
-            order_storage.clone(),
-            block_number - 1,
-            pool_registry,
-            state_provider.provider().provider()
-        );
+            Some(ConsensusManager::new(
+                ManagerNetworkDeps::new(
+                    strom_network_handle.clone(),
+                    state_provider.provider().subscribe_to_canonical_state(),
+                    strom_handles.consensus_rx_op
+                ),
+                Signer::new(secret_key),
+                initial_validators,
+                order_storage.clone(),
+                block_number - 1,
+                pool_registry,
+                state_provider.provider().provider()
+            ))
+        } else {
+            None
+        };
 
-        let consensus_running = Arc::new(AtomicBool::new(false));
-
-        let consensus = TestnetConsensusFuture::new(
-            testnet_node_id,
-            consensus_handle,
-            consensus_running.clone()
-        );
-
-        Ok(Self {
-            rpc_port,
-            state_provider,
-            order_storage,
-            pool_handle,
-            tx_strom_handles,
-            testnet_hub,
-            validator,
-            consensus,
-            consensus_running
-        })
+        Ok((
+            Self {
+                rpc_port,
+                state_provider,
+                order_storage,
+                pool_handle,
+                tx_strom_handles,
+                testnet_hub,
+                validator
+            },
+            consensus
+        ))
     }
 }

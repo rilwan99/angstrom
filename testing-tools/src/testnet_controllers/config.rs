@@ -34,6 +34,10 @@ impl AngstromTestnetConfig {
             _ => None
         }
     }
+
+    pub fn is_state_machine(&self) -> bool {
+        matches!(self.testnet_kind, TestnetKind::StateMachine(..))
+    }
 }
 
 impl Default for AngstromTestnetConfig {
