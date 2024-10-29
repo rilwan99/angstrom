@@ -179,6 +179,7 @@ impl AngstromTestnetNodeInternals {
         // )
         // .await
         // .unwrap();
+        println!("block_number: {block_number}");
         let pool_config_store = AngstromPoolConfigStore::default();
         let pool_registry = UniswapAngstromRegistry::new(pools.into(), pool_config_store);
 
@@ -191,7 +192,7 @@ impl AngstromTestnetNodeInternals {
             Signer::new(secret_key),
             initial_validators,
             order_storage.clone(),
-            block_number,
+            block_number - 1,
             pool_registry,
             state_provider.provider().provider()
         );
