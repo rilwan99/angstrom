@@ -166,7 +166,7 @@ impl AngstromTestnetNodeInternals {
         });
 
         let testnet_hub = TestnetHub::new(angstrom_addr, state_provider.provider().provider());
-        let block_id = state_provider
+        let block_number = state_provider
             .provider()
             .provider()
             .get_block_number()
@@ -191,11 +191,7 @@ impl AngstromTestnetNodeInternals {
             Signer::new(secret_key),
             initial_validators,
             order_storage.clone(),
-            state_provider
-                .provider()
-                .provider()
-                .get_block_number()
-                .await?,
+            block_number,
             pool_registry,
             state_provider.provider().provider()
         );
