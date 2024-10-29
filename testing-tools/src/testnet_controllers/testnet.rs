@@ -55,6 +55,7 @@ where
 
         tracing::info!("initializing testnet with {} nodes", config.intial_node_count);
         this.spawn_new_nodes(c, config.intial_node_count).await?;
+        tracing::info!("INITIALIZED testnet with {} nodes", config.intial_node_count);
 
         Ok(this)
     }
