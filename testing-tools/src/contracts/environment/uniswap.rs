@@ -54,9 +54,8 @@ where
 }
 
 impl UniswapEnv<AnvilStateProviderWrapper> {
-    pub async fn spawn_anvil() -> eyre::Result<Self> {
-        let inner = AnvilStateProviderWrapper::spawn_new_isolated().await?;
-        Self::new(inner).await
+    pub async fn with_anvil(anvil: AnvilStateProviderWrapper) -> eyre::Result<Self> {
+        Self::new(anvil).await
     }
 }
 
