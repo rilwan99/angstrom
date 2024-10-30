@@ -26,13 +26,13 @@ where
     }
 
     pub async fn run(mut self) {
-        println!("starting state machine run");
+        //  println!("starting state machine run");
         let hooks = std::mem::take(&mut self.hooks);
-        panic!("TOTAL HOOKS: {}", hooks.len());
+        // panic!("TOTAL HOOKS: {}", hooks.len());
         for (i, (name, hook)) in hooks.into_iter().enumerate() {
-            println!("RUNNING HOOK: {i}");
+            // println!("RUNNING HOOK: {i}");
             Self::run_hook(unsafe { std::mem::transmute(&mut self.testnet) }, i, name, hook).await;
-            println!("FINISHED HOOK: {i}");
+            // println!("FINISHED HOOK: {i}");
         }
     }
 
@@ -81,7 +81,7 @@ where
                 -> Pin<Box<dyn Future<Output = eyre::Result<bool>> + Send + Sync + 'a>>
             + 'static
     {
-        panic!("added checked actions");
+        //  panic!("added checked actions");
         self.hooks
             .push((checked_action_name, StateMachineHook::CheckedAction(Box::new(checked_action))))
     }
