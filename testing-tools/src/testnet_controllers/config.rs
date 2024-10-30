@@ -1,3 +1,5 @@
+use alloy::node_bindings::Anvil;
+
 #[derive(Debug, Clone, Copy)]
 pub struct AngstromTestnetConfig {
     pub anvil_key:               usize,
@@ -38,6 +40,29 @@ impl AngstromTestnetConfig {
     pub fn is_state_machine(&self) -> bool {
         matches!(self.testnet_kind, TestnetKind::StateMachine(..))
     }
+
+    pub fn configure_anvil(&self, id: u64) -> Anvil {
+        let mut anvil_builder = Anvil::new()
+            .chain_id(1)
+            .arg("--ipc")
+            .arg(format!("/tmp/anvil_{id}.ipc"))
+            .arg("--code-size-limit")
+            .arg("393216")
+            .arg("--disable-block-gas-limit");
+
+        if let Some(config) = self.state_machine_config() {
+            anvil_builder = anvil_builder.arg("--no-mining");
+
+            if let Some(start_block) = config.start_block {
+                anvil_builder = anvil_builder
+                    .arg("--fork-block-number")
+                    .arg(format!("{}", start_block));
+            }
+        } else {
+            anvil_builder = anvil_builder.block_time(self.testnet_block_time_secs);
+        }
+        anvil_builder
+    }
 }
 
 impl Default for AngstromTestnetConfig {
@@ -64,13 +89,13 @@ impl TestnetKind {
         Self::Raw
     }
 
-    pub fn new_state_machine(start_block: u64, end_block: u64) -> Self {
+    pub fn new_state_machine(start_block: Option<u64>, end_block: Option<u64>) -> Self {
         Self::StateMachine(StateMachineConfig { start_block, end_block })
     }
 }
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct StateMachineConfig {
-    pub start_block: u64,
-    pub end_block:   u64
+    pub start_block: Option<u64>,
+    pub end_block:   Option<u64>
 }
