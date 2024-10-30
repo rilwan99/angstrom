@@ -62,6 +62,7 @@ impl AngstromTestnetNodeInternals {
         tracing::debug!("deploying contracts to anvil");
         let uni_env = UniswapEnv::with_anvil(state_provider.provider()).await?;
         let angstrom_env = AngstromEnv::new(uni_env).await?;
+        state_provider.mine_block().await?;
         // let rewards_env =
         // MockRewardEnv::with_anvil(state_provider.provider()).await?;
 
