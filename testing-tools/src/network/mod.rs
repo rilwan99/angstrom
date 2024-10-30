@@ -1,13 +1,6 @@
 mod eth_peer;
 mod strom_peer;
-use std::{
-    collections::HashSet,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc
-    },
-    task::Poll
-};
+use std::{collections::HashSet, sync::Arc};
 
 use alloy_chains::Chain;
 use alloy_primitives::Address;
@@ -102,32 +95,4 @@ impl TestnetNodeNetwork {
     pub fn pubkey(&self) -> PeerId {
         self.pubkey
     }
-
-    /*
-    pub fn stop_network(&self) {
-        self.running.store(false, Ordering::Relaxed);
-    }
-
-    pub fn blocking_stop_network(&self) {
-        self.running.store(false, Ordering::Relaxed);
-        while self.is_network_on() {}
-    }
-
-    pub fn start_network(&self) {
-        self.running.store(true, Ordering::Relaxed);
-    }
-
-    pub fn blocking_start_network(&self) {
-        self.running.store(true, Ordering::Relaxed);
-        while self.is_network_off() {}
-    }
-
-    pub fn is_network_off(&self) -> bool {
-        self.running.load(Ordering::Relaxed) == false
-    }
-
-    pub fn is_network_on(&self) -> bool {
-        self.running.load(Ordering::Relaxed) == true
-    }
-    */
 }
