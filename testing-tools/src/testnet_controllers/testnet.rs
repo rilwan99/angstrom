@@ -22,11 +22,13 @@ use tracing::{instrument, span, Instrument, Level};
 
 use super::{utils::generate_node_keys, StateMachineTestnet};
 use crate::{
+    anvil_state_provider::TestnetBlockProvider,
     network::TestnetNodeNetwork,
     testnet_controllers::{strom::TestnetNode, AngstromTestnetConfig}
 };
-#[derive(Default)]
+
 pub struct AngstromTestnet<C> {
+    block_provider:      TestnetBlockProvider,
     peers:               HashMap<u64, TestnetNode<C>>,
     _disconnected_peers: HashSet<u64>,
     _dropped_peers:      HashSet<u64>,
@@ -45,12 +47,14 @@ where
         + 'static
 {
     pub async fn spawn_testnet(c: C, config: AngstromTestnetConfig) -> eyre::Result<Self> {
+        let block_provider = TestnetBlockProvider::new(config);
         let mut this = Self {
             peers: Default::default(),
             _disconnected_peers: HashSet::new(),
             _dropped_peers: HashSet::new(),
             current_max_peer_id: 0,
-            config
+            config,
+            block_provider
         };
 
         tracing::info!("initializing testnet with {} nodes", config.intial_node_count);
@@ -108,7 +112,8 @@ where
             eth_peer,
             strom_handles,
             self.config,
-            initial_validators
+            initial_validators,
+            self.block_provider.subscribe_to_new_blocks()
         )
         .await?;
         node.connect_to_all_peers(&mut self.peers).await;

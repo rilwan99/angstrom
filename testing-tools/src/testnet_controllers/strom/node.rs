@@ -7,6 +7,7 @@ use std::{
 
 use alloy::{pubsub::PubSubFrontend, sol_types::SolValue};
 use alloy_primitives::Address;
+use alloy_rpc_types::Transaction;
 use angstrom::cli::StromHandles;
 use angstrom_network::{
     NetworkOrderEvent, StromNetworkEvent, StromNetworkHandle, StromNetworkManager
@@ -24,7 +25,7 @@ use reth_network::{
     NetworkHandle, NetworkInfo, Peers
 };
 use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
-use tokio_stream::wrappers::UnboundedReceiverStream;
+use tokio_stream::wrappers::{BroadcastStream, UnboundedReceiverStream};
 
 use super::strom_internals::AngstromTestnetNodeInternals;
 use crate::{
@@ -57,7 +58,8 @@ where
         eth_peer: Peer<C>,
         strom_handles: StromHandles,
         config: AngstromTestnetConfig,
-        initial_validators: Vec<AngstromValidator>
+        initial_validators: Vec<AngstromValidator>,
+        block_rx: BroadcastStream<(u64, Vec<Transaction>)>
     ) -> eyre::Result<Self> {
         let (strom, consensus) = AngstromTestnetNodeInternals::new(
             _testnet_node_id,
@@ -65,7 +67,8 @@ where
             network.strom_handle.network_handle().clone(),
             network.secret_key.clone(),
             config,
-            initial_validators
+            initial_validators,
+            block_rx
         )
         .await?;
 

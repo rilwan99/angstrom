@@ -33,7 +33,6 @@ pub struct AnvilStateProviderWrapper {
 impl AnvilStateProviderWrapper {
     pub async fn spawn_new(config: AngstromTestnetConfig, id: u64) -> eyre::Result<Self> {
         let mut anvil_builder = Anvil::new()
-            .block_time(config.testnet_block_time_secs)
             .chain_id(1)
             .arg("--ipc")
             .arg(format!("/tmp/anvil_{id}.ipc"))
@@ -43,8 +42,11 @@ impl AnvilStateProviderWrapper {
 
         if let Some(config) = config.state_machine_config() {
             anvil_builder = anvil_builder
+                .arg("--no-mining")
                 .arg("--fork-block-number")
                 .arg(format!("{}", config.start_block));
+        } else {
+            anvil_builder = anvil_builder.block_time(config.testnet_block_time_secs);
         }
 
         let anvil = anvil_builder.try_spawn()?;

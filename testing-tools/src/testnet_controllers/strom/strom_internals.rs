@@ -5,6 +5,7 @@ use alloy::{
     providers::Provider,
     pubsub::PubSubFrontend
 };
+use alloy_rpc_types::Transaction;
 use angstrom::cli::StromHandles;
 use angstrom_eth::handle::Eth;
 use angstrom_network::{pool_manager::PoolHandle, PoolManagerBuilder, StromNetworkHandle};
@@ -14,13 +15,14 @@ use angstrom_types::{
     sol_bindings::testnet::TestnetHub
 };
 use consensus::{AngstromValidator, ConsensusManager, ManagerNetworkDeps, Signer};
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use jsonrpsee::server::ServerBuilder;
 use matching_engine::cfmm::uniswap::pool_manager::SyncedUniswapPools;
 use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_provider::CanonStateSubscriptions;
 use reth_tasks::TokioTaskExecutor;
 use secp256k1::SecretKey;
+use tokio_stream::wrappers::BroadcastStream;
 
 use crate::{
     anvil_state_provider::{
@@ -50,7 +52,8 @@ impl AngstromTestnetNodeInternals {
         strom_network_handle: StromNetworkHandle,
         secret_key: SecretKey,
         config: AngstromTestnetConfig,
-        initial_validators: Vec<AngstromValidator>
+        initial_validators: Vec<AngstromValidator>,
+        block_rx: BroadcastStream<(u64, Vec<Transaction>)>
     ) -> eyre::Result<(Self, Option<ConsensusManager<PubSubFrontend>>)> {
         tracing::debug!("connecting to state provider");
         let state_provider = AnvilStateProviderWrapper::spawn_new(config, testnet_node_id).await?;
@@ -83,36 +86,6 @@ impl AngstromTestnetNodeInternals {
         let executor: TokioTaskExecutor = Default::default();
         let tx_strom_handles = (&strom_handles).into();
 
-        let rpc_w = state_provider.provider();
-        let state_stream = state_provider
-            .provider()
-            .provider()
-            .subscribe_blocks()
-            .await?
-            .into_stream()
-            .map(move |block| {
-                let cloned_block = block.clone();
-                let rpc = rpc_w.clone();
-                println!(
-                    "NODE {testnet_node_id} -- BLOCK NUMBER: {} -- TXS: {}",
-                    cloned_block.header.number,
-                    cloned_block.transactions.len()
-                );
-                async move {
-                    let number = cloned_block.header.number;
-                    let mut res = vec![];
-                    for hash in cloned_block.transactions.hashes() {
-                        let Ok(Some(tx)) = rpc.provider().get_transaction_by_hash(hash).await
-                        else {
-                            continue
-                        };
-                        res.push(tx);
-                    }
-                    (number, res)
-                }
-            })
-            .buffer_unordered(10);
-
         let order_api = OrderApi::new(pool.clone(), executor.clone());
 
         let eth_handle = AnvilEthDataCleanser::spawn(
@@ -121,7 +94,7 @@ impl AngstromTestnetNodeInternals {
             angstrom_addr,
             strom_handles.eth_tx,
             strom_handles.eth_rx,
-            state_stream,
+            block_rx.into_stream().map(|v| v.unwrap()),
             7
         )
         .await?;
