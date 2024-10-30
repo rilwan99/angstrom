@@ -5,18 +5,12 @@ use alloy::{
     providers::Provider,
     pubsub::PubSubFrontend
 };
-use alloy_primitives::aliases::{I24, U24};
 use angstrom::cli::StromHandles;
 use angstrom_eth::handle::Eth;
 use angstrom_network::{pool_manager::PoolHandle, PoolManagerBuilder, StromNetworkHandle};
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
 use angstrom_types::{
     contract_payloads::angstrom::{AngstromPoolConfigStore, UniswapAngstromRegistry},
-    matching::{
-        uniswap::{LiqRange, PoolSnapshot},
-        SqrtPriceX96
-    },
-    primitive::PoolKey,
     sol_bindings::testnet::TestnetHub
 };
 use consensus::{AngstromValidator, ConsensusManager, ManagerNetworkDeps, Signer};
@@ -27,16 +21,13 @@ use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_provider::CanonStateSubscriptions;
 use reth_tasks::TokioTaskExecutor;
 use secp256k1::SecretKey;
-use uniswap_v3_math::tick_math::get_sqrt_ratio_at_tick;
 
 use crate::{
     anvil_state_provider::{
         utils::StromContractInstance, AnvilEthDataCleanser, AnvilStateProvider,
         AnvilStateProviderWrapper
     },
-    contracts::environment::{
-        angstrom::AngstromEnv, mockreward::MockRewardEnv, uniswap::UniswapEnv
-    },
+    contracts::environment::{angstrom::AngstromEnv, uniswap::UniswapEnv},
     testnet_controllers::AngstromTestnetConfig,
     types::SendingStromHandles,
     validation::TestOrderValidator
@@ -102,6 +93,7 @@ impl AngstromTestnetNodeInternals {
             .map(move |block| {
                 let cloned_block = block.clone();
                 let rpc = rpc_w.clone();
+                println!("NODE {testnet_node_id} -- BLOCK NUMBER: {}", cloned_block.header.number);
                 async move {
                     let number = cloned_block.header.number;
                     let mut res = vec![];

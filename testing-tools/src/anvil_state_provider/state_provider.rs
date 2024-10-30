@@ -1,85 +1,190 @@
 use std::future::IntoFuture;
 
 use alloy::{
-    primitives::{keccak256, Address, BlockNumber, StorageKey, StorageValue},
-    providers::Provider,
-    transports::TransportResult
+    network::{Ethereum, EthereumWallet},
+    node_bindings::{Anvil, AnvilInstance},
+    providers::{builder, ext::AnvilApi, Provider},
+    pubsub::PubSubFrontend,
+    rpc::types::{anvil::MineOptions, Block},
+    signers::local::PrivateKeySigner
 };
+use alloy_primitives::{Address, BlockNumber, Bytes, B256, U256};
 use eyre::bail;
-use reth_primitives::{Account, BlockNumberOrTag};
-use reth_provider::{ProviderError, ProviderResult};
+use reth_provider::{
+    BlockHashReader, BlockNumReader, CanonStateNotification, CanonStateNotifications,
+    CanonStateSubscriptions, ProviderError, ProviderResult
+};
 use reth_revm::primitives::Bytecode;
-use validation::common::db::{BlockStateProvider, BlockStateProviderFactory};
+use tokio::sync::broadcast;
+use validation::common::db::BlockStateProviderFactory;
 
-use super::utils::{async_to_sync, AnvilWalletRpc};
+use super::{rpc_provider::RpcStateProvider, utils::AnvilWalletRpc};
+use crate::{
+    anvil_state_provider::utils::async_to_sync, contracts::environment::TestAnvilEnvironment,
+    mocks::canon_state::AnvilConsensusCanonStateNotification,
+    testnet_controllers::AngstromTestnetConfig
+};
 
-#[derive(Clone, Debug)]
-pub struct RpcStateProvider {
-    block:    u64,
-    provider: AnvilWalletRpc
+#[derive(Debug)]
+pub struct AnvilStateProviderWrapper {
+    provider:  AnvilStateProvider,
+    _instance: AnvilInstance
 }
+impl AnvilStateProviderWrapper {
+    pub async fn spawn_new(config: AngstromTestnetConfig, id: u64) -> eyre::Result<Self> {
+        let mut anvil_builder = Anvil::new()
+            .block_time(config.testnet_block_time_secs)
+            .chain_id(1)
+            .arg("--ipc")
+            .arg(format!("/tmp/anvil_{id}.ipc"))
+            .arg("--code-size-limit")
+            .arg("393216")
+            .arg("--disable-block-gas-limit");
 
-impl RpcStateProvider {
-    pub fn new(block: u64, provider: AnvilWalletRpc) -> Self {
-        Self { block, provider }
-    }
+        if let Some(config) = config.state_machine_config() {
+            anvil_builder = anvil_builder
+                .arg("--fork-block-number")
+                .arg(format!("{}", config.start_block));
+        }
 
-    async fn get_account(&self, address: Address) -> TransportResult<Account> {
-        let (nonce, balance, bytecode) = futures::try_join!(
-            self.provider.get_transaction_count(address).into_future(),
-            self.provider.get_balance(address).into_future(),
-            // TODO: Ensure correct handling of EOA empty accounts.
-            self.provider.get_code_at(address).into_future()
-        )?;
+        let anvil = anvil_builder.try_spawn()?;
 
-        let hash = keccak256(bytecode);
+        let endpoint = format!("/tmp/anvil_{id}.ipc");
+        tracing::info!(?endpoint);
+        let ipc = alloy::providers::IpcConnect::new(endpoint.to_string());
+        let sk: PrivateKeySigner = anvil.keys()[config.anvil_key].clone().into();
 
-        Ok(Account { nonce, balance, bytecode_hash: Some(hash) })
-    }
-}
+        let wallet = EthereumWallet::new(sk);
+        let rpc = builder::<Ethereum>()
+            .with_recommended_fillers()
+            .wallet(wallet)
+            .on_ipc(ipc)
+            .await?;
 
-impl BlockStateProvider for RpcStateProvider {
-    fn get_storage(
-        &self,
-        address: Address,
-        key: StorageKey
-    ) -> ProviderResult<Option<StorageValue>> {
-        async_to_sync(
-            self.provider
-                .get_storage_at(address, key.into())
-                .into_future()
-        )
-        .map(Some)
-        // TODO: Better error.
-        .map_err(|_| ProviderError::StorageChangesetNotFound {
-            block_number: self.block,
-            address,
-            storage_key: Box::new(key)
+        tracing::info!("connected to anvil");
+
+        let (tx, _) = broadcast::channel(1000);
+
+        Ok(Self {
+            provider:  AnvilStateProvider {
+                provider:       rpc,
+                controller:     anvil.addresses()[config.anvil_key],
+                canon_state_tx: tx,
+                canon_state:    AnvilConsensusCanonStateNotification::new()
+            },
+            _instance: anvil
         })
     }
 
-    fn get_basic_account(&self, address: Address) -> ProviderResult<Option<Account>> {
-        async_to_sync(self.get_account(address))
-            .map(Some)
-            .map_err(|_| ProviderError::AccountChangesetNotFound {
-                block_number: self.block,
-                address
-            })
+    pub async fn spawn_new_isolated() -> eyre::Result<Self> {
+        let anvil = Anvil::new()
+            .block_time(12)
+            .chain_id(1)
+            .arg("--ipc")
+            .arg("--code-size-limit")
+            .arg("393216")
+            .arg("--disable-block-gas-limit")
+            .try_spawn()?;
+
+        let endpoint = format!("/tmp/anvil.ipc");
+        tracing::info!(?endpoint);
+        let ipc = alloy::providers::IpcConnect::new(endpoint.to_string());
+        let sk: PrivateKeySigner = anvil.keys()[7].clone().into();
+
+        let wallet = EthereumWallet::new(sk);
+        let rpc = builder::<Ethereum>()
+            .with_recommended_fillers()
+            .wallet(wallet)
+            .on_ipc(ipc)
+            .await?;
+
+        tracing::info!("connected to anvil");
+
+        let (tx, _) = broadcast::channel(1000);
+
+        Ok(Self {
+            provider:  AnvilStateProvider {
+                provider:       rpc,
+                controller:     anvil.addresses()[7],
+                canon_state_tx: tx,
+                canon_state:    AnvilConsensusCanonStateNotification::new()
+            },
+            _instance: anvil
+        })
+    }
+
+    pub fn provider(&self) -> AnvilStateProvider {
+        self.provider.clone()
+    }
+
+    pub async fn execute_and_return_state(&self) -> eyre::Result<(Bytes, Block)> {
+        let block = self.mine_block().await?;
+
+        Ok((self.provider.provider.anvil_dump_state().await?, block))
+    }
+
+    pub async fn return_state(&self) -> eyre::Result<Bytes> {
+        Ok(self.provider.provider.anvil_dump_state().await?)
+    }
+
+    pub async fn set_state(&self, state: Bytes) -> eyre::Result<()> {
+        self.provider.provider.anvil_load_state(state).await?;
+
+        Ok(())
+    }
+
+    pub async fn mine_block(&self) -> eyre::Result<Block> {
+        let mined = self
+            .provider
+            .provider
+            .anvil_mine_detailed(Some(MineOptions::Options { timestamp: None, blocks: Some(1) }))
+            .await?
+            .first()
+            .cloned()
+            .unwrap();
+
+        self.provider.update_canon_chain(&mined)?;
+
+        Ok(mined)
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct RpcStateProviderFactory {
-    pub provider: AnvilWalletRpc
-}
+impl TestAnvilEnvironment for AnvilStateProviderWrapper {
+    type P = AnvilWalletRpc;
+    type T = PubSubFrontend;
 
-impl RpcStateProviderFactory {
-    pub fn new(provider: AnvilWalletRpc) -> eyre::Result<Self> {
-        Ok(Self { provider })
+    fn provider(&self) -> &AnvilWalletRpc {
+        &self.provider.provider
+    }
+
+    fn controller(&self) -> Address {
+        self.provider.controller
     }
 }
 
-impl reth_revm::DatabaseRef for RpcStateProviderFactory {
+#[derive(Debug, Clone)]
+pub struct AnvilStateProvider {
+    provider:       AnvilWalletRpc,
+    controller:     Address,
+    canon_state:    AnvilConsensusCanonStateNotification,
+    canon_state_tx: broadcast::Sender<CanonStateNotification>
+}
+
+impl AnvilStateProvider {
+    pub fn provider(&self) -> AnvilWalletRpc {
+        self.provider.clone()
+    }
+
+    fn update_canon_chain(&self, new_block: &Block) -> eyre::Result<()> {
+        let state = self.canon_state.new_block(new_block);
+        let _ = self
+            .canon_state_tx
+            .send(CanonStateNotification::Commit { new: state })?;
+
+        Ok(())
+    }
+}
+impl reth_revm::DatabaseRef for AnvilStateProvider {
     type Error = eyre::Error;
 
     fn basic_ref(
@@ -98,19 +203,15 @@ impl reth_revm::DatabaseRef for RpcStateProviderFactory {
         }))
     }
 
-    fn storage_ref(
-        &self,
-        address: Address,
-        index: alloy::primitives::U256
-    ) -> Result<alloy::primitives::U256, Self::Error> {
+    fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
         let acc = async_to_sync(self.provider.get_storage_at(address, index).into_future())?;
         Ok(acc)
     }
 
-    fn block_hash_ref(&self, number: u64) -> Result<alloy::primitives::B256, Self::Error> {
+    fn block_hash_ref(&self, number: u64) -> Result<B256, Self::Error> {
         let acc = async_to_sync(
             self.provider
-                .get_block_by_number(BlockNumberOrTag::Number(number), false)
+                .get_block_by_number(reth_primitives::BlockNumberOrTag::Number(number), false)
                 .into_future()
         )?;
 
@@ -118,19 +219,67 @@ impl reth_revm::DatabaseRef for RpcStateProviderFactory {
         Ok(block.header.hash)
     }
 
-    fn code_by_hash_ref(
-        &self,
-        _: alloy::primitives::B256
-    ) -> Result<reth_revm::primitives::Bytecode, Self::Error> {
+    fn code_by_hash_ref(&self, _: B256) -> Result<reth_revm::primitives::Bytecode, Self::Error> {
         panic!("This should not be called, as the code is already loaded");
     }
 }
+impl BlockNumReader for AnvilStateProvider {
+    fn chain_info(&self) -> ProviderResult<reth_chainspec::ChainInfo> {
+        panic!("never used");
+    }
 
-impl BlockStateProviderFactory for RpcStateProviderFactory {
+    fn block_number(&self, _: alloy_primitives::B256) -> ProviderResult<Option<BlockNumber>> {
+        panic!("never used");
+    }
+
+    fn convert_number(
+        &self,
+        _: alloy_rpc_types::BlockHashOrNumber
+    ) -> ProviderResult<Option<alloy_primitives::B256>> {
+        panic!("never used");
+    }
+
+    fn best_block_number(&self) -> ProviderResult<BlockNumber> {
+        Ok(async_to_sync(self.provider.get_block_number().into_future()).unwrap())
+    }
+
+    fn last_block_number(&self) -> ProviderResult<BlockNumber> {
+        Ok(async_to_sync(self.provider.get_block_number().into_future()).unwrap())
+    }
+
+    fn convert_hash_or_number(
+        &self,
+        _: alloy_rpc_types::BlockHashOrNumber
+    ) -> ProviderResult<Option<BlockNumber>> {
+        panic!("never used");
+    }
+}
+impl BlockHashReader for AnvilStateProvider {
+    fn block_hash(&self, _: BlockNumber) -> ProviderResult<Option<alloy_primitives::B256>> {
+        panic!("never used");
+    }
+
+    fn convert_block_hash(
+        &self,
+        _: alloy_rpc_types::BlockHashOrNumber
+    ) -> ProviderResult<Option<alloy_primitives::B256>> {
+        panic!("never used");
+    }
+
+    fn canonical_hashes_range(
+        &self,
+        _: BlockNumber,
+        _: BlockNumber
+    ) -> ProviderResult<Vec<alloy_primitives::B256>> {
+        panic!("never used");
+    }
+}
+
+impl BlockStateProviderFactory for AnvilStateProvider {
     type Provider = RpcStateProvider;
 
     fn state_by_block(&self, block: u64) -> ProviderResult<Self::Provider> {
-        Ok(RpcStateProvider { block, provider: self.provider.clone() })
+        Ok(RpcStateProvider::new(block, self.provider.clone()))
     }
 
     fn best_block_number(&self) -> ProviderResult<BlockNumber> {
@@ -138,3 +287,37 @@ impl BlockStateProviderFactory for RpcStateProviderFactory {
             .map_err(|_| ProviderError::BestBlockNotFound)
     }
 }
+
+impl CanonStateSubscriptions for AnvilStateProvider {
+    fn subscribe_to_canonical_state(&self) -> CanonStateNotifications {
+        self.canon_state_tx.subscribe()
+    }
+}
+
+impl TestAnvilEnvironment for AnvilStateProvider {
+    type P = AnvilWalletRpc;
+    type T = PubSubFrontend;
+
+    fn provider(&self) -> &AnvilWalletRpc {
+        &self.provider
+    }
+
+    fn controller(&self) -> Address {
+        self.controller
+    }
+}
+
+/*
+
+send bundles and assert the same solution
+validation
+order pool + matching engine
+
+
+
+
+
+
+
+
+*/
