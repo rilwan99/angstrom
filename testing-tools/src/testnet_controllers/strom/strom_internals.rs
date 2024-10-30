@@ -139,41 +139,39 @@ impl AngstromTestnetNodeInternals {
 
         let testnet_hub = TestnetHub::new(angstrom_addr, state_provider.provider().provider());
 
-        let consensus = if config.is_state_machine() {
-            let block_number = state_provider
-                .provider()
-                .provider()
-                .get_block_number()
-                .await
-                .unwrap();
-            let pool_config_store = AngstromPoolConfigStore::load_from_chain(
-                angstrom_addr,
-                BlockId::Number(BlockNumberOrTag::Number(block_number)),
-                &state_provider.provider().provider()
-            )
+        // let consensus = if config.is_state_machine() {
+        let block_number = state_provider
+            .provider()
+            .provider()
+            .get_block_number()
             .await
             .unwrap();
-            let pool_registry = UniswapAngstromRegistry::new(pools.into(), pool_config_store);
+        let pool_config_store = AngstromPoolConfigStore::load_from_chain(
+            angstrom_addr,
+            BlockId::Number(BlockNumberOrTag::Number(block_number)),
+            &state_provider.provider().provider()
+        )
+        .await
+        .unwrap();
+        let pool_registry = UniswapAngstromRegistry::new(pools.into(), pool_config_store);
 
-            Some(ConsensusManager::new(
-                ManagerNetworkDeps::new(
-                    strom_network_handle.clone(),
-                    state_provider.provider().subscribe_to_canonical_state(),
-                    strom_handles.consensus_rx_op
-                ),
-                Signer::new(secret_key),
-                initial_validators,
-                order_storage.clone(),
-                block_number - 1,
-                pool_registry,
-                uni_pools,
-                state_provider.provider().provider()
-            ))
-        } else {
-            None
-        };
-
-        let consensus = None;
+        let consensus = Some(ConsensusManager::new(
+            ManagerNetworkDeps::new(
+                strom_network_handle.clone(),
+                state_provider.provider().subscribe_to_canonical_state(),
+                strom_handles.consensus_rx_op
+            ),
+            Signer::new(secret_key),
+            initial_validators,
+            order_storage.clone(),
+            block_number,
+            pool_registry,
+            uni_pools,
+            state_provider.provider().provider()
+        ));
+        // } else {
+        //     None
+        // };
 
         Ok((
             Self {
