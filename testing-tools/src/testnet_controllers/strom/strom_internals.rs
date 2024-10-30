@@ -93,7 +93,11 @@ impl AngstromTestnetNodeInternals {
             .map(move |block| {
                 let cloned_block = block.clone();
                 let rpc = rpc_w.clone();
-                println!("NODE {testnet_node_id} -- BLOCK NUMBER: {}", cloned_block.header.number);
+                println!(
+                    "NODE {testnet_node_id} -- BLOCK NUMBER: {} -- TXS: {}",
+                    cloned_block.header.number,
+                    cloned_block.transactions.len()
+                );
                 async move {
                     let number = cloned_block.header.number;
                     let mut res = vec![];
