@@ -51,7 +51,7 @@ impl AngstromTestnetConfig {
             .arg("--disable-block-gas-limit");
 
         if let Some(config) = self.state_machine_config() {
-            anvil_builder = anvil_builder.arg("--no-mining");
+            //anvil_builder = anvil_builder.arg("--no-mining");
 
             if let Some(start_block) = config.start_block {
                 anvil_builder = anvil_builder
