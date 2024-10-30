@@ -1,11 +1,11 @@
 use alloy::{
     network::{Ethereum, EthereumWallet},
-    node_bindings::{Anvil, AnvilInstance},
+    node_bindings::Anvil,
     providers::{
         builder,
         ext::AnvilApi,
         fillers::{ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller},
-        Identity, IpcConnect, RootProvider
+        Identity, RootProvider
     },
     pubsub::PubSubFrontend,
     signers::local::PrivateKeySigner

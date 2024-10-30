@@ -75,6 +75,8 @@ where
         )
         .await?;
 
+        tracing::debug!("created strom internals");
+
         let state_lock = TestnetStateFutureLock::new(
             _testnet_node_id,
             eth_peer,

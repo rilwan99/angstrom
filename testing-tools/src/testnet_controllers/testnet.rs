@@ -137,6 +137,8 @@ where
         .await?;
         node.connect_to_all_peers(&mut self.peers).await;
 
+        tracing::debug!("connected to all peers");
+
         let peer_id = node.peer_id();
 
         self.peers.insert(node_id, node);
