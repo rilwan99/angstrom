@@ -93,7 +93,7 @@ where
                 pk,
                 sk,
                 initial_validators.clone(),
-                angstrom_addr_state
+                angstrom_addr_state.clone()
             )
             .await?;
         }
