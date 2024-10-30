@@ -162,9 +162,13 @@ impl AnvilStateProvider {
 
     fn update_canon_chain(&self, new_block: &Block) -> eyre::Result<()> {
         let state = self.canon_state.new_block(new_block);
-        let _ = self
-            .canon_state_tx
-            .send(CanonStateNotification::Commit { new: state })?;
+        if self.canon_state_tx.receiver_count() == 0 {
+            tracing::warn!("no canon state rx")
+        } else {
+            let _ = self
+                .canon_state_tx
+                .send(CanonStateNotification::Commit { new: state })?;
+        }
 
         Ok(())
     }
