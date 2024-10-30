@@ -204,19 +204,18 @@ where
         let peer = self.get_peer(id);
         let (updated_state, block) = peer.state_provider().execute_and_return_state().await?;
         self.block_provider.broadcast_block(block);
-        tokio::time::sleep(std::time::Duration::from_secs(4)).await;
 
-        // futures::future::join_all(self.peers.iter().map(|(i, peer)| async {
-        //     if id != *i {
-        //         peer.state_provider()
-        //             .set_state(updated_state.clone())
-        //             .await?;
-        //     }
-        //     Ok::<_, eyre::ErrReport>(())
-        // }))
-        // .await
-        // .into_iter()
-        // .collect::<Result<Vec<_>, _>>()?;
+        futures::future::join_all(self.peers.iter().map(|(i, peer)| async {
+            if id != *i {
+                peer.state_provider()
+                    .set_state(updated_state.clone())
+                    .await?;
+            }
+            Ok::<_, eyre::ErrReport>(())
+        }))
+        .await
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()?;
 
         Ok(())
     }
@@ -394,14 +393,12 @@ where
                 .provider()
                 .provider()
                 .get_block_number()
-                .and_then(|r| async move { Ok((id, r)) })
+                .and_then(move |r| async move { Ok((id, r)) })
         });
 
         let blocks = async_to_sync(futures::future::join_all(f))
             .into_iter()
             .collect::<Result<Vec<_>, _>>()?;
-
-        println!("{expected_block_num}\n{blocks:?}");
 
         Ok(blocks.into_iter().all(|(_, b)| b == expected_block_num))
     }
