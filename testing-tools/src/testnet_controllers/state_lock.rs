@@ -196,7 +196,7 @@ where
         let span = span!(Level::TRACE, "node", id = this.node_id);
         let e = span.enter();
 
-        while this.lock.load(Ordering::Relaxed) {
+        if this.lock.load(Ordering::Relaxed) {
             if this.inner.lock_arc().poll_unpin(cx).is_ready() {
                 return Poll::Ready(())
             }
