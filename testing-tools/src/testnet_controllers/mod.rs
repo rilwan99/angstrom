@@ -10,4 +10,4 @@ pub use state_machine::*;
 pub mod utils;
 
 mod state_lock;
-pub use state_lock::*;
+pub(crate) use state_lock::*;

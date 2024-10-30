@@ -205,17 +205,17 @@ where
         let (updated_state, block) = peer.state_provider().execute_and_return_state().await?;
         self.block_provider.broadcast_block(block);
 
-        futures::future::join_all(self.peers.iter().map(|(i, peer)| async {
-            if id != *i {
-                peer.state_provider()
-                    .set_state(updated_state.clone())
-                    .await?;
-            }
-            Ok::<_, eyre::ErrReport>(())
-        }))
-        .await
-        .into_iter()
-        .collect::<Result<Vec<_>, _>>()?;
+        // futures::future::join_all(self.peers.iter().map(|(i, peer)| async {
+        //     if id != *i {
+        //         peer.state_provider()
+        //             .set_state(updated_state.clone())
+        //             .await?;
+        //     }
+        //     Ok::<_, eyre::ErrReport>(())
+        // }))
+        // .await
+        // .into_iter()
+        // .collect::<Result<Vec<_>, _>>()?;
 
         Ok(())
     }
