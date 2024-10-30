@@ -33,7 +33,7 @@ where
     DB: Unpin + Clone + 'static + reth_provider::BlockNumReader + revm::DatabaseRef + Send + Sync,
     Pools: PoolsTracker + Sync + 'static,
     Fetch: StateFetchUtils + Sync + 'static,
-    <DB as revm::DatabaseRef>::Error: Send + Sync + Debug,
+    <DB as revm::DatabaseRef>::Error: Send + Sync + Debug
 {
     pub fn new(
         rx: UnboundedReceiver<ValidationRequest>,

@@ -4,8 +4,7 @@ use std::{collections::HashSet, path::PathBuf, sync::Arc};
 use alloy::network::{EthereumWallet, Network};
 use angstrom_metrics::{initialize_prometheus_metrics, METRICS_ENABLED};
 use angstrom_network::manager::StromConsensusEvent;
-use angstrom_types::primitive::PoolId as AngstromPoolId;
-use angstrom_types::reth_db_wrapper::RethDbWrapper;
+use angstrom_types::{primitive::PoolId as AngstromPoolId, reth_db_wrapper::RethDbWrapper};
 use order_pool::{order_storage::OrderStorage, PoolConfig, PoolManagerUpdate};
 use reth_node_builder::{FullNode, NodeHandle};
 use secp256k1::{PublicKey, Secp256k1, SecretKey};
@@ -246,7 +245,7 @@ pub async fn initialize_strom_components<Node: FullNodeComponents, AddOns: NodeA
     let validator = init_validation(
         RethDbWrapper::new(node.provider.clone()),
         block_height,
-        uniswap_pools.clone(),
+        uniswap_pools.clone()
     );
 
     let network_handle = network_builder

@@ -2,30 +2,30 @@ pub mod common;
 pub mod order;
 pub mod validator;
 
-use angstrom_types::primitive::PoolId;
-use angstrom_utils::key_split_threadpool::KeySplitThreadpool;
-use matching_engine::cfmm::uniswap::pool::EnhancedUniswapPool;
-use matching_engine::cfmm::uniswap::pool_data_loader::DataLoader;
-use order::state::{
-    config::load_validation_config,
-    db_state_utils::StateFetchUtils,
-    pools::PoolsTracker
-};
-use std::collections::HashMap;
-use std::fmt::Debug;
 use std::{
+    collections::HashMap,
+    fmt::Debug,
     path::Path,
     sync::{atomic::AtomicU64, Arc}
+};
+
+use angstrom_types::primitive::PoolId;
+use angstrom_utils::key_split_threadpool::KeySplitThreadpool;
+use matching_engine::cfmm::uniswap::{pool::EnhancedUniswapPool, pool_data_loader::DataLoader};
+use order::state::{
+    config::load_validation_config, db_state_utils::StateFetchUtils, pools::PoolsTracker
 };
 use tokio::sync::mpsc::unbounded_channel;
 use validator::Validator;
 
-use crate::order::state::config::load_data_fetcher_config;
-use crate::order::state::db_state_utils::FetchUtils;
-use crate::order::state::pools::AngstromPoolsTracker;
 use crate::{
     order::{
-        order_validator::OrderValidator, sim::SimValidation
+        order_validator::OrderValidator,
+        sim::SimValidation,
+        state::{
+            config::load_data_fetcher_config, db_state_utils::FetchUtils,
+            pools::AngstromPoolsTracker
+        }
     },
     validator::ValidationClient
 };
@@ -38,11 +38,8 @@ pub fn init_validation<
     db: DB,
     current_block: u64,
     uniswap_pools: Arc<
-        HashMap<
-            PoolId,
-            tokio::sync::RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>
-        >
-    >,
+        HashMap<PoolId, tokio::sync::RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>
+    >
 ) -> ValidationClient
 where
     <DB as revm::DatabaseRef>::Error: Send + Sync + Debug
@@ -83,10 +80,7 @@ pub fn init_validation_tests<
 >(
     db: DB,
     uniswap_pools: Arc<
-        HashMap<
-            PoolId,
-            tokio::sync::RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>
-        >
+        HashMap<PoolId, tokio::sync::RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>
     >,
     state: State,
     pool: Pool,

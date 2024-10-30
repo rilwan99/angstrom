@@ -12,8 +12,7 @@ use alloy_primitives::{Address, U256};
 use angstrom_types::primitive::PoolId;
 use angstrom_utils::key_split_threadpool::KeySplitThreadpool;
 use futures::FutureExt;
-use matching_engine::cfmm::uniswap::pool::EnhancedUniswapPool;
-use matching_engine::cfmm::uniswap::pool_data_loader::DataLoader;
+use matching_engine::cfmm::uniswap::{pool::EnhancedUniswapPool, pool_data_loader::DataLoader};
 use reth_provider::BlockNumReader;
 use tokio::sync::mpsc::unbounded_channel;
 use validation::{
