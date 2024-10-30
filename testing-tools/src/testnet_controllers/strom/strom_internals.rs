@@ -85,7 +85,7 @@ impl AngstromTestnetNodeInternals {
 
         // let angstrom_addr = angstrom_env.angstrom();
         // let pools = vec![pool_key];
-        //let pools = vec![];
+        let pools = vec![];
         let pool = strom_handles.get_pool_handle();
         let executor: TokioTaskExecutor = Default::default();
         let tx_strom_handles = (&strom_handles).into();
