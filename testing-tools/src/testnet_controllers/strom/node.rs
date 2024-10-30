@@ -6,7 +6,7 @@ use std::{
 };
 
 use alloy::{pubsub::PubSubFrontend, sol_types::SolValue};
-use alloy_primitives::Address;
+use alloy_primitives::{Address, Bytes};
 use alloy_rpc_types::Transaction;
 use angstrom::cli::StromHandles;
 use angstrom_eth::handle::EthHandle;
@@ -60,7 +60,8 @@ where
         strom_handles: StromHandles,
         config: AngstromTestnetConfig,
         initial_validators: Vec<AngstromValidator>,
-        block_rx: BroadcastStream<(u64, Vec<Transaction>)>
+        block_rx: BroadcastStream<(u64, Vec<Transaction>)>,
+        angstrom_addr_state: (Address, Bytes)
     ) -> eyre::Result<Self> {
         let (strom, consensus) = AngstromTestnetNodeInternals::new(
             _testnet_node_id,
@@ -69,7 +70,8 @@ where
             network.secret_key.clone(),
             config,
             initial_validators,
-            block_rx
+            block_rx,
+            angstrom_addr_state
         )
         .await?;
 

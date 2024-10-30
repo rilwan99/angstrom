@@ -5,6 +5,7 @@ use alloy::{
     providers::Provider,
     pubsub::PubSubFrontend
 };
+use alloy_primitives::{Address, Bytes};
 use alloy_rpc_types::Transaction;
 use angstrom::cli::StromHandles;
 use angstrom_eth::handle::Eth;
@@ -53,16 +54,18 @@ impl AngstromTestnetNodeInternals {
         secret_key: SecretKey,
         config: AngstromTestnetConfig,
         initial_validators: Vec<AngstromValidator>,
-        block_rx: BroadcastStream<(u64, Vec<Transaction>)>
+        block_rx: BroadcastStream<(u64, Vec<Transaction>)>,
+        angstrom_addr_state: (Address, Bytes)
     ) -> eyre::Result<(Self, Option<ConsensusManager<PubSubFrontend>>)> {
+        let (angstrom_addr, initial_state) = angstrom_addr_state;
         tracing::debug!("connecting to state provider");
         let state_provider = AnvilStateProviderWrapper::spawn_new(config, testnet_node_id).await?;
+        state_provider.set_state(initial_state).await?;
         tracing::info!("connected to state provider");
 
         tracing::debug!("deploying contracts to anvil");
-        let uni_env = UniswapEnv::with_anvil(state_provider.provider()).await?;
-        let angstrom_env = AngstromEnv::new(uni_env).await?;
-        state_provider.mine_block().await?;
+        // let uni_env = UniswapEnv::with_anvil(state_provider.provider()).await?;
+        // let angstrom_env = AngstromEnv::new(uni_env).await?;
         // let rewards_env =
         // MockRewardEnv::with_anvil(state_provider.provider()).await?;
 
@@ -80,7 +83,7 @@ impl AngstromTestnetNodeInternals {
 
         tracing::info!("deployed contracts to anvil");
 
-        let angstrom_addr = angstrom_env.angstrom();
+        // let angstrom_addr = angstrom_env.angstrom();
         // let pools = vec![pool_key];
         //let pools = vec![];
         let pool = strom_handles.get_pool_handle();

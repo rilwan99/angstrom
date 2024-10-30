@@ -51,7 +51,7 @@ impl AngstromTestnetConfig {
             .arg("--disable-block-gas-limit");
 
         if let Some(config) = self.state_machine_config() {
-            //anvil_builder = anvil_builder.arg("--no-mining");
+            anvil_builder = anvil_builder.arg("--no-mining");
 
             if let Some(start_block) = config.start_block {
                 anvil_builder = anvil_builder
@@ -62,6 +62,10 @@ impl AngstromTestnetConfig {
             anvil_builder = anvil_builder.block_time(self.testnet_block_time_secs);
         }
         anvil_builder
+    }
+
+    pub fn fork_block_number(&self) -> Option<u64> {
+        self.state_machine_config().map(|s| s.start_block).flatten()
     }
 }
 

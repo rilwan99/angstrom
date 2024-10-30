@@ -149,10 +149,10 @@ impl TestAnvilEnvironment for AnvilStateProviderWrapper {
 
 #[derive(Debug, Clone)]
 pub struct AnvilStateProvider {
-    provider:       AnvilWalletRpc,
-    controller:     Address,
-    canon_state:    AnvilConsensusCanonStateNotification,
-    canon_state_tx: broadcast::Sender<CanonStateNotification>
+    pub(crate) provider:       AnvilWalletRpc,
+    pub(crate) controller:     Address,
+    pub(crate) canon_state:    AnvilConsensusCanonStateNotification,
+    pub(crate) canon_state_tx: broadcast::Sender<CanonStateNotification>
 }
 
 impl AnvilStateProvider {

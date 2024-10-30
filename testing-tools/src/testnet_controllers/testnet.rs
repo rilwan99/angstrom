@@ -4,6 +4,7 @@ use std::{
 };
 
 use alloy::providers::Provider;
+use alloy_primitives::{Address, Bytes};
 use angstrom::cli::initialize_strom_handles;
 use angstrom_network::{
     manager::StromConsensusEvent, NetworkOrderEvent, StromMessage, StromNetworkManager
@@ -24,6 +25,7 @@ use tracing::{instrument, span, Instrument, Level};
 use super::{utils::generate_node_keys, StateMachineTestnet};
 use crate::{
     anvil_state_provider::{utils::async_to_sync, TestnetBlockProvider},
+    contracts::anvil::angstrom_address_with_state,
     network::TestnetNodeNetwork,
     testnet_controllers::{strom::TestnetNode, AngstromTestnetConfig}
 };
@@ -48,6 +50,7 @@ where
         + 'static
 {
     pub async fn spawn_testnet(c: C, config: AngstromTestnetConfig) -> eyre::Result<Self> {
+        let angstrom_addr_state = angstrom_address_with_state(config).await?;
         let block_provider = TestnetBlockProvider::new(config);
         let mut this = Self {
             peers: Default::default(),
@@ -59,7 +62,8 @@ where
         };
 
         tracing::info!("initializing testnet with {} nodes", config.intial_node_count);
-        this.spawn_new_nodes(c, config.intial_node_count).await?;
+        this.spawn_new_nodes(c, angstrom_addr_state, config.intial_node_count)
+            .await?;
         tracing::info!("INITIALIZED testnet with {} nodes", config.intial_node_count);
 
         Ok(this)
@@ -69,7 +73,12 @@ where
         StateMachineTestnet::new(self)
     }
 
-    async fn spawn_new_nodes(&mut self, c: C, number_nodes: u64) -> eyre::Result<()> {
+    async fn spawn_new_nodes(
+        &mut self,
+        c: C,
+        angstrom_addr_state: (Address, Bytes),
+        number_nodes: u64
+    ) -> eyre::Result<()> {
         let keys = generate_node_keys(number_nodes);
         let initial_validators = keys
             .iter()
@@ -78,8 +87,15 @@ where
 
         for (pk, sk) in keys {
             let node_id = self.incr_peer_id();
-            self.initialize_new_node(c.clone(), node_id, pk, sk, initial_validators.clone())
-                .await?;
+            self.initialize_new_node(
+                c.clone(),
+                node_id,
+                pk,
+                sk,
+                initial_validators.clone(),
+                angstrom_addr_state
+            )
+            .await?;
         }
 
         Ok(())
@@ -92,7 +108,8 @@ where
         node_id: u64,
         pk: PublicKey,
         sk: SecretKey,
-        initial_validators: Vec<AngstromValidator>
+        initial_validators: Vec<AngstromValidator>,
+        angstrom_addr_state: (Address, Bytes)
     ) -> eyre::Result<PeerId> {
         tracing::info!("spawning node");
         let strom_handles = initialize_strom_handles();
@@ -114,7 +131,8 @@ where
             strom_handles,
             self.config,
             initial_validators,
-            self.block_provider.subscribe_to_new_blocks()
+            self.block_provider.subscribe_to_new_blocks(),
+            angstrom_addr_state
         )
         .await?;
         node.connect_to_all_peers(&mut self.peers).await;
