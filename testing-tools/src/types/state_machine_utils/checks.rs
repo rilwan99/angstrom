@@ -2,7 +2,6 @@ use reth_chainspec::Hardforks;
 use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
 
 use crate::{
-    anvil_state_provider::utils::async_to_sync,
     testnet_controllers::{AngstromTestnet, StateMachineTestnet},
     types::StateMachineCheckHookFn
 };

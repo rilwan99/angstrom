@@ -41,7 +41,8 @@ pub(crate) trait HookResult: Sized {
         if self.is_pass() {
             tracing::info!(target: "testnet::state-machine", hook = i, name, "hook PASSED");
         } else {
-            tracing::warn!(target: "testnet::state-machine", hook = i, name, "hook FAILED");
+            tracing::error!(target: "testnet::state-machine", hook = i, name, "hook FAILED");
+            panic!()
         }
     }
 }

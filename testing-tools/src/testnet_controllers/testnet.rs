@@ -11,7 +11,7 @@ use angstrom_network::{
 };
 use angstrom_types::{primitive::PeerId, sol_bindings::grouped_orders::AllOrders};
 use consensus::AngstromValidator;
-use futures::StreamExt;
+use futures::{StreamExt, TryFutureExt};
 use rand::Rng;
 use reth_chainspec::Hardforks;
 use reth_metrics::common::mpsc::{
@@ -204,6 +204,7 @@ where
         let peer = self.get_peer(id);
         let (updated_state, block) = peer.state_provider().execute_and_return_state().await?;
         self.block_provider.broadcast_block(block);
+        tokio::time::sleep(std::time::Duration::from_secs(4)).await;
 
         // futures::future::join_all(self.peers.iter().map(|(i, peer)| async {
         //     if id != *i {
@@ -388,17 +389,21 @@ where
     /// checks the current block number on all peers matches the expected
     pub(crate) fn check_block_numbers(&self, expected_block_num: u64) -> eyre::Result<bool> {
         let f = self.peers.iter().map(|(_, peer)| {
+            let id = peer.testnet_node_id();
             peer.state_provider()
                 .provider()
                 .provider()
                 .get_block_number()
+                .and_then(|r| async move { Ok((id, r)) })
         });
 
         let blocks = async_to_sync(futures::future::join_all(f))
             .into_iter()
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(blocks.into_iter().all(|b| b == expected_block_num))
+        println!("{expected_block_num}\n{blocks:?}");
+
+        Ok(blocks.into_iter().all(|(_, b)| b == expected_block_num))
     }
 }
 

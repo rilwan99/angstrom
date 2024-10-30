@@ -36,10 +36,10 @@ use crate::{
 };
 
 pub struct TestnetNode<C> {
-    _testnet_node_id: u64,
-    network:          TestnetNodeNetwork,
-    strom:            AngstromTestnetNodeInternals,
-    state_lock:       TestnetStateFutureLock<C, PubSubFrontend>
+    testnet_node_id: u64,
+    network:         TestnetNodeNetwork,
+    strom:           AngstromTestnetNodeInternals,
+    state_lock:      TestnetStateFutureLock<C, PubSubFrontend>
 }
 
 impl<C> TestnetNode<C>
@@ -53,7 +53,7 @@ where
         + 'static
 {
     pub async fn new(
-        _testnet_node_id: u64,
+        testnet_node_id: u64,
         network: TestnetNodeNetwork,
         strom_network_manager: StromNetworkManager<C>,
         eth_peer: Peer<C>,
@@ -64,7 +64,7 @@ where
         angstrom_addr_state: (Address, Bytes)
     ) -> eyre::Result<Self> {
         let (strom, consensus) = AngstromTestnetNodeInternals::new(
-            _testnet_node_id,
+            testnet_node_id,
             strom_handles,
             network.strom_handle.network_handle().clone(),
             network.secret_key.clone(),
@@ -78,17 +78,22 @@ where
         tracing::debug!("created strom internals");
 
         let state_lock = TestnetStateFutureLock::new(
-            _testnet_node_id,
+            testnet_node_id,
             eth_peer,
             strom_network_manager,
             consensus
         );
 
-        Ok(Self { _testnet_node_id, network, strom, state_lock })
+        Ok(Self { testnet_node_id, network, strom, state_lock })
     }
 
     /// General
     /// -------------------------------------
+
+    pub fn testnet_node_id(&self) -> u64 {
+        self.testnet_node_id
+    }
+
     pub fn peer_id(&self) -> PeerId {
         *self.eth_network_handle().peer_id()
     }

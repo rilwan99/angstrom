@@ -78,7 +78,6 @@ where
                 -> Pin<Box<dyn Future<Output = eyre::Result<bool>> + Send + Sync + 'a>>
             + 'static
     {
-        //  panic!("added checked actions");
         self.hooks
             .push((checked_action_name, StateMachineHook::CheckedAction(Box::new(checked_action))))
     }
