@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     future::Future,
     pin::Pin,
     sync::Arc,
@@ -9,11 +9,13 @@ use std::{
 use alloy::{primitives::BlockNumber, providers::Provider, transports::Transport};
 use angstrom_metrics::ConsensusMetricsWrapper;
 use angstrom_network::{manager::StromConsensusEvent, StromMessage, StromNetworkHandle};
-use angstrom_types::contract_payloads::angstrom::UniswapAngstromRegistry;
+use angstrom_types::{contract_payloads::angstrom::UniswapAngstromRegistry, primitive::PoolId};
 use futures::StreamExt;
+use matching_engine::cfmm::uniswap::{pool::EnhancedUniswapPool, pool_data_loader::DataLoader};
 use order_pool::order_storage::OrderStorage;
 use reth_metrics::common::mpsc::UnboundedMeteredReceiver;
 use reth_provider::{CanonStateNotification, CanonStateNotifications};
+use tokio::sync::RwLock;
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::{
@@ -57,6 +59,7 @@ impl<T> ConsensusManager<T>
 where
     T: Transport + Clone
 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         netdeps: ManagerNetworkDeps,
         signer: Signer,
@@ -64,6 +67,9 @@ where
         order_storage: Arc<OrderStorage>,
         current_height: BlockNumber,
         pool_registry: UniswapAngstromRegistry,
+        uniswap_pools: Arc<
+            HashMap<PoolId, RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>
+        >,
         provider: impl Provider<T> + 'static
     ) -> Self {
         let ManagerNetworkDeps { network, canonical_block_stream, strom_consensus_event } = netdeps;
@@ -82,6 +88,7 @@ where
                 validators.clone(),
                 ConsensusMetricsWrapper::new(),
                 pool_registry,
+                uniswap_pools,
                 provider
             ),
             network,

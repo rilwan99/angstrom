@@ -2,33 +2,30 @@ pub mod common;
 pub mod order;
 pub mod validator;
 
-use std::{
-    fmt::Debug,
-    path::Path,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc
-    }
-};
-
+use angstrom_types::primitive::PoolId;
 use angstrom_utils::key_split_threadpool::KeySplitThreadpool;
-use matching_engine::cfmm::uniswap::{
-    pool::EnhancedUniswapPool, pool_data_loader::DataLoader, pool_manager::UniswapPoolManager,
-    pool_providers::canonical_state_adapter::CanonicalStateAdapter
-};
+use matching_engine::cfmm::uniswap::pool::EnhancedUniswapPool;
+use matching_engine::cfmm::uniswap::pool_data_loader::DataLoader;
 use order::state::{
     config::load_validation_config,
-    db_state_utils::{FetchUtils, StateFetchUtils},
-    pools::{AngstromPoolsTracker, PoolsTracker}
+    db_state_utils::StateFetchUtils,
+    pools::PoolsTracker
 };
-use reth_provider::CanonStateNotifications;
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::{
+    path::Path,
+    sync::{atomic::AtomicU64, Arc}
+};
 use tokio::sync::mpsc::unbounded_channel;
 use validator::Validator;
 
+use crate::order::state::config::load_data_fetcher_config;
+use crate::order::state::db_state_utils::FetchUtils;
+use crate::order::state::pools::AngstromPoolsTracker;
 use crate::{
     order::{
-        order_validator::OrderValidator, sim::SimValidation,
-        state::config::load_data_fetcher_config
+        order_validator::OrderValidator, sim::SimValidation
     },
     validator::ValidationClient
 };
@@ -40,7 +37,12 @@ pub fn init_validation<
 >(
     db: DB,
     current_block: u64,
-    state_notification: CanonStateNotifications
+    uniswap_pools: Arc<
+        HashMap<
+            PoolId,
+            tokio::sync::RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>
+        >
+    >,
 ) -> ValidationClient
 where
     <DB as revm::DatabaseRef>::Error: Send + Sync + Debug
@@ -60,40 +62,13 @@ where
             .build()
             .unwrap();
         let handle = rt.handle().clone();
+        let pools = AngstromPoolsTracker::new(validation_config.pools.clone());
         // load storage slot state + pools
-        let pools = AngstromPoolsTracker::new(validation_config.clone());
-
-        // TODO: make the pool work with new styles addresses
-        let mut uniswap_pools: Vec<_> = validation_config
-            .pools
-            .iter()
-            .map(|pool| {
-                let initial_ticks_per_side = 200;
-                EnhancedUniswapPool::new(DataLoader::new(pool.pool_id), initial_ticks_per_side)
-            })
-            .collect();
-
-        uniswap_pools.iter_mut().for_each(|_| {
-            // TODO: initialize the pool
-            // pool.initialize(Some(current_block.load(Ordering::SeqCst)),
-            // db.into())
-        });
-
-        let state_change_buffer = 100;
-        let pool_manager = UniswapPoolManager::new(
-            uniswap_pools,
-            current_block.load(Ordering::SeqCst),
-            state_change_buffer,
-            Arc::new(CanonicalStateAdapter::new(state_notification))
-        );
         let thread_pool =
             KeySplitThreadpool::new(handle, validation_config.max_validation_per_user);
         let sim = SimValidation::new(revm_lru.clone());
-        let _pool_watcher_handle = rt
-            .block_on(async { pool_manager.watch_state_changes().await })
-            .unwrap();
         let order_validator =
-            OrderValidator::new(sim, current_block, pools, fetch, pool_manager, thread_pool);
+            OrderValidator::new(sim, current_block, pools, fetch, uniswap_pools, thread_pool);
 
         rt.block_on(async { Validator::new(validator_rx, order_validator).await })
     });
@@ -107,9 +82,15 @@ pub fn init_validation_tests<
     Pool: PoolsTracker + Sync + 'static
 >(
     db: DB,
-    state_notification: CanonStateNotifications,
+    uniswap_pools: Arc<
+        HashMap<
+            PoolId,
+            tokio::sync::RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>
+        >
+    >,
     state: State,
     pool: Pool,
+
     block_number: u64
 ) -> (ValidationClient, Arc<DB>)
 where
@@ -132,32 +113,8 @@ where
         let thread_pool =
             KeySplitThreadpool::new(handle, validation_config.max_validation_per_user);
         let sim = SimValidation::new(task_db);
-
-        let mut uniswap_pools: Vec<_> = validation_config
-            .pools
-            .iter()
-            .map(|pool| {
-                let initial_ticks_per_side = 200;
-                EnhancedUniswapPool::new(DataLoader::new(pool.pool_id), initial_ticks_per_side)
-            })
-            .collect();
-        uniswap_pools.iter_mut().for_each(|_| {
-            // TODO: initialize the pool
-            // pool.initialize(Some(current_block.load(Ordering::SeqCst)),
-            // db.into())
-        });
-        let state_change_buffer = 100;
-        let pool_manager = UniswapPoolManager::new(
-            uniswap_pools,
-            current_block.load(Ordering::SeqCst),
-            state_change_buffer,
-            Arc::new(CanonicalStateAdapter::new(state_notification))
-        );
-        let _pool_watcher_handle = rt
-            .block_on(async { pool_manager.watch_state_changes().await })
-            .unwrap();
         let order_validator =
-            OrderValidator::new(sim, current_block, pool, state, pool_manager, thread_pool);
+            OrderValidator::new(sim, current_block, pool, state, uniswap_pools, thread_pool);
 
         rt.block_on(Validator::new(rx, order_validator))
     });

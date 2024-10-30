@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     pin::Pin,
     sync::{atomic::AtomicU64, Arc},
     task::Poll
@@ -8,10 +9,7 @@ use alloy::primitives::{Address, BlockNumber, B256};
 use angstrom_types::primitive::{NewInitializedPool, PoolId};
 use angstrom_utils::key_split_threadpool::KeySplitThreadpool;
 use futures::{Future, StreamExt};
-use matching_engine::cfmm::uniswap::{
-    pool_data_loader::DataLoader, pool_manager::UniswapPoolManager,
-    pool_providers::PoolManagerProvider
-};
+use matching_engine::cfmm::uniswap::{pool::EnhancedUniswapPool, pool_data_loader::DataLoader};
 use tokio::runtime::Handle;
 
 use super::{
@@ -24,34 +22,35 @@ use super::{
 };
 use crate::order::{state::account::UserAccountProcessor, OrderValidation};
 
-pub struct OrderValidator<DB, Pools, Fetch, Provider> {
+pub struct OrderValidator<DB, Pools, Fetch> {
     sim:          SimValidation<DB>,
-    state:        StateValidation<Pools, Fetch, Provider>,
+    state:        StateValidation<Pools, Fetch>,
     thread_pool:  KeySplitThreadpool<UserAddress, Pin<Box<dyn Future<Output = ()> + Send>>, Handle>,
     block_number: Arc<AtomicU64>
 }
 
-impl<DB, Pools, Fetch, Provider> OrderValidator<DB, Pools, Fetch, Provider>
+impl<DB, Pools, Fetch> OrderValidator<DB, Pools, Fetch>
 where
     DB: Unpin + Clone + 'static + revm::DatabaseRef + reth_provider::BlockNumReader + Sync + Send,
     <DB as revm::DatabaseRef>::Error: Send + Sync,
     Pools: PoolsTracker + Sync + 'static,
-    Fetch: StateFetchUtils + Sync + 'static,
-    Provider: PoolManagerProvider + Sync + 'static
+    Fetch: StateFetchUtils + Sync + 'static
 {
     pub fn new(
         sim: SimValidation<DB>,
         block_number: Arc<AtomicU64>,
         pools: Pools,
         fetch: Fetch,
-        pool_manager: UniswapPoolManager<Provider, DataLoader<PoolId>, PoolId>,
+        uniswap_pools: Arc<
+            HashMap<PoolId, tokio::sync::RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>
+        >,
         thread_pool: KeySplitThreadpool<
             UserAddress,
             Pin<Box<dyn Future<Output = ()> + Send>>,
             Handle
         >
     ) -> Self {
-        let state = StateValidation::new(UserAccountProcessor::new(fetch), pools, pool_manager);
+        let state = StateValidation::new(UserAccountProcessor::new(fetch), pools, uniswap_pools);
         Self { state, sim, block_number, thread_pool }
     }
 
@@ -101,13 +100,12 @@ where
     }
 }
 
-impl<DB, Pools, Fetch, Provider> Future for OrderValidator<DB, Pools, Fetch, Provider>
+impl<DB, Pools, Fetch> Future for OrderValidator<DB, Pools, Fetch>
 where
     DB: Clone + Unpin + 'static + revm::DatabaseRef + Send + Sync,
     <DB as revm::DatabaseRef>::Error: Send + Sync,
     Pools: PoolsTracker + Sync + Unpin + 'static,
-    Fetch: StateFetchUtils + Sync + Unpin + 'static,
-    Provider: PoolManagerProvider + Sync + Unpin + 'static
+    Fetch: StateFetchUtils + Sync + Unpin + 'static
 {
     type Output = ();
 

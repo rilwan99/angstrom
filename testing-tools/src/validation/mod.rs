@@ -1,23 +1,20 @@
 use std::{
+    collections::HashMap,
     future::{poll_fn, Future},
     path::Path,
     pin::Pin,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc
-    },
+    sync::{atomic::AtomicU64, Arc},
     task::Poll,
     time::Duration
 };
 
 use alloy_primitives::{Address, U256};
+use angstrom_types::primitive::PoolId;
 use angstrom_utils::key_split_threadpool::KeySplitThreadpool;
 use futures::FutureExt;
-use matching_engine::cfmm::uniswap::{
-    pool_manager::UniswapPoolManager,
-    pool_providers::canonical_state_adapter::CanonicalStateAdapter
-};
-use reth_provider::{BlockNumReader, CanonStateNotification};
+use matching_engine::cfmm::uniswap::pool::EnhancedUniswapPool;
+use matching_engine::cfmm::uniswap::pool_data_loader::DataLoader;
+use reth_provider::BlockNumReader;
 use tokio::sync::mpsc::unbounded_channel;
 use validation::{
     common::db::BlockStateProviderFactory,
@@ -46,7 +43,7 @@ pub struct TestOrderValidator<
     pub db:         Arc<DB>,
     pub config:     ValidationConfig,
     pub client:     ValidationClient,
-    pub underlying: Validator<DB, AngstromPoolsTracker, FetchUtils<DB>, CanonicalStateAdapter>
+    pub underlying: Validator<DB, AngstromPoolsTracker, FetchUtils<DB>>
 }
 
 impl<
@@ -60,7 +57,12 @@ impl<
 where
     <DB as revm::DatabaseRef>::Error: Send + Sync + std::fmt::Debug
 {
-    pub fn new(db: DB) -> Self {
+    pub fn new(
+        db: DB,
+        uniswap_pools: Arc<
+            HashMap<PoolId, tokio::sync::RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>
+        >
+    ) -> Self {
         let (tx, rx) = unbounded_channel();
         let config_path = Path::new("./state_config.toml");
         let fetch_config = load_data_fetcher_config(config_path).unwrap();
@@ -71,25 +73,14 @@ where
         let db = Arc::new(db);
 
         let fetch = FetchUtils::new(fetch_config.clone(), db.clone());
-        let pools = AngstromPoolsTracker::new(validation_config.clone());
+        let pools = AngstromPoolsTracker::new(validation_config.pools.clone());
 
         let handle = tokio::runtime::Handle::current();
         let thread_pool =
             KeySplitThreadpool::new(handle, validation_config.max_validation_per_user);
         let sim = SimValidation::new(db.clone());
-        let (_, state_notification) =
-            tokio::sync::broadcast::channel::<CanonStateNotification>(100);
-
-        let pool_manager = UniswapPoolManager::new(
-            vec![],
-            current_block.load(Ordering::SeqCst),
-            100,
-            Arc::new(CanonicalStateAdapter::new(state_notification))
-        );
-
         let order_validator =
-            OrderValidator::new(sim, current_block, pools, fetch, pool_manager, thread_pool);
-
+            OrderValidator::new(sim, current_block, pools, fetch, uniswap_pools, thread_pool);
         let val = Validator::new(rx, order_validator);
         let client = ValidationClient(tx);
 

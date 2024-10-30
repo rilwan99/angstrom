@@ -29,11 +29,17 @@ use angstrom_types::{
 use angstrom_utils::timer::async_time_fn;
 use futures::{future::BoxFuture, Future, Stream, StreamExt};
 use itertools::Itertools;
-use matching_engine::MatchingManager;
+use matching_engine::{
+    cfmm::uniswap::{
+        pool::EnhancedUniswapPool, pool_data_loader::DataLoader, tob::get_market_snapshot
+    },
+    MatchingManager
+};
 use order_pool::order_storage::{OrderStorage, OrderStorageNotification};
 use pade::PadeEncode;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use tokio::sync::RwLock;
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::{AngstromValidator, Signer};
@@ -62,6 +68,7 @@ pub struct RoundStateMachine<T> {
     transition_future: Option<BoxFuture<'static, Result<ConsensusState, RoundStateMachineError>>>,
     waker:             Option<Waker>,
     pool_registry:     UniswapAngstromRegistry,
+    uniswap_pools: Arc<HashMap<PoolId, RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>>,
     provider:          Arc<Pin<Box<dyn Provider<T>>>>
 }
 
@@ -78,6 +85,9 @@ where
         validators: Vec<AngstromValidator>,
         metrics: ConsensusMetricsWrapper,
         pool_registry: UniswapAngstromRegistry,
+        uniswap_pools: Arc<
+            HashMap<PoolId, RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>
+        >,
         provider: impl Provider<T> + 'static
     ) -> Self {
         Self {
@@ -87,6 +97,7 @@ where
             validators,
             order_storage,
             pool_registry,
+            uniswap_pools,
             signer,
             metrics,
             transition_future: None,
@@ -366,6 +377,7 @@ where
             self.current_state.pre_proposals().iter().cloned().collect();
         let provider = self.provider.clone();
         let pool_registry = self.pool_registry.clone();
+        let uniswap_pools = self.uniswap_pools.clone();
 
         async move {
             if let ConsensusState::Finalization(finalization) = &mut new_state {
@@ -388,7 +400,12 @@ where
                 .await;
                 metrics.set_proposal_build_time(pre_proposal_height, timer);
                 let proposal = proposal?;
-                let pools = RoundStateMachine::<T>::build_pools_param(&proposal, pool_registry);
+                let pools = RoundStateMachine::<T>::build_pools_param(
+                    &proposal,
+                    pool_registry,
+                    uniswap_pools
+                )
+                .await;
                 let bundle = AngstromBundle::from_proposal(&proposal, &pools).unwrap();
                 let tx = TransactionRequest::default()
                     .with_to(Address::default())
@@ -407,33 +424,43 @@ where
         }
     }
 
-    fn build_pools_param(
+    async fn build_pools_param(
         proposal: &Proposal,
-        pool_registry: UniswapAngstromRegistry
+        pool_registry: UniswapAngstromRegistry,
+        uniswap_pools: Arc<
+            HashMap<PoolId, RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>
+        >
     ) -> HashMap<PoolId, (Address, Address, PoolSnapshot, u16)> {
-        proposal
+        let mut result = HashMap::new();
+
+        for pool_id in proposal
             .preproposals
             .iter()
             .flat_map(|p| p.limit.iter().map(|order| order.pool_id))
             .collect::<HashSet<_>>()
-            .into_iter()
-            .filter_map(|pool_id| {
-                pool_registry.get_uni_pool(&pool_id).and_then(|pool_key| {
-                    pool_registry.get_ang_entry(&pool_id).map(|entry| {
-                        (
+        {
+            if let Some(pool_key) = pool_registry.get_uni_pool(&pool_id) {
+                if let Some(entry) = pool_registry.get_ang_entry(&pool_id) {
+                    if let Some(pool_lock) = uniswap_pools.get(&pool_id) {
+                        let pool = pool_lock.read().await;
+                        let pool_snapshot =
+                            get_market_snapshot(pool).expect("should not break now");
+
+                        result.insert(
                             pool_id,
                             (
                                 pool_key.currency0,
                                 pool_key.currency1,
-                                // TODO: will be fixed once pool manager supports v4 pools
-                                PoolSnapshot::default(),
+                                pool_snapshot,
                                 entry.store_index as u16
                             )
-                        )
-                    })
-                })
-            })
-            .collect()
+                        );
+                    }
+                }
+            }
+        }
+
+        result
     }
 }
 
