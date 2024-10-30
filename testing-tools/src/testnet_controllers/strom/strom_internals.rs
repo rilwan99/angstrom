@@ -230,11 +230,11 @@ async fn configure_uniswap_manager<T: Transport + Clone, N: Network>(
 ) -> UniswapPoolManager<CanonicalStateAdapter, DataLoader<AngstromPoolId>, AngstromPoolId> {
     let mut uniswap_pools: Vec<_> = uniswap_pool_registry
         .pools()
-        .iter()
-        .map(|(pool_id, _)| {
+        .keys()
+        .map(|pool_id| {
             let initial_ticks_per_side = 200;
             EnhancedUniswapPool::new(
-                DataLoader::new_with_registry(pool_id.clone(), uniswap_pool_registry.clone()),
+                DataLoader::new_with_registry(*pool_id, uniswap_pool_registry.clone()),
                 initial_ticks_per_side
             )
         })

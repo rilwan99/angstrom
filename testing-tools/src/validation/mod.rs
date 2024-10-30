@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     future::{poll_fn, Future},
     path::Path,
     pin::Pin,
@@ -9,10 +8,9 @@ use std::{
 };
 
 use alloy_primitives::{Address, U256};
-use angstrom_types::primitive::PoolId;
 use angstrom_utils::key_split_threadpool::KeySplitThreadpool;
 use futures::FutureExt;
-use matching_engine::cfmm::uniswap::{pool::EnhancedUniswapPool, pool_data_loader::DataLoader};
+use matching_engine::cfmm::uniswap::pool_manager::SyncedUniswapPools;
 use reth_provider::BlockNumReader;
 use tokio::sync::mpsc::unbounded_channel;
 use validation::{
@@ -46,22 +44,12 @@ pub struct TestOrderValidator<
 }
 
 impl<
-        DB: BlockStateProviderFactory
-            + Clone
-            + Unpin
-            + 'static
-            + revm::DatabaseRef
-            + reth_provider::BlockNumReader
+        DB: BlockStateProviderFactory + Clone + Unpin + revm::DatabaseRef + BlockNumReader + 'static
     > TestOrderValidator<DB>
 where
     <DB as revm::DatabaseRef>::Error: Send + Sync + std::fmt::Debug
 {
-    pub fn new(
-        db: DB,
-        uniswap_pools: Arc<
-            HashMap<PoolId, tokio::sync::RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>
-        >
-    ) -> Self {
+    pub fn new(db: DB, uniswap_pools: SyncedUniswapPools) -> Self {
         let (tx, rx) = unbounded_channel();
         let config_path = Path::new("./state_config.toml");
         let fetch_config = load_data_fetcher_config(config_path).unwrap();

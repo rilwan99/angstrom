@@ -1,15 +1,14 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use account::UserAccountProcessor;
 use alloy::primitives::{Address, B256};
 use angstrom_types::{
-    primitive::{NewInitializedPool, PoolId},
+    primitive::NewInitializedPool,
     sol_bindings::{ext::RawPoolOrder, grouped_orders::AllOrders}
 };
 use db_state_utils::StateFetchUtils;
 use matching_engine::cfmm::uniswap::{
-    pool::EnhancedUniswapPool,
-    pool_data_loader::DataLoader,
+    pool_manager::SyncedUniswapPools,
     tob::{calculate_reward, get_market_snapshot}
 };
 use parking_lot::RwLock;
@@ -34,8 +33,7 @@ pub struct StateValidation<Pools, Fetch> {
     /// tracks all info about the current angstrom pool state.
     pool_tacker:          Arc<RwLock<Pools>>,
     /// keeps up-to-date with the on-chain pool
-    uniswap_pools:
-        Arc<HashMap<PoolId, tokio::sync::RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>>
+    uniswap_pools:        SyncedUniswapPools
 }
 
 impl<Pools, Fetch> Clone for StateValidation<Pools, Fetch> {
@@ -52,9 +50,7 @@ impl<Pools: PoolsTracker, Fetch: StateFetchUtils> StateValidation<Pools, Fetch> 
     pub fn new(
         user_account_tracker: UserAccountProcessor<Fetch>,
         pools: Pools,
-        uniswap_pools: Arc<
-            HashMap<PoolId, tokio::sync::RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>
-        >
+        uniswap_pools: SyncedUniswapPools
     ) -> Self {
         Self {
             pool_tacker: Arc::new(RwLock::new(pools)),

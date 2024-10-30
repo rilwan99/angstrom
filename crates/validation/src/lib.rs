@@ -3,15 +3,13 @@ pub mod order;
 pub mod validator;
 
 use std::{
-    collections::HashMap,
     fmt::Debug,
     path::Path,
     sync::{atomic::AtomicU64, Arc}
 };
 
-use angstrom_types::primitive::PoolId;
 use angstrom_utils::key_split_threadpool::KeySplitThreadpool;
-use matching_engine::cfmm::uniswap::{pool::EnhancedUniswapPool, pool_data_loader::DataLoader};
+use matching_engine::cfmm::uniswap::pool_manager::SyncedUniswapPools;
 use order::state::{
     config::load_validation_config, db_state_utils::StateFetchUtils, pools::PoolsTracker
 };
@@ -37,9 +35,7 @@ pub fn init_validation<
 >(
     db: DB,
     current_block: u64,
-    uniswap_pools: Arc<
-        HashMap<PoolId, tokio::sync::RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>
-    >
+    uniswap_pools: SyncedUniswapPools
 ) -> ValidationClient
 where
     <DB as revm::DatabaseRef>::Error: Send + Sync + Debug
@@ -79,9 +75,7 @@ pub fn init_validation_tests<
     Pool: PoolsTracker + Sync + 'static
 >(
     db: DB,
-    uniswap_pools: Arc<
-        HashMap<PoolId, tokio::sync::RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>
-    >,
+    uniswap_pools: SyncedUniswapPools,
     state: State,
     pool: Pool,
 

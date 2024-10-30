@@ -30,16 +30,13 @@ use angstrom_utils::timer::async_time_fn;
 use futures::{future::BoxFuture, Future, Stream, StreamExt};
 use itertools::Itertools;
 use matching_engine::{
-    cfmm::uniswap::{
-        pool::EnhancedUniswapPool, pool_data_loader::DataLoader, tob::get_market_snapshot
-    },
+    cfmm::uniswap::{pool_manager::SyncedUniswapPools, tob::get_market_snapshot},
     MatchingManager
 };
 use order_pool::order_storage::{OrderStorage, OrderStorageNotification};
 use pade::PadeEncode;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tokio::sync::RwLock;
 use tokio_stream::wrappers::BroadcastStream;
 
 use crate::{AngstromValidator, Signer};
@@ -68,7 +65,7 @@ pub struct RoundStateMachine<T> {
     transition_future: Option<BoxFuture<'static, Result<ConsensusState, RoundStateMachineError>>>,
     waker:             Option<Waker>,
     pool_registry:     UniswapAngstromRegistry,
-    uniswap_pools: Arc<HashMap<PoolId, RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>>,
+    uniswap_pools:     SyncedUniswapPools,
     provider:          Arc<Pin<Box<dyn Provider<T>>>>
 }
 
@@ -85,9 +82,7 @@ where
         validators: Vec<AngstromValidator>,
         metrics: ConsensusMetricsWrapper,
         pool_registry: UniswapAngstromRegistry,
-        uniswap_pools: Arc<
-            HashMap<PoolId, RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>
-        >,
+        uniswap_pools: SyncedUniswapPools,
         provider: impl Provider<T> + 'static
     ) -> Self {
         Self {
@@ -427,9 +422,7 @@ where
     async fn build_pools_param(
         proposal: &Proposal,
         pool_registry: UniswapAngstromRegistry,
-        uniswap_pools: Arc<
-            HashMap<PoolId, RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>
-        >
+        uniswap_pools: SyncedUniswapPools
     ) -> HashMap<PoolId, (Address, Address, PoolSnapshot, u16)> {
         let mut result = HashMap::new();
 

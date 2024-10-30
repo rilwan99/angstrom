@@ -1,15 +1,14 @@
 use std::{
-    collections::HashMap,
     pin::Pin,
     sync::{atomic::AtomicU64, Arc},
     task::Poll
 };
 
 use alloy::primitives::{Address, BlockNumber, B256};
-use angstrom_types::primitive::{NewInitializedPool, PoolId};
+use angstrom_types::primitive::NewInitializedPool;
 use angstrom_utils::key_split_threadpool::KeySplitThreadpool;
 use futures::{Future, StreamExt};
-use matching_engine::cfmm::uniswap::{pool::EnhancedUniswapPool, pool_data_loader::DataLoader};
+use matching_engine::cfmm::uniswap::pool_manager::SyncedUniswapPools;
 use tokio::runtime::Handle;
 
 use super::{
@@ -41,9 +40,7 @@ where
         block_number: Arc<AtomicU64>,
         pools: Pools,
         fetch: Fetch,
-        uniswap_pools: Arc<
-            HashMap<PoolId, tokio::sync::RwLock<EnhancedUniswapPool<DataLoader<PoolId>, PoolId>>>
-        >,
+        uniswap_pools: SyncedUniswapPools,
         thread_pool: KeySplitThreadpool<
             UserAddress,
             Pin<Box<dyn Future<Output = ()> + Send>>,

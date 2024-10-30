@@ -14,6 +14,7 @@ use alloy::{
     transports::{RpcError, TransportErrorKind}
 };
 use alloy_primitives::Log;
+use angstrom_types::primitive::PoolId;
 use arraydeque::ArrayDeque;
 use futures_util::{stream::BoxStream, StreamExt};
 use thiserror::Error;
@@ -27,18 +28,21 @@ use tokio::{
 
 use super::pool::PoolError;
 use crate::cfmm::uniswap::{
-    pool::EnhancedUniswapPool, pool_data_loader::PoolDataLoader,
+    pool::EnhancedUniswapPool,
+    pool_data_loader::{DataLoader, PoolDataLoader},
     pool_providers::PoolManagerProvider
 };
 
 pub type StateChangeCache<Loader, A> = HashMap<A, ArrayDeque<StateChange<Loader, A>, 150>>;
+pub type SyncedUniswapPools<A = PoolId, Loader = DataLoader<A>> =
+    Arc<HashMap<A, RwLock<EnhancedUniswapPool<Loader, A>>>>;
 
 #[derive(Default)]
 pub struct UniswapPoolManager<P, Loader: PoolDataLoader<A>, A = Address>
 where
     A: Debug + Copy
 {
-    pools:               Arc<HashMap<A, RwLock<EnhancedUniswapPool<Loader, A>>>>,
+    pools:               SyncedUniswapPools<A, Loader>,
     latest_synced_block: u64,
     state_change_buffer: usize,
     state_change_cache:  Arc<RwLock<StateChangeCache<Loader, A>>>,
