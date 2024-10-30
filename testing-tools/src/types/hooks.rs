@@ -12,7 +12,7 @@ pub enum StateMachineHook<'a, C> {
 pub type StateMachineActionHookFn<'a, C> = Box<
     dyn FnOnce(
         &'a mut AngstromTestnet<C>
-    ) -> Pin<Box<dyn Future<Output = eyre::Result<()>> + Send + Sync + 'a>>
+    ) -> Pin<Box<dyn Future<Output = eyre::Result<()>> + Send + 'a>>
 >;
 
 /// check something on the testnet

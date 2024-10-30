@@ -81,7 +81,7 @@ impl AngstromTestnetNodeInternals {
 
         let angstrom_addr = angstrom_env.angstrom();
         // let pools = vec![pool_key];
-        let pools = vec![];
+        //let pools = vec![];
         let pool = strom_handles.get_pool_handle();
         let executor: TokioTaskExecutor = Default::default();
         let tx_strom_handles = (&strom_handles).into();
@@ -134,6 +134,7 @@ impl AngstromTestnetNodeInternals {
         });
 
         let testnet_hub = TestnetHub::new(angstrom_addr, state_provider.provider().provider());
+        /*
         let consensus = if config.is_state_machine() {
             let block_number = state_provider
                 .provider()
@@ -167,6 +168,8 @@ impl AngstromTestnetNodeInternals {
         } else {
             None
         };
+        */
+        let consensus = None;
 
         Ok((
             Self {

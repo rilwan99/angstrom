@@ -3,6 +3,7 @@ use std::{
     future::Future
 };
 
+use alloy::providers::Provider;
 use angstrom::cli::initialize_strom_handles;
 use angstrom_network::{
     manager::StromConsensusEvent, NetworkOrderEvent, StromMessage, StromNetworkManager
@@ -22,7 +23,7 @@ use tracing::{instrument, span, Instrument, Level};
 
 use super::{utils::generate_node_keys, StateMachineTestnet};
 use crate::{
-    anvil_state_provider::TestnetBlockProvider,
+    anvil_state_provider::{utils::async_to_sync, TestnetBlockProvider},
     network::TestnetNodeNetwork,
     testnet_controllers::{strom::TestnetNode, AngstromTestnetConfig}
 };
@@ -181,7 +182,8 @@ where
     /// updates the anvil state of all the peers from a given peer
     pub(crate) async fn all_peers_update_state(&self, id: u64) -> eyre::Result<()> {
         let peer = self.get_peer(id);
-        let (updated_state, _) = peer.state_provider().execute_and_return_state().await?;
+        let (updated_state, block) = peer.state_provider().execute_and_return_state().await?;
+        self.block_provider.broadcast_block(block);
 
         futures::future::join_all(self.peers.iter().map(|(i, peer)| async {
             if id != *i {
@@ -361,6 +363,22 @@ where
         });
 
         out
+    }
+
+    /// checks the current block number on all peers matches the expected
+    pub(crate) fn check_block_numbers(&self, expected_block_num: u64) -> eyre::Result<bool> {
+        let f = self.peers.iter().map(|(_, peer)| {
+            peer.state_provider()
+                .provider()
+                .provider()
+                .get_block_number()
+        });
+
+        let blocks = async_to_sync(futures::future::join_all(f))
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(blocks.into_iter().all(|b| b == expected_block_num))
     }
 }
 

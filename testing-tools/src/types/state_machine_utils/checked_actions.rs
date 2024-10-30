@@ -61,7 +61,7 @@ where
                 StromConsensusEvent::Proposal(testnet.get_peer(0).peer_id(), proposal)
             ))
         };
-        self.add_checked_action("send bundles", f);
+        self.add_checked_action("send propose", f);
     }
 
     fn send_prepropose(&mut self, preproposal: PreProposal) {
@@ -72,7 +72,7 @@ where
                 StromConsensusEvent::PreProposal(testnet.get_peer(0).peer_id(), preproposal)
             ))
         };
-        self.add_checked_action("send bundles", f);
+        self.add_checked_action("send prepropose", f);
     }
 }
 

@@ -1,7 +1,11 @@
 use reth_chainspec::Hardforks;
 use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
 
-use crate::{testnet_controllers::StateMachineTestnet, types::StateMachineCheckHookFn};
+use crate::{
+    anvil_state_provider::utils::async_to_sync,
+    testnet_controllers::{AngstromTestnet, StateMachineTestnet},
+    types::StateMachineCheckHookFn
+};
 
 pub trait WithCheck<C>
 where
@@ -14,9 +18,12 @@ where
         + 'static
 {
     type FunctionOutput = StateMachineCheckHookFn<C>;
+
+    fn check_block(&mut self, block_number: u64);
 }
 
-impl<'a, C> WithCheck<C> for StateMachineTestnet<'a, C> where
+impl<'a, C> WithCheck<C> for StateMachineTestnet<'a, C>
+where
     C: BlockReader
         + HeaderProvider
         + ChainSpecProvider
@@ -25,4 +32,8 @@ impl<'a, C> WithCheck<C> for StateMachineTestnet<'a, C> where
         + ChainSpecProvider<ChainSpec: Hardforks>
         + 'static
 {
+    fn check_block(&mut self, block_number: u64) {
+        let f = move |testnet: &mut AngstromTestnet<C>| testnet.check_block_numbers(block_number);
+        self.add_check("check block", f);
+    }
 }

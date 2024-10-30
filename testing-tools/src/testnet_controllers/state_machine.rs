@@ -63,8 +63,7 @@ where
     where
         F: FnOnce(
                 &'a mut AngstromTestnet<C>
-            )
-                -> Pin<Box<dyn Future<Output = eyre::Result<()>> + Send + Sync + 'a>>
+            ) -> Pin<Box<dyn Future<Output = eyre::Result<()>> + Send + 'a>>
             + 'static
     {
         self.hooks

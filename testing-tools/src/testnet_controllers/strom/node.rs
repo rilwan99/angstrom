@@ -9,6 +9,7 @@ use alloy::{pubsub::PubSubFrontend, sol_types::SolValue};
 use alloy_primitives::Address;
 use alloy_rpc_types::Transaction;
 use angstrom::cli::StromHandles;
+use angstrom_eth::handle::EthHandle;
 use angstrom_network::{
     NetworkOrderEvent, StromNetworkEvent, StromNetworkHandle, StromNetworkManager
 };

@@ -1,6 +1,7 @@
 use reth_provider::test_utils::NoopProvider;
 use testing_tools::{
-    testnet_controllers::AngstromTestnet, types::checked_actions::WithCheckedAction
+    testnet_controllers::AngstromTestnet,
+    types::{actions::WithAction, checked_actions::WithCheckedAction, checks::WithCheck}
 };
 use testnet::cli::Cli;
 use tracing::{debug, info};
@@ -15,6 +16,9 @@ async fn main() -> eyre::Result<()> {
 
     info!("deployed state machine");
 
+    testnet.check_block(0);
+    testnet.advance_block();
+    testnet.check_block(1);
     testnet.send_pooled_orders(vec![]);
     debug!("added pooled orders to state machine");
     // testnet.send_prepropose(vec![]);
