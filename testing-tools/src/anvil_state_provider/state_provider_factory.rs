@@ -8,12 +8,8 @@ use alloy::{
     rpc::types::{anvil::MineOptions, Block},
     signers::local::PrivateKeySigner
 };
-<<<<<<< HEAD
-use alloy_primitives::{Address, BlockNumber, Bytes};
-=======
 use alloy_primitives::{Address, BlockNumber, Bytes, B256, U256};
 use eyre::bail;
->>>>>>> main
 use reth_provider::{
     BlockHashReader, BlockNumReader, CanonStateNotification, CanonStateNotifications,
     CanonStateSubscriptions, ProviderError, ProviderResult
@@ -188,7 +184,7 @@ impl AnvilStateProvider {
         Ok(())
     }
 }
-impl reth_revm::DatabaseRef for RpcStateProviderFactory {
+impl reth_revm::DatabaseRef for AnvilStateProvider {
     type Error = eyre::Error;
 
     fn basic_ref(
@@ -227,7 +223,7 @@ impl reth_revm::DatabaseRef for RpcStateProviderFactory {
         panic!("This should not be called, as the code is already loaded");
     }
 }
-impl BlockNumReader for RpcStateProviderFactory {
+impl BlockNumReader for AnvilStateProvider {
     fn chain_info(&self) -> ProviderResult<reth_chainspec::ChainInfo> {
         panic!("never used");
     }
@@ -258,7 +254,7 @@ impl BlockNumReader for RpcStateProviderFactory {
         panic!("never used");
     }
 }
-impl BlockHashReader for RpcStateProviderFactory {
+impl BlockHashReader for AnvilStateProvider {
     fn block_hash(&self, _: BlockNumber) -> ProviderResult<Option<alloy_primitives::B256>> {
         panic!("never used");
     }

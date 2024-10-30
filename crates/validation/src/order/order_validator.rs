@@ -23,14 +23,9 @@ use crate::order::{state::account::UserAccountProcessor, OrderValidation};
 
 pub struct OrderValidator<DB, Pools, Fetch> {
     sim:          SimValidation<DB>,
-<<<<<<< HEAD
-    state:        StateValidation<Pools, Fetch, Provider>,
+    state:        StateValidation<Pools, Fetch>,
     thread_pool:
         KeySplitThreadpool<UserAddress, Pin<Box<dyn Future<Output = ()> + Send + Sync>>, Handle>,
-=======
-    state:        StateValidation<Pools, Fetch>,
-    thread_pool:  KeySplitThreadpool<UserAddress, Pin<Box<dyn Future<Output = ()> + Send>>, Handle>,
->>>>>>> main
     block_number: Arc<AtomicU64>
 }
 

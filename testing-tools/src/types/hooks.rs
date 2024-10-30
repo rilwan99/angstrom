@@ -2,16 +2,10 @@ use std::{future::Future, pin::Pin};
 
 use crate::testnet_controllers::AngstromTestnet;
 
-<<<<<<< HEAD
 pub enum StateMachineHook<'a, C> {
     Action(StateMachineActionHookFn<'a, C>),
     Check(StateMachineCheckHookFn<C>),
     CheckedAction(StateMachineCheckedActionHookFn<'a, C>)
-=======
-pub enum StateMachineHook<C> {
-    Action(StateMachineActionHookFn<C>),
-    Check(StateMachineCheckHookFn<C>)
->>>>>>> main
 }
 
 /// execute an action on the testnet

@@ -28,25 +28,16 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 
 use super::strom_internals::AngstromTestnetNodeInternals;
 use crate::{
-<<<<<<< HEAD
     anvil_state_provider::AnvilStateProviderWrapper,
-=======
-    anvil_state_provider::state_provider_factory::RpcStateProviderFactoryWrapper,
->>>>>>> main
     network::{EthPeerPool, TestnetNodeNetwork},
     testnet_controllers::{AngstromTestnetConfig, TestnetStateFutureLock}
 };
 
 pub struct TestnetNode<C> {
     _testnet_node_id: u64,
-<<<<<<< HEAD
     network:          TestnetNodeNetwork,
     strom:            AngstromTestnetNodeInternals,
     state_lock:       TestnetStateFutureLock<C, PubSubFrontend>
-=======
-    network:          TestnetNodeNetwork<C>,
-    strom:            AngstromTestnetNodeInternals
->>>>>>> main
 }
 
 impl<C> TestnetNode<C>
@@ -61,32 +52,23 @@ where
 {
     pub async fn new(
         _testnet_node_id: u64,
-<<<<<<< HEAD
         network: TestnetNodeNetwork,
         strom_network_manager: StromNetworkManager<C>,
         eth_peer: Peer<C>,
-=======
-        network: TestnetNodeNetwork<C>,
->>>>>>> main
         strom_handles: StromHandles,
         config: AngstromTestnetConfig,
         initial_validators: Vec<AngstromValidator>
     ) -> eyre::Result<Self> {
-<<<<<<< HEAD
         let (strom, consensus) = AngstromTestnetNodeInternals::new(
-=======
-        let strom = AngstromTestnetNodeInternals::new(
->>>>>>> main
             _testnet_node_id,
             strom_handles,
             network.strom_handle.network_handle().clone(),
-            network.secret_key,
+            network.secret_key.clone(),
             config,
             initial_validators
         )
         .await?;
 
-<<<<<<< HEAD
         let state_lock = TestnetStateFutureLock::new(
             _testnet_node_id,
             eth_peer,
@@ -95,9 +77,6 @@ where
         );
 
         Ok(Self { _testnet_node_id, network, strom, state_lock })
-=======
-        Ok(Self { _testnet_node_id, network, strom })
->>>>>>> main
     }
 
     /// General

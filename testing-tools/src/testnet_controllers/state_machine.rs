@@ -3,7 +3,6 @@ use std::{future::Future, pin::Pin};
 use reth_chainspec::Hardforks;
 use reth_provider::{BlockReader, ChainSpecProvider, HeaderProvider};
 
-<<<<<<< HEAD
 use super::AngstromTestnet;
 use crate::types::{HookResult, StateMachineHook};
 
@@ -24,16 +23,6 @@ where
 {
     pub(crate) fn new(testnet: AngstromTestnet<C>) -> Self {
         Self { testnet, hooks: Vec::new() }
-=======
-pub struct StateMachineTestnet<C> {
-    _testnet: AngstromTestnet<C>,
-    hooks:    Vec<(&'static str, StateMachineHook<C>)>
-}
-
-impl<C> StateMachineTestnet<C> {
-    pub(crate) fn new(_testnet: AngstromTestnet<C>) -> Self {
-        Self { _testnet, hooks: Vec::new() }
->>>>>>> main
     }
 
     pub async fn run(mut self) {
@@ -82,7 +71,6 @@ impl<C> StateMachineTestnet<C> {
             .push((action_name, StateMachineHook::Action(Box::new(action))))
     }
 
-<<<<<<< HEAD
     pub(crate) fn add_checked_action<F>(
         &mut self,
         checked_action_name: &'static str,
@@ -97,48 +85,5 @@ impl<C> StateMachineTestnet<C> {
         panic!("added checked actions");
         self.hooks
             .push((checked_action_name, StateMachineHook::CheckedAction(Box::new(checked_action))))
-=======
-    async fn run_check(&mut self, _: StateMachineCheckHookFn<C>) -> eyre::Result<bool> {
-        Ok(false)
-    }
-}
-
-trait HookResult: Sized {
-    fn error(&self) -> Option<&eyre::ErrReport>;
-
-    fn is_pass(&self) -> bool;
-
-    fn fmt_result(self, i: usize, name: &'static str) {
-        if let Some(e) = self.error() {
-            tracing::error!(target: "_testnet::state-machine", hook = i, name, "{:?}", e);
-            panic!();
-        }
-
-        if self.is_pass() {
-            tracing::info!(target: "_testnet::state-machine", hook = i, name, "hook PASSED");
-        } else {
-            tracing::warn!(target: "_testnet::state-machine", hook = i, name, "hook FAILED");
-        }
-    }
-}
-
-impl HookResult for eyre::Result<()> {
-    fn is_pass(&self) -> bool {
-        self.is_ok()
-    }
-
-    fn error(&self) -> Option<&eyre::ErrReport> {
-        self.as_ref().err()
-    }
-}
-
-impl HookResult for eyre::Result<bool> {
-    fn is_pass(&self) -> bool {
-        matches!(self.as_ref(), Ok(true))
-    }
-
-    fn error(&self) -> Option<&eyre::ErrReport> {
-        self.as_ref().err()
->>>>>>> main
     }
 }
