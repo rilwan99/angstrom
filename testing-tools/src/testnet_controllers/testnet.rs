@@ -51,7 +51,7 @@ where
 {
     pub async fn spawn_testnet(c: C, config: AngstromTestnetConfig) -> eyre::Result<Self> {
         let angstrom_addr_state = angstrom_address_with_state(config).await?;
-        let block_provider = TestnetBlockProvider::new(config);
+        let block_provider = TestnetBlockProvider::new();
         let mut this = Self {
             peers: Default::default(),
             _disconnected_peers: HashSet::new(),

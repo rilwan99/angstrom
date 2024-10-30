@@ -1,10 +1,6 @@
 use std::sync::Arc;
 
-use alloy::{
-    eips::{BlockId, BlockNumberOrTag},
-    providers::Provider,
-    pubsub::PubSubFrontend
-};
+use alloy::{providers::Provider, pubsub::PubSubFrontend};
 use alloy_primitives::{Address, Bytes};
 use alloy_rpc_types::Transaction;
 use angstrom::cli::StromHandles;
@@ -62,7 +58,7 @@ impl AngstromTestnetNodeInternals {
         state_provider.set_state(initial_state).await?;
         tracing::info!("connected to state provider");
 
-        tracing::debug!("deploying contracts to anvil");
+        //  tracing::debug!("deploying contracts to anvil");
         // let uni_env = UniswapEnv::with_anvil(state_provider.provider()).await?;
         // let angstrom_env = AngstromEnv::new(uni_env).await?;
         // let rewards_env =
@@ -80,7 +76,7 @@ impl AngstromTestnetNodeInternals {
         //     .create_pool_and_tokens_from_snapshot(tick_spacing, pool_fee, snapshot)
         //     .await?;
 
-        tracing::info!("deployed contracts to anvil");
+        //   tracing::info!("deployed contracts to anvil");
 
         // let angstrom_addr = angstrom_env.angstrom();
         // let pools = vec![pool_key];

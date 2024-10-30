@@ -5,14 +5,13 @@ use tokio_stream::wrappers::BroadcastStream;
 use crate::testnet_controllers::AngstromTestnetConfig;
 
 pub struct TestnetBlockProvider {
-    tx:     broadcast::Sender<(u64, Vec<Transaction>)>,
-    config: AngstromTestnetConfig
+    tx: broadcast::Sender<(u64, Vec<Transaction>)>
 }
 
 impl TestnetBlockProvider {
-    pub fn new(config: AngstromTestnetConfig) -> Self {
+    pub fn new() -> Self {
         let (tx, _) = broadcast::channel(1000);
-        Self { tx, config }
+        Self { tx }
     }
 
     pub fn subscribe_to_new_blocks(&self) -> BroadcastStream<(u64, Vec<Transaction>)> {
