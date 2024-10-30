@@ -138,7 +138,7 @@ impl AngstromTestnetNodeInternals {
         });
 
         let testnet_hub = TestnetHub::new(angstrom_addr, state_provider.provider().provider());
-        /*
+
         let consensus = if config.is_state_machine() {
             let block_number = state_provider
                 .provider()
@@ -172,7 +172,7 @@ impl AngstromTestnetNodeInternals {
         } else {
             None
         };
-        */
+
         let consensus = None;
 
         Ok((
