@@ -312,6 +312,8 @@ where
                 .is_ready()
             {
                 panic!("peer connection failed");
+            } else {
+                tracing::warn!("nothing from network on connection");
             }
 
             let peer_cnt = self.network.strom_handle.peer_count();
