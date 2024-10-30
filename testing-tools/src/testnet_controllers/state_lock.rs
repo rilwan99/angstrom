@@ -131,8 +131,18 @@ where
         &mut self,
         cx: &mut Context<'_>
     ) -> Poll<()> {
-        let _ = self.eth_peer.fut.poll_unpin(cx).map(|_| ());
-        self.strom_network_manager.fut.poll_unpin(cx).map(|_| ())
+        if self.eth_peer.fut.poll_unpin(cx).map(|_| ()).is_ready()
+            || self
+                .strom_network_manager
+                .fut
+                .poll_unpin(cx)
+                .map(|_| ())
+                .is_ready()
+        {
+            Poll::Ready(())
+        } else {
+            Poll::Pending
+        }
     }
 }
 
