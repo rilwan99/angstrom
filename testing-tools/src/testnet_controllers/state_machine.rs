@@ -26,13 +26,10 @@ where
     }
 
     pub async fn run(mut self) {
-        //  println!("starting state machine run");
         let hooks = std::mem::take(&mut self.hooks);
-        // panic!("TOTAL HOOKS: {}", hooks.len());
+
         for (i, (name, hook)) in hooks.into_iter().enumerate() {
-            // println!("RUNNING HOOK: {i}");
             Self::run_hook(unsafe { std::mem::transmute(&mut self.testnet) }, i, name, hook).await;
-            // println!("FINISHED HOOK: {i}");
         }
     }
 

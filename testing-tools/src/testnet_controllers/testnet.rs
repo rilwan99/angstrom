@@ -398,6 +398,8 @@ where
             .into_iter()
             .collect::<Result<Vec<_>, _>>()?;
 
+        println!("{expected_block_num}\n{blocks:?}");
+
         Ok(blocks.into_iter().all(|b| b == expected_block_num))
     }
 }
