@@ -30,7 +30,6 @@ use crate::{
         utils::StromContractInstance, AnvilEthDataCleanser, AnvilStateProvider,
         AnvilStateProviderWrapper
     },
-    contracts::environment::{angstrom::AngstromEnv, uniswap::UniswapEnv},
     testnet_controllers::AngstromTestnetConfig,
     types::SendingStromHandles,
     validation::TestOrderValidator
