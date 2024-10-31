@@ -26,7 +26,8 @@ use crate::{
     primitive::{PoolId, PoolKey, UniswapPoolRegistry},
     sol_bindings::{
         grouped_orders::{GroupedVanillaOrder, OrderWithStorageData},
-        rpc_orders::TopOfBlockOrder as RpcTopOfBlockOrder
+        rpc_orders::TopOfBlockOrder as RpcTopOfBlockOrder,
+        RawPoolOrder
     }
 };
 
@@ -169,6 +170,102 @@ impl AngstromBundle {
             .iter()
             .map(|order| order.order_hash())
             .chain(self.user_orders.iter().map(|order| order.order_hash()))
+    }
+
+    pub fn build_dummy_for_tob_gas(
+        user_order: &OrderWithStorageData<RpcTopOfBlockOrder>
+    ) -> eyre::Result<Self> {
+        let mut top_of_block_orders = Vec::new();
+        let pool_updates = Vec::new();
+        let mut pairs = Vec::new();
+        let user_orders = Vec::new();
+        let mut asset_builder = AssetBuilder::new();
+
+        // Get the information for the pool or skip this solution if we can't find a
+        // pool for it
+        let (t0, t1) = {
+            let token_in = user_order.token_in();
+            let token_out = user_order.token_out();
+            if token_in < token_out {
+                (token_in, token_out)
+            } else {
+                (token_out, token_in)
+            }
+        };
+        // Make sure the involved assets are in our assets array and we have the
+        // appropriate asset index for them
+        let t0_idx = asset_builder.add_or_get_asset(t0) as u16;
+        let t1_idx = asset_builder.add_or_get_asset(t1) as u16;
+
+        // TODO this wasn't done when pulled from davids branch.
+        let pair = Pair {
+            index0:       t0_idx,
+            index1:       t1_idx,
+            store_index:  0,
+            price_1over0: U256::from(1)
+        };
+        pairs.push(pair);
+
+        // Get our list of user orders, if we have any
+        top_of_block_orders.push(TopOfBlockOrder::of(user_order, 0));
+
+        Ok(Self::new(
+            asset_builder.get_asset_array(),
+            pairs,
+            pool_updates,
+            top_of_block_orders,
+            user_orders
+        ))
+    }
+
+    pub fn build_dummy_for_user_gas(
+        user_order: &OrderWithStorageData<GroupedVanillaOrder>
+    ) -> eyre::Result<Self> {
+        let top_of_block_orders = Vec::new();
+        let pool_updates = Vec::new();
+        let mut pairs = Vec::new();
+        let mut user_orders = Vec::new();
+        let mut asset_builder = AssetBuilder::new();
+
+        // Get the information for the pool or skip this solution if we can't find a
+        // pool for it
+        let (t0, t1) = {
+            let token_in = user_order.token_in();
+            let token_out = user_order.token_out();
+            if token_in < token_out {
+                (token_in, token_out)
+            } else {
+                (token_out, token_in)
+            }
+        };
+        // Make sure the involved assets are in our assets array and we have the
+        // appropriate asset index for them
+        let t0_idx = asset_builder.add_or_get_asset(t0) as u16;
+        let t1_idx = asset_builder.add_or_get_asset(t1) as u16;
+
+        // TODO this wasn't done when pulled from davids branch.
+        let pair = Pair {
+            index0:       t0_idx,
+            index1:       t1_idx,
+            store_index:  0,
+            price_1over0: U256::from(1)
+        };
+        pairs.push(pair);
+
+        let pair_idx = pairs.len() - 1;
+
+        let outcome =
+            OrderOutcome { id: user_order.order_id, outcome: OrderFillState::CompleteFill };
+        // Get our list of user orders, if we have any
+        user_orders.push(UserOrder::from_internal_order(user_order, &outcome, pair_idx as u16));
+
+        Ok(Self::new(
+            asset_builder.get_asset_array(),
+            pairs,
+            pool_updates,
+            top_of_block_orders,
+            user_orders
+        ))
     }
 
     pub fn from_proposal(
@@ -418,13 +515,13 @@ impl TryFrom<&[u8]> for AngstromPoolConfigStore {
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
         if value.first() != Some(&0) {
-            return Err("Invalid encoded entries: must start with a safety byte of 0".to_string());
+            return Err("Invalid encoded entries: must start with a safety byte of 0".to_string())
         }
         let adjusted_entries = &value[1..];
         if adjusted_entries.len() % POOL_CONFIG_STORE_ENTRY_SIZE != 0 {
             return Err(
                 "Invalid encoded entries: incorrect length after removing safety byte".to_string()
-            );
+            )
         }
         let entries = adjusted_entries
             .chunks(POOL_CONFIG_STORE_ENTRY_SIZE)

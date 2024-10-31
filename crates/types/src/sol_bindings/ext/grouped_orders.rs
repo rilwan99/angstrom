@@ -555,6 +555,7 @@ impl RawPoolOrder for TopOfBlockOrder {
         OrderLocation::Searcher
     }
 }
+
 impl RawPoolOrder for PartialStandingOrder {
     fn is_valid_signature(&self) -> bool {
         let Ok(sig) = Signature::new_from_bytes(&self.meta.signature) else { return false };
@@ -573,7 +574,12 @@ impl RawPoolOrder for PartialStandingOrder {
     }
 
     fn amount_out_min(&self) -> u128 {
-        todo!();
+        // TODO: verify math on this. feels wrong
+        if self.asset_in < self.asset_out {
+            self.min_amount_in * self.min_price.to::<u128>()
+        } else {
+            self.min_amount_in / self.min_price.to::<u128>()
+        }
     }
 
     fn limit_price(&self) -> U256 {
@@ -627,8 +633,12 @@ impl RawPoolOrder for ExactStandingOrder {
     }
 
     fn amount_out_min(&self) -> u128 {
-        todo!();
-        // self.amount * self.minPrice.to::<u128>()
+        // TODO: verify math on this. feels wrong
+        if self.asset_in < self.asset_out {
+            self.amount * self.min_price.to::<u128>()
+        } else {
+            self.amount / self.min_price.to::<u128>()
+        }
     }
 
     fn limit_price(&self) -> U256 {
@@ -636,8 +646,7 @@ impl RawPoolOrder for ExactStandingOrder {
     }
 
     fn amount_in(&self) -> u128 {
-        todo!();
-        // self.amount
+        self.amount
     }
 
     fn deadline(&self) -> Option<U256> {
@@ -699,7 +708,12 @@ impl RawPoolOrder for PartialFlashOrder {
     }
 
     fn amount_out_min(&self) -> u128 {
-        self.min_price.to::<u128>() * self.min_amount_in
+        // TODO: verify math on this. feels wrong
+        if self.asset_in < self.asset_out {
+            self.min_amount_in * self.min_price.to::<u128>()
+        } else {
+            self.min_amount_in / self.min_price.to::<u128>()
+        }
     }
 
     fn respend_avoidance_strategy(&self) -> RespendAvoidanceMethod {
@@ -761,7 +775,12 @@ impl RawPoolOrder for ExactFlashOrder {
     }
 
     fn amount_out_min(&self) -> u128 {
-        self.min_price.to::<u128>() * self.amount
+        // TODO: verify math on this. feels wrong
+        if self.asset_in < self.asset_out {
+            self.amount * self.min_price.to::<u128>()
+        } else {
+            self.amount / self.min_price.to::<u128>()
+        }
     }
 
     fn respend_avoidance_strategy(&self) -> RespendAvoidanceMethod {
