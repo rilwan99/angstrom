@@ -4,7 +4,7 @@ use alloy::{
     network::{Ethereum, EthereumWallet},
     node_bindings::AnvilInstance,
     primitives::Address,
-    providers::{ProviderBuilder, RootProvider},
+    providers::ProviderBuilder,
     pubsub::PubSubFrontend,
     signers::local::PrivateKeySigner,
     transports::http::{Client, Http}
@@ -57,7 +57,7 @@ impl TestAnvilEnvironment for SpawnedAnvil {
 }
 
 pub struct LocalAnvil {
-    url:      String,
+    _url:     String,
     provider: LocalAnvilRpc
 }
 
@@ -72,7 +72,7 @@ impl LocalAnvil {
             .with_recommended_fillers()
             .wallet(wallet)
             .on_http(url.clone().parse()?);
-        Ok(Self { url, provider })
+        Ok(Self { _url: url, provider })
     }
 }
 

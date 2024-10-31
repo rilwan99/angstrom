@@ -44,9 +44,8 @@ impl Default for Signature {
 
 impl From<alloy::primitives::Signature> for Signature {
     fn from(value: alloy::primitives::Signature) -> Self {
-        let parity = value.v();
+        let v = value.v().y_parity_byte();
         // TODO:  Make this robust, right now it Just Works
-        let v = 28;
         let r: FixedBytes<32> = value.r().into();
         let s: FixedBytes<32> = value.s().into();
         Self::Ecdsa { v, r, s }

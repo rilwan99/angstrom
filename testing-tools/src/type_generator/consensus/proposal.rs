@@ -10,7 +10,6 @@ use angstrom_types::{
     primitive::{PoolId, PoolKey},
     sol_bindings::{grouped_orders::OrderWithStorageData, rpc_orders::TopOfBlockOrder}
 };
-use enr::k256::ecdsa::SigningKey;
 use matching_engine::{
     strategy::{MatchingStrategy, SimpleCheckpointStrategy},
     MatchingManager

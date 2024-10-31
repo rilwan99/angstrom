@@ -1,5 +1,3 @@
-use std::future::Future;
-
 use alloy::primitives::Address;
 use angstrom_types::contract_bindings::pool_gate::PoolGate::PoolGateInstance;
 use tracing::debug;
@@ -116,7 +114,7 @@ mod tests {
         contract_payloads::angstrom::{AngstromBundle, UserOrder},
         matching::{uniswap::LiqRange, SqrtPriceX96},
         orders::{OrderFillState, OrderOutcome},
-        primitive::{PoolId, PoolKey, ANGSTROM_DOMAIN},
+        primitive::{PoolKey, ANGSTROM_DOMAIN},
         sol_bindings::{
             grouped_orders::{GroupedVanillaOrder, OrderWithStorageData, StandingVariants},
             rpc_orders::OmitOrderMeta
@@ -133,7 +131,7 @@ mod tests {
         },
         type_generator::{
             amm::AMMSnapshotBuilder,
-            consensus::{pool::Pool, preproposal::PreproposalBuilder, proposal::ProposalBuilder},
+            consensus::{pool::Pool, proposal::ProposalBuilder},
             orders::SigningInfo
         }
     };
@@ -176,7 +174,7 @@ mod tests {
         default.meta.signature = sig.pade_encode().into();
         // (address, default)
 
-        let mut user_order = OrderWithStorageData {
+        let user_order = OrderWithStorageData {
             order: GroupedVanillaOrder::Standing(StandingVariants::Exact(default)),
             is_currently_valid: true,
             is_bid: true,
@@ -184,7 +182,7 @@ mod tests {
         };
         let outcome =
             OrderOutcome { id: user_order.order_id, outcome: OrderFillState::CompleteFill };
-        let encode = UserOrder::from_internal_order(&user_order, &outcome, 0).pade_encode();
+        let _encode = UserOrder::from_internal_order(&user_order, &outcome, 0).pade_encode();
     }
 
     #[tokio::test]
@@ -196,7 +194,7 @@ mod tests {
         // Some tricks since they're the same
         let spawned_anvil = SpawnedAnvil::new().await.unwrap();
 
-        let nodes: Vec<Address> = spawned_anvil.anvil.addresses().iter().cloned().collect();
+        let nodes: Vec<Address> = spawned_anvil.anvil.addresses().to_vec();
         let controller = nodes[7];
         let controller_signing_key: SigningKey = spawned_anvil.anvil.keys()[7].clone().into();
         let uniswap = UniswapEnv::new(anvil).await.unwrap();

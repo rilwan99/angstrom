@@ -8,10 +8,7 @@ use angstrom_types::{
         SqrtPriceX96
     },
     primitive::{PoolId, PoolKey},
-    sol_bindings::{
-        grouped_orders::{GroupedUserOrder, GroupedVanillaOrder, OrderWithStorageData},
-        rpc_orders::TopOfBlockOrder
-    }
+    sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
 };
 
 #[derive(Debug)]
@@ -100,8 +97,8 @@ impl PoolBuilder {
     }
 
     pub fn build(self) -> Pool {
-        let key = self.key.unwrap_or_else(|| Self::random_key());
-        let snapshot = self.amm.unwrap_or_else(|| Self::random_snapshot());
+        let key = self.key.unwrap_or_else(Self::random_key);
+        let snapshot = self.amm.unwrap_or_else(Self::random_snapshot);
         let tob = self.tob.unwrap_or_else(|| Address::random());
         Pool { key, snapshot, tob }
     }

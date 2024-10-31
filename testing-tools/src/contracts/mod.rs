@@ -42,7 +42,7 @@ where
         if receipt.inner.status() {
             Ok(())
         } else {
-            let default_options = GethDebugTracingOptions::default();
+            let _default_options = GethDebugTracingOptions::default();
             let call_options = GethDebugTracingOptions {
                 config: GethDefaultTracingOptions {
                     disable_storage: Some(true),

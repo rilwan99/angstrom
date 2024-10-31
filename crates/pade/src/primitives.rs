@@ -198,7 +198,7 @@ impl PadeDecode for Signature {
 }
 
 impl PadeDecode for FixedBytes<32> {
-    fn pade_decode(buf: &mut &[u8], var: Option<u8>) -> Result<Self, PadeDecodeError>
+    fn pade_decode(buf: &mut &[u8], _: Option<u8>) -> Result<Self, PadeDecodeError>
     where
         Self: Sized
     {
@@ -210,9 +210,9 @@ impl PadeDecode for FixedBytes<32> {
     }
 
     fn pade_decode_with_width(
-        buf: &mut &[u8],
-        width: usize,
-        var: Option<u8>
+        _: &mut &[u8],
+        _: usize,
+        _: Option<u8>
     ) -> Result<Self, PadeDecodeError>
     where
         Self: Sized

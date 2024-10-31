@@ -1,18 +1,16 @@
-use alloy_primitives::{Address, U256};
+use alloy_primitives::U256;
 use angstrom_types::{
     consensus::PreProposal,
     orders::OrderPriorityData,
     sol_bindings::{grouped_orders::OrderWithStorageData, RawPoolOrder}
 };
-use enr::k256::ecdsa::SigningKey;
 use rand::{thread_rng, Rng};
 use reth_network_peers::pk2id;
 use secp256k1::{Secp256k1, SecretKey as Secp256SecretKey};
 
 use super::pool::{Pool, PoolBuilder};
 use crate::type_generator::orders::{
-    generate_top_of_block_order, DistributionParameters, OrderDistributionBuilder, OrderIdBuilder,
-    SigningInfo, ToBOrderBuilder
+    DistributionParameters, OrderDistributionBuilder, OrderIdBuilder, SigningInfo, ToBOrderBuilder
 };
 
 #[derive(Debug, Default)]

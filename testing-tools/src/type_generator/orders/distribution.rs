@@ -1,10 +1,9 @@
-use alloy::primitives::{Address, Uint};
+use alloy::primitives::Uint;
 use angstrom_types::{
     matching::Ray,
     primitive::PoolId,
     sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
 };
-use enr::k256::ecdsa::SigningKey;
 use eyre::eyre;
 use rand_distr::{num_traits::ToPrimitive, Distribution, SkewNormal};
 

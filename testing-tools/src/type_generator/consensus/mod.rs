@@ -2,12 +2,9 @@ pub mod pool;
 pub mod preproposal;
 pub mod proposal;
 
-use angstrom_types::{
-    primitive::PoolId,
-    sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData}
-};
+use angstrom_types::sol_bindings::grouped_orders::{GroupedVanillaOrder, OrderWithStorageData};
 
-use super::orders::{DistributionParameters, OrderDistributionBuilder, UserOrderBuilder};
+use super::orders::UserOrderBuilder;
 
 pub fn generate_limit_order_set(
     count: usize,
