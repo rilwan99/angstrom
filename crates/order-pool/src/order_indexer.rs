@@ -94,7 +94,6 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         address: Address
     ) -> Vec<OrderWithStorageData<AllOrders>> {
         let mut orders = Vec::new();
-
         if let Some(order_ids) = self.address_to_orders.get(&address) {
             for order_id in order_ids {
                 let order = match order_id.location {
@@ -104,16 +103,16 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
                         .lock()
                         .expect("lock poisoned")
                         .get_order(order_id)
-                        .map(|order| order.try_map_inner(|inner| Ok(inner.into())).ok())
-                        .flatten(),
+                        .and_then(|order| order.try_map_inner(|inner| Ok(inner.into())).ok()),
                     angstrom_types::orders::OrderLocation::Searcher => self
                         .order_storage
                         .searcher_orders
                         .lock()
                         .expect("lock poisoned")
                         .get_order(order_id.pool_id, order_id.hash)
-                        .map(|order| order.try_map_inner(|inner| Ok(AllOrders::TOB(inner))).ok())
-                        .flatten()
+                        .and_then(|order| {
+                            order.try_map_inner(|inner| Ok(AllOrders::TOB(inner))).ok()
+                        })
                 };
 
                 if let Some(order) = order {
@@ -121,7 +120,6 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
                 }
             }
         }
-
         orders
     }
 

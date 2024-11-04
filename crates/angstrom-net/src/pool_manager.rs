@@ -112,7 +112,7 @@ impl OrderPoolHandle for PoolHandle {
     fn pending_orders(&self, sender: Address) -> impl Future<Output = Vec<AllOrders>> + Send {
         let (tx, rx) = tokio::sync::oneshot::channel();
         self.send(OrderCommand::PendingOrders(sender, tx)).is_ok();
-        rx.map(|res| res.unwrap_or(Vec::new()))
+        rx.map(|res| res.unwrap_or_default())
     }
 
     fn cancel_order(&self, from: Address, order_hash: B256) -> impl Future<Output = bool> + Send {
