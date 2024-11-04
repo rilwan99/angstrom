@@ -1,7 +1,6 @@
-use alloy_primitives::{keccak256, Address};
+use alloy_primitives::Address;
 use angstrom_types::{
     orders::OrderOrigin,
-    primitive::Signature,
     sol_bindings::{
         grouped_orders::{AllOrders, FlashVariants, StandingVariants},
         rpc_orders::{
@@ -17,7 +16,7 @@ use reth_tasks::TaskSpawner;
 use crate::{
     api::{CancelOrderRequest, OrderApiServer},
     types::{OrderSubscriptionKind, OrderSubscriptionResult},
-    OrderApiError::{InvalidSignature, SignatureRecoveryError}
+    OrderApiError::SignatureRecoveryError
 };
 
 pub struct OrderApi<OrderPool, Spawner> {
