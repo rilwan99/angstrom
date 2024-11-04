@@ -196,6 +196,7 @@ mod tests {
         ExactFlashOrder, ExactStandingOrder, PartialFlashOrder, PartialStandingOrder,
         TopOfBlockOrder
     };
+    use futures::FutureExt;
     use order_pool::PoolManagerUpdate;
     use reth_tasks::TokioTaskExecutor;
     use tokio::sync::{
@@ -304,8 +305,13 @@ mod tests {
             future::ready(true)
         }
 
-        fn pending_orders(&self, _address: Address) -> impl Future<Output = Vec<AllOrders>> + Send {
-            future::ready(Vec::new())
+        fn pending_orders(&self, address: Address) -> impl Future<Output = Vec<AllOrders>> + Send {
+            let (tx, rx) = tokio::sync::oneshot::channel();
+            let _ = self
+                .sender
+                .send(OrderCommand::PendingOrders(address, tx))
+                .is_ok();
+            rx.map(|res| res.unwrap_or_default())
         }
     }
 }
