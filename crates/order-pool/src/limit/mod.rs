@@ -35,7 +35,6 @@ impl LimitOrderPool {
     }
 
     pub fn get_order(&self, id: &OrderId) -> Option<OrderWithStorageData<GroupedUserOrder>> {
-        // Try to get from limit orders first
         self.limit_orders
             .get_order(id.pool_id, id.hash)
             .and_then(|value| {
@@ -44,7 +43,6 @@ impl LimitOrderPool {
                     .ok()
             })
             .or_else(|| {
-                // If not found in limit orders, try composable orders
                 self.composable_orders
                     .get_order(id.pool_id, id.hash)
                     .and_then(|value| {
