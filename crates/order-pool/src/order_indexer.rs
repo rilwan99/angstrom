@@ -89,6 +89,42 @@ impl<V: OrderValidatorHandle<Order = AllOrders>> OrderIndexer<V> {
         }
     }
 
+    pub fn pending_orders_for_address(
+        &self,
+        address: Address
+    ) -> Vec<OrderWithStorageData<AllOrders>> {
+        let mut orders = Vec::new();
+
+        if let Some(order_ids) = self.address_to_orders.get(&address) {
+            for order_id in order_ids {
+                let order = match order_id.location {
+                    angstrom_types::orders::OrderLocation::Limit => self
+                        .order_storage
+                        .limit_orders
+                        .lock()
+                        .expect("lock poisoned")
+                        .get_order(order_id)
+                        .map(|order| order.try_map_inner(|inner| Ok(inner.into())).ok())
+                        .flatten(),
+                    angstrom_types::orders::OrderLocation::Searcher => self
+                        .order_storage
+                        .searcher_orders
+                        .lock()
+                        .expect("lock poisoned")
+                        .get_order(order_id.pool_id, order_id.hash)
+                        .map(|order| order.try_map_inner(|inner| Ok(AllOrders::TOB(inner))).ok())
+                        .flatten()
+                };
+
+                if let Some(order) = order {
+                    orders.push(order);
+                }
+            }
+        }
+
+        orders
+    }
+
     fn is_missing(&self, order_hash: &B256) -> bool {
         !self.order_hash_to_order_id.contains_key(order_hash)
     }

@@ -1,6 +1,7 @@
-use alloy_primitives::Address;
+use alloy_primitives::{keccak256, Address};
 use angstrom_types::{
     orders::OrderOrigin,
+    primitive::Signature,
     sol_bindings::{
         grouped_orders::{AllOrders, FlashVariants, StandingVariants},
         rpc_orders::{
@@ -16,8 +17,13 @@ use reth_tasks::TaskSpawner;
 use crate::{
     api::{CancelOrderRequest, OrderApiServer},
     types::{OrderSubscriptionKind, OrderSubscriptionResult},
-    OrderApiError::InvalidSignature
+    OrderApiError::{InvalidSignature, SignatureRecoveryError}
 };
+
+const EMPTY_STRING_HASH: &[u8; 32] = &[
+    0xc5, 0xd2, 0x46, 0x01, 0x86, 0xf7, 0x23, 0x3c, 0x92, 0x7e, 0x7d, 0xb2, 0xdc, 0xc7, 0x03, 0xc0,
+    0xe5, 0x00, 0xb6, 0x53, 0xca, 0x82, 0x27, 0x3b, 0x7b, 0xfa, 0xd8, 0x04, 0x5d, 0x85, 0xa4, 0x70
+];
 
 pub struct OrderApi<OrderPool, Spawner> {
     pool:         OrderPool,
@@ -61,15 +67,18 @@ where
         Ok(self.pool.new_order(OrderOrigin::External, order).await)
     }
 
+    async fn pending_orders(&self, from: Address) -> RpcResult<Vec<AllOrders>> {
+        Ok(self.pool.pending_orders(from).await)
+    }
+
     async fn cancel_order(&self, request: CancelOrderRequest) -> RpcResult<bool> {
         let sender = request
             .signature
             .recover_signer_full_public_key(request.hash)
-            .map(|s| Address::from_raw_public_key(&*s));
-        if sender.is_err() {
-            return Err(InvalidSignature.into())
-        }
-        Ok(self.pool.cancel_order(sender.unwrap(), request.hash).await)
+            .map(|s| Address::from_raw_public_key(&*s))
+            .map_err(|_| SignatureRecoveryError)?;
+
+        Ok(self.pool.cancel_order(sender, request.hash).await)
     }
 
     async fn subscribe_orders(
@@ -109,13 +118,16 @@ where
 #[derive(Debug, thiserror::Error)]
 pub enum OrderApiError {
     #[error("invalid transaction signature")]
-    InvalidSignature
+    InvalidSignature,
+    #[error("failed to recover signer from signature")]
+    SignatureRecoveryError
 }
 
 impl From<OrderApiError> for jsonrpsee::types::ErrorObjectOwned {
     fn from(error: OrderApiError) -> Self {
         match error {
-            OrderApiError::InvalidSignature => invalid_params_rpc_err(error.to_string())
+            OrderApiError::InvalidSignature => invalid_params_rpc_err(error.to_string()),
+            OrderApiError::SignatureRecoveryError => invalid_params_rpc_err(error.to_string())
         }
     }
 }
@@ -296,6 +308,10 @@ mod tests {
                 .send(OrderCommand::CancelOrder(from, order_hash, tx))
                 .is_ok();
             future::ready(true)
+        }
+
+        fn pending_orders(&self, _address: Address) -> impl Future<Output = Vec<AllOrders>> + Send {
+            future::ready(Vec::new())
         }
     }
 }
