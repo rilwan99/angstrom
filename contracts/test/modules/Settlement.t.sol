@@ -7,8 +7,15 @@ import {PoolManager} from "v4-core/src/PoolManager.sol";
 import {Bundle, TopOfBlockOrder, Asset} from "test/_reference/Bundle.sol";
 import {MockERC20} from "super-sol/mocks/MockERC20.sol";
 import {Angstrom} from "src/Angstrom.sol";
-import {Settlement} from "src/modules/Settlement.sol";
+import {TopLevelAuth} from "src/modules/TopLevelAuth.sol";
+import {SafeTransferLib} from "solady/src/utils/SafeTransferLib.sol";
 import {LibSort} from "solady/src/utils/LibSort.sol";
+import {
+    NoReturnToken,
+    RevertsTrueToken,
+    ReturnStatusToken,
+    RevertsEmptyToken
+} from "../_mocks/NonStandardERC20s.sol";
 
 import {console} from "forge-std/console.sol";
 
@@ -16,7 +23,6 @@ import {console} from "forge-std/console.sol";
 contract SettlementTest is BaseTest {
     Angstrom angstrom;
     address controller = makeAddr("controller");
-    address feeMaster = makeAddr("fee_master");
     address validator = makeAddr("validator");
     Account searcher = makeAccount("searcher");
     PoolManager uniV4;
@@ -28,9 +34,8 @@ contract SettlementTest is BaseTest {
     bytes32 domainSeparator;
 
     function setUp() public {
-        uniV4 = new PoolManager();
-        angstrom =
-            Angstrom(deployAngstrom(type(Angstrom).creationCode, uniV4, controller, feeMaster));
+        uniV4 = new PoolManager(address(0));
+        angstrom = Angstrom(deployAngstrom(type(Angstrom).creationCode, uniV4, controller));
         domainSeparator = computeDomainSeparator(address(angstrom));
         uint256 pairs = 40;
         address[] memory newAssets = new address[](pairs * 2);
@@ -50,6 +55,95 @@ contract SettlementTest is BaseTest {
 
         vm.prank(controller);
         angstrom.toggleNodes(addrs(abi.encode(validator)));
+    }
+
+    function test_fuzzing_prevents_depositingUndeployedToken(
+        address user,
+        address asset,
+        uint256 amount
+    ) public {
+        vm.assume(user != address(angstrom));
+        vm.assume(asset.code.length == 0);
+
+        vm.prank(user);
+        vm.expectRevert(SafeTransferLib.TransferFromFailed.selector);
+        angstrom.deposit(asset, amount);
+    }
+
+    function test_fuzzing_prevents_depositingWhenNoReturnRevert(address user, uint256 amount)
+        public
+    {
+        vm.assume(user != address(angstrom));
+
+        amount = bound(amount, 0, type(uint256).max - 1);
+
+        NoReturnToken token = new NoReturnToken();
+
+        deal(address(token), user, amount);
+
+        vm.prank(user);
+        token.approve(address(angstrom), type(uint256).max);
+
+        vm.prank(user);
+        vm.expectRevert(SafeTransferLib.TransferFromFailed.selector);
+        angstrom.deposit(address(token), amount + 1);
+    }
+
+    function test_fuzzing_prevents_depositingWhenNoRevertsWithTrue(address user, uint256 amount)
+        public
+    {
+        vm.assume(user != address(angstrom));
+
+        amount = bound(amount, 0, type(uint256).max - 1);
+
+        RevertsTrueToken token = new RevertsTrueToken();
+
+        deal(address(token), user, amount);
+
+        vm.prank(user);
+        token.approve(address(angstrom), type(uint256).max);
+
+        vm.prank(user);
+        vm.expectRevert(SafeTransferLib.TransferFromFailed.selector);
+        angstrom.deposit(address(token), amount + 1);
+    }
+
+    function test_fuzzing_prevents_depositingWhenReturnsFalse(address user, uint256 amount)
+        public
+    {
+        vm.assume(user != address(angstrom));
+
+        amount = bound(amount, 0, type(uint256).max - 1);
+
+        ReturnStatusToken token = new ReturnStatusToken();
+
+        deal(address(token), user, amount);
+
+        vm.prank(user);
+        token.approve(address(angstrom), type(uint256).max);
+
+        vm.prank(user);
+        vm.expectRevert(SafeTransferLib.TransferFromFailed.selector);
+        angstrom.deposit(address(token), amount + 1);
+    }
+
+    function test_fuzzing_prevents_depositingWhenReturnsEmpty(address user, uint256 amount)
+        public
+    {
+        vm.assume(user != address(angstrom));
+
+        amount = bound(amount, 0, type(uint256).max - 1);
+
+        RevertsEmptyToken token = new RevertsEmptyToken();
+
+        deal(address(token), user, amount);
+
+        vm.prank(user);
+        token.approve(address(angstrom), type(uint256).max);
+
+        vm.prank(user);
+        vm.expectRevert(SafeTransferLib.TransferFromFailed.selector);
+        angstrom.deposit(address(token), amount + 1);
     }
 
     function test_fuzzing_depositCaller(address user, uint256 assetIndex, uint256 amount) public {
@@ -208,10 +302,10 @@ contract SettlementTest is BaseTest {
         angstrom.execute(payload);
 
         // Pull fee.
-        assertEq(MockERC20(asset).balanceOf(feeMaster), 0);
-        vm.prank(feeMaster);
+        assertEq(MockERC20(asset).balanceOf(controller), 0);
+        vm.prank(controller);
         angstrom.pullFee(asset, amount);
-        assertEq(MockERC20(asset).balanceOf(feeMaster), amount);
+        assertEq(MockERC20(asset).balanceOf(controller), amount);
     }
 
     function test_multi() public {
@@ -238,16 +332,16 @@ contract SettlementTest is BaseTest {
         angstrom.execute(payload);
 
         // Pull fee (first).
-        assertEq(MockERC20(asset1).balanceOf(feeMaster), 0);
-        vm.prank(feeMaster);
+        assertEq(MockERC20(asset1).balanceOf(controller), 0);
+        vm.prank(controller);
         angstrom.pullFee(asset1, amount1);
-        assertEq(MockERC20(asset1).balanceOf(feeMaster), amount1);
+        assertEq(MockERC20(asset1).balanceOf(controller), amount1);
 
         // Pull fee (second).
-        assertEq(MockERC20(asset2).balanceOf(feeMaster), 0);
-        vm.prank(feeMaster);
+        assertEq(MockERC20(asset2).balanceOf(controller), 0);
+        vm.prank(controller);
         angstrom.pullFee(asset2, amount2);
-        assertEq(MockERC20(asset2).balanceOf(feeMaster), amount2);
+        assertEq(MockERC20(asset2).balanceOf(controller), amount2);
     }
 
     function test_fuzzing_prevents_nonFeeMasterPull(
@@ -255,7 +349,7 @@ contract SettlementTest is BaseTest {
         uint256 assetIndex,
         uint128 amount
     ) public {
-        vm.assume(puller != feeMaster);
+        vm.assume(puller != controller);
         address asset = assets[bound(assetIndex, 0, assets.length - 1)];
 
         Bundle memory bundle;
@@ -265,7 +359,7 @@ contract SettlementTest is BaseTest {
         vm.prank(validator);
         angstrom.execute(bundle.encode(rawGetConfigStore(address(angstrom))));
 
-        vm.expectRevert(Settlement.NotFeeMaster.selector);
+        vm.expectRevert(TopLevelAuth.NotController.selector);
         vm.prank(puller);
         angstrom.pullFee(asset, amount);
     }

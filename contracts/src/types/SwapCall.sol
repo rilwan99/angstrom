@@ -41,6 +41,7 @@ library SwapCallLib {
 
     function newSwapCall(address hook) internal pure returns (SwapCall memory swapCall) {
         swapCall.leftPaddedSelector = uint256(uint32(IPoolManager.swap.selector));
+        swapCall.fee = POOL_FEE;
         swapCall.hook = hook;
         swapCall.hookDataRelativeOffset = HOOK_DATA_CD_REL_OFFSET;
     }
@@ -63,7 +64,7 @@ library SwapCallLib {
             if iszero(success) {
                 let free := mload(0x40)
                 returndatacopy(free, 0, returndatasize())
-                return(0, returndatasize())
+                revert(0, returndatasize())
             }
         }
     }

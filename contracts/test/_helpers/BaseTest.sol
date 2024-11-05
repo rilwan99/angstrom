@@ -28,10 +28,13 @@ import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 contract BaseTest is Test, HookDeployer {
     using FormatLib for *;
 
+    bool constant DEBUG = true;
+
     uint256 internal constant REAL_TIMESTAMP = 1721652639;
 
-    bytes32 internal constant ANG_BALANCES_SLOT = bytes32(uint256(0x2));
-    bytes32 internal constant ANG_CONFIG_STORE_SLOT = bytes32(uint256(0x4));
+    bytes32 internal constant ANG_CONTROLLER_SLOT = bytes32(uint256(0x1));
+    bytes32 internal constant ANG_CONFIG_STORE_SLOT = bytes32(uint256(0x3));
+    bytes32 internal constant ANG_BALANCES_SLOT = bytes32(uint256(0x5));
 
     function pm(address addr) internal pure returns (IPoolManager) {
         return IPoolManager(addr);
@@ -39,20 +42,11 @@ contract BaseTest is Test, HookDeployer {
 
     function deployAngstrom(bytes memory initcode, IPoolManager uni, address controller)
         internal
-        returns (address)
+        returns (address addr)
     {
-        return deployAngstrom(initcode, uni, controller, address(0));
-    }
-
-    function deployAngstrom(
-        bytes memory initcode,
-        IPoolManager uni,
-        address controller,
-        address feeMaster
-    ) internal returns (address addr) {
         bool success;
         (success, addr,) = deployHook(
-            bytes.concat(initcode, abi.encode(uni, controller, feeMaster)),
+            bytes.concat(initcode, abi.encode(uni, controller)),
             ANGSTROM_HOOK_FLAGS,
             CREATE2_FACTORY
         );
@@ -61,6 +55,10 @@ contract BaseTest is Test, HookDeployer {
 
     function rawGetConfigStore(address angstrom) internal view returns (address) {
         return address(bytes20(vm.load(angstrom, ANG_CONFIG_STORE_SLOT) << 32));
+    }
+
+    function rawGetController(address angstrom) internal view returns (address) {
+        return address(uint160(uint256(vm.load(angstrom, ANG_CONTROLLER_SLOT))));
     }
 
     function rawGetBalance(address angstrom, address asset, address owner)
@@ -228,7 +226,11 @@ contract BaseTest is Test, HookDeployer {
         }
     }
 
-    function _brutalize(uint256 seed, uint256 freeWordsToBrutalize) internal pure {
+    function _brutalize(uint256 seed, uint256 freeWordsToBrutalize)
+        internal
+        pure
+        returns (uint256 newBrutalizeSeed)
+    {
         assembly ("memory-safe") {
             mstore(0x00, seed)
             let free := mload(0x40)
@@ -239,6 +241,7 @@ contract BaseTest is Test, HookDeployer {
             }
             mstore(0x20, keccak256(0x00, 0x20))
             mstore(0x00, keccak256(0x10, 0x20))
+            newBrutalizeSeed := keccak256(0x00, 0x40)
         }
     }
 
@@ -264,6 +267,18 @@ contract BaseTest is Test, HookDeployer {
         targetMeta.isEcdsa = true;
         targetMeta.from = account.addr;
         targetMeta.signature = abi.encodePacked(v, r, s);
+    }
+
+    function uintArray(bytes memory encoded) internal pure returns (uint256[] memory) {
+        uint256 length = encoded.length / 32;
+        return
+            abi.decode(bytes.concat(bytes32(uint256(0x20)), bytes32(length), encoded), (uint256[]));
+    }
+
+    function addressArray(bytes memory encoded) internal pure returns (address[] memory) {
+        uint256 length = encoded.length / 32;
+        return
+            abi.decode(bytes.concat(bytes32(uint256(0x20)), bytes32(length), encoded), (address[]));
     }
 
     function erc712Hash(bytes32 domainSeparator, bytes32 structHash)
@@ -296,6 +311,18 @@ contract BaseTest is Test, HookDeployer {
     }
 
     function max(uint256 x, uint256 y) internal pure returns (uint256) {
+        return x > y ? x : y;
+    }
+
+    function min(int256 x, int256 y) internal pure returns (int256) {
+        return x < y ? x : y;
+    }
+
+    function min(int24 x, int24 y) internal pure returns (int24) {
+        return x < y ? x : y;
+    }
+
+    function max(int24 x, int24 y) internal pure returns (int24) {
         return x > y ? x : y;
     }
 

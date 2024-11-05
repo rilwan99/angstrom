@@ -2,7 +2,7 @@
 pragma solidity ^0.8.0;
 
 import {BaseTest} from "test/_helpers/BaseTest.sol";
-import {ExtAngstrom} from "test/_view-ext/ExtAngstrom.sol";
+import {OpenAngstrom} from "test/_mocks/OpenAngstrom.sol";
 import {TopLevelAuth} from "src/modules/TopLevelAuth.sol";
 import {
     PoolConfigStore,
@@ -16,8 +16,8 @@ import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {console} from "forge-std/console.sol";
 
 /// @author philogy <https://github.com/philogy>
-contract PoolConfigStoreTest is BaseTest {
-    ExtAngstrom angstrom;
+contract TopLevelAuthTest is BaseTest {
+    OpenAngstrom angstrom;
     address controller;
 
     uint256 constant TOTAL_ASSETS = 32;
@@ -25,14 +25,22 @@ contract PoolConfigStoreTest is BaseTest {
 
     function setUp() public {
         controller = makeAddr("controller");
-        angstrom = ExtAngstrom(
-            deployAngstrom(type(ExtAngstrom).creationCode, IPoolManager(address(0)), controller)
+        angstrom = OpenAngstrom(
+            deployAngstrom(type(OpenAngstrom).creationCode, IPoolManager(address(0)), controller)
         );
 
         assets[0] = makeAddr("asset_0");
         for (uint256 i = 1; i < TOTAL_ASSETS; i++) {
             assets[i] = addrInc(assets[i - 1]);
         }
+    }
+
+    function test_entry_size() public pure {
+        assertEq(
+            ENTRY_SIZE,
+            32,
+            "Ensure that new size doesn't require changes like an index bounds check"
+        );
     }
 
     function test_default_store() public view {
@@ -184,6 +192,29 @@ contract PoolConfigStoreTest is BaseTest {
         vm.expectRevert(TopLevelAuth.NotController.selector);
         if (asset0 > asset1) (asset0, asset1) = (asset1, asset0);
         angstrom.configurePool(asset0, asset1, tickSpacing, feeInE6);
+    }
+
+    function test_fuzzing_prevents_nonControllerSettingController(
+        address imposterController,
+        address newController
+    ) public {
+        vm.assume(imposterController != controller);
+        vm.prank(imposterController);
+        vm.expectRevert(TopLevelAuth.NotController.selector);
+        angstrom.setController(newController);
+    }
+
+    function test_fuzzing_canChangeController(address newController) public {
+        assertEq(rawGetController(address(angstrom)), controller);
+        vm.prank(controller);
+        angstrom.setController(newController);
+        assertEq(rawGetController(address(angstrom)), newController);
+
+        if (controller != newController) {
+            vm.prank(controller);
+            vm.expectRevert(TopLevelAuth.NotController.selector);
+            angstrom.setController(controller);
+        }
     }
 
     function test_fuzzing_prevents_providingDuplicate(

@@ -20,12 +20,14 @@ library ConfigEntryLib {
     }
 
     function tickSpacing(ConfigEntry self) internal pure returns (int24 spacing) {
-        assembly {
+        assembly ("memory-safe") {
             spacing := and(TICK_SPACING_MASK, shr(TICK_SPACING_OFFSET, self))
         }
     }
 
     function feeInE6(ConfigEntry self) internal pure returns (uint24 fee) {
-        return uint24(ConfigEntry.unwrap(self) >> FEE_OFFSET);
+        assembly ("memory-safe") {
+            fee := and(FEE_MASK, shr(FEE_OFFSET, self))
+        }
     }
 }

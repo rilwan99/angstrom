@@ -35,41 +35,40 @@ library HookBufferLib {
         returns (CalldataReader, HookBuffer hook, bytes32 hash)
     {
         assembly ("memory-safe") {
-            hook := 0
             hash := EMPTY_BYTES_HASH
             if iszero(noHookToRead) {
                 // Load length of address + payload from reader.
-                let hookDatalength := shr(232, calldataload(reader))
+                let hookDataLength := shr(232, calldataload(reader))
                 reader := add(reader, 3)
 
                 // Allocate memory for hook call.
                 let memPtr := mload(0x40)
                 let contentOffset := add(memPtr, sub(0x64, 20))
-                mstore(0x40, add(contentOffset, hookDatalength))
+                mstore(0x40, add(contentOffset, hookDataLength))
 
                 // Copy hook data into memory and hash.
-                calldatacopy(contentOffset, reader, hookDatalength)
-                hash := keccak256(contentOffset, hookDatalength)
-                reader := add(reader, hookDatalength)
+                calldatacopy(contentOffset, reader, hookDataLength)
+                hash := keccak256(contentOffset, hookDataLength)
+                reader := add(reader, hookDataLength)
 
-                // Load hook address from memory.
+                // Load hook address from memory ensuring upper bytes are cleared.
                 // If `hookDataLength` < 20 dirty lower bytes will become part of the hook address.
                 // This could lead to an unexpected hook address being called on behalf of the
                 // signer, however this can only occur if: 1. Said signer signs a malformed order
                 // struct (hook data length < 20) and 2. The submitting node decides to maliciously
                 // include the order despite it violating the encoding specification.
-                let hookAddr := mload(add(memPtr, 0x44))
+                let hookAddr := shr(96, mload(add(memPtr, add(0x44, 12))))
 
                 // Setup memory for full call.
                 mstore(memPtr, HOOK_SELECTOR_LEFT_ALIGNED) // 0x00:0x04 selector
                 mstore(add(memPtr, 0x24), 0x40) // 0x24:0x44 calldata offset
                 // Can underflow, which would result in an insanely high length being written to memory.
-                let payloadLength := sub(hookDatalength, 20)
+                let payloadLength := sub(hookDataLength, 20)
                 mstore(add(memPtr, 0x44), payloadLength) // 0x44:0x64 payload length
 
                 // Build packed hook pointer.
                 // `payloadLength` bounded to [-20; 2^24-21], + 0x64 => [+80, 2^24+79] (cannot
-                // overflow its aloted 32 bits in the packed hook pointer).
+                // overflow because its allotted 32 bits in the packed hook pointer).
                 hook :=
                     or(
                         shl(HOOK_MEM_PTR_OFFSET, memPtr),

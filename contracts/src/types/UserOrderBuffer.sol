@@ -3,7 +3,6 @@ pragma solidity ^0.8.13;
 
 import {CalldataReader} from "./CalldataReader.sol";
 import {UserOrderVariantMap} from "./UserOrderVariantMap.sol";
-import {TypedDataHasher} from "./TypedDataHasher.sol";
 import {PriceAB as PriceOutVsIn, AmountA as AmountOut, AmountB as AmountIn} from "./Price.sol";
 
 struct UserOrderBuffer {
@@ -34,9 +33,9 @@ library UserOrderBufferLib {
     uint256 internal constant FLASH_ORDER_BYTES = 384;
 
     uint256 internal constant VARIANT_MAP_BYTES = 1;
-    uint256 internal constant REF_ID_MEM_OFFSET = 0x3c;
+    /// @dev Destination offset for direct calldatacopy of 4-byte ref ID (therefore not word aligned).
+    uint256 internal constant REF_ID_MEM_OFFSET = 0x20;
     uint256 internal constant REF_ID_BYTES = 4;
-
     uint256 internal constant NONCE_MEM_OFFSET = 0x160;
     uint256 internal constant NONCE_BYTES = 8;
     uint256 internal constant DEADLINE_MEM_OFFSET = 0x180;
@@ -121,7 +120,9 @@ library UserOrderBufferLib {
             variantMap := byte(0, calldataload(reader))
             reader := add(reader, VARIANT_MAP_BYTES)
             // Copy `refId` from calldata directly to memory.
-            calldatacopy(add(self, REF_ID_MEM_OFFSET), reader, REF_ID_BYTES)
+            calldatacopy(
+                add(self, add(REF_ID_MEM_OFFSET, sub(0x20, REF_ID_BYTES))), reader, REF_ID_BYTES
+            )
             // Advance reader.
             reader := add(reader, REF_ID_BYTES)
         }
@@ -171,7 +172,6 @@ library UserOrderBufferLib {
             if (quantity < minQuantityIn) revert FillingTooLittle();
             if (quantity > maxQuantityIn) revert FillingTooMuch();
         } else {
-            // Partial order.
             (reader, quantity) = reader.readU128();
             self.exactIn_or_minQuantityIn = variant.exactIn() ? 1 : 0;
             self.quantity_or_maxQuantityIn = quantity;
@@ -187,20 +187,22 @@ library UserOrderBufferLib {
         }
 
         if (variant.zeroForOne()) {
-            if (variant.specifyingInput()) {
-                quantityIn = AmountIn.wrap(quantity - extraFeeAsset0);
-                quantityOut = price.convert(quantityIn);
-            } else {
-                quantityOut = AmountOut.wrap(quantity);
-                quantityIn = price.convert(quantityOut) - AmountIn.wrap(extraFeeAsset0);
-            }
-        } else {
+            AmountIn fee = AmountIn.wrap(extraFeeAsset0);
             if (variant.specifyingInput()) {
                 quantityIn = AmountIn.wrap(quantity);
-                quantityOut = price.convert(quantityIn) - AmountOut.wrap(extraFeeAsset0);
+                quantityOut = price.convertDown(quantityIn - fee);
             } else {
-                quantityOut = AmountOut.wrap(quantity - extraFeeAsset0);
-                quantityIn = price.convert(quantityOut);
+                quantityOut = AmountOut.wrap(quantity);
+                quantityIn = price.convertUp(quantityOut) + fee;
+            }
+        } else {
+            AmountOut fee = AmountOut.wrap(extraFeeAsset0);
+            if (variant.specifyingInput()) {
+                quantityIn = AmountIn.wrap(quantity);
+                quantityOut = price.convertDown(quantityIn) - fee;
+            } else {
+                quantityOut = AmountOut.wrap(quantity);
+                quantityIn = price.convertUp(quantityOut + fee);
             }
         }
 
