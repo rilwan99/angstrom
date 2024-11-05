@@ -2,8 +2,6 @@ use alloy_rpc_types::{Block, Transaction};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::BroadcastStream;
 
-use crate::testnet_controllers::AngstromTestnetConfig;
-
 pub struct TestnetBlockProvider {
     tx: broadcast::Sender<(u64, Vec<Transaction>)>
 }
