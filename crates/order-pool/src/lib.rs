@@ -34,4 +34,5 @@ pub trait OrderPoolHandle: Send + Sync + Clone + Unpin + 'static {
     fn subscribe_orders(&self) -> Receiver<PoolManagerUpdate>;
     fn pending_orders(&self, sender: Address) -> impl Future<Output = Vec<AllOrders>> + Send;
     fn cancel_order(&self, sender: Address, order_hash: B256) -> impl Future<Output = bool> + Send;
+    fn estimate_gas(&self, order: AllOrders) -> impl Future<Output = Result<u64, String>> + Send;
 }

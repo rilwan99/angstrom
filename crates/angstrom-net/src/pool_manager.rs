@@ -43,7 +43,8 @@ pub enum OrderCommand {
     // new orders
     NewOrder(OrderOrigin, AllOrders, tokio::sync::oneshot::Sender<OrderValidationResults>),
     CancelOrder(Address, B256, tokio::sync::oneshot::Sender<bool>),
-    PendingOrders(Address, tokio::sync::oneshot::Sender<Vec<AllOrders>>)
+    PendingOrders(Address, tokio::sync::oneshot::Sender<Vec<AllOrders>>),
+    EstimateGas(AllOrders, tokio::sync::oneshot::Sender<OrderValidationResults>)
 }
 
 impl PoolHandle {
@@ -82,6 +83,22 @@ impl OrderPoolHandle for PoolHandle {
         let (tx, rx) = tokio::sync::oneshot::channel();
         let _ = self.send(OrderCommand::CancelOrder(from, order_hash, tx));
         rx.map(|res| res.unwrap_or(false))
+    }
+
+    fn estimate_gas(&self, order: AllOrders) -> impl Future<Output = Result<u64, String>> + Send {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        let _ = self.send(OrderCommand::EstimateGas(order, tx));
+        rx.map(|res| match res {
+            Ok(OrderValidationResults::Valid(o)) => Ok(o.priority_data.gas_units),
+            Ok(OrderValidationResults::Invalid(e)) => Err(format!("Invalid order: {}", e)),
+            Ok(OrderValidationResults::TransitionedToBlock) => {
+                Err("Order transitioned to block".to_string())
+            }
+            Err(e) => {
+                tracing::error!("could not estimate order gas {}", e);
+                Err(format!("Failed to estimate gas: {}", e))
+            }
+        })
     }
 }
 
@@ -260,6 +277,9 @@ where
             OrderCommand::PendingOrders(from, receiver) => {
                 let res = self.order_indexer.pending_orders_for_address(from);
                 let _ = receiver.send(res.into_iter().map(|o| o.order).collect());
+            }
+            OrderCommand::EstimateGas(order, validation_response) => {
+                self.order_indexer.estimate_gas(order, validation_response)
             }
         }
     }
