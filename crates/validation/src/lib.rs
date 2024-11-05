@@ -13,9 +13,7 @@ use angstrom_types::pair_with_price::PairsWithPrice;
 use angstrom_utils::key_split_threadpool::KeySplitThreadpool;
 use futures::StreamExt;
 use matching_engine::cfmm::uniswap::pool_manager::SyncedUniswapPools;
-use order::state::{
-    config::load_validation_config, db_state_utils::StateFetchUtils, pools::PoolsTracker
-};
+use order::state::{db_state_utils::StateFetchUtils, pools::PoolsTracker};
 use reth_provider::CanonStateNotificationStream;
 use tokio::sync::mpsc::unbounded_channel;
 use validator::Validator;
@@ -25,14 +23,14 @@ use crate::{
         order_validator::OrderValidator,
         sim::SimValidation,
         state::{
-            config::load_data_fetcher_config, db_state_utils::FetchUtils,
+            config::load_validation_config, db_state_utils::FetchUtils,
             pools::AngstromPoolsTracker, token_pricing::TokenPriceGenerator
         }
     },
     validator::ValidationClient
 };
 
-pub const TOKEN_CONFIG_FILE: &str = "crates/validation/src/state_config.toml";
+pub const POOL_CONFIG: &str = "crates/validation/src/state_config.toml";
 
 pub fn init_validation<
     DB: Unpin + Clone + 'static + reth_provider::BlockNumReader + revm::DatabaseRef + Send + Sync
@@ -48,12 +46,11 @@ where
     <DB as revm::DatabaseRef>::Error: Send + Sync + Debug
 {
     let (validator_tx, validator_rx) = unbounded_channel();
-    let config_path = Path::new(TOKEN_CONFIG_FILE);
+    let config_path = Path::new(POOL_CONFIG);
     let validation_config = load_validation_config(config_path).unwrap();
-    let data_fetcher_config = load_data_fetcher_config(config_path).unwrap();
     let current_block = Arc::new(AtomicU64::new(current_block));
     let revm_lru = Arc::new(db);
-    let fetch = FetchUtils::new(data_fetcher_config.clone(), revm_lru.clone());
+    let fetch = FetchUtils::new(Address::default(), revm_lru.clone());
 
     std::thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_multi_thread()
@@ -109,7 +106,7 @@ where
     <DB as revm::DatabaseRef>::Error: Send + Sync + Debug
 {
     let (tx, rx) = unbounded_channel();
-    let config_path = Path::new(TOKEN_CONFIG_FILE);
+    let config_path = Path::new(POOL_CONFIG);
     let validation_config = load_validation_config(config_path).unwrap();
     let current_block = Arc::new(AtomicU64::new(block_number));
     let revm_lru = Arc::new(db);
