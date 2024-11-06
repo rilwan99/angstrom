@@ -257,12 +257,8 @@ impl ChainExt for Chain {
 #[cfg(test)]
 pub mod test {
     use alloy::{
-        network::TxSigner,
         primitives::{TxKind, U256},
-        signers::{
-            k256::ecdsa::SigningKey,
-            local::{LocalWallet, PrivateKeySigner}
-        }
+        signers::local::PrivateKeySigner
     };
     use angstrom_types::{
         contract_payloads::{
@@ -339,6 +335,7 @@ pub mod test {
             .signing_key(Some(signing_info.clone()))
             .with_storage()
             .build();
+
         let outcome = OrderOutcome {
             id:      user_order.order_id,
             outcome: angstrom_types::orders::OrderFillState::CompleteFill
@@ -373,6 +370,10 @@ pub mod test {
         );
 
         let mut mock_tx = TransactionSigned::default();
+        let e = angstrom_bundle_with_orders.pade_encode();
+        let mut s = e.as_slice();
+        let d = AngstromBundle::pade_decode(&mut s , None).unwrap();
+
         if let Transaction::Legacy(leg) = &mut mock_tx.transaction {
             leg.to = TxKind::Call(angstrom_address);
             leg.input = angstrom_bundle_with_orders.pade_encode().into();
