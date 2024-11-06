@@ -130,7 +130,7 @@ impl<T: PadeDecode> PadeDecode for Vec<T> {
         // capture length to ensure we don't over decode.
         let mut decode_slice = &buf[0..length];
         let mut res = Vec::new();
-        while let Ok(d) = T::pade_decode(&mut decode_slice, None) {
+        while let Ok(d) = T::pade_decode(&mut decode_slice, var) {
             res.push(d);
         }
         assert!(decode_slice.is_empty());
