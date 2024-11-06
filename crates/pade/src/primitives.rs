@@ -172,6 +172,10 @@ impl PadeDecode for Signature {
     where
         Self: Sized
     {
+        if buf.len() < 65 {
+            return Err(PadeDecodeError::InvalidSize)
+        }
+
         let bytes = &buf[0..65];
         let v = bytes[0];
         let r = U256::from_be_slice(&bytes[1..33]);
