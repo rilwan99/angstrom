@@ -256,7 +256,7 @@ impl ChainExt for Chain {
 
 #[cfg(test)]
 pub mod test {
-    use alloy::primitives::TxKind;
+    use alloy::primitives::{TxKind, U256};
     use angstrom_types::{
         contract_payloads::{
             angstrom::{TopOfBlockOrder, UserOrder},
