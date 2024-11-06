@@ -172,6 +172,7 @@ fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStre
                     let field_name = format_ident!("field_{}", num);
                     let ty = &f.ty;
                     let field_encoder = quote_spanned! {f.span()=>
+                            println!("decoding type {}", stringify!(#ty));
                             let #field_name = <#ty>::pade_decode(buf, None)?;
                     };
                     (field_name, field_encoder)

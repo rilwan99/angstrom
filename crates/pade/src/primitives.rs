@@ -47,7 +47,7 @@ macro_rules! prim_decode {
                 where
                     Self: Sized
                 {
-                    const BYTES: usize  = <$x>::BITS as usize / 8usize;
+                    const BYTES: usize = <$x>::BITS as usize / 8usize;
 
                     // item size in bytes vs given rep.
                     let padding_offset = BYTES - size;
