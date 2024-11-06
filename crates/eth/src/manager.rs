@@ -258,7 +258,10 @@ impl ChainExt for Chain {
 pub mod test {
     use alloy::primitives::TxKind;
     use angstrom_types::{
-        contract_payloads::angstrom::{TopOfBlockOrder, UserOrder},
+        contract_payloads::{
+            angstrom::{TopOfBlockOrder, UserOrder},
+            Asset, Pair
+        },
         orders::OrderOutcome,
         sol_bindings::grouped_orders::OrderWithStorageData
     };
@@ -313,19 +316,35 @@ pub mod test {
 
         let top_of_block_order = ToBOrderBuilder::new().build();
         let t = OrderWithStorageData { order: top_of_block_order, ..Default::default() };
-        let finalized_tob = TopOfBlockOrder::of(&t, 0);
         let user_order = UserOrderBuilder::new().with_storage().build();
         let outcome = OrderOutcome {
             id:      user_order.order_id,
             outcome: angstrom_types::orders::OrderFillState::CompleteFill
         };
-        let finalized_user_order = UserOrder::from_internal_order(&user_order, &outcome, 1);
+        let pair = Pair {
+            index0:       0,
+            index1:       1,
+            store_index:  0,
+            price_1over0: U256::default()
+        };
 
-        let order_hashes = vec![finalized_user_order.order_hash(), finalized_tob.order_hash()];
+        let asset0 = Asset { addr: t.asset_out, ..Default::default() };
+        let asset1 = Asset { addr: t.asset_in, ..Default::default() };
+
+        let pair = vec![pair];
+        let assets = vec![asset0, asset1];
+
+        let finalized_user_order = UserOrder::from_internal_order(&user_order, &outcome, 0);
+        let finalized_tob = TopOfBlockOrder::of(&t, 0);
+
+        let order_hashes = vec![
+            finalized_user_order.order_hash(&pair, &assets, 0),
+            finalized_tob.order_hash(&pair, &assets, 0),
+        ];
 
         let angstrom_bundle_with_orders = AngstromBundle::new(
-            vec![],
-            vec![],
+            assets,
+            pair,
             vec![],
             vec![finalized_tob],
             vec![finalized_user_order]
