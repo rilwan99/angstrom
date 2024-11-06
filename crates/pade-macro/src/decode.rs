@@ -57,8 +57,11 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                                         let (decode, remainder) = bitmap.split_at(e);
                                         let var_e: u8 = pade::bitvec::field::BitField::load_le(decode);
                                         bitmap = remainder.to_bitvec();
+                                    println!("decoding type {} with field name {}", stringify!(#field_type), stringify!(#name));
                                      <#field_type>::pade_decode_with_width(buf, #w, Some(var_e))?
                                 } else {
+
+                                    println!("decoding type {} with field name {}", stringify!(#field_type), stringify!(#name));
                                      <#field_type>::pade_decode_with_width(buf, #w, None)?
                                 };
                             }
@@ -79,8 +82,10 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                             let (decode, remainder) = bitmap.split_at(e);
                             let var_e: u8 = pade::bitvec::field::BitField::load_le(decode);
                             bitmap = remainder.to_bitvec();
+                             println!("decoding type {} with field name {}", stringify!(#field_type), stringify!(#name));
                              <#field_type>::pade_decode(buf, Some(var_e))?
                         } else {
+                             println!("decoding type {} with field name {}", stringify!(#field_type), stringify!(#name));
                              <#field_type>::pade_decode(buf, None)?
                         };
                     }
@@ -148,6 +153,8 @@ fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStre
                     (
                         name,
                         quote! (
+
+                            println!("decoding type {} with field name {}", stringify!(#ty), stringify!(#name));
                             let #name = <#ty>::pade_decode(buf, None)?;
                         )
                     )
@@ -172,7 +179,7 @@ fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStre
                     let field_name = format_ident!("field_{}", num);
                     let ty = &f.ty;
                     let field_encoder = quote_spanned! {f.span()=>
-                            println!("decoding type {}", stringify!(#ty));
+                            println!("decoding type {} with field name {}", stringify!(#ty), stringify!(#field_name));
                             let #field_name = <#ty>::pade_decode(buf, None)?;
                     };
                     (field_name, field_encoder)
