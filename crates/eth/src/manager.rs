@@ -5,7 +5,7 @@ use std::{
 };
 
 use alloy::{
-    primitives::{Address, B256},
+    primitives::{Address, BlockHash, BlockNumber, B256},
     sol_types::SolEvent
 };
 use angstrom_types::{
@@ -14,6 +14,7 @@ use angstrom_types::{
 use futures::Future;
 use futures_util::{FutureExt, StreamExt};
 use pade::PadeDecode;
+use reth_primitives::{Receipt, TransactionSigned};
 use reth_provider::{CanonStateNotification, CanonStateNotifications, Chain, StateProviderFactory};
 use reth_tasks::TaskSpawner;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedSender};
@@ -91,7 +92,7 @@ where
         }
     }
 
-    fn handle_reorg(&mut self, old: Arc<Chain>, new: Arc<Chain>) {
+    fn handle_reorg(&mut self, old: Arc<impl ChainExt>, new: Arc<impl ChainExt>) {
         let mut eoas = self.get_eoa(old.clone());
         eoas.extend(self.get_eoa(new.clone()));
 
@@ -103,7 +104,7 @@ where
         let reorged_orders = EthEvent::ReorgedOrders(difference);
 
         let transitions = EthEvent::NewBlockTransitions {
-            block_number:      new.tip().number,
+            block_number:      new.tip_number(),
             filled_orders:     new_filled.into_iter().collect(),
             address_changeset: eoas
         };
@@ -111,7 +112,7 @@ where
         self.send_events(reorged_orders);
     }
 
-    fn handle_commit(&mut self, new: Arc<Chain>) {
+    fn handle_commit(&mut self, new: Arc<impl ChainExt>) {
         // handle this first so the newest state is the first available
         self.handle_new_pools(new.clone());
 
@@ -120,14 +121,14 @@ where
         let eoas = self.get_eoa(new.clone());
 
         let transitions = EthEvent::NewBlockTransitions {
-            block_number: new.tip().number,
+            block_number: new.tip_number(),
             filled_orders,
             address_changeset: eoas
         };
         self.send_events(transitions);
     }
 
-    fn handle_new_pools(&mut self, chain: Arc<Chain>) {
+    fn handle_new_pools(&mut self, chain: Arc<impl ChainExt>) {
         Self::get_new_pools(&chain)
             .inspect(|pool| {
                 let token_0 = pool.currency_in;
@@ -145,10 +146,12 @@ where
 
     /// TODO: check contract for state change. if there is change. fetch the
     /// transaction on Angstrom and process call-data to pull order-hashes.
-    fn fetch_filled_order<'a>(&'a self, chain: &'a Chain) -> impl Iterator<Item = B256> + 'a {
+    fn fetch_filled_order<'a>(
+        &'a self,
+        chain: &'a impl ChainExt
+    ) -> impl Iterator<Item = B256> + 'a {
         chain
-            .tip()
-            .transactions()
+            .tip_transactions()
             .filter(|tx| tx.transaction.to() == Some(self.angstrom_address))
             .filter_map(|transaction| {
                 let mut input: &[u8] = transaction.input();
@@ -158,14 +161,11 @@ where
     }
 
     /// fetches all eoa addresses touched
-    fn get_eoa(&self, chain: Arc<Chain>) -> Vec<Address> {
-        let tip = chain.tip().number;
-
+    fn get_eoa(&self, chain: Arc<impl ChainExt>) -> Vec<Address> {
         chain
-            .execution_outcome()
-            .receipts_by_block(tip)
-            .iter()
-            .flatten()
+            .receipts_by_block_hash(chain.tip_hash())
+            .unwrap()
+            .into_iter()
             .flat_map(|receipt| &receipt.logs)
             .filter(|log| self.angstrom_tokens.contains(&log.address))
             .flat_map(|logs| {
@@ -178,9 +178,9 @@ where
 
     /// gets any newly initialized pools in this block
     /// do we want to use logs here?
-    fn get_new_pools(chain: &Chain) -> impl Iterator<Item = NewInitializedPool> + '_ {
+    fn get_new_pools(chain: &impl ChainExt) -> impl Iterator<Item = NewInitializedPool> + '_ {
         chain
-            .receipts_by_block_hash(chain.tip().hash())
+            .receipts_by_block_hash(chain.tip_hash())
             .unwrap()
             .into_iter()
             .flat_map(|receipt| {
@@ -234,3 +234,32 @@ pub enum EthEvent {
     FinalizedBlock(u64),
     NewPool(NewInitializedPool)
 }
+
+#[auto_impl::auto_impl(&,Arc)]
+pub trait ChainExt {
+    fn tip_number(&self) -> BlockNumber;
+    fn tip_hash(&self) -> BlockHash;
+    fn receipts_by_block_hash(&self, block_hash: BlockHash) -> Option<Vec<&Receipt>>;
+    fn tip_transactions(&self) -> impl Iterator<Item = &TransactionSigned> + '_;
+}
+
+impl ChainExt for Chain {
+    fn tip_hash(&self) -> BlockHash {
+        self.tip().hash()
+    }
+
+    fn tip_number(&self) -> BlockNumber {
+        self.tip().number
+    }
+
+    fn receipts_by_block_hash(&self, block_hash: BlockHash) -> Option<Vec<&Receipt>> {
+        self.receipts_by_block_hash(block_hash)
+    }
+
+    fn tip_transactions(&self) -> impl Iterator<Item = &TransactionSigned> + '_ {
+        self.tip().transactions()
+    }
+}
+
+#[cfg(test)]
+pub mod test {}
