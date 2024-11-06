@@ -1405,6 +1405,7 @@ dependencies = [
  "futures",
  "futures-util",
  "pade",
+ "rand",
  "reth-primitives",
  "reth-provider",
  "reth-tasks",

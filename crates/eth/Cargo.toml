@@ -34,3 +34,4 @@ auto_impl.workspace = true
 
 [dev-dependencies]
 testing-tools.workspace = true
+rand.workspace = true

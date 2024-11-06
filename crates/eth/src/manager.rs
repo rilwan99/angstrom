@@ -256,18 +256,26 @@ impl ChainExt for Chain {
 
 #[cfg(test)]
 pub mod test {
-    use alloy::primitives::{TxKind, U256};
+    use alloy::{
+        network::TxSigner,
+        primitives::{TxKind, U256},
+        signers::{
+            k256::ecdsa::SigningKey,
+            local::{LocalWallet, PrivateKeySigner}
+        }
+    };
     use angstrom_types::{
         contract_payloads::{
             angstrom::{TopOfBlockOrder, UserOrder},
             Asset, Pair
         },
         orders::OrderOutcome,
+        primitive::ANGSTROM_DOMAIN,
         sol_bindings::grouped_orders::OrderWithStorageData
     };
     use pade::PadeEncode;
     use reth_primitives::Transaction;
-    use testing_tools::type_generator::orders::{ToBOrderBuilder, UserOrderBuilder};
+    use testing_tools::type_generator::orders::{SigningInfo, ToBOrderBuilder, UserOrderBuilder};
 
     use super::*;
 
@@ -309,14 +317,28 @@ pub mod test {
         }
     }
 
+    fn setup_signing_info() -> SigningInfo {
+        // let mut rand = rand::rng();
+        let wallet = PrivateKeySigner::random();
+        let addr = wallet.address();
+        let key = wallet.credential().clone();
+        SigningInfo { domain: ANGSTROM_DOMAIN, address: addr, key }
+    }
+
     #[test]
     fn test_fetch_filled_orders() {
+        let signing_info = setup_signing_info();
         let angstrom_address = Address::random();
         let eth = setup_non_subscription_eth_manager(Some(angstrom_address));
 
-        let top_of_block_order = ToBOrderBuilder::new().build();
+        let top_of_block_order = ToBOrderBuilder::new()
+            .signing_key(Some(signing_info.clone()))
+            .build();
         let t = OrderWithStorageData { order: top_of_block_order, ..Default::default() };
-        let user_order = UserOrderBuilder::new().with_storage().build();
+        let user_order = UserOrderBuilder::new()
+            .signing_key(Some(signing_info.clone()))
+            .with_storage()
+            .build();
         let outcome = OrderOutcome {
             id:      user_order.order_id,
             outcome: angstrom_types::orders::OrderFillState::CompleteFill

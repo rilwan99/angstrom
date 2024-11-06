@@ -8,7 +8,7 @@ use alloy::{
     sol_types::SolValue,
     transports::Transport
 };
-use pade::{PadeDecode, PadeEncode};
+use pade::PadeDecode;
 use pade_macro::{PadeDecode, PadeEncode};
 use serde::{Deserialize, Serialize};
 use tracing::warn;
