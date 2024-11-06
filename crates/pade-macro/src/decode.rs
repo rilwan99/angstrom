@@ -221,6 +221,7 @@ fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStre
                 }
                 // the variant will either be the first byte or passed in
                 let variant = var.unwrap_or_else(|| {
+                    println!("pulling varient");
                     let ch = buf[0];
                     *buf = &buf[1..];
                     ch
