@@ -252,6 +252,11 @@ impl ChainExt for Chain {
 
 #[cfg(test)]
 pub mod test {
+    use angstrom_types::contract_payloads::angstrom::TopOfBlockOrder;
+    use reth_primitives::Transaction;
+    use testing_tools::type_generator::orders::tob::ToBOrderBuilder;
+    use testing_tools::type_generator::orders::user::UserOrderBuilder;
+
     use super::*;
 
     pub struct MockChain<'a> {
@@ -277,5 +282,52 @@ pub mod test {
         fn tip_transactions(&self) -> impl Iterator<Item = &TransactionSigned> + '_ {
             self.transactions.iter()
         }
+    }
+
+    fn setup_non_subscription_eth_manager(angstrom_address: Option<Address>) -> EthDataCleanser {
+        let (command_tx, command_rx) = tokio::sync::mpsc::channel(3);
+        let (cannon_tx, cannon_rx) = tokio::sync::broadcast::channel(3);
+        EthDataCleanser {
+            commander:         ReceiverStream::new(command_rx),
+            event_listeners:   vec![],
+            angstrom_tokens:   HashSet::default(),
+            angstrom_address:  angstrom_address.unwrap_or_default(),
+            canonical_updates: BroadcastStream::new(cannon_rx)
+        }
+    }
+
+    #[test]
+    fn test_fetch_filled_orders() {
+        let angstrom_address = Address::random();
+        let eth = setup_non_subscription_eth_manager(Some(angstrom_address));
+
+        let top_of_block_order = TobOrderBuilder::
+
+        let angstrom_bundle_with_orders = AngstromBundle::new(vec![],vec![],vec![]);
+
+        let mut mock_tx = TransactionSigned::default();
+        if let Transaction::Legacy(leg) = &mut mock_tx.transaction {
+            leg.to = TxKind::Call(angstrom_address);
+
+        }
+
+        let mock_chain = MockChain {
+            transactions
+        }
+        //
+        // fn fetch_filled_order<'a>(
+        //     &'a self,
+        //     chain: &'a impl ChainExt
+        // ) -> impl Iterator<Item = B256> + 'a {
+        //     chain
+        //         .tip_transactions()
+        //         .filter(|tx| tx.transaction.to() ==
+        // Some(self.angstrom_address))
+        //         .filter_map(|transaction| {
+        //             let mut input: &[u8] = transaction.input();
+        //             AngstromBundle::pade_decode(&mut input, None).ok()
+        //         })
+        //         .flat_map(move |bundle|
+        // bundle.get_order_hashes().collect::<Vec<_>>()) }
     }
 }
