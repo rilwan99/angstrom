@@ -149,7 +149,11 @@ impl EthDataCleanser {
                 let mut input: &[u8] = transaction.input();
                 AngstromBundle::pade_decode(&mut input, None).ok()
             })
-            .flat_map(move |bundle| bundle.get_order_hashes().collect::<Vec<_>>())
+            .flat_map(move |bundle| {
+                bundle
+                    .get_order_hashes(chain.tip_number())
+                    .collect::<Vec<_>>()
+            })
     }
 
     /// fetches all eoa addresses touched
@@ -309,14 +313,13 @@ pub mod test {
 
         let top_of_block_order = ToBOrderBuilder::new().build();
         let t = OrderWithStorageData { order: top_of_block_order, ..Default::default() };
-        let finalized_tob = TopOfBlockOrder::of(&t, 3);
+        let finalized_tob = TopOfBlockOrder::of(&t, 0);
         let user_order = UserOrderBuilder::new().with_storage().build();
         let outcome = OrderOutcome {
             id:      user_order.order_id,
             outcome: angstrom_types::orders::OrderFillState::CompleteFill
         };
-
-        let finalized_user_order = UserOrder::from_internal_order(&user_order, &outcome, 3);
+        let finalized_user_order = UserOrder::from_internal_order(&user_order, &outcome, 1);
 
         let order_hashes = vec![finalized_user_order.order_hash(), finalized_tob.order_hash()];
 
