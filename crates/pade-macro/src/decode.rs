@@ -112,7 +112,7 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                   bitmap_bits +=
                   <#tys as pade::PadeEncode>::PADE_VARIANT_MAP_BITS;
               )*
-             let bitmap_bytes = bitmap_bits.div_ceil(8);
+              let bitmap_bytes = bitmap_bits.div_ceil(8);
               let mut bitmap = pade::bitvec::vec::BitVec::<u8, pade::bitvec::order::Lsb0>::from_slice(&buf[0..bitmap_bytes]);
               let _remainder = bitmap.split_off(bitmap_bits);
               *buf = &buf[bitmap_bytes..];
@@ -205,6 +205,12 @@ fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStre
             where
                 Self: Sized
             {
+                // if there is no var and we are going to check the first byte.
+                // we need to ensure that there is at-least 2 bytes as we will parse the var
+                // and then jump to the second byte
+                if buf.len() < 2 && var.is_none() {
+                    return Err(pade::PadeDecodeError::InvalidSize)
+                }
                 // the variant will either be the first byte or passed in
                 let variant = var.unwrap_or_else(|| {
                     let ch = buf[0];
