@@ -252,13 +252,19 @@ impl ChainExt for Chain {
 
 #[cfg(test)]
 pub mod test {
-    use angstrom_types::contract_payloads::angstrom::TopOfBlockOrder;
+    use alloy::primitives::TxKind;
+    use angstrom_types::{
+        contract_payloads::angstrom::{TopOfBlockOrder, UserOrder},
+        orders::OrderOutcome,
+        sol_bindings::grouped_orders::OrderWithStorageData
+    };
+    use pade::PadeEncode;
     use reth_primitives::Transaction;
-    use testing_tools::type_generator::orders::tob::ToBOrderBuilder;
-    use testing_tools::type_generator::orders::user::UserOrderBuilder;
+    use testing_tools::type_generator::orders::{ToBOrderBuilder, UserOrderBuilder};
 
     use super::*;
 
+    #[derive(Default)]
     pub struct MockChain<'a> {
         pub hash:         BlockHash,
         pub number:       BlockNumber,
@@ -285,8 +291,8 @@ pub mod test {
     }
 
     fn setup_non_subscription_eth_manager(angstrom_address: Option<Address>) -> EthDataCleanser {
-        let (command_tx, command_rx) = tokio::sync::mpsc::channel(3);
-        let (cannon_tx, cannon_rx) = tokio::sync::broadcast::channel(3);
+        let (_command_tx, command_rx) = tokio::sync::mpsc::channel(3);
+        let (_cannon_tx, cannon_rx) = tokio::sync::broadcast::channel(3);
         EthDataCleanser {
             commander:         ReceiverStream::new(command_rx),
             event_listeners:   vec![],
@@ -301,33 +307,38 @@ pub mod test {
         let angstrom_address = Address::random();
         let eth = setup_non_subscription_eth_manager(Some(angstrom_address));
 
-        let top_of_block_order = TobOrderBuilder::
+        let top_of_block_order = ToBOrderBuilder::new().build();
+        let t = OrderWithStorageData { order: top_of_block_order, ..Default::default() };
+        let finalized_tob = TopOfBlockOrder::of(&t, 3);
+        let user_order = UserOrderBuilder::new().with_storage().build();
+        let outcome = OrderOutcome {
+            id:      user_order.order_id,
+            outcome: angstrom_types::orders::OrderFillState::CompleteFill
+        };
 
-        let angstrom_bundle_with_orders = AngstromBundle::new(vec![],vec![],vec![]);
+        let finalized_user_order = UserOrder::from_internal_order(&user_order, &outcome, 3);
+
+        let order_hashes = vec![finalized_user_order.order_hash(), finalized_tob.order_hash()];
+
+        let angstrom_bundle_with_orders = AngstromBundle::new(
+            vec![],
+            vec![],
+            vec![],
+            vec![finalized_tob],
+            vec![finalized_user_order]
+        );
 
         let mut mock_tx = TransactionSigned::default();
         if let Transaction::Legacy(leg) = &mut mock_tx.transaction {
             leg.to = TxKind::Call(angstrom_address);
-
+            leg.input = angstrom_bundle_with_orders.pade_encode().into();
         }
 
-        let mock_chain = MockChain {
-            transactions
+        let mock_chain = MockChain { transactions: vec![mock_tx], ..Default::default() };
+        let filled_set = eth.fetch_filled_order(&mock_chain).collect::<HashSet<_>>();
+
+        for order_hash in order_hashes {
+            assert!(filled_set.contains(&order_hash));
         }
-        //
-        // fn fetch_filled_order<'a>(
-        //     &'a self,
-        //     chain: &'a impl ChainExt
-        // ) -> impl Iterator<Item = B256> + 'a {
-        //     chain
-        //         .tip_transactions()
-        //         .filter(|tx| tx.transaction.to() ==
-        // Some(self.angstrom_address))
-        //         .filter_map(|transaction| {
-        //             let mut input: &[u8] = transaction.input();
-        //             AngstromBundle::pade_decode(&mut input, None).ok()
-        //         })
-        //         .flat_map(move |bundle|
-        // bundle.get_order_hashes().collect::<Vec<_>>()) }
     }
 }
