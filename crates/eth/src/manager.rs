@@ -372,7 +372,8 @@ pub mod test {
         let mut mock_tx = TransactionSigned::default();
         let e = angstrom_bundle_with_orders.pade_encode();
         let mut s = e.as_slice();
-        let d = AngstromBundle::pade_decode(&mut s , None).unwrap();
+        let d = AngstromBundle::pade_decode(&mut s, None).unwrap();
+        println!("decoded and encoded angstrom bundle. should be chillin");
 
         if let Transaction::Legacy(leg) = &mut mock_tx.transaction {
             leg.to = TxKind::Call(angstrom_address);
