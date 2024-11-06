@@ -15,7 +15,7 @@ use futures::Future;
 use futures_util::{FutureExt, StreamExt};
 use pade::PadeDecode;
 use reth_primitives::{Receipt, TransactionSigned};
-use reth_provider::{CanonStateNotification, CanonStateNotifications, Chain, StateProviderFactory};
+use reth_provider::{CanonStateNotification, CanonStateNotifications, Chain};
 use reth_tasks::TaskSpawner;
 use tokio::sync::mpsc::{Receiver, Sender, UnboundedSender};
 use tokio_stream::wrappers::{BroadcastStream, ReceiverStream};
@@ -29,7 +29,7 @@ alloy::sol!(
 
 /// Listens for CanonStateNotifications and sends the appropriate updates to be
 /// executed by the order pool
-pub struct EthDataCleanser<DB> {
+pub struct EthDataCleanser {
     angstrom_address: Address,
     /// our command receiver
     commander:        ReceiverStream<EthCommand>,
@@ -38,20 +38,13 @@ pub struct EthDataCleanser<DB> {
 
     /// Notifications for Canonical Block updates
     canonical_updates: BroadcastStream<CanonStateNotification>,
-    angstrom_tokens:   HashSet<Address>,
-    /// used to fetch data from db
-    #[allow(dead_code)]
-    db:                DB
+    angstrom_tokens:   HashSet<Address>
 }
 
-impl<DB> EthDataCleanser<DB>
-where
-    DB: StateProviderFactory + Send + Sync + Unpin + 'static
-{
+impl EthDataCleanser {
     pub fn spawn<TP: TaskSpawner>(
         angstrom_address: Address,
         canonical_updates: CanonStateNotifications,
-        db: DB,
         tp: TP,
         tx: Sender<EthCommand>,
         rx: Receiver<EthCommand>,
@@ -64,8 +57,7 @@ where
             canonical_updates: BroadcastStream::new(canonical_updates),
             commander: stream,
             event_listeners: Vec::new(),
-            angstrom_tokens,
-            db
+            angstrom_tokens
         };
         tp.spawn_critical("eth handle", this.boxed());
 
@@ -193,10 +185,7 @@ where
     }
 }
 
-impl<DB> Future for EthDataCleanser<DB>
-where
-    DB: StateProviderFactory + Send + Sync + Unpin + 'static
-{
+impl Future for EthDataCleanser {
     type Output = ();
 
     fn poll(mut self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
@@ -262,4 +251,31 @@ impl ChainExt for Chain {
 }
 
 #[cfg(test)]
-pub mod test {}
+pub mod test {
+    use super::*;
+
+    pub struct MockChain<'a> {
+        pub hash:         BlockHash,
+        pub number:       BlockNumber,
+        pub receipts:     Option<Vec<&'a Receipt>>,
+        pub transactions: Vec<TransactionSigned>
+    }
+
+    impl ChainExt for MockChain<'_> {
+        fn tip_hash(&self) -> BlockHash {
+            self.hash
+        }
+
+        fn tip_number(&self) -> BlockNumber {
+            self.number
+        }
+
+        fn receipts_by_block_hash(&self, _: BlockHash) -> Option<Vec<&Receipt>> {
+            self.receipts.clone()
+        }
+
+        fn tip_transactions(&self) -> impl Iterator<Item = &TransactionSigned> + '_ {
+            self.transactions.iter()
+        }
+    }
+}
