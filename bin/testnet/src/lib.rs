@@ -144,7 +144,7 @@ pub fn init_network_builder(secret_key: SecretKey) -> eyre::Result<StromNetworkB
 pub type DefaultPoolHandle = PoolHandle;
 type DefaultOrderCommand = OrderCommand;
 
-// due to how the init process works with reth. we need to init like this
+// due to how the init process works with reth. we need to init like thisgit b
 pub struct StromHandles {
     pub eth_tx: Sender<EthCommand>,
     pub eth_rx: Receiver<EthCommand>,
