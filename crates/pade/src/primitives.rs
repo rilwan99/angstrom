@@ -203,10 +203,11 @@ impl PadeDecode for FixedBytes<32> {
     where
         Self: Sized
     {
-        let res: Vec<u8> = PadeDecode::pade_decode(buf, None)?;
-        if res.len() != 32 {
+        if buf.len() < 32 {
             return Err(PadeDecodeError::InvalidSize)
         }
+
+        let res: [u8; 32] = PadeDecode::pade_decode(buf, None)?;
         Ok(FixedBytes::from_slice(&res))
     }
 
