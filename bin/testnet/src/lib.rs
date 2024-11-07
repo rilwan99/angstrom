@@ -63,66 +63,72 @@ use crate::cli::network_builder::AngstromNetworkBuilder;
 /// Convenience function for parsing CLI options, set up logging and run the
 /// chosen command.
 #[inline]
-pub fn run() -> eyre::Result<()> {
-    Cli::<EthereumChainSpecParser, AngstromConfig>::parse().run(|builder, args| async move {
-        let executor = builder.task_executor().clone();
+pub async fn run() -> eyre::Result<()> {
+    let args = AngstromTestnetConfig::parse();
 
-        if args.metrics {
-            executor.spawn_critical("metrics", init_metrics(args.metrics_port));
-            METRICS_ENABLED.set(true).unwrap();
-        } else {
-            METRICS_ENABLED.set(false).unwrap();
-        }
+    let executor = builder.task_executor().clone();
 
-        let secret_key = get_secret_key(&args.secret_key_location)?;
+    if args.metrics {
+        executor.spawn_critical("metrics", init_metrics(args.metrics_port));
+        METRICS_ENABLED.set(true).unwrap();
+    } else {
+        METRICS_ENABLED.set(false).unwrap();
+    }
 
-        let mut network = init_network_builder(secret_key)?;
-        let protocol_handle = network.build_protocol_handler();
-        let channels = initialize_strom_handles();
+    let secret_key = get_secret_key(&args.secret_key_location)?;
 
-        // for rpc
-        let pool = channels.get_pool_handle();
-        let executor_clone = executor.clone();
-        // let consensus = channels.get_consensus_handle();
+    let mut network = init_network_builder(secret_key)?;
+    let protocol_handle = network.build_protocol_handler();
+    let channels = initialize_strom_handles();
 
-        let NodeHandle { node, node_exit_future } = builder
-            .with_types::<EthereumNode>()
-            .with_components(
-                EthereumNode::default()
-                    .components_builder()
-                    .network(AngstromNetworkBuilder::new(protocol_handle))
-            )
-            .with_add_ons::<EthereumAddOns>(Default::default())
-            .extend_rpc_modules(move |rpc_context| {
-                let order_api = OrderApi::new(pool.clone(), executor_clone);
-                // let quotes_api = QuotesApi { pool: pool.clone() };
-                // let consensus_api = ConsensusApi { consensus: consensus.clone() };
-                rpc_context.modules.merge_configured(order_api.into_rpc())?;
-                // rpc_context
-                //     .modules
-                //     .merge_configured(quotes_api.into_rpc())?;
-                // rpc_context
-                //     .modules
-                //     .merge_configured(consensus_api.into_rpc())?;
+    // for rpc
+    let pool = channels.get_pool_handle();
+    let executor_clone = executor.clone();
+    // let consensus = channels.get_consensus_handle();
 
-                Ok(())
-            })
-            .launch()
-            .await?;
-
-        initialize_strom_components(
-            args.angstrom_addr,
-            args,
-            secret_key,
-            channels,
-            network,
-            node,
-            &executor
+    let NodeHandle { node, node_exit_future } = builder
+        .with_types::<EthereumNode>()
+        .with_components(
+            EthereumNode::default()
+                .components_builder()
+                .network(AngstromNetworkBuilder::new(protocol_handle))
         )
-        .await;
+        .with_add_ons::<EthereumAddOns>(Default::default())
+        .extend_rpc_modules(move |rpc_context| {
+            let order_api = OrderApi::new(pool.clone(), executor_clone);
+            // let quotes_api = QuotesApi { pool: pool.clone() };
+            // let consensus_api = ConsensusApi { consensus: consensus.clone() };
+            rpc_context.modules.merge_configured(order_api.into_rpc())?;
+            // rpc_context
+            //     .modules
+            //     .merge_configured(quotes_api.into_rpc())?;
+            // rpc_context
+            //     .modules
+            //     .merge_configured(consensus_api.into_rpc())?;
 
-        node_exit_future.await
-    })
+            Ok(())
+        })
+        .launch()
+        .await?;
+
+    initialize_strom_components(
+        args.angstrom_addr,
+        args,
+        secret_key,
+        channels,
+        network,
+        node,
+        &executor
+    )
+    .await;
+
+    Ok(())
+
+    // Cli::<EthereumChainSpecParser, AngstromConfig>::parse().run(|builder,
+    // args| async move {
+
+    //     node_exit_future.await
+    // })
 }
 
 pub fn init_network_builder(secret_key: SecretKey) -> eyre::Result<StromNetworkBuilder> {
@@ -358,8 +364,8 @@ async fn configure_uniswap_manager<T: Transport + Clone, N: Network>(
     )
 }
 
-#[derive(Debug, Clone, Default, clap::Args)]
-pub struct AngstromConfig {
+#[derive(Debug, Clone, Default, clap::Parser)]
+pub struct AngstromTestnetConfig {
     #[clap(long)]
     pub mev_guard:           bool,
     #[clap(long)]
