@@ -26,7 +26,8 @@ pub struct OrderValidator<DB, Pools, Fetch> {
     state:            StateValidation<Pools, Fetch>,
     token_conversion: TokenPriceGenerator,
     token_updates:    Pin<Box<dyn Stream<Item = Vec<PairsWithPrice>> + 'static>>,
-    thread_pool: KeySplitThreadpool<UserAddress, Pin<Box<dyn Future<Output = ()> + Send>>, Handle>,
+    thread_pool:
+        KeySplitThreadpool<UserAddress, Pin<Box<dyn Future<Output = ()> + Send + Sync>>, Handle>,
     block_number:     Arc<AtomicU64>
 }
 
@@ -46,7 +47,7 @@ where
         uniswap_pools: SyncedUniswapPools,
         thread_pool: KeySplitThreadpool<
             UserAddress,
-            Pin<Box<dyn Future<Output = ()> + Send>>,
+            Pin<Box<dyn Future<Output = ()> + Send + Sync>>,
             Handle
         >,
         token_conversion: TokenPriceGenerator,

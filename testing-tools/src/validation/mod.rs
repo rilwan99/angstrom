@@ -33,7 +33,7 @@ type ValidatorOperation<DB, T> =
     dyn FnOnce(
         TestOrderValidator<DB>,
         T
-    ) -> Pin<Box<dyn Future<Output = (TestOrderValidator<DB>, T)>>>;
+    ) -> Pin<Box<dyn Future<Output = (TestOrderValidator<DB>, T)> + Send>>;
 
 pub struct TestOrderValidator<
     DB: BlockStateProviderFactory + revm::DatabaseRef + Clone + Unpin + 'static
@@ -141,7 +141,7 @@ where
         F: FnOnce(
                 TestOrderValidator<DB>,
                 T
-            ) -> Pin<Box<dyn Future<Output = (TestOrderValidator<DB>, T)>>>
+            ) -> Pin<Box<dyn Future<Output = (TestOrderValidator<DB>, T)> + Send>>
             + 'static
     {
         self.operations.push(Box::new(op));

@@ -139,8 +139,10 @@ mod tests {
 
     #[tokio::test]
     async fn can_be_constructed() {
-        let anvil = SpawnedAnvil::new().await.unwrap();
-        let uniswap = UniswapEnv::new(anvil).await.unwrap();
+        let anvil = AnvilStateProviderWrapper::spawn_new(AngstromTestnetConfig::default(), 0)
+            .await
+            .unwrap();
+        let uniswap = UniswapEnv::new(anvil.provider()).await.unwrap();
         AngstromEnv::new(uniswap).await.unwrap();
     }
 
@@ -308,3 +310,10 @@ mod tests {
         // angstrom.execute(encoded)
     }
 }
+
+/*
+
+initial pool there are
+
+
+*/
