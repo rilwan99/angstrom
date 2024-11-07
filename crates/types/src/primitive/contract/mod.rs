@@ -1,14 +1,8 @@
 use std::collections::HashMap;
 
-use alloy::{
-    dyn_abi::Eip712Domain,
-    sol,
-    sol_types::{eip712_domain, SolValue}
-};
-use alloy_primitives::keccak256;
+use alloy::{dyn_abi::Eip712Domain, sol, sol_types::eip712_domain};
 
-mod angstrom;
-pub use angstrom::{Angstrom::*, *};
+use crate::contract_bindings::angstrom::Angstrom::PoolKey;
 
 sol! {
 #![sol(all_derives = true)]
@@ -23,22 +17,8 @@ use crate::primitive::PoolId;
 // object :)
 pub const ANGSTROM_DOMAIN: Eip712Domain = eip712_domain!(
    name: "Angstrom",
-   version: "1",
+   version: "v1",
 );
-
-impl From<PoolKey> for PoolId {
-    fn from(pool_key: PoolKey) -> Self {
-        let encoded = (
-            pool_key.currency0,
-            pool_key.currency1,
-            pool_key.fee,
-            pool_key.tickSpacing,
-            pool_key.hooks
-        )
-            .abi_encode();
-        PoolId::from(keccak256(&encoded))
-    }
-}
 
 #[derive(Default, Clone)]
 pub struct UniswapPoolRegistry {

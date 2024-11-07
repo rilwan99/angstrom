@@ -10,7 +10,7 @@ import {PoolId, PoolIdLibrary} from "v4-core/src/types/PoolId.sol";
 import {MockERC20} from "super-sol/mocks/MockERC20.sol";
 import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 import {UniV4Inspector} from "test/_view-ext/UniV4Inspector.sol";
-import {ExtAngstrom} from "test/_view-ext/ExtAngstrom.sol";
+import {OpenAngstrom} from "test/_mocks/OpenAngstrom.sol";
 import {PoolGate} from "test/_helpers/PoolGate.sol";
 import {HookDeployer} from "test/_helpers/HookDeployer.sol";
 import {Position} from "v4-core/src/libraries/Position.sol";
@@ -18,15 +18,17 @@ import {PairLib} from "test/_reference/Pair.sol";
 
 import {TickReward, RewardLib} from "test/_helpers/RewardLib.sol";
 import {console} from "forge-std/console.sol";
+import {FormatLib} from "super-sol/libraries/FormatLib.sol";
 
 int24 constant TICK_SPACING = 60;
 
 /// @author philogy <https://github.com/philogy>
 contract PoolUpdatesTest is HookDeployer, BaseTest {
     using TickMath for int24;
+    using FormatLib for *;
 
     UniV4Inspector public uniV4;
-    ExtAngstrom public angstrom;
+    OpenAngstrom public angstrom;
     PoolGate public gate;
     PoolId public id;
     PoolId public refId;
@@ -52,7 +54,7 @@ contract PoolUpdatesTest is HookDeployer, BaseTest {
             poolKey(address(asset0), address(asset1), TICK_SPACING), startTick.getSqrtPriceAtTick()
         );
 
-        angstrom = ExtAngstrom(deployAngstrom(type(ExtAngstrom).creationCode, uniV4, gov));
+        angstrom = OpenAngstrom(deployAngstrom(type(OpenAngstrom).creationCode, uniV4, gov));
         id = PoolIdLibrary.toId(poolKey());
 
         vm.prank(gov);
@@ -82,19 +84,19 @@ contract PoolUpdatesTest is HookDeployer, BaseTest {
         bumpBlock();
         handler.rewardTicks(re(TickReward({tick: -180, amount: amount1})));
 
-        assertEq(positionRewards(lp, -180, 180, liq1), amount1);
+        assertApproxEqAbs(positionRewards(lp, -180, 180, liq1), amount1, 1);
 
         console.log("3");
         uint128 liq2 = 1.5e21;
         handler.addLiquidity(lp, -180, 180, liq2);
-        assertEq(positionRewards(lp, -180, 180, liq1 + liq2), amount1);
+        assertApproxEqAbs(positionRewards(lp, -180, 180, liq1 + liq2), amount1, 1);
 
         console.log("4");
         uint128 amount2 = 4.12e18;
         bumpBlock();
         handler.rewardTicks(re(TickReward({tick: -180, amount: amount2})));
 
-        assertEq(positionRewards(lp, -180, 180, liq1 + liq2), amount1 + amount2);
+        assertApproxEqAbs(positionRewards(lp, -180, 180, liq1 + liq2), amount1 + amount2, 1);
     }
 
     function test_addInSubordinateRange() public {
@@ -192,7 +194,7 @@ contract PoolUpdatesTest is HookDeployer, BaseTest {
         view
         returns (uint256)
     {
-        return angstrom.positionRewards(id, owner, lowerTick, upperTick, bytes32(0), liquidity);
+        return angstrom.getScaledGrowth(id, owner, lowerTick, upperTick, bytes32(0), liquidity);
     }
 
     function removeLiquidity(int24 lowerTick, int24 upperTick, uint256 liquidity)

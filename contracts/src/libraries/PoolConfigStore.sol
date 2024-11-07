@@ -25,6 +25,7 @@ uint256 constant HASH_TO_STORE_KEY_SHIFT = 40;
 
 /// @dev Max fee allowed.
 uint24 constant MAX_FEE = 0.2e6;
+uint256 constant ONE_E6 = 1e6;
 
 type StoreKey is bytes27;
 
@@ -153,9 +154,9 @@ library PoolConfigStoreLib {
                     break
                 }
             }
-            // Increase `totalEntryBytes` by 0x20 if we broke in the loop.
+            // Increase `totalEntryBytes` by 0x20 if we didn't break in the loop.
             totalEntryBytes := add(totalEntryBytes, shl(5, eq(entryOffset, entriesEnd)))
-            // Append the entry to the end incase we include it (`totalEntryBytes` will ensure we don't
+            // Append the entry to the end in case we include it (`totalEntryBytes` will ensure we don't
             // if the entry was found & replaced).
             mstore(entriesEnd, newEntry)
             // Deploy store.
@@ -180,7 +181,7 @@ library PoolConfigStoreLib {
         returns (int24 tickSpacing, uint24 feeInE6)
     {
         ConfigEntry entry;
-        assembly {
+        assembly ("memory-safe") {
             // Copy from store into scratch space.
             extcodecopy(self, 0x00, add(STORE_HEADER_SIZE, mul(ENTRY_SIZE, index)), ENTRY_SIZE)
             // Zero out entry if keys do not match.

@@ -8,7 +8,7 @@ struct Positions {
 }
 
 struct Position {
-    uint256 pastRewards;
+    uint256 lastGrowthInside;
 }
 
 using PositionsLib for Positions global;
@@ -24,8 +24,6 @@ library PositionsLib {
         bytes32 salt
     ) internal view returns (Position storage position, bytes32 positionKey) {
         assembly ("memory-safe") {
-            let free := mload(0x40)
-
             // Compute `positionKey` as `keccak256(abi.encodePacked(owner, lowerTick, upperTick, salt))`.
             // Less efficient than alternative ordering *but* lets us reuse as Uniswap position key.
             mstore(0x06, upperTick)

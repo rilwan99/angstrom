@@ -1,3 +1,5 @@
+use std::cmp::max;
+
 use proc_macro2::{Literal, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
 use syn::{
@@ -73,14 +75,8 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
                 let #variant_map_bytes = #name.pade_variant_map_bits().div_ceil(8);
                 output.extend(
                     if #variant_map_bytes > 0 {
-
-                        let mut new_vec = pade::bitvec::view::BitView::view_bits::<pade::bitvec::order::Msb0>(
-                                &#encoded[0..#variant_map_bytes]
-                            ).split_at(8 - #name.pade_variant_map_bits()).1.to_vec();
-                        new_vec.extend_from_bitslice(headers.as_slice());
-                        headers = new_vec;
-
-                    #encoded[#variant_map_bytes..].iter()
+                        headers.add_bits(&#encoded[0..#variant_map_bytes], #name.pade_variant_map_bits());
+                        #encoded[#variant_map_bytes..].iter()
                 } else { #encoded[0..].iter() });
             }
         })
@@ -90,28 +86,11 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
         #[automatically_derived]
         impl #impl_gen pade::PadeEncode for #name #ty_gen #where_clause {
             fn pade_encode(&self) -> Vec<u8> {
-                let mut headers = pade::bitvec::vec::BitVec::<u8, pade::bitvec::order::Msb0>::new();
+                let mut headers = pade::HeaderBits::new();
                 let mut output: Vec<u8> = Vec::new();
                 #(#field_encoders)*
 
-                let len = headers.len();
-                if len != 0  {
-                    let extra = len % 8;
-                    let mut base = headers.split_off(extra);
-                    base.force_align();
-                    let base = base.into_vec();
-
-                    headers.force_align();
-                    let mut raw = headers.into_vec();
-                    if let Some(b) = raw.first_mut() {
-                        *b >>= 8 - extra
-                    }
-                    raw.extend(base);
-
-                    [raw, output].concat()
-                } else {
-                    output
-                }
+                [headers.into_vec(), output].concat()
             }
         }
     }
@@ -120,8 +99,10 @@ fn build_struct_impl(name: &Ident, generics: &Generics, s: &DataStruct) -> Token
 fn build_enum_impl(name: &Ident, generics: &Generics, e: &DataEnum) -> TokenStream {
     let (impl_gen, ty_gen, where_clause) = generics.split_for_impl();
     let variant_count = e.variants.len();
+    let max_variant_offset = max(1, variant_count.saturating_sub(1));
     // This will panic if there are no variants, is that a legal state?
-    let variant_bits = (variant_count.ilog2() + 1) as usize;
+    // This will also technically use a bit if there's only one variant
+    let variant_bits = (max_variant_offset.ilog2() + 1) as usize;
     let variant_bytes = variant_bits.div_ceil(8);
     // Each variant gets a clause in the match
     let clauses = e.variants.iter().enumerate().map(|(i, v)| {

@@ -1,5 +1,5 @@
 use alloy::{
-    primitives::{aliases::I24, Address, Bytes, Signature, U256},
+    primitives::{aliases::I24, Address, Bytes, FixedBytes, Signature, U256},
     sol_types::SolValue
 };
 
@@ -75,8 +75,8 @@ macro_rules! prim_decode {
     };
 }
 
-prim_decode!(u8, u16, u64, i32, I24, U256, u128);
-use_alloy_default!(u16, u64, i32, I24, U256, u128, Address);
+prim_decode!(u8, u16, u32, u64, i32, I24, U256, u128);
+use_alloy_default!(u16, u32, u64, i32, I24, U256, u128, Address, FixedBytes<32>);
 
 impl PadeEncode for u8 {
     fn pade_encode(&self) -> Vec<u8> {
@@ -160,10 +160,7 @@ impl PadeEncode for Bytes {
 impl PadeEncode for Signature {
     fn pade_encode(&self) -> Vec<u8> {
         let mut sig = [0u8; 65];
-        sig[0] = self
-            .v()
-            .y_parity_byte_non_eip155()
-            .unwrap_or(self.v().y_parity_byte());
+        sig[0] = self.v().y_parity_byte();
         sig[1..33].copy_from_slice(&self.r().to_be_bytes::<32>());
         sig[33..65].copy_from_slice(&self.s().to_be_bytes::<32>());
         sig.to_vec()
@@ -197,13 +194,53 @@ impl PadeDecode for Signature {
     }
 }
 
+impl PadeDecode for FixedBytes<32> {
+    fn pade_decode(buf: &mut &[u8], _: Option<u8>) -> Result<Self, PadeDecodeError>
+    where
+        Self: Sized
+    {
+        let res: Vec<u8> = PadeDecode::pade_decode(buf, None)?;
+        if res.len() != 32 {
+            return Err(PadeDecodeError::InvalidSize)
+        }
+        Ok(FixedBytes::from_slice(&res))
+    }
+
+    fn pade_decode_with_width(
+        _: &mut &[u8],
+        _: usize,
+        _: Option<u8>
+    ) -> Result<Self, PadeDecodeError>
+    where
+        Self: Sized
+    {
+        unreachable!()
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::PadeEncode;
+    use alloy::{
+        primitives::FixedBytes,
+        signers::{local::LocalSigner, SignerSync}
+    };
+
+    use crate::{PadeDecode, PadeEncode};
 
     #[test]
     fn implemented_pade() {
         let tim = 128_u128;
         println!("{:?}", tim.pade_header_bits());
+    }
+
+    #[test]
+    fn encodes_and_decodes_signature() {
+        let signer = LocalSigner::random();
+        let hash = FixedBytes::<32>::default();
+        let sig = signer.sign_hash_sync(&hash).unwrap();
+        let encoded = sig.pade_encode();
+        let decoded_sig =
+            alloy::primitives::Signature::pade_decode(&mut encoded.as_slice(), None).unwrap();
+        assert_eq!(sig, decoded_sig);
     }
 }

@@ -1,6 +1,7 @@
 use std::{io::Write, os::unix::process::ExitStatusExt, process::Command};
 
 use convert_case::{Case, Casing};
+use itertools::Itertools;
 
 const CONTRACT_LOCATION: &str = "contracts/";
 const OUT_DIRECTORY: &str = "contracts/out/";
@@ -29,6 +30,9 @@ fn main() {
 
     let res = Command::new("forge")
         .arg("build")
+        .arg("--optimize")
+        .arg("--optimizer-runs")
+        .arg("9999999999")
         .current_dir(contract_dir)
         .spawn()
         .expect("foundry is not installed on this machine.\n https://book.getfoundry.sh/getting-started/installation go to here to install")
@@ -53,6 +57,7 @@ fn main() {
 
             Some((raw, path.to_str()?.to_owned()))
         })
+        .sorted_unstable_by_key(|key| key.0.clone())
         .map(|(name, path_of_contracts)| {
             let path_of_contracts = path_of_contracts.replace(this_dir, "../..");
 
@@ -63,6 +68,7 @@ pub mod {mod_name} {{
     alloy::sol!(
         #[allow(missing_docs)]
         #[sol(rpc)]
+        #[derive(Debug, PartialEq, Eq,Hash, serde::Serialize, serde::Deserialize)]
         {name},
         "{path_of_contracts}"
     );

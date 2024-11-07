@@ -50,11 +50,15 @@ where
     DB: Unpin + Clone + 'static + revm::DatabaseRef + BlockNumReader,
     <DB as revm::DatabaseRef>::Error: Send + Sync
 {
-    pub fn new(db: Arc<DB>) -> eyre::Result<Self> {
-        let ConfiguredRevm { db, angstrom, .. } =
-            Self::setup_revm_cache_database_for_simulation(db)?;
+    pub fn new(db: Arc<DB>, angstrom_address: Option<Address>) -> eyre::Result<Self> {
+        if let Some(angstrom_address) = angstrom_address {
+            Ok(Self { db: CacheDB::new(db), angstrom_address })
+        } else {
+            let ConfiguredRevm { db, angstrom } =
+                Self::setup_revm_cache_database_for_simulation(db)?;
 
-        Ok(Self { db, angstrom_address: angstrom })
+            Ok(Self { db, angstrom_address: angstrom })
+        }
     }
 
     pub fn gas_of_tob_order(
@@ -371,7 +375,7 @@ pub mod test {
     fn ensure_creation_of_mock_works() {
         let db_path = Path::new("/home/data/reth/db/");
         let db = load_reth_db(db_path);
-        let res = OrderGasCalculations::new(Arc::new(RethDbWrapper::new(db)));
+        let res = OrderGasCalculations::new(Arc::new(RethDbWrapper::new(db)), None);
 
         if let Err(e) = res.as_ref() {
             eprintln!("{}", e);
@@ -385,15 +389,13 @@ pub mod test {
         let address = user.address();
 
         let mut default = TopOfBlockOrder {
-            useInternal: false,
-            assetIn: WETH_ADDRESS,
-            assetOut: WETH_ADDRESS,
+            use_internal: false,
+            asset_in: WETH_ADDRESS,
+            asset_out: WETH_ADDRESS,
             recipient: address,
-            quantityIn: WEI_IN_ETHER.to(),
-            quantityOut: WEI_IN_ETHER.to(),
-            validForBlock: block,
-            hook: Address::ZERO,
-            hookPayload: alloy::primitives::Bytes::new(),
+            quantity_in: WEI_IN_ETHER.to(),
+            quantity_out: WEI_IN_ETHER.to(),
+            valid_for_block: block,
             ..Default::default()
         };
 
@@ -412,17 +414,18 @@ pub mod test {
         let address = user.address();
 
         let mut default = angstrom_types::sol_bindings::rpc_orders::ExactStandingOrder {
-            exactIn:     true,
-            amount:      WEI_IN_ETHER.to(),
-            minPrice:    U256::from(1u128),
-            useInternal: false,
-            assetIn:     WETH_ADDRESS,
-            assetOut:    WETH_ADDRESS,
-            recipient:   USER_WITH_FUNDS,
-            hook:        Address::ZERO,
-            hookPayload: alloy::primitives::Bytes::new(),
-            nonce:       0,
-            deadline:    Uint::<40, 1>::from_be_slice(
+            ref_id:               0,
+            max_extra_fee_asset0: 0,
+            exact_in:             true,
+            amount:               WEI_IN_ETHER.to(),
+            min_price:            U256::from(1u128),
+            use_internal:         false,
+            asset_in:             WETH_ADDRESS,
+            asset_out:            WETH_ADDRESS,
+            recipient:            USER_WITH_FUNDS,
+            hook_data:            alloy::primitives::Bytes::new(),
+            nonce:                0,
+            deadline:             Uint::<40, 1>::from_be_slice(
                 &(SystemTime::now().duration_since(UNIX_EPOCH).unwrap()
                     + Duration::from_secs(1000))
                 .as_secs()
@@ -446,7 +449,7 @@ pub mod test {
         let db_path = Path::new("/home/data/reth/db/");
         let db = Arc::new(RethDbWrapper::new(load_reth_db(db_path)));
 
-        let gas_calculations = OrderGasCalculations::new(Arc::new(RethDbWrapper::new(db)));
+        let gas_calculations = OrderGasCalculations::new(Arc::new(RethDbWrapper::new(db)), None);
 
         assert!(gas_calculations.is_ok(), "failed to deploy angstrom structure and v4 to chain");
         let mut gas_calculations = gas_calculations.unwrap();
@@ -485,7 +488,7 @@ pub mod test {
         let db_path = Path::new("/home/data/reth/db/");
         let db = Arc::new(RethDbWrapper::new(load_reth_db(db_path)));
 
-        let gas_calculations = OrderGasCalculations::new(Arc::new(RethDbWrapper::new(db)));
+        let gas_calculations = OrderGasCalculations::new(Arc::new(RethDbWrapper::new(db)), None);
 
         assert!(gas_calculations.is_ok(), "failed to deploy angstrom structure and v4 to chain");
         let mut gas_calculations = gas_calculations.unwrap();

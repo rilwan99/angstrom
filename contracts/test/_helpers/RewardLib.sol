@@ -23,7 +23,7 @@ using RewardLib for TickReward global;
 library RewardLib {
     using FormatLib for *;
 
-    uint256 internal constant MAX_LOOP = 20;
+    uint256 internal constant MAX_LOOP = 120;
 
     using RewardLib for TickReward[];
     using IUniV4 for IPoolManager;
@@ -93,10 +93,12 @@ library RewardLib {
             // *will* terminate.
             int24 currentRangeStartTick = currentTick;
             bool initialized;
-            do {
+            while (true) {
                 (initialized, currentRangeStartTick) =
                     uni.getNextTickLe(id, currentRangeStartTick, tickSpacing);
-            } while (!initialized);
+                if (initialized) break;
+                currentRangeStartTick--;
+            }
 
             // Could potentially be able to able do a single above donate now.
             if (currentRangeStartTick <= rewards[0].tick) {

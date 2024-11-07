@@ -1,14 +1,23 @@
 use std::sync::Arc;
 
-use alloy::{providers::Provider, pubsub::PubSubFrontend};
-use alloy_primitives::{Address, Bytes};
-use alloy_rpc_types::Transaction;
+use alloy::{
+    eips::{BlockId, BlockNumberOrTag},
+    network::Network,
+    primitives::{aliases::U24, Signed},
+    providers::Provider,
+    pubsub::PubSubFrontend,
+    transports::Transport
+};
+use alloy_primitives::{Address, BlockNumber};
 use angstrom::cli::StromHandles;
 use angstrom_eth::handle::Eth;
 use angstrom_network::{pool_manager::PoolHandle, PoolManagerBuilder, StromNetworkHandle};
 use angstrom_rpc::{api::OrderApiServer, OrderApi};
 use angstrom_types::{
+    contract_bindings::angstrom::Angstrom::PoolKey,
     contract_payloads::angstrom::{AngstromPoolConfigStore, UniswapAngstromRegistry},
+    pair_with_price::PairsWithPrice,
+    primitive::{PoolId as AngstromPoolId, UniswapPoolRegistry},
     sol_bindings::testnet::TestnetHub
 };
 use consensus::{AngstromValidator, ConsensusManager, ManagerNetworkDeps, Signer};
@@ -19,7 +28,7 @@ use order_pool::{order_storage::OrderStorage, PoolConfig};
 use reth_provider::CanonStateSubscriptions;
 use reth_tasks::TokioTaskExecutor;
 use secp256k1::SecretKey;
-use tokio_stream::wrappers::BroadcastStream;
+use validation::order::state::token_pricing::TokenPriceGenerator;
 
 use crate::{
     anvil_state_provider::{
@@ -64,23 +73,15 @@ impl AngstromTestnetNodeInternals {
         // let rewards_env =
         // MockRewardEnv::with_anvil(state_provider.provider()).await?;
 
-        // let sqrt_price_x96 =
-        // SqrtPriceX96::from(get_sqrt_ratio_at_tick(100020).unwrap());
-        // let tick_spacing = I24::unchecked_from(60);
-        // let pool_fee = U24::ZERO;
-        // let snapshot = PoolSnapshot::new(
-        //     vec![LiqRange::new(99900, 100140,
-        // 5_000_000_000_000_000_000_000_u128).unwrap()],     sqrt_price_x96
-        // )?;
-        // let pool_key = rewards_env
-        //     .create_pool_and_tokens_from_snapshot(tick_spacing, pool_fee, snapshot)
-        //     .await?;
+        let angstrom_addr = addresses.contract;
+        let pools = vec![PoolKey {
+            currency0:   addresses.token0,
+            currency1:   addresses.token1,
+            fee:         U24::from(0),
+            tickSpacing: Signed::<24, 1>::from_limbs([5]),
+            hooks:       addresses.hooks
+        }];
 
-        //   tracing::info!("deployed contracts to anvil");
-
-        // let angstrom_addr = angstrom_env.angstrom();
-        // let pools = vec![pool_key];
-        let pools = vec![];
         let pool = strom_handles.get_pool_handle();
         let executor: TokioTaskExecutor = Default::default();
         let tx_strom_handles = (&strom_handles).into();
@@ -98,8 +99,46 @@ impl AngstromTestnetNodeInternals {
         )
         .await?;
 
-        let uni_pools = SyncedUniswapPools::default();
-        let validator = TestOrderValidator::new(state_provider.provider(), uni_pools.clone());
+        let block_id = state_provider
+            .provider()
+            .provider()
+            .get_block_number()
+            .await
+            .unwrap();
+
+        let uniswap_registry: UniswapPoolRegistry = pools.into();
+
+        let uniswap_pool_manager = configure_uniswap_manager(
+            state_provider.provider().provider().into(),
+            state_provider.provider().subscribe_to_canonical_state(),
+            uniswap_registry.clone(),
+            block_id
+        )
+        .await;
+
+        let uniswap_pools = uniswap_pool_manager.pools();
+        tokio::spawn(async move { uniswap_pool_manager.watch_state_changes().await });
+
+        let token_conversion = TokenPriceGenerator::new(
+            state_provider.provider().provider().into(),
+            block_id,
+            uniswap_pools.clone()
+        )
+        .await
+        .expect("failed to start price generator");
+
+        let token_price_update_stream = state_provider.provider().canonical_state_stream();
+        let token_price_update_stream =
+            PairsWithPrice::into_price_update_stream(Address::default(), token_price_update_stream)
+                .boxed();
+
+        let validator = TestOrderValidator::new(
+            state_provider.provider(),
+            uniswap_pools.clone(),
+            token_conversion,
+            token_price_update_stream
+        )
+        .await;
 
         let pool_config = PoolConfig::default();
         let order_storage = Arc::new(OrderStorage::new(&pool_config));

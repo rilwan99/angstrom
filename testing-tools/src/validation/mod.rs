@@ -8,8 +8,9 @@ use std::{
 };
 
 use alloy_primitives::{Address, U256};
+use angstrom_types::pair_with_price::PairsWithPrice;
 use angstrom_utils::key_split_threadpool::KeySplitThreadpool;
-use futures::FutureExt;
+use futures::{FutureExt, Stream};
 use matching_engine::cfmm::uniswap::pool_manager::SyncedUniswapPools;
 use reth_provider::BlockNumReader;
 use tokio::sync::mpsc::unbounded_channel;
@@ -19,9 +20,10 @@ use validation::{
         order_validator::OrderValidator,
         sim::SimValidation,
         state::{
-            config::{load_data_fetcher_config, load_validation_config, ValidationConfig},
+            config::{load_validation_config, ValidationConfig},
             db_state_utils::{nonces::Nonces, FetchUtils},
-            pools::AngstromPoolsTracker
+            pools::AngstromPoolsTracker,
+            token_pricing::TokenPriceGenerator
         }
     },
     validator::{ValidationClient, Validator}
@@ -49,25 +51,43 @@ impl<
 where
     <DB as revm::DatabaseRef>::Error: Send + Sync + std::fmt::Debug
 {
-    pub fn new(db: DB, uniswap_pools: SyncedUniswapPools) -> Self {
+    pub async fn new(
+        db: DB,
+        uniswap_pools: SyncedUniswapPools,
+        token_conversion: TokenPriceGenerator,
+        token_updates: Pin<Box<dyn Stream<Item = Vec<PairsWithPrice>> + 'static>>
+    ) -> Self {
         let (tx, rx) = unbounded_channel();
         let config_path = Path::new("./state_config.toml");
-        let fetch_config = load_data_fetcher_config(config_path).unwrap();
         let validation_config = load_validation_config(config_path).unwrap();
-        tracing::debug!(?fetch_config, ?validation_config);
+
+        tracing::debug!(?validation_config);
         let current_block =
             Arc::new(AtomicU64::new(BlockNumReader::best_block_number(&db).unwrap()));
         let db = Arc::new(db);
 
-        let fetch = FetchUtils::new(fetch_config.clone(), db.clone());
+        let fetch = FetchUtils::new(Address::default(), db.clone());
         let pools = AngstromPoolsTracker::new(validation_config.pools.clone());
 
         let handle = tokio::runtime::Handle::current();
         let thread_pool =
             KeySplitThreadpool::new(handle, validation_config.max_validation_per_user);
-        let sim = SimValidation::new(db.clone());
-        let order_validator =
-            OrderValidator::new(sim, current_block, pools, fetch, uniswap_pools, thread_pool);
+        let sim = SimValidation::new(db.clone(), None);
+
+        // fill stream
+
+        let order_validator = OrderValidator::new(
+            sim,
+            current_block,
+            pools,
+            fetch,
+            uniswap_pools,
+            thread_pool,
+            token_conversion,
+            token_updates
+        )
+        .await;
+
         let val = Validator::new(rx, order_validator);
         let client = ValidationClient(tx);
 
@@ -89,7 +109,9 @@ where
     }
 
     pub fn generate_nonce_slot(&self, user: Address, nonce: u64) -> U256 {
-        Nonces.get_nonce_word_slot(user, nonce).into()
+        Nonces::new(Address::default())
+            .get_nonce_word_slot(user, nonce)
+            .into()
     }
 }
 

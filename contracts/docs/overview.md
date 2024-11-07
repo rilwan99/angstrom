@@ -1,4 +1,4 @@
-# Angstrom Contracts: The Big Picture
+# Overview
 
 ## Angstrom
 
@@ -41,9 +41,6 @@ submit the worst possible bundles ("worst" classified as a non-reverting bundle 
 extracted from users via e.g. worst-case trade execution) for the longest possible time, the
 slashing amount & kicking period will ensure that any user losses can be compensated via the
 slashed stake.
-- **Trustless Fee Master:** The configured `FEE_MASTER` address is a trustless contract that verifies
-and aggregates fee summaries such that it's only ever able to pull the otherwise unaccounted validator
-& referral fees from the contract.
 - **Well behaving routers:** Users will use sound routers to add & remove
 liquidity. A malicious router could steal rewards distributed in the beforeRemoveLiquidity hook.
 - **No fee-on-transfer/rebase tokens:** The controller will only whitelist tokens that transfer the
@@ -51,8 +48,16 @@ liquidity. A malicious router could steal rewards distributed in the beforeRemov
 own *decrease* over time.
 - **Environment is canonical L1 Ethereum:** The `Angstrom` contracts will only be deployed to the
 Ethereum L1 Mainnet or canonical testnets with identical semantics.
-- **The `_CONTROLLER` is sound:** The controller will maintain the approved set of nodes such that
-the _economic security assumption_ and _sufficiently staked assumption_ is maintained over time
+- **The `_controller` is sound:** The controller will maintain the approved set of nodes such that
+the _economic security assumption_ and _sufficiently staked assumption_ is maintained over time.
+Furthermore is will trustlessly verify that `pullFee` is only ever called for unclaimed amounts that
+have been committed to for later claiming via the fee summary events.
+- **Integrity of state dependencies:** Running off-chain the nodes of the Angstrom network expect to
+  be tightly coupled with builders meaning roughly it can expect that *most of the time* the way it
+  sees the chain will be the state when a bundle lands. This means that we assume DoS vectors from
+  modifying state dependencies e.g. ERC20 permits, token balances or hooks will be managed well.
+
+For more assumptions / known issues see [known-issues](./known-issues.md).
 
 ### Core
 
@@ -82,7 +87,6 @@ Bundle processing proceeds in the following stages:
 7. Settle remaining deltas with Uniswap
 8. Emit collected fee summary event
 
-
 #### Intra Bundle Accounting
 
 To ensure the contract remains solvent the [`DeltaTracker`](../src/types/DeltaTracker.sol) keeps
@@ -96,6 +100,9 @@ The _solvency_ invariant it maintains for every asset $\alpha$ is:
 Here a visualization of how each action in a bundle is accountd for:
 
 ![](./assets/angstrom-accounting.png)
+
+A component of general solvency that the core contract does not directly guarantee is amounts
+related to limit order fees (fees accrued via `feeInE6` & `maxExtraF`).
 
 #### Pool Config Store
 

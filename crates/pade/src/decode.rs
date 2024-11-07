@@ -47,13 +47,16 @@ impl<T: PadeDecode + Debug, const N: usize> PadeDecode for [T; N] {
 // Option<T: PadeEncode> encodes as an enum
 impl<T: PadeDecode> PadeDecode for Option<T> {
     fn pade_decode(buf: &mut &[u8], var: Option<u8>) -> Result<Self, PadeDecodeError> {
-        if buf.is_empty() {
-            return Err(PadeDecodeError::InvalidSize)
-        }
-        // check first byte;
-        let ctr = buf[0] != 0;
-        // progress buffer
-        *buf = &buf[1..];
+        let ctr = if let Some(v) = var {
+            v != 0
+        } else {
+            if buf.is_empty() {
+                return Err(PadeDecodeError::InvalidSize);
+            }
+            let result = buf[0] != 0;
+            *buf = &buf[1..];
+            result
+        };
 
         if ctr {
             Ok(Some(T::pade_decode(buf, var)?))
@@ -67,13 +70,16 @@ impl<T: PadeDecode> PadeDecode for Option<T> {
         width: usize,
         var: Option<u8>
     ) -> Result<Self, PadeDecodeError> {
-        if buf.is_empty() {
-            return Err(PadeDecodeError::InvalidSize)
-        }
-        // check first byte;
-        let ctr = buf[0] != 0;
-        // progress buffer
-        *buf = &buf[1..];
+        let ctr = if let Some(v) = var {
+            v != 0
+        } else {
+            if buf.is_empty() {
+                return Err(PadeDecodeError::InvalidSize);
+            }
+            let result = buf[0] != 0;
+            *buf = &buf[1..];
+            result
+        };
 
         if ctr {
             Ok(Some(T::pade_decode_with_width(buf, width, var)?))

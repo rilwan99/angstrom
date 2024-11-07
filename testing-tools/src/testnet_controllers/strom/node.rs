@@ -5,16 +5,14 @@ use std::{
     task::Poll
 };
 
-use alloy::{pubsub::PubSubFrontend, sol_types::SolValue};
-use alloy_primitives::{Address, Bytes};
-use alloy_rpc_types::Transaction;
+use alloy_primitives::Address;
 use angstrom::cli::StromHandles;
 use angstrom_network::{
     NetworkOrderEvent, StromNetworkEvent, StromNetworkHandle, StromNetworkManager
 };
 use angstrom_types::{
     primitive::PeerId,
-    sol_bindings::{grouped_orders::AllOrders, sol::ContractBundle, testnet::random::RandomValues}
+    sol_bindings::{grouped_orders::AllOrders, testnet::random::RandomValues}
 };
 use consensus::{AngstromValidator, ConsensusManager};
 use parking_lot::RwLock;

@@ -6,7 +6,7 @@ import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {IUniV4} from "../interfaces/IUniV4.sol";
 import {TickLib} from "../libraries/TickLib.sol";
 
-/// @dev Should accomodate all possible tick values.
+/// @dev Should accommodate all possible tick values.
 uint256 constant REWARD_GROWTH_SIZE = 16777216;
 
 struct PoolRewards {
@@ -28,16 +28,18 @@ library PoolRewardsLib {
         view
         returns (uint256 growthInside)
     {
-        uint256 lowerGrowth = self.rewardGrowthOutside[uint24(lower)];
-        uint256 upperGrowth = self.rewardGrowthOutside[uint24(upper)];
+        unchecked {
+            uint256 lowerGrowth = self.rewardGrowthOutside[uint24(lower)];
+            uint256 upperGrowth = self.rewardGrowthOutside[uint24(upper)];
 
-        if (current < lower) {
-            return lowerGrowth - upperGrowth;
+            if (current < lower) {
+                return lowerGrowth - upperGrowth;
+            }
+            if (upper <= current) {
+                return upperGrowth - lowerGrowth;
+            }
+            return self.globalGrowth - lowerGrowth - upperGrowth;
         }
-        if (upper <= current) {
-            return upperGrowth - lowerGrowth;
-        }
-        return growthInside = self.globalGrowth - lowerGrowth - upperGrowth;
     }
 
     /// @dev Update growth values for a valid tick move from `prevTick` to `newTick`. Expects
@@ -78,8 +80,10 @@ library PoolRewardsLib {
 
             if (newTick < tick) break;
             if (initialized) {
-                self.rewardGrowthOutside[uint24(tick)] =
-                    self.globalGrowth - self.rewardGrowthOutside[uint24(tick)];
+                unchecked {
+                    self.rewardGrowthOutside[uint24(tick)] =
+                        self.globalGrowth - self.rewardGrowthOutside[uint24(tick)];
+                }
             }
         }
     }
@@ -99,8 +103,10 @@ library PoolRewardsLib {
             if (tick <= newTick) break;
 
             if (initialized) {
-                self.rewardGrowthOutside[uint24(tick)] =
-                    self.globalGrowth - self.rewardGrowthOutside[uint24(tick)];
+                unchecked {
+                    self.rewardGrowthOutside[uint24(tick)] =
+                        self.globalGrowth - self.rewardGrowthOutside[uint24(tick)];
+                }
             }
             tick--;
         }

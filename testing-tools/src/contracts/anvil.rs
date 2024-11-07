@@ -8,7 +8,8 @@ use alloy::{
         Identity, RootProvider
     },
     pubsub::PubSubFrontend,
-    signers::local::PrivateKeySigner
+    signers::local::PrivateKeySigner,
+    transports::http::{Client, Http}
 };
 use alloy_primitives::{Address, Bytes};
 use tokio::sync::broadcast;

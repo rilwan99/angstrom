@@ -30,7 +30,6 @@ contract Angstrom is
     EIP712,
     OrderInvalidation,
     Settlement,
-    TopLevelAuth,
     PoolUpdates,
     IUnlockCallback,
     PermitSubmitterHook
@@ -38,10 +37,9 @@ contract Angstrom is
     error LimitViolated();
     error ToBGasUsedAboveMax();
 
-    constructor(IPoolManager uniV4, address controller, address feeMaster)
+    constructor(IPoolManager uniV4, address controller)
         UniConsumer(uniV4)
         TopLevelAuth(controller)
-        Settlement(feeMaster)
     {
         _checkAngstromHookFlags();
     }
@@ -148,23 +146,19 @@ contract Angstrom is
 
         bytes32 orderHash = typedHasher.hashTypedData(buffer.hash());
 
-        _invalidateOrderHash(orderHash);
-
         address from;
         (reader, from) = variantMap.isEcdsa()
             ? SignatureLib.readAndCheckEcdsa(reader, orderHash)
             : SignatureLib.readAndCheckERC1271(reader, orderHash);
 
+        _invalidateOrderHash(orderHash, from);
+
         address to = buffer.recipient;
-        assembly {
+        assembly ("memory-safe") {
             to := or(mul(iszero(to), from), to)
         }
-        _settleOrderIn(
-            from, buffer.assetIn, AmountIn.wrap(buffer.quantityIn), variantMap.useInternal()
-        );
-        _settleOrderOut(
-            to, buffer.assetOut, AmountOut.wrap(buffer.quantityOut), variantMap.useInternal()
-        );
+        _settleOrderIn(from, buffer.assetIn, AmountIn.wrap(buffer.quantityIn), buffer.useInternal);
+        _settleOrderOut(to, buffer.assetOut, AmountOut.wrap(buffer.quantityOut), buffer.useInternal);
 
         return reader;
     }
@@ -237,19 +231,19 @@ contract Angstrom is
             _checkDeadline(buffer.deadline_or_empty);
             _invalidateNonce(from, buffer.nonce_or_validForBlock);
         } else {
-            _invalidateOrderHash(orderHash);
+            _invalidateOrderHash(orderHash, from);
         }
 
         // Push before hook as a potential loan.
         address to = buffer.recipient;
-        assembly {
+        assembly ("memory-safe") {
             to := or(mul(iszero(to), from), to)
         }
-        _settleOrderOut(to, buffer.assetOut, amountOut, variantMap.useInternal());
+        _settleOrderOut(to, buffer.assetOut, amountOut, buffer.useInternal);
 
         hook.tryTrigger(from);
 
-        _settleOrderIn(from, buffer.assetIn, amountIn, variantMap.useInternal());
+        _settleOrderIn(from, buffer.assetIn, amountIn, buffer.useInternal);
 
         return reader;
     }
