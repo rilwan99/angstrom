@@ -383,30 +383,37 @@ pub struct AngstromTestnetConfig {
     pub metrics_port:        u16
 }
 
-#[derive(Debug, Clone, Deserialize)]
-pub struct NodeConfig {
-    pub secret_key:       String,
-    pub angstrom_address: Address,
-    pub pools:            Vec<PoolKey>
-}
+// #[derive(Debug, Clone, Deserialize)]
+// pub struct NodeConfig {
+//     pub secret_key:       String,
+//     pub angstrom_address: Address,
+//     pub pools:            Vec<PoolKey>
+// }
 
-impl NodeConfig {
-    pub fn load_from_config(config: Option<PathBuf>) -> Result<Self, eyre::Report> {
-        let config_path = config.ok_or_else(|| eyre::eyre!("Config path not provided"))?;
+// impl NodeConfig {
+//     pub fn load_from_config(config: Option<PathBuf>) -> Result<Self,
+// eyre::Report> {         let config_path = config.ok_or_else(||
+// eyre::eyre!("Config path not provided"))?;
 
-        if !config_path.exists() {
-            return Err(eyre::eyre!("Config file does not exist at {:?}", config_path))
-        }
+//         if !config_path.exists() {
+//             return Err(eyre::eyre!("Config file does not exist at {:?}",
+// config_path))         }
 
-        let toml_content = std::fs::read_to_string(&config_path)
-            .wrap_err_with(|| format!("Could not read config file {:?}", config_path))?;
+//         let toml_content = std::fs::read_to_string(&config_path)
+//             .wrap_err_with(|| format!("Could not read config file {:?}",
+// config_path))?;
 
-        let node_config: NodeConfig = toml::from_str(&toml_content)
-            .wrap_err_with(|| format!("Could not deserialize config file {:?}", config_path))?;
+//         let node_config: NodeConfig =
+// toml::from_str(&toml_content).wrap_err_with(|| {             format!(
+//                 "Could not deserialize config file
+// {:?}",
+//                 config_path
+//             )
+//         })?;
 
-        Ok(node_config)
-    }
-}
+//         Ok(node_config)
+//     }
+// }
 
 async fn init_metrics(metrics_port: u16) {
     let _ = initialize_prometheus_metrics(metrics_port)
